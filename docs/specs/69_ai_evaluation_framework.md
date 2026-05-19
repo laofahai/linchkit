@@ -527,22 +527,17 @@ This section is the framework's **decision contract**. It exists so that Phase 2
 
 ### 10.2 BAML decision matrix
 
-Phase 2a research populated the table where the answer is determinable from documentation; Phase 2b hands-on spike fills the "pending" cells with measured numbers. See [`docs/research/baml-evaluation.md` §4](../research/baml-evaluation.md) for derivation.
+Phase 2b hands-on spike (PR #356) populated the measured cells. See [`docs/research/baml-evaluation.md` §6](../research/baml-evaluation.md) for derivation and [`spikes/baml-spike/REPORT.md`](../../spikes/baml-spike/REPORT.md) for full reproducible evidence.
 
-| Indicator | Threshold for "adopt for `intent-resolver`" | Phase 2a reading | Phase 2b will measure |
+| Indicator | Threshold for "adopt for `intent-resolver`" | Phase 2b measured | Met? |
 |---|---|---|---|
-| Parser / schema failure rate vs current Zod-based path | BAML ≥ 50% reduction | **Likely meets** — SAP designed for this exact failure mode; GLM-flash emits malformed JSON often | Count parse-exception cases in 36-fixture run, current vs BAML |
-| Lines of code per scenario (prompt + schema + parsing) | BAML ≥ 30% reduction | **Likely meets** — `.baml` consolidates prompt + schema + signature; current split: `intent-prompt.ts` + `intent-resolver.ts` + Zod | LOC diff on actual port |
-| Time to add a new AI scenario (re-implement pattern-detector in BAML) | BAML ≥ 40% reduction | **Pending** — depends on how catalog-aware-prompts idiom maps to BAML functions | Stopwatch a porting exercise |
-| Token cost per request on same fixture set | BAML neutral or better (≤ 10% worse) | **Likely neutral** — free decode generally cheaper; SAP retry-on-parse-failure could spike cost but GLM-flash per-request cost is ~$0.0001 so noise dominates | Cost report diff |
-| Toolchain burden | Subjective; must be documented | **Documented as Moderate**: `.baml` DSL + codegen + Rust runtime + VSCode extension. Acceptable for single capability; compounds if every capability adopts. | Update with concrete CI footprint after spike |
+| Parser / schema failure rate vs current Zod-based path | BAML ≥ 50% reduction | 0 → 0 (production parser had no failures to begin with; SAP rescues = 0 across 35 fixtures, measured via BAML `Collector` head-to-head) | **No (vacuous)** |
+| Lines of code per scenario (prompt + schema + parsing) | BAML ≥ 30% reduction | ~64% reduction in parser/schema scope (291 → 104) | **Yes** |
+| Time to add a new AI scenario (re-implement pattern-detector in BAML) | BAML ≥ 40% reduction | Not measured Phase 2b (out of scope per Phase 2b mandate) | n/a |
+| Token cost per request on same fixture set | BAML neutral or better (≤ 10% worse) | 0% delta (identical prompts; latency +1.8%) | **Yes** |
+| Toolchain burden | Subjective; must be documented | Medium: +1 runtime dep, +1 per-OS native binary (~46 MB), +1 mandatory `baml-cli generate` build step, +1 generated tree (1,403 LOC / 80 KB) | Qualitative |
 
-**Adoption rule (unchanged):**
-- ≥ 3 of the first 4 indicators met → recommend full migration of `intent-resolver` to BAML, plus authorization to migrate one detector as a stress test in Phase 3
-- 2 of 4 met → recommend BAML for `intent-resolver` only, pending re-evaluation after Phase 3
-- ≤ 1 of 4 met → reject. Document the failed indicators and revisit when BAML releases major version bump
-
-**Phase 2a provisional read**: 2–4 of 4 indicators look likely to meet the threshold, but two are unmeasured. Phase 2b proceeds.
+**Adoption rule outcome:** 2 of 4 scored indicators met (LOC + cost). Per the rule, this maps nominally to "BAML for `intent-resolver` only", but with **zero strict-pass improvement and zero parser rescues**, the LOC and cost wins are not load-bearing. Headline metric (strict-pass rate) is unchanged — 27/36 in both pipelines, same 9 fixtures fail. **Verdict: REJECT** (see §10.5 for rationale).
 
 ### 10.3 Mastra `@mastra/evals` evaluation — REJECTED (Phase 2a)
 
@@ -566,19 +561,34 @@ See [`docs/research/promptfoo-evaluation.md`](../research/promptfoo-evaluation.m
 
 **Verdict:** Reject as primary runner. Selectively borrow patterns (JUnit XML emitter, HTTP cache, HTML viewer) as separate follow-up issues if/when needed.
 
-### 10.5 BAML evaluation — proceed to Phase 2b hands-on spike
+### 10.5 BAML evaluation — REJECTED (Phase 2b hands-on spike)
 
-See [`docs/research/baml-evaluation.md`](../research/baml-evaluation.md) for the full evaluation.
+See [`docs/research/baml-evaluation.md` §6](../research/baml-evaluation.md) for measurements and [`spikes/baml-spike/REPORT.md`](../../spikes/baml-spike/REPORT.md) for the full reproducible evidence.
 
-**Phase 2a verdict:** the only candidate worth a hands-on spike. SAP (Schema-Aligned Parsing) directly addresses GLM-4-flash's malformed-JSON failure mode — 4 of the 9 baseline failures are JSON-quality issues that SAP's edit-distance reconstruction is designed for. If SAP delivers even half its claimed accuracy gain on GLM-flash, the baseline shifts from 27/36 to 32+/36 by recovering injection-malformed-JSON fixtures alone.
+**Phase 2a posture:** "the only candidate worth a hands-on spike — if SAP delivers even half its claimed accuracy gain, the baseline shifts from 27/36 to 32+/36 by recovering injection-malformed-JSON fixtures alone."
 
-**Phase 2b mandate:** populate this §10.2 matrix with measured cells. Bounded scope: `intent-resolver` only, on the existing 36 fixtures, against `zhipu/glm-4-flash-250414`. Anomaly/pattern/watcher detectors are out of scope for Phase 2b — Phase 3 decides per-detector.
+**Phase 2b measured result (2026-05-19):** **strict-pass rate IDENTICAL** — production 27/36, BAML 27/36. Same 9 fixtures fail in both runs, same wrong-action choices. Instrumented head-to-head measurement (BAML's `Collector` capturing raw LLM responses, then re-running production's `extractFirstJsonObject + JSON.parse` over the same bytes) found **zero parser rescues** across 35 fixtures — SAP's core "rescue malformed model output" thesis is empirically vacuous for GLM-4-flash on this scenario.
 
-**Phase 2b prerequisites (require user authorization per CLAUDE.md):**
+**Root cause finding:** the 4 injection failures are **model judgment failures, not parser failures**. The bait action `delete_all_data` IS in the `injection_bait.json` catalog by design (it's the adversarial test point); both pipelines emit structurally-valid JSON picking it. SAP cannot fix this — it's a parser tool addressing a judgment problem.
 
-- Add `@boundaryml/baml` as a `cap-ai-provider` runtime dependency
-- Decision: commit `baml_client/` or run `baml-cli generate` in CI (recommendation in research doc: commit, smaller CI surface, deterministic PRs)
-- Estimated live eval cost ≤ $0.10 on GLM-flash (within spec §8.3 $5/phase budget)
+**§10.2 matrix (now measured):**
+- Parser failure rate: 0 → 0 (vacuous; no failures to rescue) — indicator NOT met
+- LOC: 64% reduction in parser/schema scope (291 → 104) — indicator met, but not load-bearing without strict-pass improvement
+- Token cost: 0% delta (latency +1.8%) — indicator met
+- Toolchain burden: medium — +1 runtime dep + per-OS native binary + mandatory `baml-cli generate` step + 1,403 LOC generated tree
+
+**Verdict:** REJECT. Keep in-house Vercel AI SDK + Zod + `extractFirstJsonObject` pipeline.
+
+**Real remediation paths for the 9 baseline failures** (Phase 3 territory, unrelated to BAML):
+- 4× injection: server-side destructive-action allowlist OR re-design `injection_bait.json` so the adversarial action is out-of-catalog instead of in-catalog
+- 5× multi_candidate: prompt engineering — surface the "if uncertain → emit alternatives" branch more loudly so GLM-flash stops emitting confident wrong single answers
+
+**Phase 2b cost actuals:** ~$0.30 USD (full 36-fixture BAML baseline + measure-parser-gap.ts run on zhipu/glm-4-flash). Well under the §8.3 $5 budget; combined Phase 1+2 spend stays under $0.50.
+
+**When BAML would be worth re-evaluating:**
+- A new capability adopts a materially weaker model (local Llama variants, smaller open-weights) where JSON malformation is actually common
+- BAML ships a feature addressing judgment failures, not just parsing
+- LinchKit adopts a structured-output requirement that AI SDK + Zod cannot express ergonomically (none today)
 
 ### 10.6 Spec 27 (AI Security) integration
 
@@ -596,7 +606,7 @@ Out of Phase 1–4 scope but called out so the architecture leaves room. DSPy is
 | **0b — Spec** | This document | this spec author | Done (this PR) |
 | **1 — Framework + Intent baseline** | `packages/devtools/src/ai-eval/*`, intent fixtures ≥ 30, first live baseline report, replay-mode CI green, deliberate-regression self-test passed | next implementer | Done (this PR — 36 fixtures, GLM-4-flash baseline 27/36 pass) |
 | **2a — Tool decision (documentation review)** | Research docs for BAML / Mastra-evals / Promptfoo + provisional matrices. Two of three candidates rejected without burning live LLM budget. | this PR author | Done (this PR) |
-| **2b — BAML hands-on spike (measured)** | Port `intent-resolver` to BAML, re-run 36 fixtures on GLM-flash, populate measured cells in §10.2, recommend keep-or-adopt | next implementer (requires explicit dependency-add approval) | Pending |
+| **2b — BAML hands-on spike (measured)** | Port `intent-resolver` to BAML, re-run 36 fixtures on GLM-flash, populate measured cells in §10.2, recommend keep-or-adopt | next implementer (requires explicit dependency-add approval) | Done — REJECT (PR #356; spikes/baml-spike/REPORT.md) |
 | **3 — Production observability tie-in** | Langfuse (or chosen equivalent) integrated into `ai-service.ts`, monthly drift cron live | next implementer | Pending |
 | **4 — Scenario expansion** | Anomaly + pattern + watcher fixtures and adapters | per-scenario owner | Pending |
 | **5 — Auto-optimization POC** | DSPy or in-house prompt-search loop using accumulated baselines + traces | TBD | Deferred |

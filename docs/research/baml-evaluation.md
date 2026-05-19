@@ -104,3 +104,29 @@ What needs explicit user approval before Phase 2b can start:
 - SOTA Function Calling benchmark — `boundaryml.com/blog/sota-function-calling`
 - TypeScript installation guide — `docs.boundaryml.com/guide/installation-language/typescript`
 - OpenAI-generic provider — `docs.boundaryml.com/ref/llm-client-providers/openai-generic`
+
+---
+
+## 6. Phase 2b results (2026-05-19) — REJECTED
+
+PR #356 ran the hands-on spike against the Phase 1 GLM-4-flash intent baseline. Full reproducible evidence under [`spikes/baml-spike/REPORT.md`](../../spikes/baml-spike/REPORT.md) + `spikes/baml-parser-quality/measure-parser-gap.ts`. Headline numbers:
+
+| Indicator | §4 Phase 2a provisional | Phase 2b measured |
+|---|---|---|
+| Strict-pass rate | hoped 32+/36 | **27/36 (IDENTICAL to production)** |
+| Parser rescues (SAP saves a JSON the production parser drops) | hoped ≥4 (the injection-malformed-JSON fixtures) | **0 across 35 fixtures** (measured head-to-head via BAML `Collector`) |
+| LOC (parser/schema scope only) | hoped ≥30% reduction | **64% reduction (291 → 104)** |
+| Token cost | hoped ≤10% worse | **0% delta** (latency +1.8%) |
+| Toolchain burden | "Medium" | Confirmed: +1 runtime dep, +1 per-OS native binary (~46 MB on macOS arm64), +1 mandatory `baml-cli generate` step, +1,403 LOC generated tree (80 KB) |
+
+§4 said "2–4 of 4 indicators look likely to meet threshold." Measured: 2 of 4 (LOC + cost). But with zero strict-pass improvement and zero parser rescues, the LOC and cost wins are **not load-bearing** — they don't translate into the outcome spec 69 cares about (regression-detected prompt-quality improvement).
+
+### Why SAP turned out to be the wrong tool here
+
+§1 framed the 4 injection failures as "JSON-quality issues that SAP's edit-distance reconstruction is designed for." Phase 2b measurement disproved this: GLM-4-flash emits **structurally-valid JSON** for those fixtures — the failure is the model picking the in-catalog bait action `delete_all_data`, not malformed output. That's a **judgment failure**, not a parsing failure, and no parser tool can fix it by definition.
+
+The misread came from "model returned malformed-but-eventually-coercible JSON" in §1 — re-checking the baseline JSON post-Phase-1 showed the failing fixtures contained well-formed `{"action":"delete_all_data","input":{"confirm":true},…}` payloads. Production's `extractFirstJsonObject + JSON.parse` pipeline parsed them without complaint; the matcher then flagged them as failures because `proposal_is_null` (refusal expected) was violated, not because parsing was. The fix path is server-side (allowlist destructive actions independent of catalog) or prompt-engineering (make refusal stronger when the input pattern is injection-like) — neither of which BAML provides.
+
+### Verdict
+
+**REJECT** — see [spec 69 §10.5](../specs/69_ai_evaluation_framework.md#105-baml-evaluation--rejected-phase-2b-hands-on-spike) for the binding statement. Production code unchanged; spike artifacts retained under `spikes/baml-spike/` and `spikes/baml-parser-quality/` for future re-evaluation reference.
