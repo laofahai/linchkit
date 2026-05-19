@@ -176,6 +176,46 @@ describe("resolveIntent — happy path", () => {
     expect(ai.calls[0]?.options.tenantId).toBe("tenant-a");
   });
 
+  it("forwards an explicit `model` to ai.complete when caller pins one (Spec 69 P2)", async () => {
+    // Without this, --model on the eval CLI is recorded in the report but
+    // the AIService still uses its configured default → mislabeled baselines.
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_vendor",
+        input: { name: "Acme" },
+        confidence: 0.8,
+        explanation: "Create vendor Acme",
+      }),
+    );
+
+    await resolveIntent(
+      { prompt: "Add vendor Acme", model: "claude-haiku-4-5-20251001" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(ai.calls).toHaveLength(1);
+    expect(ai.calls[0]?.options.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("omits `model` from ai.complete when caller did not pin one (preserves default)", async () => {
+    const ai = makeFakeAi(
+      JSON.stringify({
+        action: "create_vendor",
+        input: { name: "Acme" },
+        confidence: 0.8,
+        explanation: "Create vendor Acme",
+      }),
+    );
+
+    await resolveIntent(
+      { prompt: "Add vendor Acme" },
+      { ai: ai.service, ontology: makeOntology() },
+    );
+
+    expect(ai.calls).toHaveLength(1);
+    expect(ai.calls[0]?.options.model).toBeUndefined();
+  });
+
   it("parses JSON wrapped in Markdown code fences", async () => {
     const ai = makeFakeAi(
       "```json\n" +

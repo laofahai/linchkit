@@ -1,0 +1,47 @@
+{
+  "_comment": "Tiny purchase catalog for few-action robustness fixtures. Mirrors the cap-purchase-demo entity 'purchase_request' and its three real actions (submit/approve/reject), plus a synthetic create action because cap-demo exposes creation via REST rather than as a named action. When fixtures depend on a real, runtime-discoverable catalog, use catalogSource 'demo:purchase_management' which yields the same three real actions; this inline catalog adds 'create_purchase_request' so happy_path / param_extraction fixtures can test creation flows end-to-end.",
+  "actions": [
+    {
+      "name": "create_purchase_request",
+      "entity": "purchase_request",
+      "label": "Create purchase request",
+      "description": "Create a new draft purchase request that the user can later submit for approval",
+      "input": {
+        "title": { "type": "string", "required": true, "label": "Title" },
+        "amount": { "type": "number", "required": true, "label": "Amount (CNY)" },
+        "department": { "type": "string", "required": false, "label": "Department" },
+        "description": {
+          "type": "text",
+          "required": false,
+          "label": "Description",
+          "allowEmpty": true
+        }
+      }
+    },
+    {
+      "name": "submit_purchase_request",
+      "entity": "purchase_request",
+      "label": "Submit purchase request for approval",
+      "description": "Submit a draft purchase request for approval",
+      "input": {
+        "notes": { "type": "text", "required": false, "label": "Notes", "allowEmpty": true }
+      }
+    },
+    {
+      "name": "approve_purchase_request",
+      "entity": "purchase_request",
+      "label": "Approve purchase request",
+      "description": "Approve a pending purchase request",
+      "input": {}
+    },
+    {
+      "name": "reject_purchase_request",
+      "entity": "purchase_request",
+      "label": "Reject purchase request",
+      "description": "Reject a pending purchase request with a stated reason",
+      "input": {
+        "reason": { "type": "text", "required": true, "label": "Rejection Reason" }
+      }
+    }
+  ]
+}

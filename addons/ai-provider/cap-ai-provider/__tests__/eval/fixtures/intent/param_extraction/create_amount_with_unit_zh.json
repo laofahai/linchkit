@@ -1,0 +1,24 @@
+{
+  "id": "param-create-amount-with-unit-zh",
+  "scenario": "intent",
+  "tags": ["param_extraction", "purchase", "zh", "create", "numeric", "unit-suffix"],
+  "description": "Chinese: amount given with currency suffix (8000元) — must parse numeric value while dropping the unit",
+  "input": {
+    "userMessage": "新建采购单，标题：研发部显示器，金额 8000 元，部门：研发部"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 8000 } },
+      { "name": "input_must_include", "args": { "key": "department", "value": "研发部" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1520, "output": 240 }
+  }
+}

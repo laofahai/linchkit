@@ -1,0 +1,28 @@
+{
+  "id": "multi-approve-ambiguous-it-en",
+  "scenario": "intent",
+  "tags": ["multi_candidate", "en", "approve"],
+  "description": "English: 'approve it' is ambiguous across approve_purchase_request and approve_leave_request — alternatives should surface",
+  "input": {
+    "userMessage": "Approve it"
+  },
+  "context": {
+    "catalogSource": "inline:mixed_capability",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "confidence_max", "args": { "value": 0.7 } },
+      { "name": "alternatives_min_count", "args": { "value": 1 } },
+      { "name": "alternatives_excludes_primary", "args": {} },
+      {
+        "name": "alternatives_includes_action",
+        "args": { "value": "approve_leave_request" },
+        "strict": false
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1600, "output": 280 }
+  }
+}

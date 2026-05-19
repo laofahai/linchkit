@@ -1,0 +1,22 @@
+{
+  "id": "typo-colloquial-pizhun-zh",
+  "scenario": "intent",
+  "tags": ["typo_colloquial", "purchase", "zh", "approve", "colloquial"],
+  "description": "Chinese: very informal phrasing '签了吧' (literally 'just sign it') maps to approve_purchase_request",
+  "input": {
+    "userMessage": "这单子没问题，签了吧"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "approve_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.5 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1800, "output": 200 }
+  }
+}

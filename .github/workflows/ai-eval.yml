@@ -1,0 +1,164 @@
+name: AI Eval (prompt-quality)
+
+# Implements spec 69's two-tier regression strategy:
+#   • §9.2 — every PR touching prompt/eval surface runs offline REPLAY against
+#     the committed canonical baseline. Zero LLM cost, zero secrets required.
+#     This is the gate that actually blocks merges.
+#   • §9.3 — LIVE eval against the real LLM is gated behind workflow_dispatch
+#     so maintainers explicitly opt in (and pay the cost / consume the
+#     model quota). Same-repo only; fork PRs are skipped (secrets policy).
+#
+# Why this split: not every repo has provider secrets configured. The repo
+# default provider (zhipu/GLM here, per config/linchkit.config.ts) requires
+# ZHIPU_API_KEY; absent secrets must not silently break CI. Replay-only
+# gives spec 69 a useful CI presence even on a bare-bones repo.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      # Production prompt + resolver — the actual code spec 69 protects.
+      # Changes here MUST trigger a regression check even when no fixtures
+      # or framework code changed (per Codex R4-P2 fix).
+      - 'addons/ai-provider/cap-ai-provider/src/intent-prompt.ts'
+      - 'addons/ai-provider/cap-ai-provider/src/intent-resolver.ts'
+      # Eval-side wiring: scenario adapter + bin entry + framework.
+      - 'addons/ai-provider/cap-ai-provider/eval-runner/**'
+      - 'addons/ai-provider/cap-ai-provider/bin/ai-eval.ts'
+      - 'addons/ai-provider/cap-ai-provider/__tests__/eval/fixtures/intent/**'
+      - 'addons/ai-provider/cap-ai-provider/__tests__/eval/catalogs/**'
+      - 'addons/ai-provider/cap-ai-provider/__tests__/eval/baselines/**'
+      - 'packages/devtools/src/ai-eval/**'
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario to evaluate (intent / anomaly / pattern / watcher)
+        required: true
+        default: intent
+        type: string
+      max_cost_usd:
+        description: Hard cost ceiling in USD (live mode)
+        required: true
+        default: '5'
+        type: string
+
+jobs:
+  # Tier-1: offline replay — no secrets, runs on every relevant PR.
+  intent-eval-replay:
+    name: Intent Eval (replay)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run replay eval (intent)
+        # No AI_EVAL_LIVE — pure replay against committed canonical baseline.
+        # `set -o pipefail` is critical: without it, `tee`'s exit 0 hides a
+        # non-zero exit from `bun run ai:eval` and the regression gate would
+        # silently pass on failed evals (Codex R5-P1).
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run ai:eval \
+            --scenario intent \
+            --report-json "ai-eval-report.json" \
+            | tee ai-eval-report.md
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-replay-report-${{ github.run_id }}
+          path: |
+            ai-eval-report.md
+            ai-eval-report.json
+          retention-days: 30
+
+  # Tier-2: live eval against real LLM. Manual trigger only.
+  # Requires the active provider's API key in repo secrets (see step 1 below).
+  intent-eval-live:
+    name: Intent Eval (live, manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      # Forward every provider key the project might be configured to use.
+      # The CLI picks the active provider from config/linchkit.config.ts;
+      # only that key needs a non-empty secret value — others are ignored.
+      ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
+      AI_EVAL_LIVE: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Verify active provider key is configured
+        # Parse the active provider out of linchkit.config.ts and assert the
+        # matching env var is non-empty. Stays in lockstep with the CLI's
+        # actual provider resolution (loadRepoAIConfig) — no hardcoded
+        # provider name.
+        shell: bash
+        run: |
+          set -e
+          PROVIDER=$(grep -oE 'defaultProvider:[[:space:]]*"[^"]+"' config/linchkit.config.ts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$PROVIDER" ]; then
+            echo "::error::Could not parse ai.defaultProvider from config/linchkit.config.ts"
+            exit 1
+          fi
+          case "$PROVIDER" in
+            anthropic)   REQUIRED=ANTHROPIC_API_KEY ;;
+            zhipu)       REQUIRED=ZHIPU_API_KEY ;;
+            openai)      REQUIRED=OPENAI_API_KEY ;;
+            openrouter)  REQUIRED=OPENROUTER_API_KEY ;;
+            volcengine)  REQUIRED=VOLCENGINE_API_KEY ;;
+            *)
+              echo "::error::Unknown provider \"$PROVIDER\" — add a case in ai-eval.yml."
+              exit 1 ;;
+          esac
+          if [ -z "${!REQUIRED}" ]; then
+            echo "::error::Active provider is \"$PROVIDER\" but \$$REQUIRED is not set in repo secrets."
+            exit 1
+          fi
+          echo "Active provider: $PROVIDER (using \$$REQUIRED)"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run live eval (intent)
+        # NO --refresh-baseline. Live runs are measurement-only; canonical
+        # baseline is refreshed by the PR author locally via
+        # `AI_EVAL_LIVE=1 bun run ai:eval --scenario intent --refresh-baseline`
+        # and committed alongside the prompt change. This prevents CI from
+        # silently moving the regression bar (spec 69 §6.3, §9.2).
+        shell: bash
+        run: |
+          set -o pipefail
+          SCENARIO="${{ github.event.inputs.scenario || 'intent' }}"
+          CAP="${{ github.event.inputs.max_cost_usd || '5' }}"
+          bun run ai:eval \
+            --scenario "$SCENARIO" \
+            --max-cost-usd "$CAP" \
+            --report-json "ai-eval-report.json" \
+            | tee ai-eval-report.md
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-eval-live-report-${{ github.run_id }}
+          path: |
+            ai-eval-report.md
+            ai-eval-report.json
+          retention-days: 30

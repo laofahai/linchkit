@@ -1,0 +1,23 @@
+{
+  "id": "typo-colloquial-synonym-tui-zh",
+  "scenario": "intent",
+  "tags": ["typo_colloquial", "purchase", "zh", "reject", "synonym"],
+  "description": "Chinese: colloquial synonym '退掉' (≈ reject/turn down) instead of standard 驳回 — should still resolve to reject_purchase_request",
+  "input": {
+    "userMessage": "退掉张三那个采购，理由：不合规"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "reject_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.5 } },
+      { "name": "input_must_include", "args": { "key": "reason", "value": "不合规" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1850, "output": 230 }
+  }
+}

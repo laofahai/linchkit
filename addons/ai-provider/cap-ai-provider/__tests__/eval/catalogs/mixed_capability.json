@@ -1,0 +1,55 @@
+{
+  "_comment": "Mixed-capability catalog used by 'multi_candidate' tag fixtures. Contains 6 actions spanning two entities (purchase_request + leave_request — leave_request is synthetic, not in cap-demo). Pairs of similar verbs (submit_*, approve_*) deliberately set up ambiguity so fixtures can verify the resolver surfaces alternatives when confidence is below 0.7.",
+  "actions": [
+    {
+      "name": "submit_purchase_request",
+      "entity": "purchase_request",
+      "label": "Submit purchase request",
+      "description": "Submit a draft purchase request for approval",
+      "input": {
+        "notes": { "type": "text", "required": false, "label": "Notes", "allowEmpty": true }
+      }
+    },
+    {
+      "name": "submit_leave_request",
+      "entity": "leave_request",
+      "label": "Submit leave request",
+      "description": "Submit a draft leave (vacation/PTO) request for approval",
+      "input": {
+        "notes": { "type": "text", "required": false, "label": "Notes", "allowEmpty": true }
+      }
+    },
+    {
+      "name": "approve_purchase_request",
+      "entity": "purchase_request",
+      "label": "Approve purchase request",
+      "description": "Approve a pending purchase request",
+      "input": {}
+    },
+    {
+      "name": "approve_leave_request",
+      "entity": "leave_request",
+      "label": "Approve leave request",
+      "description": "Approve a pending leave request",
+      "input": {}
+    },
+    {
+      "name": "reject_purchase_request",
+      "entity": "purchase_request",
+      "label": "Reject purchase request",
+      "description": "Reject a pending purchase request with a reason",
+      "input": {
+        "reason": { "type": "text", "required": true, "label": "Rejection Reason" }
+      }
+    },
+    {
+      "name": "reject_leave_request",
+      "entity": "leave_request",
+      "label": "Reject leave request",
+      "description": "Reject a pending leave request with a reason",
+      "input": {
+        "reason": { "type": "text", "required": true, "label": "Rejection Reason" }
+      }
+    }
+  ]
+}

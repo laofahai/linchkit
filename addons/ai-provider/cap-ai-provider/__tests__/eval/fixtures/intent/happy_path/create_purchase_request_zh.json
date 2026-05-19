@@ -1,0 +1,24 @@
+{
+  "id": "happy-create-purchase-request-zh",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "zh", "create"],
+  "description": "Chinese: explicit creation of a new purchase request with title + amount — uses inline tiny_purchase catalog because cap-demo exposes creation via REST rather than as a named action",
+  "input": {
+    "userMessage": "帮我创建一个采购单，标题：办公电脑采购，金额 5000"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 5000 } },
+      { "name": "input_must_include", "args": { "key": "title", "value": "办公电脑采购" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1500, "output": 220 }
+  }
+}

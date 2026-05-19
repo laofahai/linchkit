@@ -1,0 +1,23 @@
+{
+  "id": "typo-colloquial-gao-yi-xia-zh",
+  "scenario": "intent",
+  "tags": ["typo_colloquial", "purchase", "zh", "create", "colloquial"],
+  "description": "Chinese: very colloquial '搞个采购，金额5k' should resolve to create_purchase_request with amount 5000",
+  "input": {
+    "userMessage": "搞个采购，金额5k，标题：测试机器"
+  },
+  "context": {
+    "catalogSource": "inline:tiny_purchase",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "create_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.5 } },
+      { "name": "input_must_include", "args": { "key": "amount", "value": 5000 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1500, "output": 230 }
+  }
+}

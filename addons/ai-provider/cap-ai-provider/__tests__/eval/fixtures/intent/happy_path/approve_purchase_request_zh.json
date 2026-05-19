@@ -1,0 +1,22 @@
+{
+  "id": "happy-approve-purchase-request-zh",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "zh", "approve"],
+  "description": "Chinese: explicit approval of a pending purchase request — should map to approve_purchase_request",
+  "input": {
+    "userMessage": "批准这个采购申请"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "approve_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1800, "output": 200 }
+  }
+}

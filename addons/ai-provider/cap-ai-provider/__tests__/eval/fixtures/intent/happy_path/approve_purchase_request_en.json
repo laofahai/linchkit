@@ -1,0 +1,23 @@
+{
+  "id": "happy-approve-purchase-request-en",
+  "scenario": "intent",
+  "tags": ["happy_path", "purchase", "en", "approve"],
+  "description": "English: explicit approve command on a known purchase request ID — should map to approve_purchase_request",
+  "input": {
+    "userMessage": "Please approve purchase request PR-001"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "approve_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1800, "output": 200 },
+    "notes": "approve_purchase_request takes no input fields in cap-demo; record/target ID is conveyed at execution time."
+  }
+}

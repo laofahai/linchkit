@@ -50,6 +50,14 @@ export { AnomalyDetector } from "./anomaly-detector";
 export type { ModelPricing } from "./cost-estimator";
 export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
 
+// NOTE: the AI Eval scenario adapter (spec 69) is intentionally NOT exported
+// from the package root. It lives in `<cap-ai-provider>/eval-runner/` —
+// outside `src/` and therefore outside the published `files` allowlist —
+// because it depends on `@linchkit/devtools` (a devDependency). Re-exporting
+// it here would leak that devtools import path into the runtime surface of
+// any downstream consumer that imports `@linchkit/cap-ai-provider`. The bin
+// entry script under `bin/ai-eval.ts` reaches into `eval-runner/` directly.
+//
 // Intent Resolver (Spec 52 Phase 0 PoC — natural language → ActionProposal)
 export type { ActionCatalogEntry } from "./intent-prompt";
 export { buildIntentSystemPrompt } from "./intent-prompt";

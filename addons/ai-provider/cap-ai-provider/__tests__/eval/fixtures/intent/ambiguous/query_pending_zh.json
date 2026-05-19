@@ -1,0 +1,23 @@
+{
+  "id": "ambiguous-query-pending-zh",
+  "scenario": "intent",
+  "tags": ["ambiguous", "zh", "read-not-write", "refusal-expected"],
+  "description": "Chinese: a query/read intent ('查一下我未处理的采购申请') — resolver should refuse since reads go through GraphQL, not Actions",
+  "input": {
+    "userMessage": "查一下我未处理的采购申请"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "proposal_is_null", "args": {} },
+      { "name": "confidence_max", "args": { "value": 0.5 }, "strict": false }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1760, "output": 180 },
+    "notes": "Per CLAUDE.md: 'Action as Sole Write Entry — All mutations flow through Actions. GraphQL handles reads only.' No read action exists in the catalog, so resolver should refuse."
+  }
+}

@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 71 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 72 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -102,6 +102,7 @@ Capability definition, extension, composition, and distribution.
 | [52](./52_ai_deep_integration.md) | AI Deep Integration | AI as primary interface — NL → defineXxx(), intent parsing, conversational Flow | M2+ | Draft |
 | [58](./58_mcp_client_registry.md) | MCP Client Registry | AI Agent access management — client registration, per-client auth, tool visibility, management UI | M2 | Done |
 | [60](./60_ai_workspace.md) | AI Workspace | Two-layer AI architecture (dev-time + runtime), AGENTS.md generation, MCP integration | M3 | Partial |
+| [69](./69_ai_evaluation_framework.md) | AI Evaluation Framework | Cross-scenario prompt-quality regression + cost-governed live evals; fixture schema, matcher catalog, BAML/Mastra decision matrices | M5–M7 | Draft |
 
 ## Frontend & Views
 
@@ -184,7 +185,7 @@ Capability definition, extension, composition, and distribution.
 | Rules & automation | 05, 23, 40, 45, 65 |
 | API/GraphQL changes | 16, 44 |
 | UI component development | 13, 54 |
-| AI features | 36, 15, 22, 27, 52, 60 |
+| AI features | 36, 15, 22, 27, 52, 60, 69 |
 | Auth/permission | 10, 10a, 35 |
 | Multi-tenancy | 30, 42 |
 | Evolution system | 00a, 55, 62 |
@@ -203,13 +204,14 @@ Capability definition, extension, composition, and distribution.
 |--------|-------|
 | Done | 51 |
 | Partial | 13 |
-| Draft | 7 |
-| **Total** | **71** unique specs |
+| Draft | 8 |
+| **Total** | **72** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-05-18 | Added Spec 69 (AI Evaluation Framework — Draft); companion research doc `docs/research/mastra-evaluation.md`; Stats updated: Draft 7→8, Total 71→72 |
 | 2026-05-16 | Added Spec 67 (Meta-Model Semantics — Partial; Phase 1 types + structural inference + OntologyRegistry semantic API landed via PR #308); Stats updated: Partial 12→13, Total 70→71 |
 | 2026-05-11 | Added Spec 66 (Event Lifecycle Management — Draft); Stats updated: Draft 6→7, Total 69→70 |
 | 2026-05-08 | Spec 45 rewritten: title "Reactive Automation" → "Data-Condition Watcher"; AutomationEngine sections dropped (removed in PR #146); spec now scoped to `defineWatcher` only (issue #150) |

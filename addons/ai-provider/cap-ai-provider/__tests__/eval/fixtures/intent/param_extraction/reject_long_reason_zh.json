@@ -1,0 +1,29 @@
+{
+  "id": "param-reject-long-reason-zh",
+  "scenario": "intent",
+  "tags": ["param_extraction", "purchase", "zh", "reject", "text-field"],
+  "description": "Chinese: reject with a multi-sentence reason — verifies the full reason text is captured verbatim",
+  "input": {
+    "userMessage": "驳回采购申请，理由是：供应商资质不全，且报价高于市场均价 30%，请重新选择供应商"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "reject_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.7 } },
+      {
+        "name": "input_must_include",
+        "args": {
+          "key": "reason",
+          "value": "供应商资质不全，且报价高于市场均价 30%，请重新选择供应商"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1880, "output": 260 }
+  }
+}

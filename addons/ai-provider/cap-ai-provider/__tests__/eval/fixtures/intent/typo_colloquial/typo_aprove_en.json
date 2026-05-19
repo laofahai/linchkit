@@ -1,0 +1,22 @@
+{
+  "id": "typo-colloquial-aprove-en",
+  "scenario": "intent",
+  "tags": ["typo_colloquial", "purchase", "en", "approve", "typo"],
+  "description": "English: common typo 'aprove' (missing p) — should still resolve to approve_purchase_request",
+  "input": {
+    "userMessage": "pls aprove the purchase req for the laptops"
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "action_equals", "args": { "value": "approve_purchase_request" } },
+      { "name": "confidence_min", "args": { "value": 0.5 } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1800, "output": 200 }
+  }
+}

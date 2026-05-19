@@ -1,0 +1,23 @@
+{
+  "id": "ambiguous-empty-whitespace",
+  "scenario": "intent",
+  "tags": ["ambiguous", "edge-case", "refusal-expected"],
+  "description": "Whitespace-only message — resolver short-circuits to null (intent-resolver.ts line 153 trimmed check)",
+  "input": {
+    "userMessage": "   \t   "
+  },
+  "context": {
+    "catalogSource": "demo:purchase_management",
+    "scope": { "entityFilter": ["purchase_request"] }
+  },
+  "expected": {
+    "matchers": [
+      { "name": "proposal_is_null", "args": {} },
+      { "name": "action_equals", "args": { "value": null } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1700, "output": 0 },
+    "notes": "Resolver returns null before calling AI — zero output tokens expected. Confidence_max omitted because no confidence value exists."
+  }
+}

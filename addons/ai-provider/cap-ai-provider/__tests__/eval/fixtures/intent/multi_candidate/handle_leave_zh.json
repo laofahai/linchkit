@@ -1,0 +1,29 @@
+{
+  "id": "multi-handle-leave-zh",
+  "scenario": "intent",
+  "tags": ["multi_candidate", "zh", "weak-disambiguator", "leave"],
+  "description": "Chinese: '处理一下请假申请' — should map to one of approve_leave_request / reject_leave_request, alternatives expected to surface",
+  "input": {
+    "userMessage": "处理一下张三的请假申请"
+  },
+  "context": {
+    "catalogSource": "inline:mixed_capability",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "confidence_max", "args": { "value": 0.7 } },
+      { "name": "alternatives_min_count", "args": { "value": 1 } },
+      { "name": "alternatives_excludes_primary", "args": {} },
+      {
+        "name": "alternatives_includes_action",
+        "args": { "value": "reject_leave_request" },
+        "strict": false
+      }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1620, "output": 300 },
+    "notes": "处理 = generic 'handle' — could be approve OR reject. Entity (leave_request) is clear from 请假."
+  }
+}

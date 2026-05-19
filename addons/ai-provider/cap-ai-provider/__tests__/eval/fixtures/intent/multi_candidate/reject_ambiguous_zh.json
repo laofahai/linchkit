@@ -1,0 +1,24 @@
+{
+  "id": "multi-reject-ambiguous-zh",
+  "scenario": "intent",
+  "tags": ["multi_candidate", "zh", "reject"],
+  "description": "Chinese: 驳回 (reject) — ambiguous between reject_purchase_request and reject_leave_request; reason captured but action ambiguous",
+  "input": {
+    "userMessage": "驳回这个，原因：不符合规定"
+  },
+  "context": {
+    "catalogSource": "inline:mixed_capability",
+    "scope": {}
+  },
+  "expected": {
+    "matchers": [
+      { "name": "confidence_max", "args": { "value": 0.7 } },
+      { "name": "alternatives_min_count", "args": { "value": 1 } },
+      { "name": "alternatives_excludes_primary", "args": {} },
+      { "name": "input_must_include", "args": { "key": "reason", "value": "不符合规定" } }
+    ]
+  },
+  "meta": {
+    "estimatedTokens": { "input": 1620, "output": 300 }
+  }
+}
