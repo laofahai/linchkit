@@ -4,6 +4,10 @@
  * Creates the standard directory structure with capability.json,
  * package.json, tsconfig.json, and src/ skeleton including example
  * schema, action, and view files.
+ *
+ * The scaffold logic is exposed as a pure {@link scaffoldCapability} function
+ * so tests can call it directly without spawning the CLI subprocess (the
+ * subprocess pattern was flaky under parallel-suite load — see issue #364).
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -21,6 +25,29 @@ const VALID_CATEGORIES = [
   "utility",
   "starter",
 ] as const;
+
+type ValidType = (typeof VALID_TYPES)[number];
+type ValidCategory = (typeof VALID_CATEGORIES)[number];
+
+/**
+ * Distinguishable error class so callers can map structured failures back to
+ * exit codes / CLI messages without string-matching on `Error`.
+ */
+export class ScaffoldCapabilityError extends Error {
+  readonly code: ScaffoldErrorCode;
+  constructor(code: ScaffoldErrorCode, message: string) {
+    super(message);
+    this.name = "ScaffoldCapabilityError";
+    this.code = code;
+  }
+}
+
+export type ScaffoldErrorCode =
+  | "INVALID_NAME"
+  | "INVALID_IDENTIFIER"
+  | "INVALID_TYPE"
+  | "INVALID_CATEGORY"
+  | "DIRECTORY_EXISTS";
 
 function capabilityJsonTemplate(name: string, type: string, category: string): string {
   return JSON.stringify(
@@ -186,6 +213,147 @@ function tsconfigTemplate(): string {
   );
 }
 
+export interface ScaffoldCapabilityOptions {
+  /** Capability name (e.g. "cap-inventory") */
+  name: string;
+  /** Capability type — defaults to "standard" */
+  type?: string;
+  /** Capability category — defaults to "business" */
+  category?: string;
+  /** Output directory, resolved relative to `cwd`. Defaults to `addons/<name>/cap-<name>`. */
+  dir?: string;
+  /** Skip generating example schema/action/view files. */
+  bare?: boolean;
+  /** Working directory used to resolve `dir`. Defaults to `process.cwd()`. */
+  cwd?: string;
+}
+
+export interface ScaffoldCapabilityResult {
+  /** Absolute path to the created capability directory. */
+  outputDir: string;
+  /** Human-readable structure lines (used by the CLI for console output). */
+  structureLines: string[];
+}
+
+/**
+ * Pure scaffold function used by both the CLI command and the tests. Throws
+ * {@link ScaffoldCapabilityError} on invalid input or pre-existing target
+ * directory; otherwise writes the capability skeleton and returns the
+ * resulting path plus a description of the created structure.
+ */
+export function scaffoldCapability(options: ScaffoldCapabilityOptions): ScaffoldCapabilityResult {
+  const name = options.name;
+  const type = options.type ?? "standard";
+  const category = options.category ?? "business";
+  const noExamples = options.bare ?? false;
+  const cwd = options.cwd ?? process.cwd();
+
+  // Validate capability name — allow hyphens in the package name, but the
+  // derived TypeScript identifier (hyphens → underscores) must be valid.
+  const SAFE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
+  if (!SAFE_NAME_RE.test(name)) {
+    throw new ScaffoldCapabilityError(
+      "INVALID_NAME",
+      `[linch] Invalid capability name "${name}". Must match: lowercase letters, digits, hyphens, underscores. Must start with a letter.`,
+    );
+  }
+
+  // Additionally validate the derived identifier used in generated TypeScript code
+  const identifierCheck = validateIdentifier(toSafeIdentifier(name));
+  if (!identifierCheck.valid) {
+    throw new ScaffoldCapabilityError(
+      "INVALID_IDENTIFIER",
+      `[linch] Invalid capability name "${name}": ${identifierCheck.error}`,
+    );
+  }
+
+  // Validate type
+  if (!VALID_TYPES.includes(type as ValidType)) {
+    throw new ScaffoldCapabilityError(
+      "INVALID_TYPE",
+      `Error: Invalid type "${type}". Must be one of: ${VALID_TYPES.join(", ")}`,
+    );
+  }
+
+  // Validate category
+  if (!VALID_CATEGORIES.includes(category as ValidCategory)) {
+    throw new ScaffoldCapabilityError(
+      "INVALID_CATEGORY",
+      `Error: Invalid category "${category}". Must be one of: ${VALID_CATEGORIES.join(", ")}`,
+    );
+  }
+
+  const outputDir = options.dir
+    ? resolve(cwd, options.dir)
+    : resolve(cwd, "addons", name, `cap-${name}`);
+
+  if (existsSync(outputDir)) {
+    throw new ScaffoldCapabilityError(
+      "DIRECTORY_EXISTS",
+      `Error: Directory "${outputDir}" already exists.`,
+    );
+  }
+
+  const withExamples = !noExamples;
+  const domain = toDomainName(name);
+
+  // Create directory structure
+  mkdirSync(resolve(outputDir, "src/schemas"), { recursive: true });
+  mkdirSync(resolve(outputDir, "src/actions"), { recursive: true });
+  mkdirSync(resolve(outputDir, "src/rules"), { recursive: true });
+  mkdirSync(resolve(outputDir, "src/states"), { recursive: true });
+  mkdirSync(resolve(outputDir, "src/views"), { recursive: true });
+
+  // Write .gitkeep / README files for empty directories
+  writeFileSync(resolve(outputDir, "src/rules/README.md"), directoryReadmeTemplate("rules"));
+  writeFileSync(resolve(outputDir, "src/states/README.md"), directoryReadmeTemplate("states"));
+
+  if (withExamples) {
+    // Write example files
+    writeFileSync(resolve(outputDir, `src/schemas/${domain}.ts`), exampleEntityTemplate(domain));
+    writeFileSync(
+      resolve(outputDir, `src/actions/create-${domain.replace(/_/g, "-")}.ts`),
+      exampleActionTemplate(domain),
+    );
+    writeFileSync(resolve(outputDir, `src/views/${domain}.ts`), exampleViewTemplate(domain));
+  } else {
+    // Write .gitkeep files when no examples
+    writeFileSync(resolve(outputDir, "src/schemas/.gitkeep"), "");
+    writeFileSync(resolve(outputDir, "src/actions/.gitkeep"), "");
+    writeFileSync(resolve(outputDir, "src/views/.gitkeep"), "");
+  }
+
+  // Write template files
+  writeFileSync(
+    resolve(outputDir, "capability.json"),
+    capabilityJsonTemplate(name, type, category),
+  );
+  writeFileSync(resolve(outputDir, "src/index.ts"), srcIndexTemplate(name, { withExamples }));
+  writeFileSync(resolve(outputDir, "package.json"), packageJsonTemplate(name));
+  writeFileSync(resolve(outputDir, "tsconfig.json"), tsconfigTemplate());
+
+  const structureLines = [
+    "Capability created successfully!",
+    "",
+    "  Structure:",
+    `  ${name}/`,
+    "    ├── capability.json",
+    "    ├── package.json",
+    "    ├── tsconfig.json",
+    "    └── src/",
+    "        ├── index.ts",
+    "        ├── schemas/",
+    "        ├── actions/",
+    "        ├── rules/",
+    "        ├── states/",
+    "        └── views/",
+    "",
+    `  Path: ${outputDir}`,
+  ];
+
+  return { outputDir, structureLines };
+}
+
 export const createCapabilityCommand = defineCommand({
   meta: {
     name: "capability",
@@ -220,106 +388,28 @@ export const createCapabilityCommand = defineCommand({
   },
   run({ args }) {
     const name = args.name as string;
-    const type = args.type as string;
-    const category = args.category as string;
-    const noExamples = args.bare as boolean;
-
-    // Validate capability name — allow hyphens in the package name, but the
-    // derived TypeScript identifier (hyphens → underscores) must be valid.
-    const SAFE_NAME_RE = /^[a-z][a-z0-9_-]*$/;
-    if (!SAFE_NAME_RE.test(name)) {
-      console.error(
-        `[linch] Invalid capability name "${name}". Must match: lowercase letters, digits, hyphens, underscores. Must start with a letter.`,
-      );
-      process.exit(1);
-    }
-    // Additionally validate the derived identifier used in generated TypeScript code
-    const identifierCheck = validateIdentifier(toSafeIdentifier(name));
-    if (!identifierCheck.valid) {
-      console.error(`[linch] Invalid capability name "${name}": ${identifierCheck.error}`);
-      process.exit(1);
-    }
-
-    // Validate type
-    if (!VALID_TYPES.includes(type as (typeof VALID_TYPES)[number])) {
-      console.error(`Error: Invalid type "${type}". Must be one of: ${VALID_TYPES.join(", ")}`);
-      process.exit(1);
-    }
-
-    // Validate category
-    if (!VALID_CATEGORIES.includes(category as (typeof VALID_CATEGORIES)[number])) {
-      console.error(
-        `Error: Invalid category "${category}". Must be one of: ${VALID_CATEGORIES.join(", ")}`,
-      );
-      process.exit(1);
-    }
-
-    const outputDir = args.dir
-      ? resolve(process.cwd(), args.dir as string)
-      : resolve(process.cwd(), "addons", name, `cap-${name}`);
-
-    if (existsSync(outputDir)) {
-      console.error(`Error: Directory "${outputDir}" already exists.`);
-      process.exit(1);
-    }
 
     console.log(`Creating capability: ${name}`);
 
-    const withExamples = !noExamples;
-    const domain = toDomainName(name);
-
-    // Create directory structure
-    mkdirSync(resolve(outputDir, "src/schemas"), { recursive: true });
-    mkdirSync(resolve(outputDir, "src/actions"), { recursive: true });
-    mkdirSync(resolve(outputDir, "src/rules"), { recursive: true });
-    mkdirSync(resolve(outputDir, "src/states"), { recursive: true });
-    mkdirSync(resolve(outputDir, "src/views"), { recursive: true });
-
-    // Write .gitkeep / README files for empty directories
-    writeFileSync(resolve(outputDir, "src/rules/README.md"), directoryReadmeTemplate("rules"));
-    writeFileSync(resolve(outputDir, "src/states/README.md"), directoryReadmeTemplate("states"));
-
-    if (withExamples) {
-      // Write example files
-      writeFileSync(resolve(outputDir, `src/schemas/${domain}.ts`), exampleEntityTemplate(domain));
-      writeFileSync(
-        resolve(outputDir, `src/actions/create-${domain.replace(/_/g, "-")}.ts`),
-        exampleActionTemplate(domain),
-      );
-      writeFileSync(resolve(outputDir, `src/views/${domain}.ts`), exampleViewTemplate(domain));
-    } else {
-      // Write .gitkeep files when no examples
-      writeFileSync(resolve(outputDir, "src/schemas/.gitkeep"), "");
-      writeFileSync(resolve(outputDir, "src/actions/.gitkeep"), "");
-      writeFileSync(resolve(outputDir, "src/views/.gitkeep"), "");
+    try {
+      const { structureLines } = scaffoldCapability({
+        name,
+        type: args.type as string,
+        category: args.category as string,
+        dir: args.dir as string | undefined,
+        bare: args.bare as boolean,
+      });
+      console.log("");
+      for (const line of structureLines) {
+        console.log(line);
+      }
+    } catch (err) {
+      if (err instanceof ScaffoldCapabilityError) {
+        console.error(err.message);
+        process.exit(1);
+      }
+      throw err;
     }
-
-    // Write template files
-    writeFileSync(
-      resolve(outputDir, "capability.json"),
-      capabilityJsonTemplate(name, type, category),
-    );
-    writeFileSync(resolve(outputDir, "src/index.ts"), srcIndexTemplate(name, { withExamples }));
-    writeFileSync(resolve(outputDir, "package.json"), packageJsonTemplate(name));
-    writeFileSync(resolve(outputDir, "tsconfig.json"), tsconfigTemplate());
-
-    console.log("");
-    console.log("Capability created successfully!");
-    console.log("");
-    console.log("  Structure:");
-    console.log(`  ${name}/`);
-    console.log("    ├── capability.json");
-    console.log("    ├── package.json");
-    console.log("    ├── tsconfig.json");
-    console.log("    └── src/");
-    console.log("        ├── index.ts");
-    console.log("        ├── schemas/");
-    console.log("        ├── actions/");
-    console.log("        ├── rules/");
-    console.log("        ├── states/");
-    console.log("        └── views/");
-    console.log("");
-    console.log(`  Path: ${outputDir}`);
   },
 });
 
