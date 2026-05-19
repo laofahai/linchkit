@@ -157,6 +157,7 @@
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
+        "@linchkit/devtools": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {

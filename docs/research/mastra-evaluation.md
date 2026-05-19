@@ -99,7 +99,7 @@ If a competing capability `cap-mastra-provider` emerges that exposes Mastra agen
 |---|---|
 | Adopt Mastra wholesale as our AI layer? | **No.** Mastra is at a lower abstraction; doesn't replace our meta-model. |
 | Drop spec 69 because Mastra has `@mastra/evals`? | **No.** Spec 69 defines the framework + governance contract; the runner *implementation* is a separate decision. |
-| Allow spec 69 to *use* `@mastra/evals` as the runner? | **Yes, conditionally — but evaluation is in Phase 2, not Phase 1.** Spec 69 §10.1 and §11 keep Phase 1 dependency-free to produce an unbiased baseline first. Phase 2 then runs the spike (spec 69 §10.3) comparing `@mastra/evals` against Promptfoo and the in-house runner against that baseline. |
+| Allow spec 69 to *use* `@mastra/evals` as the runner? | **No** (revised 2026-05-19 per §7 below). Original disposition was "Yes, conditionally pending Phase 2 spike"; Phase 2a documentation review hard-rejected on structural grounds (`@mastra/core` peerDep + wrong scoring paradigm). |
 | Bring in Mastra's agent runtime / workflow / memory? | **No.** Direct overlap with Restate / life system / vector store — those choices are deliberate and load-bearing. |
 | Reposition LinchKit messaging in response to Mastra? | **Yes — separate task.** Spec 70+ and any user-facing materials should foreground meta-model + governance + life system + capability hub, not "TypeScript AI framework." |
 
@@ -109,6 +109,31 @@ If a competing capability `cap-mastra-provider` emerges that exposes Mastra agen
 2. **Hands-on `@mastra/evals` spike** — owned by spec 69 Phase 2 implementer (after Phase 1 baseline lands).
 3. **Positioning refresh** — separate doc/issue, not blocking.
 4. **`cap-mastra-provider` exploratory issue** — file as P3, "evaluate when first user asks."
+
+---
+
+## 7. 2026-05-19 Phase 2 update — `@mastra/evals` REJECTED
+
+Phase 2 documentation review hard-rejected `@mastra/evals` as a runner candidate. Hands-on spike is **not needed** — the rejection comes from `@mastra/evals@1.2.2`'s own package.json:
+
+```json
+"peerDependencies": {
+  "zod": "^3.25.0 || ^4.0.0",
+  "@mastra/core": ">=1.0.0-0 <2.0.0-0"
+}
+```
+
+The package is structurally bound to the Mastra agent runtime. Its documented import path is `"@mastra/core/evals"`, and `runEvals(target, ...)` takes a Mastra `Agent` instance as `target`. **Adopting `@mastra/evals` means adopting Mastra, period** — which contradicts §3 of this doc (we explicitly do *not* want Mastra's agent runtime; LinchKit's meta-model + Restate + life system already cover that ground).
+
+The scoring paradigm is also wrong shape for spec 69's contract. Built-in scorers as of 1.2.2 (`answer-relevancy`, `faithfulness`, `hallucination`, `completeness`, `toxicity`, `bias`, `content-similarity`, …) are LLM-judged or NLP-based 0..1 floats designed for *RAG quality measurement*. LinchKit's matchers are **field-level equality assertions** (`action_equals`, `confidence_min/max`, `input_must_include/omit`, …). Zero of the 11 spec 69 §5.1 matchers maps to a built-in Mastra scorer — every one would have to be reimplemented as a custom scorer on Mastra's harness, at which point we have rebuilt our matcher framework on top of Mastra while still dragging `@mastra/core` along.
+
+§5's row 3 (above) is updated in-place to reflect the new "No" verdict; this section explains the rationale.
+
+Sources for this section (2026-05-19):
+- `@mastra/evals@1.2.2` manifest — `registry.npmjs.org/@mastra/evals/latest`
+- `mastra.ai/docs/evals/overview`
+- `mastra.ai/docs/evals/built-in-scorers`
+- `mastra.ai/docs/evals/running-in-ci`
 
 ---
 
