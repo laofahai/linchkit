@@ -214,6 +214,64 @@ describe("linch create capability", () => {
     expect(joined).toContain("views/");
     expect(joined).toContain("states/");
   });
+
+  test("structure output uses the actual folder name (basename of outputDir)", () => {
+    // Default layout places the cap at `addons/<name>/cap-<name>/` so the
+    // visualization root should match `cap-<name>`, not `<name>`.
+    const { structureLines } = scaffoldCapability({
+      name: "cap-vis-default",
+      cwd: TEST_DIR,
+    });
+    expect(structureLines.join("\n")).toContain("cap-cap-vis-default/");
+
+    // Custom --dir layout should also render the actual basename.
+    const { structureLines: customLines } = scaffoldCapability({
+      name: "cap-vis-custom",
+      dir: "deep/nested/my-folder",
+      cwd: TEST_DIR,
+    });
+    expect(customLines.join("\n")).toContain("my-folder/");
+  });
+
+  test("tsconfig extends path is correct for default 3-level-deep layout", () => {
+    scaffoldCapability({ name: "cap-tsconfig-default", cwd: TEST_DIR });
+    const tsconfigPath = resolve(
+      TEST_DIR,
+      "addons",
+      "cap-tsconfig-default",
+      "cap-cap-tsconfig-default",
+      "tsconfig.json",
+    );
+    const tsconfig = JSON.parse(readFileSync(tsconfigPath, "utf8"));
+    // 3 levels up from addons/<name>/cap-<name>/ → repo root tsconfig.
+    expect(tsconfig.extends).toBe("../../../tsconfig.json");
+  });
+
+  test("tsconfig extends path adapts to custom --dir depth", () => {
+    scaffoldCapability({
+      name: "cap-tsconfig-flat",
+      dir: "cap-tsconfig-flat",
+      cwd: TEST_DIR,
+    });
+    const flat = JSON.parse(
+      readFileSync(resolve(TEST_DIR, "cap-tsconfig-flat", "tsconfig.json"), "utf8"),
+    );
+    // 1 level up from <root>/cap-tsconfig-flat/ → root tsconfig.
+    expect(flat.extends).toBe("../tsconfig.json");
+
+    scaffoldCapability({
+      name: "cap-tsconfig-deep",
+      dir: "deep/very/deep/cap-folder",
+      cwd: TEST_DIR,
+    });
+    const deep = JSON.parse(
+      readFileSync(
+        resolve(TEST_DIR, "deep", "very", "deep", "cap-folder", "tsconfig.json"),
+        "utf8",
+      ),
+    );
+    expect(deep.extends).toBe("../../../../tsconfig.json");
+  });
 });
 
 describe("linch create capability (CLI subprocess smoke)", () => {

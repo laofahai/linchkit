@@ -11,7 +11,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, posix, relative, resolve } from "node:path";
 import { validateIdentifier } from "@linchkit/core";
 import { defineCommand } from "citty";
 
@@ -198,10 +198,18 @@ function packageJsonTemplate(name: string): string {
   );
 }
 
-function tsconfigTemplate(): string {
+function tsconfigTemplate(outputDir: string, cwd: string): string {
+  // Compute the relative path from the new capability's tsconfig to the
+  // repo-root tsconfig. The default layout is `addons/<name>/cap-<name>/`,
+  // which is 3 levels deep — the previous hardcoded `../../tsconfig.json`
+  // resolved to `addons/<name>/tsconfig.json` (a non-existent file) and
+  // broke `--dir custom/path` layouts entirely. Posix-normalise so the
+  // generated config is portable across platforms.
+  const rootTsconfig = resolve(cwd, "tsconfig.json");
+  const relPath = relative(outputDir, rootTsconfig).split(/[\\/]/).join(posix.sep);
   return JSON.stringify(
     {
-      extends: "../../tsconfig.json",
+      extends: relPath,
       compilerOptions: {
         rootDir: "src",
         outDir: "dist",
@@ -330,13 +338,15 @@ export function scaffoldCapability(options: ScaffoldCapabilityOptions): Scaffold
   );
   writeFileSync(resolve(outputDir, "src/index.ts"), srcIndexTemplate(name, { withExamples }));
   writeFileSync(resolve(outputDir, "package.json"), packageJsonTemplate(name));
-  writeFileSync(resolve(outputDir, "tsconfig.json"), tsconfigTemplate());
+  writeFileSync(resolve(outputDir, "tsconfig.json"), tsconfigTemplate(outputDir, cwd));
 
   const structureLines = [
     "Capability created successfully!",
     "",
     "  Structure:",
-    `  ${name}/`,
+    // Use basename(outputDir) so the visualization matches the actual created
+    // folder for custom --dir layouts (default is `cap-<name>`, not `<name>`).
+    `  ${basename(outputDir)}/`,
     "    ├── capability.json",
     "    ├── package.json",
     "    ├── tsconfig.json",
