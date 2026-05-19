@@ -638,4 +638,29 @@ describe("DeployBuilder", () => {
     expect(result.phase).toBe("failed");
     expect(result.error).toContain("git pull error");
   });
+
+  it("treats timeoutMs=Infinity as 'no timeout' — does not abort a slow build", async () => {
+    // Bun/Node setTimeout coerces non-finite delays to 1ms; without a guard,
+    // Infinity would behave as "abort immediately" instead of "wait forever".
+    const executor: ProcessExecutor = async (_cmd, _args, _cwd, options) => {
+      // Sleep long enough that a 1ms-coerced timer would have aborted us.
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      if (options?.signal?.aborted) {
+        throw new Error("unexpected abort");
+      }
+      return { stdout: "Already up to date.\n", stderr: "", exitCode: 0 };
+    };
+
+    const builder = new DeployBuilder({
+      repoDir: "/tmp/fake-repo",
+      timeoutMs: Number.POSITIVE_INFINITY,
+      logger: silentLogger,
+      executor,
+    });
+
+    const result = await builder.build();
+
+    expect(result.success).toBe(true);
+    expect(result.upToDate).toBe(true);
+  });
 });

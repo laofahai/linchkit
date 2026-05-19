@@ -371,6 +371,12 @@ const defaultExecutor: ProcessExecutor = async (cmd, args, cwd, options) => {
  * to observe the signal in time) propagates to the caller.
  */
 function withTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  // Infinity short-circuit — Bun/Node's setTimeout coerces non-finite or
+  // out-of-range delays to 1ms, which would abort almost immediately if a
+  // caller passed Infinity to mean "disable the timeout".
+  if (!Number.isFinite(ms)) {
+    return task(new AbortController().signal);
+  }
   const controller = new AbortController();
   const deadlineMs = Math.max(ms, 0);
   let timerId: ReturnType<typeof setTimeout> | undefined;
