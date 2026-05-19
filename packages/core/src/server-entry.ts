@@ -92,6 +92,15 @@ export {
   ProposalGenerationError,
   type ProposalGeneratorDeps,
 } from "./engine/proposal-generator";
+export {
+  createProposalGitCommitter,
+  type ProposalGhRunner,
+  type ProposalGitCommitResult,
+  ProposalGitCommitter,
+  type ProposalGitCommitterOptions,
+  type ProposalGitCommitterRunResult,
+  type ProposalGitRunner,
+} from "./engine/proposal-git-committer";
 
 export {
   collectRules,
