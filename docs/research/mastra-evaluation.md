@@ -112,6 +112,35 @@ If a competing capability `cap-mastra-provider` emerges that exposes Mastra agen
 
 ---
 
+## 7. 2026-05-19 Phase 2 update — `@mastra/evals` REJECTED
+
+Phase 2 documentation review hard-rejected `@mastra/evals` as a runner candidate. Hands-on spike is **not needed** — the rejection comes from `@mastra/evals@1.2.2`'s own package.json:
+
+```json
+"peerDependencies": {
+  "zod": "^3.25.0 || ^4.0.0",
+  "@mastra/core": ">=1.0.0-0 <2.0.0-0"
+}
+```
+
+The package is structurally bound to the Mastra agent runtime. Its documented import path is `"@mastra/core/evals"`, and `runEvals(target, ...)` takes a Mastra `Agent` instance as `target`. **Adopting `@mastra/evals` means adopting Mastra, period** — which contradicts §3 of this doc (we explicitly do *not* want Mastra's agent runtime; LinchKit's meta-model + Restate + life system already cover that ground).
+
+The scoring paradigm is also wrong shape for spec 69's contract. Built-in scorers as of 1.2.2 (`answer-relevancy`, `faithfulness`, `hallucination`, `completeness`, `toxicity`, `bias`, `content-similarity`, …) are LLM-judged or NLP-based 0..1 floats designed for *RAG quality measurement*. LinchKit's matchers are **field-level equality assertions** (`action_equals`, `confidence_min/max`, `input_must_include/omit`, …). Zero of the 11 spec 69 §5.1 matchers maps to a built-in Mastra scorer — every one would have to be reimplemented as a custom scorer on Mastra's harness, at which point we have rebuilt our matcher framework on top of Mastra while still dragging `@mastra/core` along.
+
+§5 of this doc is updated:
+
+| Question | Answer |
+|---|---|
+| Allow spec 69 to *use* `@mastra/evals` as the runner? | ~~Yes, conditionally~~ → **No.** Structural coupling to `@mastra/core` + wrong scoring paradigm. Documented in spec 69 §10.3.
+
+Sources for this section (2026-05-19):
+- `@mastra/evals@1.2.2` manifest — `registry.npmjs.org/@mastra/evals/latest`
+- `mastra.ai/docs/evals/overview`
+- `mastra.ai/docs/evals/built-in-scorers`
+- `mastra.ai/docs/evals/running-in-ci`
+
+---
+
 ## Sources
 
 - Mastra official framework page — fetched 2026-05-18

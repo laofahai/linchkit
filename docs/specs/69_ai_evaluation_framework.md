@@ -72,7 +72,7 @@ A provider releases a new model and our monthly cron flags any scenario that reg
 
 ### 3.2 Out of scope
 
-- Model red-teaming / jailbreak resistance (spec 27 owns this — see §10.4 for delegation pattern).
+- Model red-teaming / jailbreak resistance (spec 27 owns this — see §10.6 for delegation pattern).
 - Flow-level integration testing (spec 18 owns this).
 - UI-layer testing of AI components like ActionProposalCard (spec 13 owns this).
 - Cost / rate-limit enforcement testing (spec 36 owns this).
@@ -513,7 +513,7 @@ See the workflow file for the full implementation. The replay job is what plugs 
 2. Maintainer manually triggers `workflow_dispatch` for the AI eval workflow against the PR's head commit.
 3. Once the workflow passes, maintainer approves the PR.
 
-This intentionally puts a human gate in front of fork-originated AI changes, consistent with §10.4 spec-27 integration and §12 OQ #5.
+This intentionally puts a human gate in front of fork-originated AI changes, consistent with §10.6 spec-27 integration and §12 OQ #5.
 
 ## 10. Tool Strategy
 
@@ -525,40 +525,66 @@ This section is the framework's **decision contract**. It exists so that Phase 2
 - **Phase 2 evaluates external tools**, specifically: BAML (schema-aligned generation + parser), Mastra `@mastra/evals` (eval runner), Promptfoo (eval CLI), DSPy (prompt auto-optimization — Python only, deferred to Phase 5).
 - **Migration is conditional** on the decision matrix below.
 
-### 10.2 BAML decision matrix (Phase 2 must populate this)
+### 10.2 BAML decision matrix
 
-| Indicator | Threshold for "adopt BAML for that scenario" |
-|---|---|
-| Parser / schema failure rate vs current Zod-based path | BAML ≥ 50% reduction |
-| Lines of code per scenario (prompt + schema + parsing) | BAML ≥ 30% reduction |
-| Time to add a new AI scenario (measured by re-implementing pattern-detector in BAML) | BAML ≥ 40% reduction |
-| Token cost per request on same fixture set | BAML neutral or better (no more than 10% worse) |
-| Toolchain burden (baml-cli installation, generated artifacts in repo, IDE integration) | Subjective — must be documented, not weighed numerically |
+Phase 2a research populated the table where the answer is determinable from documentation; Phase 2b hands-on spike fills the "pending" cells with measured numbers. See [`docs/research/baml-evaluation.md` §4](../research/baml-evaluation.md) for derivation.
 
-**Adoption rule:**
-- ≥ 3 of the first 4 indicators met → recommend full migration of `intent-resolver` to BAML, plus authorization to migrate one detector as a stress test in Phase 3.
-- 2 of 4 met → recommend BAML for `intent-resolver` only, pending re-evaluation after Phase 3.
-- ≤ 1 of 4 met → reject. Document the failed indicators and revisit when BAML releases major version bump.
+| Indicator | Threshold for "adopt for `intent-resolver`" | Phase 2a reading | Phase 2b will measure |
+|---|---|---|---|
+| Parser / schema failure rate vs current Zod-based path | BAML ≥ 50% reduction | **Likely meets** — SAP designed for this exact failure mode; GLM-flash emits malformed JSON often | Count parse-exception cases in 36-fixture run, current vs BAML |
+| Lines of code per scenario (prompt + schema + parsing) | BAML ≥ 30% reduction | **Likely meets** — `.baml` consolidates prompt + schema + signature; current split: `intent-prompt.ts` + `intent-resolver.ts` + Zod | LOC diff on actual port |
+| Time to add a new AI scenario (re-implement pattern-detector in BAML) | BAML ≥ 40% reduction | **Pending** — depends on how catalog-aware-prompts idiom maps to BAML functions | Stopwatch a porting exercise |
+| Token cost per request on same fixture set | BAML neutral or better (≤ 10% worse) | **Likely neutral** — free decode generally cheaper; SAP retry-on-parse-failure could spike cost but GLM-flash per-request cost is ~$0.0001 so noise dominates | Cost report diff |
+| Toolchain burden | Subjective; must be documented | **Documented as Moderate**: `.baml` DSL + codegen + Rust runtime + VSCode extension. Acceptable for single capability; compounds if every capability adopts. | Update with concrete CI footprint after spike |
 
-### 10.3 Mastra `@mastra/evals` evaluation (Phase 2)
+**Adoption rule (unchanged):**
+- ≥ 3 of the first 4 indicators met → recommend full migration of `intent-resolver` to BAML, plus authorization to migrate one detector as a stress test in Phase 3
+- 2 of 4 met → recommend BAML for `intent-resolver` only, pending re-evaluation after Phase 3
+- ≤ 1 of 4 met → reject. Document the failed indicators and revisit when BAML releases major version bump
 
-See `docs/research/mastra-evaluation.md` for context. Phase 2 hands-on spike must answer:
+**Phase 2a provisional read**: 2–4 of 4 indicators look likely to meet the threshold, but two are unmeasured. Phase 2b proceeds.
 
-1. Can `@mastra/evals` be imported without pulling `@mastra/core` agent runtime?
-2. Does its scorer set cover the matchers listed in §5?
-3. Is its fixture/dataset format compatible with our JSON schema (§4)?
-4. Is its CI/cost story compatible with §8 / §9?
+### 10.3 Mastra `@mastra/evals` evaluation — REJECTED (Phase 2a)
 
-**Adoption rule:**
-- All 4 answers yes → replace in-house runner with `@mastra/evals`-based runner, keep our fixture schema as the source of truth.
-- 3 of 4 yes → adopt as the *matcher library* (replace `matchers/` directory), keep our runner.
-- ≤ 2 of 4 yes → reject. Keep in-house runner. Re-evaluate in Phase 4 or on Mastra major release.
+See [`docs/research/mastra-evaluation.md` §7](../research/mastra-evaluation.md) for the full rejection.
 
-### 10.4 Spec 27 (AI Security) integration
+**Hands-on spike not required.** `@mastra/evals@1.2.2`'s manifest declares `@mastra/core` as a hard peerDependency and its documented `runEvals(target, ...)` API takes a Mastra `Agent` instance — adopting the package means adopting the framework. This contradicts §3 of the research doc (we explicitly do *not* want Mastra's agent runtime).
+
+Additionally, every built-in Mastra scorer is an LLM-judged or NLP-based 0..1 *quality score* (`answer-relevancy`, `faithfulness`, `hallucination`, `completeness`, `toxicity`, `bias`, `content-similarity`, …). **Zero of the 11 §5.1 matchers maps to a built-in** — every one would have to be reimplemented as a custom scorer on Mastra's harness, at which point we have rebuilt our matcher framework on top of Mastra while dragging `@mastra/core` along.
+
+**Verdict:** Reject. Keep in-house runner + matcher registry. Re-evaluate if a future `@mastra/evals` major release decouples from `@mastra/core`.
+
+### 10.4 Promptfoo evaluation — REJECTED (Phase 2a)
+
+See [`docs/research/promptfoo-evaluation.md`](../research/promptfoo-evaluation.md) for the full rejection.
+
+**Hands-on spike not required.** Three structural mismatches make Promptfoo the wrong tool for spec 69's specific goal:
+
+1. **Tests parallel pipeline, not production pipeline.** Promptfoo invokes its own provider clients, not Vercel AI SDK / `cap-ai-provider`. A bug in `executeWithFallback` would not surface in a Promptfoo eval. Spec 69 Phase 1 deliberately calls production `resolveIntent` from the scenario adapter (PR #353 R1-P1 fix); Promptfoo adoption regresses that guarantee.
+2. **Report-not-baseline output model.** Promptfoo emits per-run reports. Spec 69 hinges on a long-lived canonical baseline JSON with `BaselineDiff` semantics. Mapping is awkward and would require reimplementing diff logic on top.
+3. **Matcher coverage via `javascript` predicates is a downgrade.** The typed `MatcherRegistry<IntentEvalOutput>` is deliberate — matchers compose, reuse across scenarios, have testable signatures. Promptfoo's `javascript:` predicate fallback loses that.
+
+**Verdict:** Reject as primary runner. Selectively borrow patterns (JUnit XML emitter, HTTP cache, HTML viewer) as separate follow-up issues if/when needed.
+
+### 10.5 BAML evaluation — proceed to Phase 2b hands-on spike
+
+See [`docs/research/baml-evaluation.md`](../research/baml-evaluation.md) for the full evaluation.
+
+**Phase 2a verdict:** the only candidate worth a hands-on spike. SAP (Schema-Aligned Parsing) directly addresses GLM-4-flash's malformed-JSON failure mode — 4 of the 9 baseline failures are JSON-quality issues that SAP's edit-distance reconstruction is designed for. If SAP delivers even half its claimed accuracy gain on GLM-flash, the baseline shifts from 27/36 to 32+/36 by recovering injection-malformed-JSON fixtures alone.
+
+**Phase 2b mandate:** populate this §10.2 matrix with measured cells. Bounded scope: `intent-resolver` only, on the existing 36 fixtures, against `zhipu/glm-4-flash-250414`. Anomaly/pattern/watcher detectors are out of scope for Phase 2b — Phase 3 decides per-detector.
+
+**Phase 2b prerequisites (require user authorization per CLAUDE.md):**
+
+- Add `@boundaryml/baml` as a `cap-ai-provider` runtime dependency
+- Decision: commit `baml_client/` or run `baml-cli generate` in CI (recommendation in research doc: commit, smaller CI surface, deterministic PRs)
+- Estimated live eval cost ≤ $0.10 on GLM-flash (within spec §8.3 $5/phase budget)
+
+### 10.6 Spec 27 (AI Security) integration
 
 Spec 27's red-team / injection scenarios are a **separate dataset** that uses the same runner + matcher infrastructure but lives under `__tests__/eval/fixtures/security/`. Spec 27 owns those fixtures. This spec only provides the plumbing.
 
-### 10.5 DSPy / prompt auto-optimization (Phase 5)
+### 10.7 DSPy / prompt auto-optimization (Phase 5)
 
 Out of Phase 1–4 scope but called out so the architecture leaves room. DSPy is Python; integration would be via subprocess + JSON IPC. Prerequisite: stable baseline + Langfuse-style production trace data (Phase 3 territory). Decision deferred.
 
@@ -569,7 +595,8 @@ Out of Phase 1–4 scope but called out so the architecture leaves room. DSPy is
 | **0a — Research** | `docs/research/mastra-evaluation.md` | this spec author | Done (this PR) |
 | **0b — Spec** | This document | this spec author | Done (this PR) |
 | **1 — Framework + Intent baseline** | `packages/devtools/src/ai-eval/*`, intent fixtures ≥ 30, first live baseline report, replay-mode CI green, deliberate-regression self-test passed | next implementer | Done (this PR — 36 fixtures, GLM-4-flash baseline 27/36 pass) |
-| **2 — Tool decision** | Hands-on BAML spike + Mastra-evals spike, both decision matrices (§10.2, §10.3) populated with measured numbers, recommendation merged to this spec | next implementer | Pending |
+| **2a — Tool decision (documentation review)** | Research docs for BAML / Mastra-evals / Promptfoo + provisional matrices. Two of three candidates rejected without burning live LLM budget. | this PR author | Done (this PR) |
+| **2b — BAML hands-on spike (measured)** | Port `intent-resolver` to BAML, re-run 36 fixtures on GLM-flash, populate measured cells in §10.2, recommend keep-or-adopt | next implementer (requires explicit dependency-add approval) | Pending |
 | **3 — Production observability tie-in** | Langfuse (or chosen equivalent) integrated into `ai-service.ts`, monthly drift cron live | next implementer | Pending |
 | **4 — Scenario expansion** | Anomaly + pattern + watcher fixtures and adapters | per-scenario owner | Pending |
 | **5 — Auto-optimization POC** | DSPy or in-house prompt-search loop using accumulated baselines + traces | TBD | Deferred |
