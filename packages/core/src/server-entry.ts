@@ -493,6 +493,9 @@ export {
   createDatabaseCheck,
   createEntityCheck,
   createEventBusCheck,
+  type DeployEvent,
+  type DeployWebhookConfig,
+  DeployWebhookHandler,
   detectEnvironment,
   type EnvironmentConfig,
   type EnvironmentFeatureFlags,
@@ -509,6 +512,7 @@ export {
   type ShutdownPhase,
   type ShutdownStatus,
   validateRequiredEnvVars,
+  type WebhookHandleResult,
 } from "./deployment";
 
 // === Doctor — project health check registry + built-in checks ===

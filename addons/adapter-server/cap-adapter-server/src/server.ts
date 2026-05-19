@@ -36,6 +36,7 @@ import type {
 import type {
   AIAuditLogger,
   CacheManager,
+  DeployWebhookHandler,
   HealthCheckRegistry,
   InMemoryMetricsCollector,
   OnchangeEvaluator,
@@ -54,6 +55,7 @@ import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
+import { mountDeployRoutes } from "./routes/deploy-api";
 import { mountEntityRoutes } from "./routes/entity-api";
 import { mountHealthRoutes } from "./routes/health";
 import { mountImportRoutes } from "./routes/import-api";
@@ -202,6 +204,12 @@ export interface ServerOptions {
    * and acts as the recording sink for completed AI calls.
    */
   usageMeter?: import("@linchkit/core/ai").UsageMeter;
+  /**
+   * GitHub deployment webhook handler (Spec 12 §3).
+   * When provided, enables `POST /api/deploy/webhook` to receive GitHub push
+   * events and trigger the configured deployment callback.
+   */
+  deployWebhookHandler?: DeployWebhookHandler;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -305,7 +313,7 @@ export function createServer(
   // Ensure options is defined for route modules (they expect non-optional parameter)
   const opts = options ?? {};
 
-  // ── Mount route modules ──────────────────────────────────
+  // ── Mount route modules ────────────────────────────────────
   mountAdminRoutes(app, opts, serverStartedAt);
   // Mounted AFTER admin so the canonical, minimal `/health` (Spec 12 — liveness)
   // overrides any duplicate handler in admin-api.ts. `/ready` is exclusive to
@@ -353,10 +361,13 @@ export function createServer(
     return response;
   });
 
-  // ── Proposal / Evolution / AI Insights endpoints ──────────
+  // ── Deployment webhook endpoint (Spec 12 §3) ─────────────────
+  mountDeployRoutes(app, opts.deployWebhookHandler);
+
+  // ── Proposal / Evolution / AI Insights endpoints ──────────────
   mountProposalAPI(app, executionLogger);
 
-  // ── SSE Subscription endpoint (/api/subscribe) ────────────
+  // ── SSE Subscription endpoint (/api/subscribe) ────────────────
   mountSubscriptionRoutes(app, opts);
 
   return app;
