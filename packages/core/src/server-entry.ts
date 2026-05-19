@@ -86,6 +86,8 @@ export {
 export {
   ProposalFileWriter,
   type ProposalFileWriterOptions,
+  type ProposalFormatterOption,
+  type ProposalSourceFormatter,
 } from "./engine/proposal-file-writer";
 export {
   createProposalGenerator,
