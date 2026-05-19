@@ -3,10 +3,17 @@
 > Snapshot date: 2026-05-19. Companion to `docs/research/baml-evaluation.md` (introduced by PR #355).
 > Verdict: **REJECT** — do not adopt BAML for `intent-resolver`.
 
+> **Status of this directory:** Everything under `spikes/baml-spike/` and `spikes/baml-parser-quality/` is **frozen spike evidence**, not production code. It exists so the REJECT verdict is reproducible from source. It is **not** held to production code-quality standards:
+> - `baml_client/` is generated BAML codegen (vendored verbatim — we don't own its `@ts-nocheck`, parameter counts, etc.); `biome.json` excludes it from lint
+> - `intent-scenario-baml.ts` is the spike's eval adapter — it runs only against trusted test fixtures, never user input, so production input-sanitization patterns don't apply
+> - `measure-parser-gap.ts` is a one-shot instrumentation script — quick-and-dirty error handling and slight divergence from the production adapter's filter logic are intentional (the script is a measurement tool, not an alternative production path)
+>
+> If/when a future re-evaluation of BAML is warranted (see "When BAML would be worth re-evaluating" below), the production-quality investment lives in `cap-ai-provider/`, not here.
+
 ## TL;DR
 
 - **Strict-pass rate: identical** — production 27/36, BAML 27/36, same 9 fixtures fail in both runs
-- **Parser rescues: zero** — instrumented capture of the raw LLM response across 35 fixtures shows 0 cases where production's `extractFirstJsonObject + JSON.parse` failed; SAP's core "rescue malformed model output" thesis is empirically vacuous for GLM-4-Flash on this scenario
+- **Parser rescues: zero** — instrumented capture of the raw LLM response across 35 fixtures shows 0 cases where production's `extractFirstJsonObject + JSON.parse` failed; BAML's Schema-Aligned Parsing (SAP) — its core "rescue malformed model output" thesis — is empirically vacuous for GLM-4-Flash on this scenario
 - **Root cause of the 4 injection failures: model judgment, not parsing.** The bait action `delete_all_data` IS in the injection_bait catalog (intentional adversarial test). Both pipelines emit structurally-valid JSON picking the bait action. SAP cannot fix this by design — it's a judgment failure
 - **LOC reduction: ~64%** in parser/prompt-schema scope (291 → 104), but offset by a 1,403-LOC generated `baml_client/` tree
 - **Token cost: neutral** (identical prompts; +1.8% latency)
