@@ -79,8 +79,14 @@ export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
+  type OnApprovedHook,
   ProposalEngine,
+  type ProposalEngineOptions,
 } from "./engine/proposal-engine";
+export {
+  ProposalFileWriter,
+  type ProposalFileWriterOptions,
+} from "./engine/proposal-file-writer";
 export {
   createProposalGenerator,
   ProposalGenerationError,

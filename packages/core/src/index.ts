@@ -169,7 +169,13 @@ export {
   executeOverlayProposal,
 } from "./engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "./engine/permission-engine";
-export type { CreateProposalOptions, ProposalEngine } from "./engine/proposal-engine";
+export type {
+  CreateProposalOptions,
+  OnApprovedHook,
+  ProposalEngine,
+  ProposalEngineOptions,
+} from "./engine/proposal-engine";
+export type { ProposalFileWriterOptions } from "./engine/proposal-file-writer";
 export type { ProposalGeneratorDeps } from "./engine/proposal-generator";
 export type {
   RuleEvalInput,

@@ -190,4 +190,13 @@ export interface ProposalDefinition {
   /** Approval info */
   approvedBy?: { type: string; id: string };
   rejectionReason?: string;
+
+  /**
+   * Error message captured if the `ProposalEngine.onApproved` hook (e.g. a
+   * `ProposalFileWriter`) failed when persisting the approved proposal.
+   * The approval status is NOT rolled back when this is set — the approval
+   * decision stands, but the caller can surface this error to a human so
+   * they can re-run the persistence step manually.
+   */
+  persistenceError?: string;
 }
