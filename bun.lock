@@ -458,6 +458,21 @@
         "react-i18next": ">=14.0.0",
       },
     },
+    "addons/view-timeline/cap-view-timeline": {
+      "name": "@linchkit/cap-view-timeline",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@linchkit/cap-adapter-ui": "workspace:*",
+        "@linchkit/core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@linchkit/cap-adapter-ui": "^1.0.0",
+        "@linchkit/core": "^0.2.0",
+        "i18next": ">=23.0.0",
+        "react": "^19.0.0",
+        "react-i18next": ">=14.0.0",
+      },
+    },
     "packages/cli": {
       "name": "@linchkit/cli",
       "version": "0.2.0",
@@ -846,6 +861,8 @@
     "@linchkit/cap-view-calendar": ["@linchkit/cap-view-calendar@workspace:addons/view-calendar/cap-view-calendar"],
 
     "@linchkit/cap-view-kanban": ["@linchkit/cap-view-kanban@workspace:addons/view-kanban/cap-view-kanban"],
+
+    "@linchkit/cap-view-timeline": ["@linchkit/cap-view-timeline@workspace:addons/view-timeline/cap-view-timeline"],
 
     "@linchkit/cli": ["@linchkit/cli@workspace:packages/cli"],
 

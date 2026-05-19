@@ -1,0 +1,110 @@
+/**
+ * Engine runtime — action, batch, command, approval, state, rule, validation,
+ * permission, proposal, onchange (server-only).
+ */
+
+export {
+  type ActionExecutor,
+  type ActionExecutorOptions,
+  ActionRegistry,
+  createActionExecutor,
+  type DataProvider,
+  type DataQueryOptions,
+  type ExecuteOptions,
+  type ExecutionChannel,
+  type PendingEvent,
+  type TransactionManager,
+} from "../../engine/action-engine";
+export {
+  type ApprovalEngine,
+  type ApprovalEngineOptions,
+  type CreateApprovalOptions,
+  createApprovalEngine,
+  createApprovalVerifier,
+  InMemoryApprovalStore,
+} from "../../engine/approval-engine";
+// Batch action engine (Spec 04 §8, Spec 16 §2.1)
+export {
+  BatchValidationError,
+  type ExecuteBatchOptions,
+  executeBatch,
+  MAX_BATCH_SIZE,
+} from "../../engine/batch-action-engine";
+export {
+  type CommandBatchExecuteOptions,
+  type CommandContext,
+  type CommandExecuteOptions,
+  type CommandLayer,
+  type CommandLayerOptions,
+  createCommandLayer,
+  ExposureError,
+  type MiddlewareHandler,
+  type MiddlewareRegistration,
+  PipelineError,
+  type SlotName,
+} from "../../engine/command-layer";
+export {
+  createOnchangeEvaluator,
+  DEFAULT_COMPUTE_TIMEOUT_MS,
+  MAX_CHAIN_DEPTH,
+  type OnchangeEvaluateArgs,
+  type OnchangeEvaluationResult,
+  type OnchangeEvaluator,
+  OnchangeEvaluatorError,
+  type OnchangeEvaluatorErrorCode,
+  type OnchangeEvaluatorOptions,
+  type OnchangeReadPermissionCheck,
+} from "../../engine/onchange-evaluator";
+export {
+  checkActionPermission,
+  PermissionRegistry,
+  resolveConditionVariables,
+  resolveDataAccess,
+} from "../../engine/permission-engine";
+export {
+  bumpVersion,
+  type CreateProposalOptions,
+  createProposalEngine,
+  type OnApprovedHook,
+  ProposalEngine,
+  type ProposalEngineOptions,
+} from "../../engine/proposal-engine";
+export {
+  ProposalFileWriter,
+  type ProposalFileWriterOptions,
+} from "../../engine/proposal-file-writer";
+export {
+  createProposalGenerator,
+  ProposalGenerationError,
+  type ProposalGeneratorDeps,
+} from "../../engine/proposal-generator";
+export {
+  createProposalGitCommitter,
+  type ProposalGhRunner,
+  type ProposalGitCommitResult,
+  ProposalGitCommitter,
+  type ProposalGitCommitterOptions,
+  type ProposalGitCommitterRunResult,
+  type ProposalGitRunner,
+} from "../../engine/proposal-git-committer";
+export {
+  collectRules,
+  evaluateConditions,
+  evaluateRules,
+  type RuleEvalInput,
+  type RuleEvalOptions,
+  type RuleEvalOutput,
+} from "../../engine/rule-engine";
+export type { StateMachine } from "../../engine/state-machine";
+export {
+  canTransition,
+  createStateMachine,
+  getAvailableActions,
+  getAvailableTransitions,
+  transition,
+} from "../../engine/state-machine";
+export {
+  type ValidationContext,
+  validatePhase1,
+  validateProposal,
+} from "../../engine/validation-engine";
