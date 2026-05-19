@@ -90,23 +90,6 @@ What needs explicit user approval before Phase 2b can start:
 2. **Commit `baml_client/` or run `baml-cli generate` in CI** — pick one. Recommendation: commit (smaller CI surface, deterministic PRs); accept the generated-file noise.
 3. **Estimated Phase 2b live eval cost**: ≤ $0.10 on GLM-flash (per spec 69 §8.3 pre-authorization).
 
-## 6. Out of scope
-
-- Migrating anomaly/pattern/watcher detectors to BAML — Phase 3 (`#350`) decides per-detector.
-- Boundary Studio adoption — separate observability decision; spec 28 owns that surface.
-- Anthropic / OpenAI BAML eval — those models already perform well on the existing pipeline; the GLM-flash gap is the motivating problem.
-
-## Sources
-
-- `@boundaryml/baml@0.222.0` manifest — `registry.npmjs.org/@boundaryml/baml/latest`
-- BAML CHANGELOG — `github.com/BoundaryML/baml/blob/canary/CHANGELOG.md`
-- Schema-Aligned Parsing blog — `boundaryml.com/blog/schema-aligned-parsing`
-- SOTA Function Calling benchmark — `boundaryml.com/blog/sota-function-calling`
-- TypeScript installation guide — `docs.boundaryml.com/guide/installation-language/typescript`
-- OpenAI-generic provider — `docs.boundaryml.com/ref/llm-client-providers/openai-generic`
-
----
-
 ## 6. Phase 2b results (2026-05-19) — REJECTED
 
 PR #356 ran the hands-on spike against the Phase 1 GLM-4-flash intent baseline. Full reproducible evidence under [`spikes/baml-spike/REPORT.md`](../../spikes/baml-spike/REPORT.md) + `spikes/baml-parser-quality/measure-parser-gap.ts`. Headline numbers:
@@ -130,3 +113,18 @@ The misread came from "model returned malformed-but-eventually-coercible JSON" i
 ### Verdict
 
 **REJECT** — see [spec 69 §10.5](../specs/69_ai_evaluation_framework.md#105-baml-evaluation--rejected-phase-2b-hands-on-spike) for the binding statement. Production code unchanged; spike artifacts retained under `spikes/baml-spike/` and `spikes/baml-parser-quality/` for future re-evaluation reference.
+
+## 7. Out of scope
+
+- Migrating anomaly/pattern/watcher detectors to BAML — Phase 3 (`#350`) decides per-detector.
+- Boundary Studio adoption — separate observability decision; spec 28 owns that surface.
+- Anthropic / OpenAI BAML eval — those models already perform well on the existing pipeline; the GLM-flash gap is the motivating problem.
+
+## Sources
+
+- `@boundaryml/baml@0.222.0` manifest — `registry.npmjs.org/@boundaryml/baml/latest`
+- BAML CHANGELOG — `github.com/BoundaryML/baml/blob/canary/CHANGELOG.md`
+- Schema-Aligned Parsing blog — `boundaryml.com/blog/schema-aligned-parsing`
+- SOTA Function Calling benchmark — `boundaryml.com/blog/sota-function-calling`
+- TypeScript installation guide — `docs.boundaryml.com/guide/installation-language/typescript`
+- OpenAI-generic provider — `docs.boundaryml.com/ref/llm-client-providers/openai-generic`

@@ -575,7 +575,7 @@ See [`docs/research/baml-evaluation.md` §6](../research/baml-evaluation.md) for
 - Parser failure rate: 0 → 0 (vacuous; no failures to rescue) — indicator NOT met
 - LOC: 64% reduction in parser/schema scope (291 → 104) — indicator met, but not load-bearing without strict-pass improvement
 - Token cost: 0% delta (latency +1.8%) — indicator met
-- Toolchain burden: medium — +1 runtime dep + per-OS native binary + mandatory `baml-cli generate` step + 1,403 LOC generated tree
+- Toolchain burden: medium — +1 runtime dep + +1 per-OS native binary (~46 MB on macOS arm64) + mandatory `baml-cli generate` step + 1,403 LOC generated tree (~80 KB)
 
 **Verdict:** REJECT. Keep in-house Vercel AI SDK + Zod + `extractFirstJsonObject` pipeline.
 
