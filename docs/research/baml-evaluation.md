@@ -20,7 +20,7 @@ Phase 2's binding question: **does SAP materially lift the 27/36 → some-better
 | License | Apache-2.0 |
 | Architecture | Separate `.baml` DSL → `baml-cli generate` → typed `baml_client/` |
 | Runtime | Rust-via-napi-rs node bindings; thin npm wrapper + platform binaries via `optionalDependencies` |
-| Bun support | Documented (`bun add @boundaryml/baml`, `bun baml-cli generate`); `engines.node >= 10` only |
+| Bun support | Documented (`bun add @boundaryml/baml`, `bun baml-cli generate`); package declares a low Node minimum so bun is unaffected. Runtime is Rust-via-napi binaries that bun honors via `optionalDependencies` resolution. |
 | Provider support | First-class: Anthropic (incl. Vertex), OpenAI, Bedrock, Vertex, Azure. **Generic OpenAI-compat** via `openai-generic` provider with `base_url` — covers zhipu/GLM, OpenRouter, Together, Groq, Ollama, etc. |
 | Toolchain | Adds: `.baml` source files (commit), `baml_client/` (community convention: gitignore + regenerate on CI), `baml-cli generate` build step, VSCode/Zed extension recommended |
 | Notable users | Zapier, Vercel, Trunk (publicly listed); blog-tier coverage in March 2026 |
@@ -42,7 +42,7 @@ The interesting claim: on **Anthropic models with strict tool-calling**, SAP mea
 **Minimum-invasive adoption path** (intent-resolver only):
 
 1. New file `addons/ai-provider/cap-ai-provider/baml_src/intent.baml` declares the `IntentResolution` schema + the `ResolveIntent` function (prompt template + parameters).
-2. Add `baml-cli generate` to `bun run build` and the `bun install` post-install hook (alternative: commit `baml_client/` and skip generation).
+2. Commit `baml_client/` to the repo so installs don't depend on running a generator. Add a `bun run baml:generate` script that contributors invoke after editing `intent.baml`; CI verifies regenerated output matches committed (drift guard). Do NOT wire this into a `postinstall` hook — `postinstall`-triggered codegen is brittle on monorepo bootstraps and CI matrices.
 3. `intent-resolver.ts` replaces its `generateObject(...)` call with `b.ResolveIntent({ catalog, userMessage })` from the generated client.
 4. Existing fixtures + matchers don't change at all — spec 69 evaluates a black-box `resolveIntent` regardless of internal implementation.
 5. Run the spec 69 §10.2 matrix:
