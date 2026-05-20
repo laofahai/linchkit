@@ -102,7 +102,7 @@ export class ProposalOutcomeRecorder {
       authorId: proposal.author.id,
       authorType: proposal.author.type,
       ...(reason !== undefined && { reason }),
-      ...(proposal.successMetric !== undefined && { successMetric: proposal.successMetric }),
+      ...(proposal.successMetric !== undefined && { successMetric: { ...proposal.successMetric } }),
     };
 
     await this.store.recordSignal({
