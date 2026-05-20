@@ -150,6 +150,28 @@ export interface ProposalGenerator {
   validate(proposal: ProposalDefinition): Promise<ProposalValidationResult>;
 }
 
+// ── Success metric ───────────────────────────────────────
+
+/**
+ * Optional success criterion attached to a Proposal (Spec 55 §7.7).
+ *
+ * Specifies what "working" looks like after the Proposal is applied so the
+ * `ProposalEffectVerifier` (Phase 2) can compare the baseline measured before
+ * the change against the observed value after the change.
+ */
+export interface ProposalSuccessMetric {
+  /** Human-readable description of what success looks like. */
+  description: string;
+  /** Reference to the Insight or signal that establishes the baseline. */
+  signalRef?: string;
+  /** Numeric baseline value measured before the Proposal was applied. */
+  baseline?: number;
+  /** Target numeric value that constitutes success. */
+  target?: number;
+  /** Unit of measurement for `baseline` / `target` (e.g. "%", "count"). */
+  unit?: string;
+}
+
 // ── Proposal definition ──────────────────────────────────
 
 export interface ProposalDefinition {
@@ -199,4 +221,11 @@ export interface ProposalDefinition {
    * they can re-run the persistence step manually.
    */
   persistenceError?: string;
+
+  /**
+   * Optional success criterion for this Proposal (Spec 55 §7.7).
+   * When set, `ProposalEffectVerifier` (Phase 2) can measure whether the
+   * change achieved its intended effect after it merges.
+   */
+  successMetric?: ProposalSuccessMetric;
 }
