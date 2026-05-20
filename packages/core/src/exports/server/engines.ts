@@ -90,6 +90,13 @@ export {
   type ProposalGitRunner,
 } from "../../engine/proposal-git-committer";
 export {
+  createProposalOutcomeRecorder,
+  type ProposalOutcomeRecord,
+  ProposalOutcomeRecorder,
+  type ProposalOutcomeRecorderOptions,
+  type ProposalOutcomeType,
+} from "../../engine/proposal-outcome-recorder";
+export {
   collectRules,
   evaluateConditions,
   evaluateRules,

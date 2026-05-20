@@ -150,6 +150,27 @@ export interface ProposalGenerator {
   validate(proposal: ProposalDefinition): Promise<ProposalValidationResult>;
 }
 
+// ── Success metric ───────────────────────────────────────
+
+/**
+ * Measurable outcome target attached to a Proposal (Spec 55 §7.7).
+ *
+ * Captures the observable signal that indicates whether the proposed change
+ * achieved its intended effect. `ProposalOutcomeRecorder` writes the metric
+ * into the MemoryStore so that a future `ProposalEffectVerifier` can re-run
+ * the computation and compare baseline vs. post-merge value.
+ */
+export interface ProposalSuccessMetric {
+  /** Insight ID or signal type this metric tracks (the feedback signal). */
+  signalRef: string;
+  /** Human-readable description of what constitutes success. */
+  description?: string;
+  /** Observed value of the metric at the time the Proposal was created. */
+  baselineValue: number;
+  /** Value that, once reached, marks the Proposal as succeeded. */
+  targetValue: number;
+}
+
 // ── Proposal definition ──────────────────────────────────
 
 export interface ProposalDefinition {
@@ -190,6 +211,15 @@ export interface ProposalDefinition {
   /** Approval info */
   approvedBy?: { type: string; id: string };
   rejectionReason?: string;
+
+  /**
+   * Optional success metric for Spec 55 §7.7 feedback loop.
+   *
+   * When set, `ProposalOutcomeRecorder` copies this into the MemoryStore
+   * outcome event so the post-merge `ProposalEffectVerifier` can verify
+   * whether `targetValue` was reached.
+   */
+  successMetric?: ProposalSuccessMetric;
 
   /**
    * Error message captured if the `ProposalEngine.onApproved` hook (e.g. a

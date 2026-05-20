@@ -54,6 +54,11 @@ export type { ProposalFileWriterOptions } from "../../engine/proposal-file-write
 export type { ProposalGeneratorDeps } from "../../engine/proposal-generator";
 export type * from "../../engine/proposal-git-committer";
 export type {
+  ProposalOutcomeRecord,
+  ProposalOutcomeRecorderOptions,
+  ProposalOutcomeType,
+} from "../../engine/proposal-outcome-recorder";
+export type {
   RuleEvalInput,
   RuleEvalOptions,
   RuleEvalOutput,
