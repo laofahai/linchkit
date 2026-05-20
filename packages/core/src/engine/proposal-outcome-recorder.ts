@@ -93,7 +93,7 @@ export class ProposalOutcomeRecorder {
       ...(outcome === "rejected" && proposal.rejectionReason
         ? { reason: proposal.rejectionReason }
         : {}),
-      ...(proposal.successMetric ? { successMetric: proposal.successMetric } : {}),
+      ...(proposal.successMetric ? { successMetric: { ...proposal.successMetric } } : {}),
     };
 
     await this.store.recordSignal({
