@@ -113,10 +113,14 @@ export class BlueGreenDeployer {
   private _standbyPort: number;
   /** Handle to the most-recently deployed (now active) instance */
   private activeHandle: ProcessHandle | null = null;
+  private _isDeploying = false;
 
   constructor(config: BlueGreenConfig) {
     if (config.portA === config.portB) {
       throw new Error(`portA and portB must be different, both are ${config.portA}`);
+    }
+    if (config.appCommand.length === 0) {
+      throw new Error("appCommand cannot be empty");
     }
 
     this.appCommand = config.appCommand;
@@ -164,6 +168,24 @@ export class BlueGreenDeployer {
    * 6. Swap active/standby port tracking
    */
   async deploy(): Promise<DeployResult> {
+    if (this._isDeploying) {
+      return {
+        success: false,
+        phase: "failed",
+        activePort: this._activePort,
+        durationMs: 0,
+        error: "A deployment is already in progress",
+      };
+    }
+    this._isDeploying = true;
+    try {
+      return await this._deployInternal();
+    } finally {
+      this._isDeploying = false;
+    }
+  }
+
+  private async _deployInternal(): Promise<DeployResult> {
     const startMs = Date.now();
     const elapsed = () => Date.now() - startMs;
 
@@ -258,7 +280,14 @@ export class BlueGreenDeployer {
         });
         await sleep(this.gracefulShutdownWaitMs);
       }
-      await this.killSilent(prevHandle, `old active (port ${prevPort})`);
+      if (this.activeHandle === newHandle) {
+        await this.killSilent(prevHandle, `old active (port ${prevPort})`);
+      } else {
+        this.logger.info(
+          "BlueGreenDeployer: skipping old instance kill — rollback occurred during drain window",
+          { port: prevPort },
+        );
+      }
     } else {
       this.logger.info("BlueGreenDeployer: no tracked previous instance to drain (first deploy)");
     }

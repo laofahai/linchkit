@@ -8,7 +8,7 @@ import {
   type ProcessLauncher,
 } from "../src/deployment/blue-green-deployer";
 
-// ── Test helpers ──────────────────────────────────────────────────────────────
+// ── Test helpers ───────────────────────────────────────────────────────────────────
 
 const silentLogger = {
   debug: () => {},
@@ -97,7 +97,7 @@ function baseConfig(
   };
 }
 
-// ── Constructor ───────────────────────────────────────────────────────────────
+// ── Constructor ───────────────────────────────────────────────────────────────────
 
 describe("BlueGreenDeployer — constructor", () => {
   it("defaults to portA as active, portB as standby", () => {
@@ -130,9 +130,16 @@ describe("BlueGreenDeployer — constructor", () => {
       () => new BlueGreenDeployer(baseConfig({ nginxReloader: reloader, initialActivePort: 9999 })),
     ).toThrow("initialActivePort must be portA");
   });
+
+  it("throws when appCommand is empty", () => {
+    const { reloader } = makeNginxReloader();
+    expect(
+      () => new BlueGreenDeployer(baseConfig({ nginxReloader: reloader, appCommand: [] })),
+    ).toThrow("appCommand cannot be empty");
+  });
 });
 
-// ── deploy() — success paths ──────────────────────────────────────────────────
+// ── deploy() — success paths ─────────────────────────────────────────────────────
 
 describe("BlueGreenDeployer — deploy() success", () => {
   it("returns success, updates activePort and standbyPort", async () => {
@@ -282,7 +289,7 @@ describe("BlueGreenDeployer — deploy() success", () => {
   });
 });
 
-// ── deploy() — failure paths ──────────────────────────────────────────────────
+// ── deploy() — failure paths ─────────────────────────────────────────────────────
 
 describe("BlueGreenDeployer — deploy() failures", () => {
   it("returns failure when processLauncher throws", async () => {
@@ -395,7 +402,7 @@ describe("BlueGreenDeployer — deploy() failures", () => {
   });
 });
 
-// ── rollback() ────────────────────────────────────────────────────────────────
+// ── rollback() ───────────────────────────────────────────────────────────────────────
 
 describe("BlueGreenDeployer — rollback()", () => {
   it("switches nginx to standby port and swaps active/standby", async () => {
@@ -461,7 +468,7 @@ describe("BlueGreenDeployer — rollback()", () => {
   });
 });
 
-// ── Nginx reloader integration ────────────────────────────────────────────────
+// ── Nginx reloader integration ──────────────────────────────────────────────────────────
 
 describe("BlueGreenDeployer — nginx reloader", () => {
   it("nginx reloader receives the standby port during deploy", async () => {
