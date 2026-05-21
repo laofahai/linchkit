@@ -229,6 +229,11 @@ export interface Insight {
   entity: string;
   /** When this insight was generated */
   createdAt: Date;
+  /**
+   * Optional semantic tags for downstream routing (e.g. "rollback_candidate").
+   * Added by Spec 55 §7.7 Phase 2 to support effect-verification tagging.
+   */
+  tags?: string[];
 }
 
 /**

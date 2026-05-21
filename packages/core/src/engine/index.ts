@@ -86,6 +86,14 @@ export {
   resolveConditionVariables,
   resolveDataAccess,
 } from "./permission-engine";
+// Proposal effect verifier (Spec 55 §7.7 Phase 2)
+export {
+  createProposalEffectVerifier,
+  type EffectVerificationResult,
+  type EffectVerificationStatus,
+  ProposalEffectVerifier,
+  type ProposalEffectVerifierOptions,
+} from "./proposal-effect-verifier";
 // Proposal engine
 export {
   bumpVersion,
@@ -115,8 +123,8 @@ export {
   type ProposalOutcomePayload,
   ProposalOutcomeRecorder,
   type ProposalOutcomeRecorderOptions,
-  type RecordProposalOutcomeOptions,
   type ProposalOutcomeType,
+  type RecordProposalOutcomeOptions,
 } from "./proposal-outcome-recorder";
 // Rule engine
 export {
