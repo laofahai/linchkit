@@ -45,6 +45,12 @@ export {
 } from "../../engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "../../engine/permission-engine";
 export type {
+  EffectVerificationResult,
+  EffectVerificationStatus,
+  ProposalEffectVerifier,
+  ProposalEffectVerifierOptions,
+} from "../../engine/proposal-effect-verifier";
+export type {
   CreateProposalOptions,
   OnApprovedHook,
   ProposalEngine,
