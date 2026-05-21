@@ -113,7 +113,7 @@ export class BlueGreenDeployer {
   private _standbyPort: number;
   /** Handle to the most-recently deployed (now active) instance */
   private activeHandle: ProcessHandle | null = null;
-  private _isDeploying = false;
+  private isDeploying = false;
 
   constructor(config: BlueGreenConfig) {
     if (config.portA === config.portB) {
@@ -168,7 +168,7 @@ export class BlueGreenDeployer {
    * 6. Swap active/standby port tracking
    */
   async deploy(): Promise<DeployResult> {
-    if (this._isDeploying) {
+    if (this.isDeploying) {
       return {
         success: false,
         phase: "failed",
@@ -177,15 +177,65 @@ export class BlueGreenDeployer {
         error: "A deployment is already in progress",
       };
     }
-    this._isDeploying = true;
+    this.isDeploying = true;
     try {
-      return await this._deployInternal();
+      return await this.runDeploy();
     } finally {
-      this._isDeploying = false;
+      this.isDeploying = false;
     }
   }
 
-  private async _deployInternal(): Promise<DeployResult> {
+  /**
+   * Quick rollback (Spec 12 §6) — switch Nginx back to the standby port (which was the
+   * previous active instance). Safe to call even if no `deploy()` has been executed yet.
+   */
+  async rollback(): Promise<DeployResult> {
+    const startMs = Date.now();
+    const elapsed = () => Date.now() - startMs;
+
+    this.logger.info("BlueGreenDeployer: rolling back", {
+      currentActive: this._activePort,
+      rollingBackTo: this._standbyPort,
+    });
+
+    try {
+      await this.nginxReloader(this._standbyPort);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error("BlueGreenDeployer: rollback Nginx reload failed", { error: msg });
+      return {
+        success: false,
+        phase: "rolling-back",
+        activePort: this._activePort,
+        durationMs: elapsed(),
+        error: `Rollback Nginx reload failed: ${msg}`,
+      };
+    }
+
+    // Kill the recently-deployed (now rolled-back-from) instance
+    if (this.activeHandle) {
+      await this.killSilent(this.activeHandle, `rolled-back instance (port ${this._activePort})`);
+      this.activeHandle = null;
+    }
+
+    // Swap active/standby
+    const prev = this._activePort;
+    this._activePort = this._standbyPort;
+    this._standbyPort = prev;
+
+    this.logger.info("BlueGreenDeployer: rollback complete", { activePort: this._activePort });
+
+    return {
+      success: true,
+      phase: "done",
+      activePort: this._activePort,
+      durationMs: elapsed(),
+    };
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
+
+  private async runDeploy(): Promise<DeployResult> {
     const startMs = Date.now();
     const elapsed = () => Date.now() - startMs;
 
@@ -304,56 +354,6 @@ export class BlueGreenDeployer {
       durationMs: elapsed(),
     };
   }
-
-  /**
-   * Quick rollback (Spec 12 §6) — switch Nginx back to the standby port (which was the
-   * previous active instance). Safe to call even if no `deploy()` has been executed yet.
-   */
-  async rollback(): Promise<DeployResult> {
-    const startMs = Date.now();
-    const elapsed = () => Date.now() - startMs;
-
-    this.logger.info("BlueGreenDeployer: rolling back", {
-      currentActive: this._activePort,
-      rollingBackTo: this._standbyPort,
-    });
-
-    try {
-      await this.nginxReloader(this._standbyPort);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error("BlueGreenDeployer: rollback Nginx reload failed", { error: msg });
-      return {
-        success: false,
-        phase: "rolling-back",
-        activePort: this._activePort,
-        durationMs: elapsed(),
-        error: `Rollback Nginx reload failed: ${msg}`,
-      };
-    }
-
-    // Kill the recently-deployed (now rolled-back-from) instance
-    if (this.activeHandle) {
-      await this.killSilent(this.activeHandle, `rolled-back instance (port ${this._activePort})`);
-      this.activeHandle = null;
-    }
-
-    // Swap active/standby
-    const prev = this._activePort;
-    this._activePort = this._standbyPort;
-    this._standbyPort = prev;
-
-    this.logger.info("BlueGreenDeployer: rollback complete", { activePort: this._activePort });
-
-    return {
-      success: true,
-      phase: "done",
-      activePort: this._activePort,
-      durationMs: elapsed(),
-    };
-  }
-
-  // ── Private helpers ──────────────────────────────────────────────────────
 
   private async pollHealthCheck(port: number): Promise<boolean> {
     const url = `http://127.0.0.1:${port}${this.healthCheckPath}`;
