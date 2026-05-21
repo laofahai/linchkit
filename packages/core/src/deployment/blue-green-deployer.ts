@@ -376,9 +376,14 @@ export class BlueGreenDeployer {
 
 const defaultProcessLauncher: ProcessLauncher = async (command, cwd, env) => {
   const [cmd, ...args] = command;
+  const spawnEnv: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined) spawnEnv[k] = v;
+  }
+  if (env) Object.assign(spawnEnv, env);
   const proc = Bun.spawn([cmd, ...args], {
     cwd,
-    env: { ...process.env, ...env },
+    env: spawnEnv,
     stdout: "inherit",
     stderr: "inherit",
   });
