@@ -1,8 +1,20 @@
 /**
- * Deployment utilities — Health checks, graceful shutdown, environment detection, build pipeline.
+ * Deployment utilities — Health checks, graceful shutdown, environment detection, build pipeline,
+ * blue-green instance switching.
  *
  * Server-only module. Used by the server adapter and CLI for production deployments.
  */
+
+export {
+  type BlueGreenConfig,
+  BlueGreenDeployer,
+  type DeployPhase,
+  type DeployResult,
+  type HttpFetcher,
+  type NginxReloader,
+  type ProcessHandle,
+  type ProcessLauncher,
+} from "./blue-green-deployer";
 
 export {
   type BuildConfig,
