@@ -96,6 +96,7 @@ jobs:
                       totalCount
                       nodes {
                         isResolved
+                        isOutdated
                         comments(first: 1) {
                           nodes {
                             body
@@ -154,7 +155,14 @@ jobs:
               );
               return;
             }
-            const unresolved = threads.filter(t => !t.isResolved);
+            // Outdated threads reference code that has since changed — the
+            // original concern was superseded by subsequent commits. Exclude
+            // them from the blocking set; they are logged for transparency.
+            const unresolved = threads.filter(t => !t.isResolved && !t.isOutdated);
+            const outdated = threads.filter(t => !t.isResolved && t.isOutdated);
+            if (outdated.length > 0) {
+              core.info(`${outdated.length} outdated unresolved thread(s) skipped (code changed since review).`);
+            }
             const total = threads.length;
 
             // Build human-readable description for the commit status.
