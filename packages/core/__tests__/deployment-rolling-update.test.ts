@@ -176,7 +176,7 @@ describe("RollingUpdateCoordinator — failure cases", () => {
     expect(result.nodeStatuses[0].error).toContain("traffic switch failed");
   });
 
-  it("pauses on stopOldInstance failure", async () => {
+  it("pauses on stopOldInstance failure and includes node in deployedNodes (traffic already switched)", async () => {
     const node = makeNode("n1", {
       stopOldInstance: async () => {
         throw new Error("process not found");
@@ -187,6 +187,9 @@ describe("RollingUpdateCoordinator — failure cases", () => {
 
     expect(result.success).toBe(false);
     expect(result.nodeStatuses[0].error).toContain("stop old instance failed");
+    // Traffic was switched before stopOldInstance — node must be in deployedNodes for rollback.
+    expect(result.deployedNodes).toEqual(["n1"]);
+    expect(result.failedNode).toBe("n1");
   });
 
   it("stops after second node fails; first node remains in deployedNodes", async () => {

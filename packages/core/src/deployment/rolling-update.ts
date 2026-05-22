@@ -52,7 +52,7 @@ export type RollingUpdatePhase = "idle" | "running" | "paused-on-failure" | "don
 export interface RollingUpdateResult {
   success: boolean;
   phase: RollingUpdatePhase;
-  /** Node IDs that completed all five deploy steps */
+  /** Node IDs that switched traffic (and may need rollback even on partial failure) */
   deployedNodes: string[];
   /** Node ID that caused a failure, if any */
   failedNode?: string;
@@ -108,11 +108,14 @@ export class RollingUpdateCoordinator {
   async deploy(artifact: DeployArtifact): Promise<RollingUpdateResult> {
     const startMs = Date.now();
 
-    // Pre-pair each node with its mutable status to avoid noUncheckedIndexedAccess issues.
-    const nodeItems = this.nodes.map((node) => ({
-      node,
-      status: { nodeId: node.nodeId, phase: "pending" as NodePhase } satisfies NodeDeployStatus,
-    }));
+    // Pre-pair each node with its mutable status object to avoid noUncheckedIndexedAccess issues.
+    // Explicit return type annotation ensures status is typed as NodeDeployStatus (with error?).
+    const nodeItems = this.nodes.map(
+      (node): { node: NodeDeployClient; status: NodeDeployStatus } => ({
+        node,
+        status: { nodeId: node.nodeId, phase: "pending" },
+      }),
+    );
     const deployedNodes: string[] = [];
     let nodeIndex = 0;
 
@@ -135,6 +138,12 @@ export class RollingUpdateCoordinator {
 
       const outcome = await this.deployNode(item.node, artifact, item.status);
 
+      // Track after traffic switch: node is serving new traffic and must be
+      // included in rollback even if the final stopOldInstance step failed.
+      if (outcome.trafficSwitched) {
+        deployedNodes.push(item.node.nodeId);
+      }
+
       if (!outcome.success) {
         this.logger.error("RollingUpdateCoordinator: node failed — pausing", {
           nodeId: item.node.nodeId,
@@ -151,7 +160,6 @@ export class RollingUpdateCoordinator {
         };
       }
 
-      deployedNodes.push(item.node.nodeId);
       this.logger.info("RollingUpdateCoordinator: node done", { nodeId: item.node.nodeId });
     }
 
@@ -231,7 +239,7 @@ export class RollingUpdateCoordinator {
     node: NodeDeployClient,
     artifact: DeployArtifact,
     status: NodeDeployStatus,
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; error?: string; trafficSwitched?: boolean }> {
     // 1. Distribute artifact
     status.phase = "distributing";
     try {
@@ -271,18 +279,19 @@ export class RollingUpdateCoordinator {
       return { success: false, error: status.error };
     }
 
-    // 5. Stop old instance
+    // 5. Stop old instance — traffic is already switched; flag trafficSwitched so the
+    //    coordinator includes this node in rollback even if this final step fails.
     status.phase = "stopping-old";
     try {
       await node.stopOldInstance();
     } catch (err) {
       status.phase = "failed";
       status.error = `stop old instance failed: ${errorMsg(err)}`;
-      return { success: false, error: status.error };
+      return { success: false, error: status.error, trafficSwitched: true };
     }
 
     status.phase = "done";
-    return { success: true };
+    return { success: true, trafficSwitched: true };
   }
 
   private async waitForHealthy(node: NodeDeployClient): Promise<boolean> {
