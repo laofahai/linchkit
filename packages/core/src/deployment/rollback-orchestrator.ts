@@ -65,7 +65,7 @@ export interface DeployRollbackOrchestratorOptions {
 }
 
 export interface RollbackInput {
-  /** The commit SHA to revert. Must be a valid 40-char or abbreviated SHA. */
+  /** The commit SHA to revert. Must be a valid hex SHA (7–40 chars). */
   commitSha: string;
   /** Optional override for the PR title (replaces the auto-generated "[ROLLBACK] Revert …" title). */
   titleOverride?: string;
@@ -90,6 +90,8 @@ const DEFAULT_BRANCH_PREFIX = "rollback/";
 const SHORT_SHA_LENGTH = 8;
 // Match owner/repo segments without slashes or whitespace.
 const PR_URL_REGEX = /https:\/\/github\.com\/[^\s/]+\/[^\s/]+\/pull\/\d+/;
+// Regex used to detect a missing-label error from `gh pr create`.
+const LABEL_MISSING_REGEX = /label.*rollback.*(not found|does not exist|could not be resolved)/i;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -214,11 +216,11 @@ export class DeployRollbackOrchestrator {
    * GitHub PR marked for rollback review.
    *
    * Steps:
-   *   1. Validate commitSha is non-empty.
+   *   1. Validate commitSha is a non-empty hex SHA (7–40 chars).
    *   2. git fetch <remote> <baseBranch> (best-effort, warn on failure).
    *   3. Resolve the original commit subject via `git log -1 --format=%s`.
    *   4. Create a new branch off <remote>/<baseBranch>.
-   *   5. git revert <commitSha> --no-edit, then git commit.
+   *   5. git revert <commitSha> --no-edit.
    *   6. git push -u <remote> <branch>.
    *   7. gh pr create with rollback title + body.
    *   8. Parse and return the PR URL.
@@ -229,8 +231,12 @@ export class DeployRollbackOrchestrator {
   async orchestrate(input: RollbackInput): Promise<RollbackResult> {
     const { commitSha, titleOverride, bodyNote } = input;
 
-    if (!commitSha || commitSha.trim().length === 0) {
+    const normalizedSha = commitSha.trim();
+    if (!normalizedSha) {
       throw new Error("DeployRollbackOrchestrator: commitSha must be non-empty");
+    }
+    if (!/^[0-9a-f]{7,40}$/i.test(normalizedSha)) {
+      throw new Error("DeployRollbackOrchestrator: commitSha must be a valid hex SHA (7-40 chars)");
     }
 
     const cwd = { cwd: this.repoDir };
@@ -245,17 +251,17 @@ export class DeployRollbackOrchestrator {
 
     // ── Step 2: resolve commit subject ───────────────────────────────────
     let subject = "";
-    const logResult = await this.gitRunner(["log", "-1", "--format=%s", commitSha], cwd);
+    const logResult = await this.gitRunner(["log", "-1", "--format=%s", normalizedSha], cwd);
     if (logResult.exitCode === 0) {
       subject = logResult.stdout.trim();
     } else {
       this.logger?.warn?.(
-        `DeployRollbackOrchestrator: could not resolve subject for ${commitSha} — using empty subject`,
+        `DeployRollbackOrchestrator: could not resolve subject for ${normalizedSha} — using empty subject`,
       );
     }
 
     // ── Step 3: create branch ─────────────────────────────────────────────
-    const branch = buildBranchName(this.branchPrefix, commitSha, this.clock);
+    const branch = buildBranchName(this.branchPrefix, normalizedSha, this.clock);
     const remoteRef = `${this.remote}/${this.baseBranch}`;
 
     const checkoutFromRemote = await this.gitRunner(["checkout", "-b", branch, remoteRef], cwd);
@@ -270,8 +276,10 @@ export class DeployRollbackOrchestrator {
     }
 
     // ── Step 4: git revert ────────────────────────────────────────────────
-    const revertResult = await this.gitRunner(["revert", commitSha, "--no-edit"], cwd);
+    const revertResult = await this.gitRunner(["revert", normalizedSha, "--no-edit"], cwd);
     if (revertResult.exitCode !== 0) {
+      // Best-effort cleanup: abort the in-progress revert so the working tree is clean.
+      await this.gitRunner(["revert", "--abort"], cwd).catch(() => undefined);
       failStep("revert", revertResult);
     }
 
@@ -289,13 +297,13 @@ export class DeployRollbackOrchestrator {
     }
 
     // ── Step 7: open PR ───────────────────────────────────────────────────
-    const prTitle = titleOverride ?? this.buildPrTitle(commitSha, subject);
-    let prBody = this.buildPrBody(commitSha, subject);
+    const prTitle = titleOverride ?? this.buildPrTitle(normalizedSha, subject);
+    let prBody = this.buildPrBody(normalizedSha, subject);
     if (bodyNote && bodyNote.trim().length > 0) {
       prBody = `${prBody}\n\n---\n\n${bodyNote.trim()}`;
     }
 
-    const prResult = await this.ghRunner(
+    let prResult = await this.ghRunner(
       [
         "pr",
         "create",
@@ -313,12 +321,16 @@ export class DeployRollbackOrchestrator {
       cwd,
     );
     if (prResult.exitCode !== 0) {
-      // gh pr create may fail if the "rollback" label does not exist in the repo.
-      // Retry without the label rather than aborting — the title already signals rollback.
+      // Retry without --label only when `gh` specifically reports the label is missing.
+      // For any other failure (network, auth, duplicate PR) we fail immediately to avoid
+      // opening a duplicate PR.
+      if (!LABEL_MISSING_REGEX.test(prResult.stderr)) {
+        failStep("pr create", prResult);
+      }
       this.logger?.warn?.(
         `DeployRollbackOrchestrator: gh pr create with --label rollback failed (exit ${prResult.exitCode}): ${prResult.stderr.trim()} — retrying without label`,
       );
-      const prRetry = await this.ghRunner(
+      prResult = await this.ghRunner(
         [
           "pr",
           "create",
@@ -333,17 +345,9 @@ export class DeployRollbackOrchestrator {
         ],
         cwd,
       );
-      if (prRetry.exitCode !== 0) {
-        failStep("pr create", prRetry);
+      if (prResult.exitCode !== 0) {
+        failStep("pr create", prResult);
       }
-      const prUrl = extractPrUrl(prRetry.stdout);
-      if (!prUrl) {
-        throw new Error(
-          `DeployRollbackOrchestrator: could not parse PR URL from 'gh pr create' stdout: ${prRetry.stdout.trim()}`,
-        );
-      }
-      this.logger?.info?.(`DeployRollbackOrchestrator: PR opened at ${prUrl} (branch ${branch})`);
-      return { branch, revertCommitSha, prUrl };
     }
 
     const prUrl = extractPrUrl(prResult.stdout);

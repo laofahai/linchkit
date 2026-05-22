@@ -123,6 +123,11 @@ describe("DeployRollbackOrchestrator — input validation", () => {
       "commitSha must be non-empty",
     );
   });
+
+  it("throws when commitSha is not a valid hex SHA", async () => {
+    const orch = createDeployRollbackOrchestrator({ repoDir: REPO_DIR });
+    await expect(orch.orchestrate({ commitSha: "not-a-sha!" })).rejects.toThrow("valid hex SHA");
+  });
 });
 
 // ── Happy path ────────────────────────────────────────────────────────────
@@ -349,12 +354,14 @@ describe("DeployRollbackOrchestrator — log failure", () => {
 // ── revert failure ────────────────────────────────────────────────────────
 
 describe("DeployRollbackOrchestrator — revert failure", () => {
-  it("throws when git revert fails (conflict)", async () => {
+  it("aborts in-progress revert and throws when git revert fails (conflict)", async () => {
+    const gitLog: GitCallLog = [];
     const responses = {
       ...happyGitResponses(),
       [`revert ${BASE_SHA} --no-edit`]: fail("CONFLICT (content): Merge conflict", 1),
+      "revert --abort": ok(),
     };
-    const gitRunner = makeGitRunner(responses);
+    const gitRunner = makeGitRunner(responses, gitLog);
     const orch = createDeployRollbackOrchestrator({
       repoDir: REPO_DIR,
       clock: FIXED_CLOCK,
@@ -363,6 +370,7 @@ describe("DeployRollbackOrchestrator — revert failure", () => {
       logger: silentLogger,
     });
     await expect(orch.orchestrate({ commitSha: BASE_SHA })).rejects.toThrow("revert");
+    expect(gitLog.some((c) => c.args[0] === "revert" && c.args[1] === "--abort")).toBe(true);
   });
 });
 
@@ -414,9 +422,13 @@ describe("DeployRollbackOrchestrator — label retry", () => {
     expect(atIndex(ghLog, 1, "ghLog").args).not.toContain("--label");
   });
 
-  it("throws when both gh pr create calls fail", async () => {
+  it("throws immediately when gh pr create fails with non-label error (no retry)", async () => {
+    let callCount = 0;
     const gitRunner = makeGitRunner(happyGitResponses());
-    const ghRunner: RollbackGhRunner = async () => fail("network error", 1);
+    const ghRunner: RollbackGhRunner = async () => {
+      callCount++;
+      return fail("network error", 1);
+    };
 
     const orch = createDeployRollbackOrchestrator({
       repoDir: REPO_DIR,
@@ -426,6 +438,7 @@ describe("DeployRollbackOrchestrator — label retry", () => {
       logger: silentLogger,
     });
     await expect(orch.orchestrate({ commitSha: BASE_SHA })).rejects.toThrow("pr create");
+    expect(callCount).toBe(1);
   });
 
   it("throws when PR URL cannot be parsed from gh output", async () => {
@@ -496,7 +509,7 @@ describe("DeployRollbackOrchestrator — custom options", () => {
       logger: silentLogger,
     });
     const result = await orch.orchestrate({ commitSha: BASE_SHA });
-    expect(result.branch).toMatch(/^revert\//);
+    expect(result.branch).toMatch(/^\/revert\//);
     expect(result.prUrl).toBe(FAKE_PR_URL);
   });
 });
