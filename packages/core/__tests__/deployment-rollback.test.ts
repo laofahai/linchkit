@@ -509,7 +509,7 @@ describe("DeployRollbackOrchestrator — custom options", () => {
       logger: silentLogger,
     });
     const result = await orch.orchestrate({ commitSha: BASE_SHA });
-    expect(result.branch).toMatch(/^\/revert\//);
+    expect(result.branch).toMatch(/^revert\//);
     expect(result.prUrl).toBe(FAKE_PR_URL);
   });
 });
