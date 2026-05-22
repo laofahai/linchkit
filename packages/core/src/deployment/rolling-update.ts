@@ -107,51 +107,52 @@ export class RollingUpdateCoordinator {
    */
   async deploy(artifact: DeployArtifact): Promise<RollingUpdateResult> {
     const startMs = Date.now();
-    const nodeStatuses: NodeDeployStatus[] = this.nodes.map((n) => ({
-      nodeId: n.nodeId,
-      phase: "pending" as NodePhase,
+
+    // Pre-pair each node with its mutable status to avoid noUncheckedIndexedAccess issues.
+    const nodeItems = this.nodes.map((node) => ({
+      node,
+      status: { nodeId: node.nodeId, phase: "pending" as NodePhase } satisfies NodeDeployStatus,
     }));
     const deployedNodes: string[] = [];
+    let nodeIndex = 0;
 
     this.logger.info("RollingUpdateCoordinator: starting rolling deploy", {
       version: artifact.version,
       nodeCount: this.nodes.length,
     });
 
-    for (let i = 0; i < this.nodes.length; i++) {
-      const node = this.nodes[i];
-      const status = nodeStatuses[i];
-
-      if (i > 0 && this.nodeIntervalMs > 0) {
+    for (const item of nodeItems) {
+      if (nodeIndex > 0 && this.nodeIntervalMs > 0) {
         await delay(this.nodeIntervalMs);
       }
+      nodeIndex++;
 
       this.logger.info("RollingUpdateCoordinator: deploying node", {
-        nodeId: node.nodeId,
-        index: i + 1,
+        nodeId: item.node.nodeId,
+        index: nodeIndex,
         total: this.nodes.length,
       });
 
-      const outcome = await this.deployNode(node, artifact, status);
+      const outcome = await this.deployNode(item.node, artifact, item.status);
 
       if (!outcome.success) {
         this.logger.error("RollingUpdateCoordinator: node failed — pausing", {
-          nodeId: node.nodeId,
+          nodeId: item.node.nodeId,
           error: outcome.error,
         });
         return {
           success: false,
           phase: "paused-on-failure",
           deployedNodes,
-          failedNode: node.nodeId,
-          nodeStatuses,
+          failedNode: item.node.nodeId,
+          nodeStatuses: nodeItems.map((it) => it.status),
           durationMs: Date.now() - startMs,
           error: outcome.error,
         };
       }
 
-      deployedNodes.push(node.nodeId);
-      this.logger.info("RollingUpdateCoordinator: node done", { nodeId: node.nodeId });
+      deployedNodes.push(item.node.nodeId);
+      this.logger.info("RollingUpdateCoordinator: node done", { nodeId: item.node.nodeId });
     }
 
     this.logger.info("RollingUpdateCoordinator: rolling deploy complete", {
@@ -164,7 +165,7 @@ export class RollingUpdateCoordinator {
       success: true,
       phase: "done",
       deployedNodes,
-      nodeStatuses,
+      nodeStatuses: nodeItems.map((it) => it.status),
       durationMs: Date.now() - startMs,
     };
   }
