@@ -42,6 +42,17 @@ export {
   livenessCheck,
 } from "./health-check";
 export {
+  type DeployArtifact,
+  type NodeDeployClient,
+  type NodeDeployStatus,
+  type NodePhase,
+  RollingUpdateCoordinator,
+  type RollingUpdateCoordinatorConfig,
+  type RollingUpdatePhase,
+  type RollingUpdateResult,
+  type RollingUpdateRollbackResult,
+} from "./rolling-update";
+export {
   type DeployEvent,
   type DeployWebhookConfig,
   DeployWebhookHandler,
