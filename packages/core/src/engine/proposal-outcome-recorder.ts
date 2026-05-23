@@ -1,126 +1,125 @@
 /**
- * ProposalOutcomeRecorder — Spec 55 §7.7 "Feedback loop: Phase 1".
+ * ProposalOutcomeRecorder — Spec 55 §7.7 Phase 1 "Feedback loop: outcome recording".
  *
- * Records Proposal accept/reject/merge/withdraw events to the Memory layer
- * so future Insight generation can reference the accept/reject history and
- * the `ProposalEffectVerifier` (Phase 2) can verify `successMetric` outcomes.
+ * Records proposal accept/reject/merge/withdraw events to MemoryStore so the
+ * Awareness and Insight layers can learn from acceptance patterns over time.
+ * Phase 3 will aggregate these events by (generator_id, change_type) to adjust
+ * generator attention budgets.
  *
- * Design constraints (mirrors ProposalFileWriter / ProposalGitCommitter):
- *   - Small, focused engine — no business logic, no scheduling.
- *   - Caller-composed — NOT auto-wired into ProposalEngine. The caller
- *     decides when to record (typically right after approveProposal /
- *     rejectProposal / commitProposal) so the project retains full control
- *     over the feedback-loop timing.
- *   - Writes via MemoryStore.recordSignal() — decoupled from any specific
- *     storage backend (in-memory, Drizzle, external).
+ * Intentionally NOT auto-wired into ProposalEngine. Callers compose it:
+ *   const recorder = new ProposalOutcomeRecorder({ store });
+ *   const engine = createProposalEngine({
+ *     onApproved: (p) => recorder.record({ proposal: p, outcome: 'accepted' }),
+ *     onRejected: (p) => recorder.record({ proposal: p, outcome: 'rejected' }),
+ *   });
+ *
+ * Pattern mirrors ProposalFileWriter / ProposalGitCommitter (Spec 55 §7.6).
  */
 
 import type { MemoryStore } from "../types/life-system";
+import type { Logger } from "../types/logger";
 import type { ProposalDefinition } from "../types/proposal";
 
-// ── Outcome type ─────────────────────────────────────────
+// ── Outcome types ────────────────────────────────────────
 
-/**
- * Four outcome types tracked by the feedback loop (Spec 55 §7.7):
- * - `accepted`  — proposal approved by a human/AI reviewer
- * - `rejected`  — proposal rejected by a human/AI reviewer
- * - `merged`    — proposal committed + deployed (graduated to Layer 0)
- * - `withdrawn` — proposal withdrawn by its author before a decision
- */
+/** The four outcome types a Proposal can produce (Spec 55 §7.7). */
 export type ProposalOutcomeType = "accepted" | "rejected" | "merged" | "withdrawn";
 
-// ── Signal type constant ─────────────────────────────────
+// ── Signal payload ───────────────────────────────────────
 
-/** Prefix for all outcome signal types written to MemoryStore. */
-const OUTCOME_SIGNAL_PREFIX = "proposal_outcome" as const;
+/**
+ * Payload written to MemoryStore for each outcome event.
+ * Phase 3 reads these by (generatorId, changeType) to adjust generator weights.
+ */
+export interface ProposalOutcomePayload {
+  proposalId: string;
+  capability: string;
+  changeType: string;
+  outcome: ProposalOutcomeType;
+  /** Generator that produced the proposal, if known (used by Phase 3). */
+  generatorId?: string;
+  successMetric?: {
+    baselineValue: number;
+    targetValue: number;
+    signalRef?: string;
+    description?: string;
+  };
+  actorId?: string;
+  reason?: string;
+  recordedAt: string;
+}
 
 // ── Options ──────────────────────────────────────────────
 
 export interface ProposalOutcomeRecorderOptions {
-  /** Memory store to write outcome signals to. */
   store: MemoryStore;
+  logger?: Logger;
 }
 
-// ── Record input ─────────────────────────────────────────
+// ── Record options ───────────────────────────────────────
 
-export interface RecordProposalOutcomeOptions {
-  /** The proposal whose outcome is being recorded. */
+export interface RecordOutcomeOptions {
   proposal: ProposalDefinition;
-  /** The outcome to record. */
   outcome: ProposalOutcomeType;
-  /** Optional human-readable reason (required for "rejected" and "withdrawn", optional otherwise). */
+  /** ID of the human or system actor who triggered this outcome. */
+  actorId?: string;
+  /** Reason text (most useful for rejected / withdrawn outcomes). */
   reason?: string;
-  /** Override the event timestamp. Defaults to `new Date()`. */
-  timestamp?: Date;
-}
-
-// ── Recorded signal payload ──────────────────────────────
-
-/** Shape of the `payload` field written to MemoryStore for each outcome event. */
-export interface ProposalOutcomePayload {
-  proposalId: string;
-  proposalTitle: string;
-  capability: string;
-  changeType: string;
-  outcome: ProposalOutcomeType;
-  authorId: string;
-  authorType: string;
-  reason?: string;
-  successMetric?: ProposalDefinition["successMetric"];
 }
 
 // ── ProposalOutcomeRecorder ──────────────────────────────
 
 export class ProposalOutcomeRecorder {
   private readonly store: MemoryStore;
+  private readonly logger?: Logger;
 
-  constructor(opts: ProposalOutcomeRecorderOptions) {
-    this.store = opts.store;
+  constructor(options: ProposalOutcomeRecorderOptions) {
+    this.store = options.store;
+    this.logger = options.logger;
   }
 
   /**
-   * Record a single outcome event for a Proposal.
+   * Record a proposal outcome event to MemoryStore.
    *
-   * Writes a Signal to the Memory store with:
-   *   type     = `"proposal_outcome:{outcome}"` (e.g. `"proposal_outcome:accepted"`)
-   *   source   = `"event_bus"` (internal lifecycle event)
-   *   payload  = {@link ProposalOutcomePayload}
-   *
-   * The signal type uses a structured prefix so downstream queries and the
-   * future `ProposalEffectVerifier` can filter by outcome kind without
-   * parsing free-form strings.
+   * The signal type follows the convention `proposal:outcome:<type>` so
+   * queries can filter by outcome without parsing the payload.
    */
-  async recordOutcome(opts: RecordProposalOutcomeOptions): Promise<void> {
-    const { proposal, outcome, reason, timestamp } = opts;
+  async record(options: RecordOutcomeOptions): Promise<void> {
+    const { proposal, outcome, actorId, reason } = options;
+
+    // Read generatorId if the caller attached it as a sidecar (Phase 3 uses this).
+    const generatorId = (proposal as { generatorId?: unknown }).generatorId;
 
     const payload: ProposalOutcomePayload = {
       proposalId: proposal.id,
-      proposalTitle: proposal.title,
       capability: proposal.capability,
       changeType: proposal.changeType,
       outcome,
-      authorId: proposal.author.id,
-      authorType: proposal.author.type,
-      ...(reason !== undefined && { reason }),
-      ...(proposal.successMetric !== undefined && {
-        successMetric: structuredClone(proposal.successMetric),
-      }),
+      generatorId: typeof generatorId === "string" ? generatorId : undefined,
+      successMetric: proposal.successMetric,
+      actorId,
+      reason,
+      recordedAt: new Date().toISOString(),
     };
 
     await this.store.recordSignal({
-      type: `${OUTCOME_SIGNAL_PREFIX}:${outcome}`,
+      type: `proposal:outcome:${outcome}`,
       source: "event_bus",
-      timestamp: timestamp ?? new Date(),
+      timestamp: new Date(),
       payload,
     });
+
+    this.logger?.info?.(
+      `ProposalOutcomeRecorder: recorded "${outcome}" for proposal "${proposal.id}"`,
+      { proposalId: proposal.id, outcome, capability: proposal.capability },
+    );
   }
 }
 
-// ── Factory ───────────────────────────────────────────────
+// ── Factory ──────────────────────────────────────────────
 
-/** Create a new ProposalOutcomeRecorder instance. */
 export function createProposalOutcomeRecorder(
-  opts: ProposalOutcomeRecorderOptions,
+  options: ProposalOutcomeRecorderOptions,
 ): ProposalOutcomeRecorder {
-  return new ProposalOutcomeRecorder(opts);
+  return new ProposalOutcomeRecorder(options);
 }

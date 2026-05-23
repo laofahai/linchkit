@@ -66,6 +66,7 @@ export {
   type CreateProposalOptions,
   createProposalEngine,
   type OnApprovedHook,
+  type OnRejectedHook,
   ProposalEngine,
   type ProposalEngineOptions,
 } from "../../engine/proposal-engine";
@@ -95,7 +96,7 @@ export {
   ProposalOutcomeRecorder,
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
-  type RecordProposalOutcomeOptions,
+  type RecordOutcomeOptions,
 } from "../../engine/proposal-outcome-recorder";
 export {
   collectRules,
