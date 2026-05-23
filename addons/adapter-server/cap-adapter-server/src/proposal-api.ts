@@ -264,7 +264,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
         }
 
         const reason = (body as Record<string, string>)?.reason ?? "Rejected by user";
-        const rejected = proposalEngine.rejectProposal({ proposalId: params.id, reason });
+        const rejected = await proposalEngine.rejectProposal({ proposalId: params.id, reason });
         return { success: true, data: serializeProposal(rejected) };
       } catch (err) {
         set.status = 422;
