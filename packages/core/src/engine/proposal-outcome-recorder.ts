@@ -20,12 +20,12 @@ import type { MemoryStore } from "../types/life-system";
 import type { Logger } from "../types/logger";
 import type { ProposalDefinition } from "../types/proposal";
 
-// ── Outcome types ────────────────────────────────────────
+// ── Outcome types ────────────────────────────────────
 
 /** The four outcome types a Proposal can produce (Spec 55 §7.7). */
 export type ProposalOutcomeType = "accepted" | "rejected" | "merged" | "withdrawn";
 
-// ── Signal payload ───────────────────────────────────────
+// ── Signal payload ──────────────────────────────────────
 
 /**
  * Payload written to MemoryStore for each outcome event.
@@ -56,7 +56,7 @@ export interface ProposalOutcomeRecorderOptions {
   logger?: Logger;
 }
 
-// ── Record options ───────────────────────────────────────
+// ── Record options ─────────────────────────────────────────
 
 export interface RecordOutcomeOptions {
   proposal: ProposalDefinition;
@@ -67,7 +67,7 @@ export interface RecordOutcomeOptions {
   reason?: string;
 }
 
-// ── ProposalOutcomeRecorder ──────────────────────────────
+// ── ProposalOutcomeRecorder ────────────────────────────────
 
 export class ProposalOutcomeRecorder {
   private readonly store: MemoryStore;
@@ -96,7 +96,7 @@ export class ProposalOutcomeRecorder {
       changeType: proposal.changeType,
       outcome,
       generatorId: typeof generatorId === "string" ? generatorId : undefined,
-      successMetric: proposal.successMetric,
+      successMetric: proposal.successMetric !== undefined ? { ...proposal.successMetric } : undefined,
       actorId,
       reason,
       recordedAt: new Date().toISOString(),
@@ -116,7 +116,7 @@ export class ProposalOutcomeRecorder {
   }
 }
 
-// ── Factory ──────────────────────────────────────────────
+// ── Factory ───────────────────────────────────────────────
 
 export function createProposalOutcomeRecorder(
   options: ProposalOutcomeRecorderOptions,

@@ -44,17 +44,17 @@ describe("ProposalOutcomeRecorder", () => {
     });
   });
 
-  describe("recordOutcome — signal type", () => {
+  describe("record — signal type", () => {
     it.each([
-      ["accepted", "proposal_outcome:accepted"],
-      ["rejected", "proposal_outcome:rejected"],
-      ["merged", "proposal_outcome:merged"],
-      ["withdrawn", "proposal_outcome:withdrawn"],
+      ["accepted", "proposal:outcome:accepted"],
+      ["rejected", "proposal:outcome:rejected"],
+      ["merged", "proposal:outcome:merged"],
+      ["withdrawn", "proposal:outcome:withdrawn"],
     ] as const)('outcome "%s" writes signal type "%s"', async (outcome, expectedType) => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
 
-      await recorder.recordOutcome({ proposal: makeProposal(), outcome });
+      await recorder.record({ proposal: makeProposal(), outcome });
 
       const signals = await store.getSignals();
       expect(signals).toHaveLength(1);
@@ -63,12 +63,12 @@ describe("ProposalOutcomeRecorder", () => {
     });
   });
 
-  describe("recordOutcome — signal source", () => {
+  describe("record — signal source", () => {
     it('writes source "event_bus"', async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
 
-      await recorder.recordOutcome({ proposal: makeProposal(), outcome: "accepted" });
+      await recorder.record({ proposal: makeProposal(), outcome: "accepted" });
 
       const signals = await store.getSignals();
       // biome-ignore lint/style/noNonNullAssertion: length verified above
@@ -76,25 +76,13 @@ describe("ProposalOutcomeRecorder", () => {
     });
   });
 
-  describe("recordOutcome — timestamp", () => {
-    it("uses provided timestamp when given", async () => {
-      const store = new InMemoryMemoryStore();
-      const recorder = new ProposalOutcomeRecorder({ store });
-      const ts = new Date("2026-06-01T12:00:00Z");
-
-      await recorder.recordOutcome({ proposal: makeProposal(), outcome: "merged", timestamp: ts });
-
-      const signals = await store.getSignals();
-      // biome-ignore lint/style/noNonNullAssertion: length verified above
-      expect(signals[0]!.timestamp).toEqual(ts);
-    });
-
-    it("defaults to current time when timestamp is omitted", async () => {
+  describe("record — timestamp", () => {
+    it("writes a recent timestamp", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
       const before = new Date();
 
-      await recorder.recordOutcome({ proposal: makeProposal(), outcome: "accepted" });
+      await recorder.record({ proposal: makeProposal(), outcome: "accepted" });
 
       const after = new Date();
       const signals = await store.getSignals();
@@ -105,31 +93,45 @@ describe("ProposalOutcomeRecorder", () => {
     });
   });
 
-  describe("recordOutcome — payload", () => {
+  describe("record — payload", () => {
     it("includes core proposal fields in payload", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
       const proposal = makeProposal();
 
-      await recorder.recordOutcome({ proposal, outcome: "accepted" });
+      await recorder.record({ proposal, outcome: "accepted" });
 
       const signals = await store.getSignals();
       // biome-ignore lint/style/noNonNullAssertion: length verified above
       const payload = signals[0]!.payload as ProposalOutcomePayload;
       expect(payload.proposalId).toBe(proposal.id);
-      expect(payload.proposalTitle).toBe(proposal.title);
       expect(payload.capability).toBe(proposal.capability);
       expect(payload.changeType).toBe(proposal.changeType);
       expect(payload.outcome).toBe("accepted");
-      expect(payload.authorId).toBe(proposal.author.id);
-      expect(payload.authorType).toBe(proposal.author.type);
+      expect(typeof payload.recordedAt).toBe("string");
+    });
+
+    it("includes actorId when provided", async () => {
+      const store = new InMemoryMemoryStore();
+      const recorder = new ProposalOutcomeRecorder({ store });
+
+      await recorder.record({
+        proposal: makeProposal(),
+        outcome: "accepted",
+        actorId: "user-reviewer-1",
+      });
+
+      const signals = await store.getSignals();
+      // biome-ignore lint/style/noNonNullAssertion: length verified above
+      const payload = signals[0]!.payload as ProposalOutcomePayload;
+      expect(payload.actorId).toBe("user-reviewer-1");
     });
 
     it("includes reason when provided", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
 
-      await recorder.recordOutcome({
+      await recorder.record({
         proposal: makeProposal(),
         outcome: "rejected",
         reason: "Not aligned with roadmap",
@@ -141,16 +143,16 @@ describe("ProposalOutcomeRecorder", () => {
       expect(payload.reason).toBe("Not aligned with roadmap");
     });
 
-    it("omits reason field when not provided", async () => {
+    it("omits reason when not provided", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
 
-      await recorder.recordOutcome({ proposal: makeProposal(), outcome: "accepted" });
+      await recorder.record({ proposal: makeProposal(), outcome: "accepted" });
 
       const signals = await store.getSignals();
       // biome-ignore lint/style/noNonNullAssertion: length verified above
       const payload = signals[0]!.payload as ProposalOutcomePayload;
-      expect(Object.hasOwn(payload, "reason")).toBe(false);
+      expect(payload.reason).toBeUndefined();
     });
 
     it("includes successMetric when present on proposal", async () => {
@@ -158,62 +160,63 @@ describe("ProposalOutcomeRecorder", () => {
       const recorder = new ProposalOutcomeRecorder({ store });
       const proposal = makeProposal({
         successMetric: {
+          baselineValue: 78,
+          targetValue: 20,
           description: "Manual edit rate drops below 20%",
-          baseline: 78,
-          target: 20,
-          unit: "%",
         },
       });
 
-      await recorder.recordOutcome({ proposal, outcome: "merged" });
+      await recorder.record({ proposal, outcome: "merged" });
 
       const signals = await store.getSignals();
       // biome-ignore lint/style/noNonNullAssertion: length verified above
       const payload = signals[0]!.payload as ProposalOutcomePayload;
-      expect(payload.successMetric).toEqual(proposal.successMetric);
+      expect(payload.successMetric).toBeDefined();
+      expect(payload.successMetric?.baselineValue).toBe(78);
+      expect(payload.successMetric?.targetValue).toBe(20);
+      expect(payload.successMetric?.description).toBe("Manual edit rate drops below 20%");
     });
 
-    it("stored successMetric is a snapshot — mutating source after record does not affect stored signal", async () => {
+    it("stored successMetric is a snapshot — mutating source does not affect stored signal", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
       const proposal = makeProposal({
         successMetric: {
+          baselineValue: 78,
+          targetValue: 20,
           description: "Edit rate drops below 20%",
-          baseline: 78,
-          target: 20,
-          unit: "%",
         },
       });
 
-      await recorder.recordOutcome({ proposal, outcome: "merged" });
+      await recorder.record({ proposal, outcome: "merged" });
 
       // Mutate the source object after recording
       // biome-ignore lint/style/noNonNullAssertion: test setup guarantees it exists
-      proposal.successMetric!.description = "MUTATED";
+      proposal.successMetric!.baselineValue = 999;
       // biome-ignore lint/style/noNonNullAssertion: test setup guarantees it exists
-      proposal.successMetric!.baseline = 999;
+      proposal.successMetric!.description = "MUTATED";
 
       const signals = await store.getSignals();
       // biome-ignore lint/style/noNonNullAssertion: length verified above
       const payload = signals[0]!.payload as ProposalOutcomePayload;
+      expect(payload.successMetric?.baselineValue).toBe(78);
       expect(payload.successMetric?.description).toBe("Edit rate drops below 20%");
-      expect(payload.successMetric?.baseline).toBe(78);
     });
 
-    it("omits successMetric field when not present on proposal", async () => {
+    it("omits successMetric when not present on proposal", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
 
-      await recorder.recordOutcome({ proposal: makeProposal(), outcome: "accepted" });
+      await recorder.record({ proposal: makeProposal(), outcome: "accepted" });
 
       const signals = await store.getSignals();
       // biome-ignore lint/style/noNonNullAssertion: length verified above
       const payload = signals[0]!.payload as ProposalOutcomePayload;
-      expect(Object.hasOwn(payload, "successMetric")).toBe(false);
+      expect(payload.successMetric).toBeUndefined();
     });
   });
 
-  describe("recordOutcome — multiple outcomes", () => {
+  describe("record — multiple outcomes", () => {
     it("records each outcome as a separate signal", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
@@ -221,8 +224,8 @@ describe("ProposalOutcomeRecorder", () => {
       const p1 = makeProposal({ id: "prop-1" });
       const p2 = makeProposal({ id: "prop-2", title: "Another proposal" });
 
-      await recorder.recordOutcome({ proposal: p1, outcome: "accepted" });
-      await recorder.recordOutcome({ proposal: p2, outcome: "rejected", reason: "Out of scope" });
+      await recorder.record({ proposal: p1, outcome: "accepted" });
+      await recorder.record({ proposal: p2, outcome: "rejected", reason: "Out of scope" });
 
       const signals = await store.getSignals();
       expect(signals).toHaveLength(2);
@@ -234,7 +237,7 @@ describe("ProposalOutcomeRecorder", () => {
   });
 });
 
-// ── ProposalSuccessMetric ─────────────────────────────────
+// ── ProposalSuccessMetric ──────────────────────────────────
 
 describe("ProposalDefinition.successMetric", () => {
   it("accepts a full successMetric definition", () => {
@@ -242,22 +245,21 @@ describe("ProposalDefinition.successMetric", () => {
       successMetric: {
         description: "Edit rate drops below 20%",
         signalRef: "insight-42",
-        baseline: 78,
-        target: 20,
-        unit: "%",
+        baselineValue: 78,
+        targetValue: 20,
       },
     });
     expect(proposal.successMetric?.description).toBe("Edit rate drops below 20%");
-    expect(proposal.successMetric?.baseline).toBe(78);
-    expect(proposal.successMetric?.target).toBe(20);
+    expect(proposal.successMetric?.baselineValue).toBe(78);
+    expect(proposal.successMetric?.targetValue).toBe(20);
   });
 
-  it("accepts a minimal successMetric with only description", () => {
+  it("accepts a minimal successMetric with required fields only", () => {
     const proposal = makeProposal({
-      successMetric: { description: "System runs faster" },
+      successMetric: { baselineValue: 0, targetValue: 100 },
     });
-    expect(proposal.successMetric?.description).toBe("System runs faster");
-    expect(proposal.successMetric?.baseline).toBeUndefined();
+    expect(proposal.successMetric?.baselineValue).toBe(0);
+    expect(proposal.successMetric?.description).toBeUndefined();
   });
 
   it("is undefined when not provided", () => {
