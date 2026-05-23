@@ -115,8 +115,8 @@ export {
   type ProposalOutcomePayload,
   ProposalOutcomeRecorder,
   type ProposalOutcomeRecorderOptions,
-  type RecordProposalOutcomeOptions,
   type ProposalOutcomeType,
+  type RecordProposalOutcomeOptions,
 } from "./proposal-outcome-recorder";
 // Rule engine
 export {

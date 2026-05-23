@@ -173,6 +173,33 @@ describe("ProposalOutcomeRecorder", () => {
       expect(payload.successMetric).toEqual(proposal.successMetric);
     });
 
+    it("stored successMetric is a snapshot — mutating source after record does not affect stored signal", async () => {
+      const store = new InMemoryMemoryStore();
+      const recorder = new ProposalOutcomeRecorder({ store });
+      const proposal = makeProposal({
+        successMetric: {
+          description: "Edit rate drops below 20%",
+          baseline: 78,
+          target: 20,
+          unit: "%",
+        },
+      });
+
+      await recorder.recordOutcome({ proposal, outcome: "merged" });
+
+      // Mutate the source object after recording
+      // biome-ignore lint/style/noNonNullAssertion: test setup guarantees it exists
+      proposal.successMetric!.description = "MUTATED";
+      // biome-ignore lint/style/noNonNullAssertion: test setup guarantees it exists
+      proposal.successMetric!.baseline = 999;
+
+      const signals = await store.getSignals();
+      // biome-ignore lint/style/noNonNullAssertion: length verified above
+      const payload = signals[0]!.payload as ProposalOutcomePayload;
+      expect(payload.successMetric?.description).toBe("Edit rate drops below 20%");
+      expect(payload.successMetric?.baseline).toBe(78);
+    });
+
     it("omits successMetric field when not present on proposal", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
