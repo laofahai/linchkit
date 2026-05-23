@@ -245,7 +245,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
   app.post(
     "/api/proposals/:id/reject",
-    ({ params, body, set }: { params: { id: string }; body: unknown; set: { status: number } }) => {
+    async ({ params, body, set }: { params: { id: string }; body: unknown; set: { status: number } }) => {
       try {
         const proposal = proposalEngine.getProposal(params.id);
 
