@@ -12,7 +12,7 @@
   "context": {},
   "expected": {
     "matchers": [
-      { "name": "no_watchers_fired" },
+      { "name": "no_watchers_fired", "args": {} },
       { "name": "watcher_fire_count", "args": { "value": 0 } }
     ]
   }
