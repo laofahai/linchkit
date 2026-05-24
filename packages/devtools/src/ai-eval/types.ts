@@ -246,6 +246,184 @@ export interface RunReport<TOutput = unknown> {
   diff?: BaselineDiff;
 }
 
+// ── Anomaly Detector scenario types (Spec 69 Phase 4) ──────────────────
+
+/** Serialisable UsageEvent for fixture JSON (timestamps as ISO strings). */
+export interface AnomalyUsageEventInput {
+  timestamp: string;
+  tenantId?: string;
+  actorId?: string;
+  actionName?: string;
+  success: boolean;
+  cost?: number;
+  tokens?: number;
+}
+
+/** Input shape for anomaly-detector eval fixtures. */
+export interface AnomalyFixtureInput {
+  events: AnomalyUsageEventInput[];
+  config?: {
+    spikeMultiplier?: number;
+    errorRateThreshold?: number;
+    minEventsForDetection?: number;
+    windowSizeMs?: number;
+    repetitiveActionThreshold?: number;
+    budgetBurnRateThreshold?: number;
+    diverseActionThreshold?: number;
+    businessHoursStart?: number;
+    businessHoursEnd?: number;
+    detectOffHours?: boolean;
+  };
+}
+
+/** Context shape for anomaly-detector eval fixtures. */
+export interface AnomalyFixtureContext {
+  now: string;
+  tenantId?: string;
+  actorId?: string;
+}
+
+/** Serialisable representation of a single AnomalyDetection. */
+export interface AnomalyEvalOutputItem {
+  type: string;
+  severity: string;
+  description: string;
+  tenantId?: string;
+  actorId?: string;
+  metrics: Record<string, number>;
+  thresholds: Record<string, number>;
+}
+
+/** Output shape returned by the anomaly-detector scenario adapter. */
+export type AnomalyEvalOutput = AnomalyEvalOutputItem[];
+
+// ── Pattern Detector scenario types (Spec 69 Phase 4) ───────────────────
+
+/** Serialisable ExecutionLogEntry for fixture JSON. */
+export interface PatternExecLogInput {
+  id: string;
+  action: string;
+  entity?: string;
+  capability?: string;
+  status: "succeeded" | "failed" | "blocked" | "pending_approval";
+  input: Record<string, unknown>;
+  tenantId?: string;
+  timestamp: string;
+  actor: { id: string; type: string };
+}
+
+/** Input shape for pattern-detector eval fixtures. */
+export interface PatternFixtureInput {
+  entries: PatternExecLogInput[];
+  config?: {
+    minOccurrences?: number;
+    minConfidence?: number;
+    lookbackDays?: number;
+    maxExamples?: number;
+    enabledPatterns?: string[];
+  };
+}
+
+/** Context shape for pattern-detector eval fixtures. */
+export interface PatternFixtureContext {
+  now?: string;
+}
+
+/** Serialisable representation of a single PatternInsight. */
+export interface PatternEvalOutputItem {
+  id: string;
+  type: string;
+  entity: string;
+  description: string;
+  confidence: number;
+  evidence: { count: number; timespan: string; examples: unknown[] };
+}
+
+/** Output shape returned by the pattern-detector scenario adapter. */
+export type PatternEvalOutput = PatternEvalOutputItem[];
+
+// ── Watcher Engine scenario types (Spec 69 Phase 4) ─────────────────────
+
+/** Threshold trigger input (JSON-serialisable). */
+export interface WatcherThresholdTriggerInput {
+  type: "threshold";
+  field?: string;
+  condition: { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number };
+  debounce?: "once_until_reset" | "once_per_record" | "cooldown";
+  cooldownPeriod?: string;
+}
+
+/** Staleness trigger input (JSON-serialisable). */
+export interface WatcherStalenessTriggerInput {
+  type: "staleness";
+  field: string;
+  threshold: string;
+  debounce?: "once_until_reset" | "once_per_record" | "cooldown";
+  cooldownPeriod?: string;
+}
+
+/** Set-change trigger input (JSON-serialisable). */
+export interface WatcherSetChangeTriggerInput {
+  type: "set_change";
+  on: "added" | "removed" | "modified";
+  debounce?: "once_until_reset" | "once_per_record" | "cooldown";
+  cooldownPeriod?: string;
+}
+
+/** Schedule trigger input (JSON-serialisable). */
+export interface WatcherScheduleTriggerInput {
+  type: "schedule";
+  cron: string;
+  debounce?: "once_until_reset" | "once_per_record" | "cooldown";
+  cooldownPeriod?: string;
+}
+
+export type WatcherTriggerInput =
+  | WatcherThresholdTriggerInput
+  | WatcherStalenessTriggerInput
+  | WatcherSetChangeTriggerInput
+  | WatcherScheduleTriggerInput;
+
+/** Serialisable WatcherDefinition for fixture JSON. Maps to core WatcherDefinition. */
+export interface WatcherDefInput {
+  name: string;
+  label?: string;
+  enabled?: boolean;
+  watch: {
+    entity: string;
+    filter?: Record<string, unknown>;
+  };
+  trigger: WatcherTriggerInput;
+  effect: { action: string; params?: Record<string, unknown> };
+  tenantScoped?: boolean;
+}
+
+/** Input shape for watcher-engine eval fixtures. */
+export interface WatcherFixtureInput {
+  entityName: string;
+  record: Record<string, unknown>;
+  oldRecord?: Record<string, unknown>;
+  watchers: WatcherDefInput[];
+}
+
+/** Context shape for watcher-engine eval fixtures. */
+export interface WatcherFixtureContext {
+  tenantId?: string;
+}
+
+/** Serialisable WatcherEvaluationResult. */
+export interface WatcherEvalOutputItem {
+  watcherName: string;
+  fired: boolean;
+  reason?: string;
+  error?: string;
+}
+
+/** Output shape returned by the watcher-engine scenario adapter. */
+export type WatcherEvalOutput = WatcherEvalOutputItem[];
+
+// ── Baseline diff ────────────────────────────────────────────────────────
+
 /** Diff between a current `RunReport` and a prior canonical baseline. */
 export interface BaselineDiff {
   scenario: string;

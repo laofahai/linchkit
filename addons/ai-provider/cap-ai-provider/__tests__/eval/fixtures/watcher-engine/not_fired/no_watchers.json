@@ -1,0 +1,19 @@
+{
+  "id": "we-nf-1",
+  "scenario": "watcher-engine",
+  "tags": ["not-fired", "empty-watchers"],
+  "description": "Empty watchers array — no watchers to evaluate, fire count is 0",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-20", "amount": 5000, "status": "active" },
+    "oldRecord": { "id": "rec-20", "amount": 100, "status": "draft" },
+    "watchers": []
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "no_watchers_fired" },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

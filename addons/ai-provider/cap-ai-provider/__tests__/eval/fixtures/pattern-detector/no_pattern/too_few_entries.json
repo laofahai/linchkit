@@ -1,0 +1,51 @@
+{
+  "id": "pd-no-1",
+  "scenario": "pattern-detector",
+  "tags": ["no_pattern", "too_few_entries"],
+  "description": "Only 3 entries total (< minOccurrences=5), so no pattern should be detected",
+  "input": {
+    "entries": [
+      {
+        "id": "e-no1-1",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "amount": 100 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no1-2",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "amount": 200 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no1-3",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "amount": 300 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [{ "name": "pattern_count", "args": { "value": 0 } }]
+  }
+}

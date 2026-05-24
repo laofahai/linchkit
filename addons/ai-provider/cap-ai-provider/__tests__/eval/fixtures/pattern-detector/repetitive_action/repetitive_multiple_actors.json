@@ -1,0 +1,131 @@
+{
+  "id": "pd-rep-5",
+  "scenario": "pattern-detector",
+  "tags": ["repetitive_action", "multiple_actors"],
+  "description": "actor-alice and actor-bob each call approve_order 5+ times with same field value — grouped separately, produces 2 repetitive_action patterns",
+  "input": {
+    "entries": [
+      {
+        "id": "e-rep5-1",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "high", "channel": "web" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep5-2",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "high", "channel": "mobile" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T12:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep5-3",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "high", "channel": "web" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep5-4",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "high", "channel": "web" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep5-5",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "high", "channel": "web" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep5-6",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "low", "channel": "api" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep5-7",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "low", "channel": "api" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep5-8",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "low", "channel": "api" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep5-9",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "low", "channel": "api" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep5-10",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "priority": "low", "channel": "api" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 2 } },
+      { "name": "pattern_type_includes", "args": { "value": "repetitive_action" } }
+    ]
+  }
+}

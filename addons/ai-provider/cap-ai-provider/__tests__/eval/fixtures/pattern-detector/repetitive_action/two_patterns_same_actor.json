@@ -1,0 +1,76 @@
+{
+  "id": "pd-rep-3",
+  "scenario": "pattern-detector",
+  "tags": ["repetitive_action", "two_patterns", "same_actor"],
+  "description": "actor-carol calls process_invoice 5 times; currency=USD 5/5=100% AND status=pending 5/5=100% — 2 repetitive_action patterns",
+  "input": {
+    "entries": [
+      {
+        "id": "e-rep3-1",
+        "action": "process_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "status": "pending", "amount": 500 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-rep3-2",
+        "action": "process_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "status": "pending", "amount": 750 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-rep3-3",
+        "action": "process_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "status": "pending", "amount": 200 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-rep3-4",
+        "action": "process_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "status": "pending", "amount": 1000 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-rep3-5",
+        "action": "process_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "status": "pending", "amount": 300 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 2 } },
+      { "name": "pattern_type_includes", "args": { "value": "repetitive_action" } }
+    ]
+  }
+}

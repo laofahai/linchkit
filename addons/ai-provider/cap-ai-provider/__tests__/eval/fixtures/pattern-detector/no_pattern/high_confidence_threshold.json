@@ -1,0 +1,84 @@
+{
+  "id": "pd-no-5",
+  "scenario": "pattern-detector",
+  "tags": ["no_pattern", "high_confidence_threshold"],
+  "description": "6 entries, same action+actor; field 'status' matches 5/6=83% — normally a pattern, but minConfidence=0.9 so 83% falls below threshold",
+  "input": {
+    "entries": [
+      {
+        "id": "e-no5-1",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "region": "APAC" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no5-2",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "region": "EMEA" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no5-3",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "region": "APAC" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no5-4",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "region": "APAC" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T16:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no5-5",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "region": "EMEA" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no5-6",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "STANDARD", "region": "APAC" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.9
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [{ "name": "pattern_count", "args": { "value": 0 } }]
+  }
+}

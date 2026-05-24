@@ -1,0 +1,77 @@
+{
+  "id": "pd-def-2",
+  "scenario": "pattern-detector",
+  "tags": ["default_value", "status"],
+  "description": "5 submit_request entries for entity 'purchase_request', all with status=pending (5/5=100% > 0.7) → 1 default_value pattern",
+  "input": {
+    "entries": [
+      {
+        "id": "e-def2-1",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "status": "pending", "category": "office_supplies" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-def2-2",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "status": "pending", "category": "electronics" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T10:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-def2-3",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "status": "pending", "category": "furniture" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-def2-4",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "status": "pending", "category": "office_supplies" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-def2-5",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "status": "pending", "category": "electronics" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-dave", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "default_value" } },
+      { "name": "pattern_entity_equals", "args": { "value": "purchase_request" } }
+    ]
+  }
+}

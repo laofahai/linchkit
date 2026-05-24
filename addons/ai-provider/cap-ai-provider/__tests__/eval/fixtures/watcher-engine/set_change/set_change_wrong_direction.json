@@ -1,0 +1,34 @@
+{
+  "id": "we-sc-4",
+  "scenario": "watcher-engine",
+  "tags": ["set_change", "not-fired", "direction-mismatch"],
+  "description": "Change is 'added' (draft→active) but watcher watches 'removed' — watcher should NOT fire",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-13", "amount": 800, "status": "active" },
+    "oldRecord": { "id": "rec-13", "amount": 800, "status": "draft" },
+    "watchers": [
+      {
+        "name": "order-left-active",
+        "label": "Order Left Active Set",
+        "enabled": true,
+        "watch": {
+          "entity": "order",
+          "filter": { "field": "target.status", "operator": "eq", "value": "active" }
+        },
+        "trigger": {
+          "type": "set_change",
+          "on": "removed"
+        },
+        "effect": { "action": "archive_order", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_not_fired", "args": { "watcherName": "order-left-active" } },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

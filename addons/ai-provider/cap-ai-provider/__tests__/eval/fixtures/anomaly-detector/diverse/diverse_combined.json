@@ -1,0 +1,220 @@
+{
+  "id": "diverse-combined-with-error-rate",
+  "scenario": "anomaly-detector",
+  "tags": ["diverse", "error_rate", "multi_anomaly"],
+  "description": "Diverse burst (15 distinct actions in 20 events) AND high error rate (11/20 = 55%) — 2 anomalies triggered simultaneously",
+  "input": {
+    "events": [
+      {
+        "timestamp": "2026-05-24T09:00:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:03:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "summarize_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:06:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:09:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "extract_entities",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:12:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "translate_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:15:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "generate_report",
+        "success": true,
+        "cost": 0.05,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:18:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "analyze_sentiment",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:21:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "detect_language",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:24:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "rewrite_content",
+        "success": true,
+        "cost": 0.03,
+        "tokens": 300
+      },
+      {
+        "timestamp": "2026-05-24T09:27:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "check_grammar",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:30:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "answer_question",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:33:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "code_completion",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 250
+      },
+      {
+        "timestamp": "2026-05-24T09:36:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "image_caption",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:39:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "embed_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:42:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "rank_results",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:45:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "parse_document",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:48:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "validate_schema",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:51:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "format_output",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:54:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:57:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 200
+      }
+    ],
+    "config": {
+      "diverseActionThreshold": 15,
+      "errorRateThreshold": 0.5,
+      "windowSizeMs": 3600000
+    }
+  },
+  "context": {
+    "now": "2026-05-24T10:00:00Z"
+  },
+  "expected": {
+    "matchers": [
+      {
+        "name": "anomaly_count",
+        "args": {
+          "value": 2
+        }
+      },
+      {
+        "name": "anomaly_type_includes",
+        "args": {
+          "value": "diverse_action_burst"
+        }
+      },
+      {
+        "name": "anomaly_type_includes",
+        "args": {
+          "value": "high_error_rate"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "id": "pd-sf-6",
+  "scenario": "pattern-detector",
+  "tags": ["state_flow", "entity_match"],
+  "description": "6 state flow transitions for entity 'purchase_request' (draft→submitted) → state_flow pattern with entity=purchase_request",
+  "input": {
+    "entries": [
+      {
+        "id": "e-sf6-1",
+        "action": "transition_state",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "pr-001" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf6-2",
+        "action": "transition_state",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "pr-002" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf6-3",
+        "action": "transition_state",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "pr-003" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf6-4",
+        "action": "transition_state",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "pr-004" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf6-5",
+        "action": "transition_state",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "pr-005" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-dave", "type": "user" }
+      },
+      {
+        "id": "e-sf6-6",
+        "action": "transition_state",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "pr-006" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "state_flow" } },
+      { "name": "pattern_entity_equals", "args": { "value": "purchase_request" } }
+    ]
+  }
+}

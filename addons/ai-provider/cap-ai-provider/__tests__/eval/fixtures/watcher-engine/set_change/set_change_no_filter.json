@@ -1,0 +1,31 @@
+{
+  "id": "we-sc-6",
+  "scenario": "watcher-engine",
+  "tags": ["set_change", "not-fired", "no-filter"],
+  "description": "set_change watcher with no watch.filter — engine returns set_change_requires_filter, watcher does NOT fire",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-15", "amount": 800, "status": "active" },
+    "oldRecord": { "id": "rec-15", "amount": 800, "status": "draft" },
+    "watchers": [
+      {
+        "name": "unfiltered-set-change",
+        "label": "Unfiltered Set Change",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "set_change",
+          "on": "added"
+        },
+        "effect": { "action": "log_change", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_not_fired", "args": { "watcherName": "unfiltered-set-change" } },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "we-thr-5",
+  "scenario": "watcher-engine",
+  "tags": ["threshold", "not-fired", "entity-mismatch"],
+  "description": "Watcher watches entity='invoice' but mutation is for entity='order' — watcher should NOT fire",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-5", "amount": 5000, "status": "pending" },
+    "oldRecord": { "id": "rec-5", "amount": 100, "status": "draft" },
+    "watchers": [
+      {
+        "name": "high-value-invoice",
+        "label": "High Value Invoice Alert",
+        "enabled": true,
+        "watch": { "entity": "invoice" },
+        "trigger": {
+          "type": "threshold",
+          "field": "amount",
+          "condition": { "gt": 1000 }
+        },
+        "effect": { "action": "notify_finance", "params": { "channel": "finance" } }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_not_fired", "args": { "watcherName": "high-value-invoice" } },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}
