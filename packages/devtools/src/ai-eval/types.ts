@@ -347,7 +347,7 @@ export type PatternEvalOutput = PatternEvalOutputItem[];
 /** Threshold trigger input (JSON-serialisable). */
 export interface WatcherThresholdTriggerInput {
   type: "threshold";
-  field?: string;
+  field: string;
   condition: { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number };
   debounce?: "once_until_reset" | "once_per_record" | "cooldown";
   cooldownPeriod?: string;

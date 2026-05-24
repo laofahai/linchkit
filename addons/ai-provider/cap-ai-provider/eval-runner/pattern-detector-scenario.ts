@@ -36,18 +36,10 @@ async function runPatternDetector(
     });
   }
 
+  // Always default to a large lookback window so fixture entries are always
+  // within the detection window regardless of when the test runs (PatternDetector
+  // computes the window as new Date() - lookbackDays). Never mutate input.config.
   const config = input.config ?? {};
-  if (context?.now) {
-    // Adjust lookbackDays so all entries in the fixture fall within the window
-    // (ensures deterministic detection regardless of when the test runs).
-    const lookbackDays = config.lookbackDays ?? 30;
-    config.lookbackDays = lookbackDays;
-  }
-
-  // Override the internal "now" via config — PatternDetector computes the
-  // lookback window as `new Date()` minus `lookbackDays`. To make fixtures
-  // deterministic regardless of when they run, we set lookbackDays to a very
-  // large value (3650 = 10 years) so ALL entries are always in the window.
   const detector = new PatternDetector({
     ...config,
     lookbackDays: config.lookbackDays ?? 3650,
@@ -83,8 +75,7 @@ export function createPatternDetectorScenario(): PatternDetectorScenarioAdapter 
       return runPatternDetector(fx.input, fx.context);
     },
     replayFromBaseline(fx, _baseline) {
-      // Deterministic: re-run the detector. Baseline not needed.
-      return runPatternDetector(fx.input, fx.context) as unknown as PatternEvalOutput;
+      return runPatternDetector(fx.input, fx.context);
     },
   };
 }

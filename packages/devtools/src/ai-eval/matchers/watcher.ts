@@ -27,24 +27,28 @@ const watcher_fire_count: MatcherFn<WatcherEvalOutput> = (output, args) => {
 
 /** Assert that a specific watcher fired. */
 const watcher_fired: MatcherFn<WatcherEvalOutput> = (output, args) => {
-  if (typeof args.name !== "string") return fail("watcher_fired", "arg 'name' must be a string");
-  const entry = output.find((w: WatcherEvalOutputItem) => w.watcherName === args.name);
-  if (!entry) return fail("watcher_fired", `watcher "${args.name}" not found in results`);
-  if (entry.fired) return pass("watcher_fired", args.name);
+  if (typeof args.watcherName !== "string")
+    return fail("watcher_fired", "arg 'watcherName' must be a string");
+  const entry = output.find((w: WatcherEvalOutputItem) => w.watcherName === args.watcherName);
+  if (!entry) return fail("watcher_fired", `watcher "${args.watcherName}" not found in results`);
+  if (entry.fired) return pass("watcher_fired", args.watcherName);
   return fail(
     "watcher_fired",
-    `watcher "${args.name}" did not fire: ${entry.reason ?? "unknown reason"}`,
+    `watcher "${args.watcherName}" did not fire: ${entry.reason ?? "unknown reason"}`,
   );
 };
 
 /** Assert that a specific watcher did NOT fire. */
 const watcher_not_fired: MatcherFn<WatcherEvalOutput> = (output, args) => {
-  if (typeof args.name !== "string")
-    return fail("watcher_not_fired", "arg 'name' must be a string");
-  const entry = output.find((w: WatcherEvalOutputItem) => w.watcherName === args.name);
+  if (typeof args.watcherName !== "string")
+    return fail("watcher_not_fired", "arg 'watcherName' must be a string");
+  const entry = output.find((w: WatcherEvalOutputItem) => w.watcherName === args.watcherName);
   if (!entry) return pass("watcher_not_fired");
   if (!entry.fired) return pass("watcher_not_fired");
-  return fail("watcher_not_fired", `watcher "${args.name}" fired but was expected not to`);
+  return fail(
+    "watcher_not_fired",
+    `watcher "${args.watcherName}" fired but was expected not to`,
+  );
 };
 
 /** Assert that no watchers fired. */
