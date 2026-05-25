@@ -201,11 +201,15 @@ export class GeneratorPriorityAggregator {
       return this.records.get(this.makeKey(authorId, changeType))?.weight ?? this.cfg.initialWeight;
     }
 
-    const authorRecords = [...this.records.values()].filter((r) => r.authorId === authorId);
-    if (authorRecords.length === 0) return this.cfg.initialWeight;
-
-    const total = authorRecords.reduce((sum, r) => sum + r.weight, 0);
-    return total / authorRecords.length;
+    let total = 0;
+    let count = 0;
+    for (const r of this.records.values()) {
+      if (r.authorId === authorId) {
+        total += r.weight;
+        count++;
+      }
+    }
+    return count > 0 ? total / count : this.cfg.initialWeight;
   }
 
   /**
