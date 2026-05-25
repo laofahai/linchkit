@@ -38,12 +38,21 @@ export {
   evaluateCondition,
   resolveField,
 } from "../../engine/condition-evaluator";
+export type {
+  GeneratorOutcomeType,
+  GeneratorPriorityAggregator,
+  GeneratorPriorityAggregatorOptions,
+  GeneratorPriorityConfig,
+  GeneratorWeightRecord,
+  OutcomeObservation,
+} from "../../engine/generator-priority-aggregator";
 export {
   canAutoApproveOverlayChange,
   canAutoApproveOverlayProposal,
   executeOverlayProposal,
 } from "../../engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "../../engine/permission-engine";
+
 export type {
   CreateProposalOptions,
   OnApprovedHook,

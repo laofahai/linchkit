@@ -43,6 +43,16 @@ export {
   PipelineError,
   type SlotName,
 } from "../../engine/command-layer";
+// Generator priority aggregator (Spec 55 §7.7 Phase 3)
+export {
+  createGeneratorPriorityAggregator,
+  type GeneratorOutcomeType,
+  GeneratorPriorityAggregator,
+  type GeneratorPriorityAggregatorOptions,
+  type GeneratorPriorityConfig,
+  type GeneratorWeightRecord,
+  type OutcomeObservation,
+} from "../../engine/generator-priority-aggregator";
 export {
   createOnchangeEvaluator,
   DEFAULT_COMPUTE_TIMEOUT_MS,
