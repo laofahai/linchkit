@@ -36,7 +36,7 @@
 /** The four outcome types a Proposal can produce (Spec 55 §7.7). */
 export type GeneratorOutcomeType = "accepted" | "rejected" | "merged" | "withdrawn";
 
-// ── Config ────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────
 
 /**
  * Configuration for weight adjustment (Spec 55 §8.6 attention-budget pattern).
@@ -56,7 +56,7 @@ export interface GeneratorPriorityConfig {
   maxWeight?: number;
 }
 
-// ── Input ──────────────────────────────────────────────────────
+// ── Input ──────────────────────────────────────────────
 
 /**
  * A single Proposal outcome observation pushed to the aggregator.
@@ -73,7 +73,7 @@ export interface OutcomeObservation {
   outcome: GeneratorOutcomeType;
 }
 
-// ── Weight record ──────────────────────────────────────────────
+// ── Weight record ──────────────────────────────────────────
 
 /** Accumulated statistics and computed weight for one (authorId, changeType) pair. */
 export interface GeneratorWeightRecord {
@@ -90,13 +90,13 @@ export interface GeneratorWeightRecord {
   lastUpdatedAt: Date;
 }
 
-// ── Options ────────────────────────────────────────────────────
+// ── Options ────────────────────────────────────────────
 
 export interface GeneratorPriorityAggregatorOptions {
   config?: GeneratorPriorityConfig;
 }
 
-// ── Internal resolved config ──────────────────────────────────
+// ── Internal resolved config ────────────────────────────
 
 interface ResolvedConfig {
   boostOnAccept: number;
@@ -114,7 +114,7 @@ const DEFAULT_CONFIG: ResolvedConfig = {
   maxWeight: 3.0,
 };
 
-// ── GeneratorPriorityAggregator ───────────────────────────────
+// ── GeneratorPriorityAggregator ─────────────────────────────
 
 /**
  * Tracks proposal outcome history per (authorId, changeType) and computes
@@ -127,12 +127,25 @@ export class GeneratorPriorityAggregator {
 
   constructor(opts: GeneratorPriorityAggregatorOptions = {}) {
     const c = opts.config ?? {};
+    const boostOnAccept = c.boostOnAccept ?? DEFAULT_CONFIG.boostOnAccept;
+    const decayOnReject = c.decayOnReject ?? DEFAULT_CONFIG.decayOnReject;
+    const minWeight = c.minWeight ?? DEFAULT_CONFIG.minWeight;
+    const maxWeight = c.maxWeight ?? DEFAULT_CONFIG.maxWeight;
+    const initialWeight = c.initialWeight ?? DEFAULT_CONFIG.initialWeight;
+
+    if (boostOnAccept < 0 || decayOnReject < 0) {
+      throw new Error("boostOnAccept and decayOnReject must be >= 0");
+    }
+    if (minWeight > maxWeight) {
+      throw new Error("minWeight must be <= maxWeight");
+    }
+
     this.cfg = {
-      boostOnAccept: c.boostOnAccept ?? DEFAULT_CONFIG.boostOnAccept,
-      decayOnReject: c.decayOnReject ?? DEFAULT_CONFIG.decayOnReject,
-      initialWeight: c.initialWeight ?? DEFAULT_CONFIG.initialWeight,
-      minWeight: c.minWeight ?? DEFAULT_CONFIG.minWeight,
-      maxWeight: c.maxWeight ?? DEFAULT_CONFIG.maxWeight,
+      boostOnAccept,
+      decayOnReject,
+      minWeight,
+      maxWeight,
+      initialWeight: Math.max(minWeight, Math.min(maxWeight, initialWeight)),
     };
   }
 
@@ -200,7 +213,9 @@ export class GeneratorPriorityAggregator {
    * Useful for ranking generators before selecting which to invoke.
    */
   getAll(): GeneratorWeightRecord[] {
-    return [...this.records.values()].sort((a, b) => b.weight - a.weight);
+    return [...this.records.values()]
+      .map((r) => ({ ...r, lastUpdatedAt: new Date(r.lastUpdatedAt) }))
+      .sort((a, b) => b.weight - a.weight);
   }
 
   /** Clear all accumulated state. Primarily used in tests. */
@@ -208,7 +223,7 @@ export class GeneratorPriorityAggregator {
     this.records.clear();
   }
 
-  // ── Private helpers ─────────────────────────────────────────
+  // ── Private helpers ─────────────────────────────────────
 
   private makeKey(authorId: string, changeType: string): string {
     return `${authorId}::${changeType}`;
@@ -239,7 +254,7 @@ export class GeneratorPriorityAggregator {
   }
 }
 
-// ── Factory ────────────────────────────────────────────────────
+// ── Factory ────────────────────────────────────────────
 
 /** Create a new GeneratorPriorityAggregator instance. */
 export function createGeneratorPriorityAggregator(

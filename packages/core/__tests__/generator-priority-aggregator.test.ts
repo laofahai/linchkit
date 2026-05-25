@@ -337,10 +337,10 @@ describe("lastUpdatedAt", () => {
     const firstUpdate = agg.getAll()[0]?.lastUpdatedAt.getTime() ?? 0;
 
     // Ensure time advances
-    await new Promise((r) => setTimeout(r, 2));
+    await new Promise((r) => setTimeout(r, 10));
     agg.observe(obs("gen-a", "minor", "rejected"));
     const secondUpdate = agg.getAll()[0]?.lastUpdatedAt.getTime() ?? 0;
 
-    expect(secondUpdate).toBeGreaterThanOrEqual(firstUpdate);
+    expect(secondUpdate).toBeGreaterThan(firstUpdate);
   });
 });
