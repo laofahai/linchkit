@@ -89,12 +89,13 @@ export {
 // Proposal effect verifier (Spec 55 §7.7 Phase 2)
 export {
   createProposalEffectVerifier,
-  type EffectVerdict,
   type EffectVerificationPayload,
-  type ProposalEffectVerificationResult,
+  type EffectVerificationRecord,
+  type EffectVerificationResult,
   ProposalEffectVerifier,
   type ProposalEffectVerifierOptions,
-  type VerifyEffectOptions,
+  type VerifiableSignalStore,
+  type VerifyAllOptions,
 } from "./proposal-effect-verifier";
 // Proposal engine
 export {

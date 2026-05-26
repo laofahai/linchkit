@@ -1,222 +1,198 @@
 /**
- * ProposalEffectVerifier — Spec 55 §7.7 Phase 2 "Feedback loop: effect verification".
+ * ProposalEffectVerifier — Spec 55 §7.7 Phase 2 "Effect Verification".
  *
- * After a Proposal merges, the caller can periodically call `verify()` with
- * the recorded outcome payloads (produced by Phase 1 ProposalOutcomeRecorder).
- * For each merged Proposal whose `successMetric` is set, this engine fetches
- * the current metric value and compares it to the target.
+ * After a Proposal merges, verifies whether the declared successMetric was met.
+ * Reads Phase 1 outcome signals (proposal:outcome:merged) from MemoryStore and
+ * compares the post-merge baseline.value for the signalRef against the original
+ * targetValue.
  *
- * Verdicts:
- *   - `effect_verified`  — currentValue ≥ targetValue (goal achieved)
- *   - `effect_uncertain` — no data available yet (signalRef missing or unresolvable)
- *   - `effect_failed`    — currentValue < targetValue (goal not met)
+ * Emits one verification signal per merged+verifiable proposal:
+ *   proposal:effect:verified  — progress >= verifyThreshold towards targetValue
+ *   proposal:effect:uncertain — no current baseline found for signalRef, or partial progress
+ *   proposal:effect:failed    — current baseline.value <= baselineValue (no improvement)
  *
- * On `effect_failed` the engine additionally writes a `proposal:effect:rollback_candidate`
- * signal so the Insight layer can surface a human-reviewed rollback Proposal.
- * Rollback itself requires a separate, human-approved Proposal (same governance gate).
+ * On effect_failed the payload includes rollback_candidate: true so downstream
+ * InsightEngines can surface a rollback Insight to the approval queue.
  *
- * Intentionally NOT auto-wired into ProposalEngine. Callers compose it and decide
- * when to run verification (e.g. a scheduled cron, not every event). Pattern mirrors
- * ProposalOutcomeRecorder (Phase 1) and ProposalFileWriter / ProposalGitCommitter (§7.6).
+ * Intentionally NOT auto-wired. Pattern mirrors ProposalOutcomeRecorder (Phase 1).
  *
- * Spec 55 §7.7 `docs/specs/55_evolution_system.md:544`
+ *   const verifier = createProposalEffectVerifier({ store });
+ *   const results = await verifier.verifyAll();
  */
 
-import type { MemoryStore } from "../types/life-system";
+import type { MemoryStore, Signal } from "../types/life-system";
 import type { Logger } from "../types/logger";
-import type { ProposalOutcomePayload, ProposalOutcomeType } from "./proposal-outcome-recorder";
+import type { ProposalOutcomePayload } from "./proposal-outcome-recorder";
 
-// ── Effect verdict ───────────────────────────────────────
-
-/** Three possible verification verdicts (Spec 55 §7.7 Phase 2). */
-export type EffectVerdict = "effect_verified" | "effect_uncertain" | "effect_failed";
-
-// ── Signal payload ───────────────────────────────────────
+// ── Extended store interface ─────────────────────────────────────────────────
 
 /**
- * Payload written to MemoryStore for each effect verification signal.
- * Consumers (Insight layer, Phase 3) read these to surface rollback candidates
- * or adjust generator confidence.
+ * Extension of MemoryStore that supports signal queries.
+ * InMemoryMemoryStore satisfies this interface out of the box.
  */
-export interface EffectVerificationPayload {
+export interface VerifiableSignalStore extends MemoryStore {
+  getSignals(opts?: { entity?: string; since?: Date; limit?: number }): Promise<Signal[]>;
+}
+
+// ── Result types ─────────────────────────────────────────────────────────────
+
+/** Three possible outcomes of a post-merge effect check (Spec 55 §7.7). */
+export type EffectVerificationResult = "effect_verified" | "effect_uncertain" | "effect_failed";
+
+/** One verification record per merged proposal that carried a successMetric.signalRef. */
+export interface EffectVerificationRecord {
   proposalId: string;
   capability: string;
-  changeType: string;
-  verdict: EffectVerdict;
-  successMetric: {
-    signalRef?: string;
-    baselineValue: number;
-    targetValue: number;
-    description?: string;
-  };
-  /** Current value fetched via signalRef. null when no data is available. */
-  currentValue: number | null;
-  /** ISO 8601 timestamp of verification */
+  /** Original signalRef from successMetric — format: "entity" or "entity:metric". */
+  signalRef: string;
+  baselineValue: number;
+  targetValue: number;
+  /** Current baseline.value for signalRef; undefined when no baseline found. */
+  currentValue: number | undefined;
+  result: EffectVerificationResult;
   verifiedAt: string;
-  durationMs: number;
 }
 
-// ── Per-outcome verification result ─────────────────────
-
-/** Result returned by `verify()` for a single outcome. */
-export interface ProposalEffectVerificationResult extends EffectVerificationPayload {
-  // same shape — returned to caller AND written as Signal payload
+/** Payload written to MemoryStore for each verification signal. */
+export interface EffectVerificationPayload extends EffectVerificationRecord {
+  /** True when result is effect_failed — marks rollback eligibility for consumers. */
+  rollback_candidate: boolean;
 }
 
-// ── Options ──────────────────────────────────────────────
+// ── Options ───────────────────────────────────────────────────────────────────
 
 export interface ProposalEffectVerifierOptions {
-  store: MemoryStore;
-  /**
-   * Resolves the current metric value for a given signalRef string.
-   * Return `null` if no data is available yet (yields `effect_uncertain`).
-   *
-   * Default implementation: parses signalRef as `"entity.metric"` or
-   * `"entity:metric"` and calls `store.getBaseline(entity, metric)`.
-   */
-  getCurrentValue?: (signalRef: string) => Promise<number | null>;
-  /** Overridable clock for deterministic tests. */
-  clock?: () => Date;
+  store: VerifiableSignalStore;
   logger?: Logger;
-}
-
-// ── Verify-call options ──────────────────────────────────
-
-export interface VerifyEffectOptions {
-  /** Outcome payloads to evaluate (typically from ProposalOutcomeRecorder output). */
-  outcomes: ProposalOutcomePayload[];
   /**
-   * Only evaluate outcomes with this outcome type.
-   * Default: `"merged"` — the only outcome where effect verification is meaningful.
+   * Fractional progress towards (targetValue - baselineValue) required before
+   * classifying as "effect_verified". Default: 0.9 (90% of the gap closed).
    */
-  outcomeFilter?: ProposalOutcomeType;
+  verifyThreshold?: number;
 }
 
-// ── ProposalEffectVerifier ────────────────────────────────
+export interface VerifyAllOptions {
+  /** Only examine merged outcome signals recorded at or after this date. */
+  since?: Date;
+}
+
+// ── Engine ────────────────────────────────────────────────────────────────────
 
 export class ProposalEffectVerifier {
-  private readonly store: MemoryStore;
-  private readonly resolveCurrentValue: (signalRef: string) => Promise<number | null>;
-  private readonly clock: () => Date;
+  private readonly store: VerifiableSignalStore;
   private readonly logger?: Logger;
+  private readonly verifyThreshold: number;
 
-  constructor(options: ProposalEffectVerifierOptions) {
-    this.store = options.store;
-    this.clock = options.clock ?? (() => new Date());
-    this.logger = options.logger;
-    this.resolveCurrentValue = options.getCurrentValue ?? this.defaultGetCurrentValue.bind(this);
+  constructor(opts: ProposalEffectVerifierOptions) {
+    this.store = opts.store;
+    this.logger = opts.logger;
+    this.verifyThreshold = opts.verifyThreshold ?? 0.9;
   }
 
   /**
-   * Verify effects for all eligible outcomes in the input array.
-   * Eligible = `outcome === outcomeFilter` (default "merged") AND `successMetric` is set.
-   * Outcomes without `successMetric` are silently skipped.
+   * Verify all merged proposals whose outcome signal carries a successMetric.
+   * Skips outcome records without a signalRef (nothing to compare against).
+   * Returns one EffectVerificationRecord per verifiable merged outcome.
    */
-  async verify(options: VerifyEffectOptions): Promise<ProposalEffectVerificationResult[]> {
-    const { outcomes, outcomeFilter = "merged" } = options;
+  async verifyAll(opts?: VerifyAllOptions): Promise<EffectVerificationRecord[]> {
+    // InMemoryMemoryStore.getSignals({ entity }) filters by
+    // payload.entity === entity OR s.type === entity — the latter matches
+    // Phase 1 signals whose type is "proposal:outcome:merged".
+    const mergedSignals = await this.store.getSignals({
+      entity: "proposal:outcome:merged",
+      since: opts?.since,
+    });
 
-    const eligible = outcomes.filter(
-      (o) => o.outcome === outcomeFilter && o.successMetric !== undefined,
-    );
+    const results: EffectVerificationRecord[] = [];
 
-    const results: ProposalEffectVerificationResult[] = [];
-    for (const outcome of eligible) {
-      results.push(await this.verifyOne(outcome));
+    for (const signal of mergedSignals) {
+      const payload = signal.payload as ProposalOutcomePayload | null;
+      const signalRef = payload?.successMetric?.signalRef;
+      if (!payload || !signalRef) {
+        continue;
+      }
+      results.push(await this.verifySingle(payload, signalRef, payload.successMetric));
     }
+
     return results;
   }
 
-  private async verifyOne(
-    outcome: ProposalOutcomePayload,
-  ): Promise<ProposalEffectVerificationResult> {
-    const start = Date.now();
-    // successMetric is guaranteed non-null: verify() filters for it before calling verifyOne
-    const sm = outcome.successMetric ?? { baselineValue: 0, targetValue: 0 };
+  private async verifySingle(
+    payload: ProposalOutcomePayload,
+    signalRef: string,
+    successMetric: NonNullable<ProposalOutcomePayload["successMetric"]>,
+  ): Promise<EffectVerificationRecord> {
+    const { baselineValue, targetValue } = successMetric;
 
-    let currentValue: number | null = null;
-    if (sm.signalRef) {
-      currentValue = await this.resolveCurrentValue(sm.signalRef);
+    // Parse "entity:metric" or bare "entity" (metric defaults to "value").
+    const colonIdx = signalRef.indexOf(":");
+    const entity = colonIdx >= 0 ? signalRef.slice(0, colonIdx) : signalRef;
+    const metric = colonIdx >= 0 ? signalRef.slice(colonIdx + 1) : "value";
+
+    const baseline = await this.store.getBaseline(entity, metric);
+    const verifiedAt = new Date().toISOString();
+
+    let result: EffectVerificationResult;
+    let currentValue: number | undefined;
+
+    if (baseline === null) {
+      result = "effect_uncertain";
+      currentValue = undefined;
+    } else {
+      currentValue = baseline.value;
+      const requiredValue = baselineValue + this.verifyThreshold * (targetValue - baselineValue);
+
+      if (currentValue >= requiredValue) {
+        result = "effect_verified";
+      } else if (currentValue <= baselineValue) {
+        result = "effect_failed";
+      } else {
+        // Partial progress — check again later
+        result = "effect_uncertain";
+      }
     }
 
-    const verdict = determineVerdict(currentValue, sm.targetValue);
-    const now = this.clock();
-    const durationMs = Date.now() - start;
-
-    const payload: EffectVerificationPayload = {
-      proposalId: outcome.proposalId,
-      capability: outcome.capability,
-      changeType: outcome.changeType,
-      verdict,
-      successMetric: {
-        signalRef: sm.signalRef,
-        baselineValue: sm.baselineValue,
-        targetValue: sm.targetValue,
-        description: sm.description,
-      },
+    const record: EffectVerificationRecord = {
+      proposalId: payload.proposalId,
+      capability: payload.capability,
+      signalRef,
+      baselineValue,
+      targetValue,
       currentValue,
-      verifiedAt: now.toISOString(),
-      durationMs,
+      result,
+      verifiedAt,
     };
 
-    // Write the primary effect signal (proposal:effect:verified|uncertain|failed)
-    const verdictSuffix = verdict.replace("effect_", ""); // "verified" | "uncertain" | "failed"
-    await this.store.recordSignal({
-      type: `proposal:effect:${verdictSuffix}`,
-      source: "event_bus",
-      timestamp: now,
-      payload,
-    });
+    await this.emitVerificationSignal(record);
 
-    // On failure: emit a second rollback_candidate signal so the Insight layer
-    // can surface a human-reviewed rollback Proposal.
-    if (verdict === "effect_failed") {
-      await this.store.recordSignal({
-        type: "proposal:effect:rollback_candidate",
-        source: "event_bus",
-        timestamp: now,
-        payload,
-      });
-      this.logger?.info?.(
-        `ProposalEffectVerifier: effect_failed for proposal "${outcome.proposalId}" — rollback_candidate emitted`,
-        { proposalId: outcome.proposalId, currentValue, targetValue: sm.targetValue },
-      );
-    } else {
-      this.logger?.info?.(
-        `ProposalEffectVerifier: ${verdict} for proposal "${outcome.proposalId}"`,
-        { proposalId: outcome.proposalId, currentValue, targetValue: sm.targetValue },
-      );
-    }
+    this.logger?.info?.(
+      `ProposalEffectVerifier: "${result}" for proposal "${payload.proposalId}"`,
+      { proposalId: payload.proposalId, result, signalRef, currentValue, targetValue },
+    );
 
-    return payload;
+    return record;
   }
 
-  /**
-   * Default signalRef resolver: parses `"entity.metric"` or `"entity:metric"` and
-   * calls `store.getBaseline(entity, metric)`.
-   */
-  private async defaultGetCurrentValue(signalRef: string): Promise<number | null> {
-    const sep = signalRef.includes(".") ? "." : ":";
-    const idx = signalRef.indexOf(sep);
-    if (idx === -1) return null;
-    const entity = signalRef.slice(0, idx);
-    const metric = signalRef.slice(idx + 1);
-    const baseline = await this.store.getBaseline(entity, metric);
-    return baseline?.value ?? null;
+  private async emitVerificationSignal(record: EffectVerificationRecord): Promise<void> {
+    const signalTypeSuffix = record.result.replace("effect_", "");
+    const verificationPayload: EffectVerificationPayload = {
+      ...record,
+      rollback_candidate: record.result === "effect_failed",
+    };
+
+    await this.store.recordSignal({
+      type: `proposal:effect:${signalTypeSuffix}`,
+      source: "event_bus",
+      timestamp: new Date(),
+      payload: verificationPayload,
+    });
   }
 }
 
-// ── Factory ───────────────────────────────────────────────
+// ── Factory ───────────────────────────────────────────────────────────────────
 
 export function createProposalEffectVerifier(
-  options: ProposalEffectVerifierOptions,
+  opts: ProposalEffectVerifierOptions,
 ): ProposalEffectVerifier {
-  return new ProposalEffectVerifier(options);
-}
-
-// ── Helpers ───────────────────────────────────────────────
-
-function determineVerdict(currentValue: number | null, targetValue: number): EffectVerdict {
-  if (currentValue === null) return "effect_uncertain";
-  if (currentValue >= targetValue) return "effect_verified";
-  return "effect_failed";
+  return new ProposalEffectVerifier(opts);
 }

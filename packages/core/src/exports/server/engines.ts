@@ -63,12 +63,13 @@ export {
 } from "../../engine/permission-engine";
 export {
   createProposalEffectVerifier,
-  type EffectVerdict,
   type EffectVerificationPayload,
-  type ProposalEffectVerificationResult,
+  type EffectVerificationRecord,
+  type EffectVerificationResult,
   ProposalEffectVerifier,
   type ProposalEffectVerifierOptions,
-  type VerifyEffectOptions,
+  type VerifiableSignalStore,
+  type VerifyAllOptions,
 } from "../../engine/proposal-effect-verifier";
 export {
   bumpVersion,
