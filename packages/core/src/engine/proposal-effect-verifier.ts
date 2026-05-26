@@ -1,219 +1,222 @@
 /**
- * ProposalEffectVerifier — Spec 55 §7.7 "Feedback loop: Phase 2".
+ * ProposalEffectVerifier — Spec 55 §7.7 Phase 2 "Feedback loop: effect verification".
  *
- * After a Proposal is merged, verifies whether its stated `successMetric`
- * was actually achieved by comparing the current baseline value in MemoryStore
- * against the original baseline and target recorded in the Proposal.
+ * After a Proposal merges, the caller can periodically call `verify()` with
+ * the recorded outcome payloads (produced by Phase 1 ProposalOutcomeRecorder).
+ * For each merged Proposal whose `successMetric` is set, this engine fetches
+ * the current metric value and compares it to the target.
  *
- * Design constraints (mirrors Phase 1 ProposalOutcomeRecorder):
- *   - Small, focused engine — no scheduling, no polling.
- *   - Caller-composed — the caller decides when to call `verify()` (e.g. on
- *     a scheduled job or triggered via a deploy webhook callback).
- *   - Pure result — does NOT write to MemoryStore itself. Returns a
- *     `EffectVerificationResult` that the caller handles (store, surface, etc.).
+ * Verdicts:
+ *   - `effect_verified`  — currentValue ≥ targetValue (goal achieved)
+ *   - `effect_uncertain` — no data available yet (signalRef missing or unresolvable)
+ *   - `effect_failed`    — currentValue < targetValue (goal not met)
  *
- * signalRef convention:
- *   `ProposalSuccessMetric.signalRef` must follow the `"entity.metric"` format
- *   (e.g. `"supplier_contact.manual_edit_rate"`) so the verifier can look up
- *   the current baseline via `MemoryStore.getBaseline(entity, metric)`.
- *   If the format is not followed, the result is `effect_uncertain`.
+ * On `effect_failed` the engine additionally writes a `proposal:effect:rollback_candidate`
+ * signal so the Insight layer can surface a human-reviewed rollback Proposal.
+ * Rollback itself requires a separate, human-approved Proposal (same governance gate).
+ *
+ * Intentionally NOT auto-wired into ProposalEngine. Callers compose it and decide
+ * when to run verification (e.g. a scheduled cron, not every event). Pattern mirrors
+ * ProposalOutcomeRecorder (Phase 1) and ProposalFileWriter / ProposalGitCommitter (§7.6).
+ *
+ * Spec 55 §7.7 `docs/specs/55_evolution_system.md:544`
  */
 
-import type { Baseline, Insight, MemoryStore } from "../types/life-system";
-import type { ProposalOutcomePayload } from "./proposal-outcome-recorder";
+import type { MemoryStore } from "../types/life-system";
+import type { Logger } from "../types/logger";
+import type { ProposalOutcomePayload, ProposalOutcomeType } from "./proposal-outcome-recorder";
 
-// ── Verification outcome status ───────────────────────────
+// ── Effect verdict ───────────────────────────────────────
+
+/** Three possible verification verdicts (Spec 55 §7.7 Phase 2). */
+export type EffectVerdict = "effect_verified" | "effect_uncertain" | "effect_failed";
+
+// ── Signal payload ───────────────────────────────────────
 
 /**
- * Three-way outcome of effect verification (Spec 55 §7.7):
- * - `effect_verified`  — current value has met or exceeded the target
- * - `effect_uncertain` — insufficient data to conclude (baseline unavailable,
- *                        signalRef not parseable, or value improving but not yet at target)
- * - `effect_failed`    — current value regressed from the pre-Proposal baseline
+ * Payload written to MemoryStore for each effect verification signal.
+ * Consumers (Insight layer, Phase 3) read these to surface rollback candidates
+ * or adjust generator confidence.
  */
-export type EffectVerificationStatus = "effect_verified" | "effect_uncertain" | "effect_failed";
-
-// ── Result ────────────────────────────────────────────────
-
-export interface EffectVerificationResult {
-  status: EffectVerificationStatus;
+export interface EffectVerificationPayload {
   proposalId: string;
-  /** Human-readable explanation of the verdict. */
-  message: string;
-  /** Current numeric value retrieved from MemoryStore. Undefined when baseline is unavailable. */
-  currentValue?: number;
-  /**
-   * Present only when `status === "effect_failed"`.
-   * Tagged with `["rollback_candidate"]` — the caller decides whether to
-   * store, surface, or escalate it.
-   */
-  rollbackInsight?: Insight;
+  capability: string;
+  changeType: string;
+  verdict: EffectVerdict;
+  successMetric: {
+    signalRef?: string;
+    baselineValue: number;
+    targetValue: number;
+    description?: string;
+  };
+  /** Current value fetched via signalRef. null when no data is available. */
+  currentValue: number | null;
+  /** ISO 8601 timestamp of verification */
+  verifiedAt: string;
+  durationMs: number;
 }
 
-// ── Options ───────────────────────────────────────────────
+// ── Per-outcome verification result ─────────────────────
+
+/** Result returned by `verify()` for a single outcome. */
+export interface ProposalEffectVerificationResult extends EffectVerificationPayload {
+  // same shape — returned to caller AND written as Signal payload
+}
+
+// ── Options ──────────────────────────────────────────────
 
 export interface ProposalEffectVerifierOptions {
-  /** Memory store used to look up current baselines. */
   store: MemoryStore;
+  /**
+   * Resolves the current metric value for a given signalRef string.
+   * Return `null` if no data is available yet (yields `effect_uncertain`).
+   *
+   * Default implementation: parses signalRef as `"entity.metric"` or
+   * `"entity:metric"` and calls `store.getBaseline(entity, metric)`.
+   */
+  getCurrentValue?: (signalRef: string) => Promise<number | null>;
+  /** Overridable clock for deterministic tests. */
+  clock?: () => Date;
+  logger?: Logger;
+}
+
+// ── Verify-call options ──────────────────────────────────
+
+export interface VerifyEffectOptions {
+  /** Outcome payloads to evaluate (typically from ProposalOutcomeRecorder output). */
+  outcomes: ProposalOutcomePayload[];
+  /**
+   * Only evaluate outcomes with this outcome type.
+   * Default: `"merged"` — the only outcome where effect verification is meaningful.
+   */
+  outcomeFilter?: ProposalOutcomeType;
 }
 
 // ── ProposalEffectVerifier ────────────────────────────────
 
 export class ProposalEffectVerifier {
   private readonly store: MemoryStore;
+  private readonly resolveCurrentValue: (signalRef: string) => Promise<number | null>;
+  private readonly clock: () => Date;
+  private readonly logger?: Logger;
 
-  constructor(opts: ProposalEffectVerifierOptions) {
-    this.store = opts.store;
+  constructor(options: ProposalEffectVerifierOptions) {
+    this.store = options.store;
+    this.clock = options.clock ?? (() => new Date());
+    this.logger = options.logger;
+    this.resolveCurrentValue = options.getCurrentValue ?? this.defaultGetCurrentValue.bind(this);
   }
 
   /**
-   * Verify whether the effect of a merged Proposal was achieved.
-   *
-   * Looks up the current baseline for the `successMetric.signalRef` and
-   * compares it against the pre-Proposal `baseline` and `target` values.
-   *
-   * Returns `effect_uncertain` when data is insufficient — it does NOT throw.
+   * Verify effects for all eligible outcomes in the input array.
+   * Eligible = `outcome === outcomeFilter` (default "merged") AND `successMetric` is set.
+   * Outcomes without `successMetric` are silently skipped.
    */
-  async verify(outcomePayload: ProposalOutcomePayload): Promise<EffectVerificationResult> {
-    const { proposalId, successMetric } = outcomePayload;
+  async verify(options: VerifyEffectOptions): Promise<ProposalEffectVerificationResult[]> {
+    const { outcomes, outcomeFilter = "merged" } = options;
 
-    if (
-      !successMetric?.signalRef ||
-      successMetric.baseline === undefined ||
-      successMetric.target === undefined
-    ) {
-      return {
-        status: "effect_uncertain",
-        proposalId,
-        message:
-          "successMetric missing or incomplete (need signalRef, baseline, and target) — skipping verification.",
-      };
+    const eligible = outcomes.filter(
+      (o) => o.outcome === outcomeFilter && o.successMetric !== undefined,
+    );
+
+    const results: ProposalEffectVerificationResult[] = [];
+    for (const outcome of eligible) {
+      results.push(await this.verifyOne(outcome));
     }
-
-    const { signalRef, baseline: baselineValue, target } = successMetric;
-
-    const dotIdx = signalRef.indexOf(".");
-    if (dotIdx <= 0 || dotIdx === signalRef.length - 1) {
-      return {
-        status: "effect_uncertain",
-        proposalId,
-        message: `signalRef "${signalRef}" does not follow "entity.metric" convention — skipping verification.`,
-      };
-    }
-
-    const entity = signalRef.slice(0, dotIdx);
-    const metric = signalRef.slice(dotIdx + 1);
-
-    const currentBaseline = await this.store.getBaseline(entity, metric);
-    if (!currentBaseline) {
-      return {
-        status: "effect_uncertain",
-        proposalId,
-        message: `No baseline found for "${signalRef}" — cannot verify effect yet.`,
-      };
-    }
-
-    const currentValue = currentBaseline.value;
-
-    if (target === baselineValue) {
-      return {
-        status: "effect_uncertain",
-        proposalId,
-        message: "target equals baseline — improvement direction is undefined.",
-        currentValue,
-      };
-    }
-
-    const wantIncrease = target > baselineValue;
-
-    if (wantIncrease) {
-      if (currentValue >= target) {
-        return {
-          status: "effect_verified",
-          proposalId,
-          message: `Target reached: current ${currentValue} ≥ target ${target}.`,
-          currentValue,
-        };
-      }
-      if (currentValue < baselineValue) {
-        return {
-          status: "effect_failed",
-          proposalId,
-          message: `Value regressed: baseline was ${baselineValue}, now ${currentValue} (target ${target}).`,
-          currentValue,
-          rollbackInsight: this.buildRollbackInsight(outcomePayload, currentBaseline, currentValue),
-        };
-      }
-      return {
-        status: "effect_uncertain",
-        proposalId,
-        message: `Improving toward target (current ${currentValue}, target ${target}) — not yet verified.`,
-        currentValue,
-      };
-    }
-
-    // wantDecrease
-    if (currentValue <= target) {
-      return {
-        status: "effect_verified",
-        proposalId,
-        message: `Target reached: current ${currentValue} ≤ target ${target}.`,
-        currentValue,
-      };
-    }
-    if (currentValue > baselineValue) {
-      return {
-        status: "effect_failed",
-        proposalId,
-        message: `Value regressed: baseline was ${baselineValue}, now ${currentValue} (target ${target}).`,
-        currentValue,
-        rollbackInsight: this.buildRollbackInsight(outcomePayload, currentBaseline, currentValue),
-      };
-    }
-    return {
-      status: "effect_uncertain",
-      proposalId,
-      message: `Improving toward target (current ${currentValue}, target ${target}) — not yet verified.`,
-      currentValue,
-    };
+    return results;
   }
 
-  private buildRollbackInsight(
-    outcomePayload: ProposalOutcomePayload,
-    currentBaseline: Baseline,
-    currentValue: number,
-  ): Insight {
-    const now = new Date();
-    const id = `rollback-${outcomePayload.proposalId}-${now.getTime()}-${Math.random().toString(36).slice(2)}`;
-    return {
-      id,
-      type: "anomaly",
-      confidence: 0.9,
-      impact: "high",
-      evidence: {
-        signals: [],
-        baseline: currentBaseline,
-        context: {
-          proposalId: outcomePayload.proposalId,
-          capability: outcomePayload.capability,
-          currentValue,
-          successMetric: outcomePayload.successMetric,
-        },
+  private async verifyOne(
+    outcome: ProposalOutcomePayload,
+  ): Promise<ProposalEffectVerificationResult> {
+    const start = Date.now();
+    // successMetric is guaranteed non-null: verify() filters for it before calling verifyOne
+    const sm = outcome.successMetric ?? { baselineValue: 0, targetValue: 0 };
+
+    let currentValue: number | null = null;
+    if (sm.signalRef) {
+      currentValue = await this.resolveCurrentValue(sm.signalRef);
+    }
+
+    const verdict = determineVerdict(currentValue, sm.targetValue);
+    const now = this.clock();
+    const durationMs = Date.now() - start;
+
+    const payload: EffectVerificationPayload = {
+      proposalId: outcome.proposalId,
+      capability: outcome.capability,
+      changeType: outcome.changeType,
+      verdict,
+      successMetric: {
+        signalRef: sm.signalRef,
+        baselineValue: sm.baselineValue,
+        targetValue: sm.targetValue,
+        description: sm.description,
       },
-      summary: `Proposal "${outcomePayload.proposalTitle}" effect failed: ${currentBaseline.entity}.${currentBaseline.metric} regressed to ${currentValue} (baseline ${outcomePayload.successMetric?.baseline}, target ${outcomePayload.successMetric?.target}).`,
-      causality: "causal",
-      entity: currentBaseline.entity,
-      createdAt: now,
-      tags: ["rollback_candidate"],
+      currentValue,
+      verifiedAt: now.toISOString(),
+      durationMs,
     };
+
+    // Write the primary effect signal (proposal:effect:verified|uncertain|failed)
+    const verdictSuffix = verdict.replace("effect_", ""); // "verified" | "uncertain" | "failed"
+    await this.store.recordSignal({
+      type: `proposal:effect:${verdictSuffix}`,
+      source: "event_bus",
+      timestamp: now,
+      payload,
+    });
+
+    // On failure: emit a second rollback_candidate signal so the Insight layer
+    // can surface a human-reviewed rollback Proposal.
+    if (verdict === "effect_failed") {
+      await this.store.recordSignal({
+        type: "proposal:effect:rollback_candidate",
+        source: "event_bus",
+        timestamp: now,
+        payload,
+      });
+      this.logger?.info?.(
+        `ProposalEffectVerifier: effect_failed for proposal "${outcome.proposalId}" — rollback_candidate emitted`,
+        { proposalId: outcome.proposalId, currentValue, targetValue: sm.targetValue },
+      );
+    } else {
+      this.logger?.info?.(
+        `ProposalEffectVerifier: ${verdict} for proposal "${outcome.proposalId}"`,
+        { proposalId: outcome.proposalId, currentValue, targetValue: sm.targetValue },
+      );
+    }
+
+    return payload;
+  }
+
+  /**
+   * Default signalRef resolver: parses `"entity.metric"` or `"entity:metric"` and
+   * calls `store.getBaseline(entity, metric)`.
+   */
+  private async defaultGetCurrentValue(signalRef: string): Promise<number | null> {
+    const sep = signalRef.includes(".") ? "." : ":";
+    const idx = signalRef.indexOf(sep);
+    if (idx === -1) return null;
+    const entity = signalRef.slice(0, idx);
+    const metric = signalRef.slice(idx + 1);
+    const baseline = await this.store.getBaseline(entity, metric);
+    return baseline?.value ?? null;
   }
 }
 
 // ── Factory ───────────────────────────────────────────────
 
-/** Create a new ProposalEffectVerifier instance. */
 export function createProposalEffectVerifier(
-  opts: ProposalEffectVerifierOptions,
+  options: ProposalEffectVerifierOptions,
 ): ProposalEffectVerifier {
-  return new ProposalEffectVerifier(opts);
+  return new ProposalEffectVerifier(options);
+}
+
+// ── Helpers ───────────────────────────────────────────────
+
+function determineVerdict(currentValue: number | null, targetValue: number): EffectVerdict {
+  if (currentValue === null) return "effect_uncertain";
+  if (currentValue >= targetValue) return "effect_verified";
+  return "effect_failed";
 }
