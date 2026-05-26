@@ -89,17 +89,22 @@ export {
 // Proposal effect verifier (Spec 55 §7.7 Phase 2)
 export {
   createProposalEffectVerifier,
-  type EffectVerificationResult,
-  type EffectVerificationStatus,
+  type EffectVerdict,
+  type EffectVerificationPayload,
+  type ProposalEffectVerificationResult,
   ProposalEffectVerifier,
   type ProposalEffectVerifierOptions,
+  type VerifyEffectOptions,
 } from "./proposal-effect-verifier";
 // Proposal engine
 export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
+  type OnApprovedHook,
+  type OnRejectedHook,
   ProposalEngine,
+  type ProposalEngineOptions,
 } from "./proposal-engine";
 // Proposal generator (AI-powered)
 export {
@@ -124,7 +129,7 @@ export {
   ProposalOutcomeRecorder,
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
-  type RecordProposalOutcomeOptions,
+  type RecordOutcomeOptions,
 } from "./proposal-outcome-recorder";
 // Rule engine
 export {

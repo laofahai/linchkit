@@ -63,16 +63,19 @@ export {
 } from "../../engine/permission-engine";
 export {
   createProposalEffectVerifier,
-  type EffectVerificationResult,
-  type EffectVerificationStatus,
+  type EffectVerdict,
+  type EffectVerificationPayload,
+  type ProposalEffectVerificationResult,
   ProposalEffectVerifier,
   type ProposalEffectVerifierOptions,
+  type VerifyEffectOptions,
 } from "../../engine/proposal-effect-verifier";
 export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
   type OnApprovedHook,
+  type OnRejectedHook,
   ProposalEngine,
   type ProposalEngineOptions,
 } from "../../engine/proposal-engine";
@@ -102,7 +105,7 @@ export {
   ProposalOutcomeRecorder,
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
-  type RecordProposalOutcomeOptions,
+  type RecordOutcomeOptions,
 } from "../../engine/proposal-outcome-recorder";
 export {
   collectRules,

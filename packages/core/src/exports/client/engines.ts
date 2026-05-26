@@ -45,10 +45,12 @@ export {
 } from "../../engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "../../engine/permission-engine";
 export type {
-  EffectVerificationResult,
-  EffectVerificationStatus,
+  EffectVerdict,
+  EffectVerificationPayload,
+  ProposalEffectVerificationResult,
   ProposalEffectVerifier,
   ProposalEffectVerifierOptions,
+  VerifyEffectOptions,
 } from "../../engine/proposal-effect-verifier";
 export type {
   CreateProposalOptions,
@@ -64,7 +66,7 @@ export type {
   ProposalOutcomeRecorder,
   ProposalOutcomeRecorderOptions,
   ProposalOutcomeType,
-  RecordProposalOutcomeOptions,
+  RecordOutcomeOptions,
 } from "../../engine/proposal-outcome-recorder";
 export type {
   RuleEvalInput,
