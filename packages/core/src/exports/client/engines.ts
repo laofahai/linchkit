@@ -58,7 +58,6 @@ export type {
   ProposalOutcomeRecorder,
   ProposalOutcomeRecorderOptions,
   ProposalOutcomeType,
-  RecordOutcomeOptions,
 } from "../../engine/proposal-outcome-recorder";
 export type {
   RuleEvalInput,
