@@ -91,10 +91,7 @@ export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
-  type OnApprovedHook,
-  type OnRejectedHook,
   ProposalEngine,
-  type ProposalEngineOptions,
 } from "./proposal-engine";
 // Proposal generator (AI-powered)
 export {
@@ -112,14 +109,13 @@ export {
   type ProposalGitCommitterRunResult,
   type ProposalGitRunner,
 } from "./proposal-git-committer";
-// Proposal outcome recorder (Spec 55 §7.7 Phase 1)
+// Proposal outcome recorder (Spec 55 §7.7 feedback loop)
 export {
   createProposalOutcomeRecorder,
   type ProposalOutcomePayload,
   ProposalOutcomeRecorder,
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
-  type RecordOutcomeOptions,
 } from "./proposal-outcome-recorder";
 // Rule engine
 export {

@@ -1,73 +1,80 @@
 /**
- * ProposalOutcomeRecorder — Spec 55 §7.7 Phase 1 "Feedback loop: outcome recording".
+ * ProposalOutcomeRecorder — Spec 55 §7.7 "Feedback loop".
  *
- * Records proposal accept/reject/merge/withdraw events to MemoryStore so the
- * Awareness and Insight layers can learn from acceptance patterns over time.
- * Phase 3 will aggregate these events by (generator_id, change_type) to adjust
- * generator attention budgets.
+ * Records Proposal accept/reject/merge/withdraw events to the Memory layer
+ * so the system can learn from outcomes. Written outcome signals are the
+ * input for Phase 2 (ProposalEffectVerifier) and Phase 3
+ * (generator-priority feedback loop).
  *
- * Intentionally NOT auto-wired into ProposalEngine. Callers compose it:
+ * Design mirrors ProposalFileWriter (§7.6): thin, caller-composed, never
+ * auto-wired. The caller decides when to invoke and which outcome to record.
+ *
+ * Typical wiring for the "accepted" path (via ProposalEngine.onApproved):
+ *
  *   const recorder = new ProposalOutcomeRecorder({ store });
- *   const engine = createProposalEngine({
- *     onApproved: (p) => recorder.record({ proposal: p, outcome: 'accepted' }),
- *     onRejected: (p) => recorder.record({ proposal: p, outcome: 'rejected' }),
+ *   const engine = new ProposalEngine({
+ *     onApproved: recorder.onApprovedHook(),
  *   });
  *
- * Pattern mirrors ProposalFileWriter / ProposalGitCommitter (Spec 55 §7.6).
+ * For the rejection path (ProposalEngine.rejectProposal is synchronous, so
+ * the caller explicitly records the outcome after calling it):
+ *
+ *   const proposal = engine.rejectProposal({ proposalId, reason });
+ *   await recorder.recordOutcome(proposal, "rejected");
  */
 
-import type { MemoryStore } from "../types/life-system";
+import type { MemoryStore, Signal } from "../types/life-system";
 import type { Logger } from "../types/logger";
 import type { ProposalDefinition } from "../types/proposal";
 
-// ── Outcome types ────────────────────────────────────
-
-/** The four outcome types a Proposal can produce (Spec 55 §7.7). */
-export type ProposalOutcomeType = "accepted" | "rejected" | "merged" | "withdrawn";
-
-// ── Signal payload ──────────────────────────────────────
+// ── Outcome type ─────────────────────────────────────────────
 
 /**
- * Payload written to MemoryStore for each outcome event.
- * Phase 3 reads these by (generatorId, changeType) to adjust generator weights.
+ * The four Proposal outcome types tracked by the feedback loop (Spec 55 §7.7).
+ *
+ * - accepted  — proposal was approved by a human (or auto-approval gate)
+ * - rejected  — proposal was explicitly rejected
+ * - merged    — proposal reached committed/deployed status (change is live)
+ * - withdrawn — proposal was manually retracted before a decision
+ */
+export type ProposalOutcomeType = "accepted" | "rejected" | "merged" | "withdrawn";
+
+// ── Payload ──────────────────────────────────────────────────
+
+/**
+ * Structured payload written into the Memory Signal for a Proposal outcome.
+ * Future Insight generators query signals of type "proposal_outcome" to
+ * compute acceptance ratios by capability, changeType, and authorId.
  */
 export interface ProposalOutcomePayload {
   proposalId: string;
+  outcome: ProposalOutcomeType;
   capability: string;
   changeType: string;
-  outcome: ProposalOutcomeType;
-  /** Generator that produced the proposal, if known (used by Phase 3). */
-  generatorId?: string;
-  successMetric?: {
-    baselineValue: number;
-    targetValue: number;
-    signalRef?: string;
-    description?: string;
-  };
-  actorId?: string;
-  reason?: string;
-  recordedAt: string;
+  authorType: "human" | "ai";
+  authorId: string;
+  /** Populated when outcome is "accepted". */
+  approvedBy?: { type: string; id: string };
+  /** Populated when outcome is "rejected". */
+  rejectionReason?: string;
+  /** Carried through for Phase 2 ProposalEffectVerifier. */
+  successMetric?: ProposalDefinition["successMetric"];
+  /** ISO-8601 — when the outcome was recorded. */
+  outcomeAt: string;
+  /** ISO-8601 — when the Proposal was originally created. */
+  proposalCreatedAt: string;
 }
 
-// ── Options ──────────────────────────────────────────────
+// ── Options ──────────────────────────────────────────────────
 
 export interface ProposalOutcomeRecorderOptions {
+  /** Memory store that receives outcome signals. */
   store: MemoryStore;
+  /** Optional structured logger. */
   logger?: Logger;
 }
 
-// ── Record options ─────────────────────────────────────────
-
-export interface RecordOutcomeOptions {
-  proposal: ProposalDefinition;
-  outcome: ProposalOutcomeType;
-  /** ID of the human or system actor who triggered this outcome. */
-  actorId?: string;
-  /** Reason text (most useful for rejected / withdrawn outcomes). */
-  reason?: string;
-}
-
-// ── ProposalOutcomeRecorder ────────────────────────────────
+// ── ProposalOutcomeRecorder ──────────────────────────────────
 
 export class ProposalOutcomeRecorder {
   private readonly store: MemoryStore;
@@ -79,44 +86,57 @@ export class ProposalOutcomeRecorder {
   }
 
   /**
-   * Record a proposal outcome event to MemoryStore.
+   * Record a Proposal outcome event to the Memory layer.
    *
-   * The signal type follows the convention `proposal:outcome:<type>` so
-   * queries can filter by outcome without parsing the payload.
+   * Writes a Signal of type "proposal_outcome" to the configured store.
+   * The signal carries enough context for future Insight generators to
+   * compute per-generator acceptance ratios without re-fetching the Proposal.
    */
-  async record(options: RecordOutcomeOptions): Promise<void> {
-    const { proposal, outcome, actorId, reason } = options;
-
-    // Read generatorId if the caller attached it as a sidecar (Phase 3 uses this).
-    const generatorId = (proposal as { generatorId?: unknown }).generatorId;
-
+  async recordOutcome(proposal: ProposalDefinition, outcome: ProposalOutcomeType): Promise<void> {
+    const now = new Date();
     const payload: ProposalOutcomePayload = {
       proposalId: proposal.id,
+      outcome,
       capability: proposal.capability,
       changeType: proposal.changeType,
-      outcome,
-      generatorId: typeof generatorId === "string" ? generatorId : undefined,
-      successMetric: proposal.successMetric !== undefined ? { ...proposal.successMetric } : undefined,
-      actorId,
-      reason,
-      recordedAt: new Date().toISOString(),
+      authorType: proposal.author.type,
+      authorId: proposal.author.id,
+      approvedBy: outcome === "accepted" ? proposal.approvedBy : undefined,
+      rejectionReason: outcome === "rejected" ? proposal.rejectionReason : undefined,
+      successMetric: proposal.successMetric,
+      outcomeAt: now.toISOString(),
+      proposalCreatedAt: proposal.createdAt.toISOString(),
     };
 
-    await this.store.recordSignal({
-      type: `proposal:outcome:${outcome}`,
+    const signal: Signal = {
+      type: "proposal_outcome",
       source: "event_bus",
-      timestamp: new Date(),
+      timestamp: now,
       payload,
-    });
+    };
+
+    await this.store.recordSignal(signal);
 
     this.logger?.info?.(
       `ProposalOutcomeRecorder: recorded "${outcome}" for proposal "${proposal.id}"`,
       { proposalId: proposal.id, outcome, capability: proposal.capability },
     );
   }
+
+  /**
+   * Returns an OnApprovedHook-compatible function for wiring into
+   * ProposalEngine({ onApproved: recorder.onApprovedHook() }).
+   *
+   * The returned hook records outcome "accepted" for every approved Proposal.
+   * Hook failures propagate to the caller (ProposalEngine captures them in
+   * proposal.persistenceError — the approval itself is never rolled back).
+   */
+  onApprovedHook(): (proposal: ProposalDefinition) => Promise<void> {
+    return (proposal) => this.recordOutcome(proposal, "accepted");
+  }
 }
 
-// ── Factory ───────────────────────────────────────────────
+// ── Factory ──────────────────────────────────────────────────
 
 export function createProposalOutcomeRecorder(
   options: ProposalOutcomeRecorderOptions,
