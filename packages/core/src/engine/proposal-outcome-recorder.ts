@@ -16,10 +16,9 @@
  *     onApproved: recorder.onApprovedHook(),
  *   });
  *
- * For the rejection path (ProposalEngine.rejectProposal is synchronous, so
- * the caller explicitly records the outcome after calling it):
+ * For the rejection path (await rejectProposal before recording the outcome):
  *
- *   const proposal = engine.rejectProposal({ proposalId, reason });
+ *   const proposal = await engine.rejectProposal({ proposalId, reason });
  *   await recorder.recordOutcome(proposal, "rejected");
  */
 
@@ -43,8 +42,8 @@ export type ProposalOutcomeType = "accepted" | "rejected" | "merged" | "withdraw
 
 /**
  * Structured payload written into the Memory Signal for a Proposal outcome.
- * Future Insight generators query signals of type "proposal_outcome" to
- * compute acceptance ratios by capability, changeType, and authorId.
+ * Future Insight generators query signals of type `proposal.outcome.<outcome>`
+ * to compute acceptance ratios by capability, changeType, and authorId.
  */
 export interface ProposalOutcomePayload {
   proposalId: string;
@@ -88,8 +87,8 @@ export class ProposalOutcomeRecorder {
   /**
    * Record a Proposal outcome event to the Memory layer.
    *
-   * Writes a Signal of type "proposal_outcome" to the configured store.
-   * The signal carries enough context for future Insight generators to
+   * Writes a Signal of type `proposal.outcome.<outcome>` to the configured
+   * store. The signal carries enough context for future Insight generators to
    * compute per-generator acceptance ratios without re-fetching the Proposal.
    */
   async recordOutcome(proposal: ProposalDefinition, outcome: ProposalOutcomeType): Promise<void> {
@@ -109,7 +108,7 @@ export class ProposalOutcomeRecorder {
     };
 
     const signal: Signal = {
-      type: "proposal_outcome",
+      type: `proposal.outcome.${outcome}`,
       source: "event_bus",
       timestamp: now,
       payload,

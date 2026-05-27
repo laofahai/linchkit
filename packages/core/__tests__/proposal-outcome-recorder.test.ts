@@ -12,6 +12,7 @@ import {
 } from "../src/engine/proposal-outcome-recorder";
 import { InMemoryMemoryStore } from "../src/life-system/in-memory-memory-store";
 import type { Signal } from "../src/types/life-system";
+import type { Logger } from "../src/types/logger";
 import type { ProposalDefinition, SuccessMetric } from "../src/types/proposal";
 
 // ── Fixtures ─────────────────────────────────────────────────
@@ -58,7 +59,7 @@ async function firstSignal(store: InMemoryMemoryStore): Promise<Signal> {
 
 describe("ProposalOutcomeRecorder", () => {
   describe("recordOutcome — accepted", () => {
-    it("writes a proposal_outcome signal to the store", async () => {
+    it("writes a proposal.outcome.accepted signal to the store", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
       const proposal = makeProposal();
@@ -68,7 +69,7 @@ describe("ProposalOutcomeRecorder", () => {
       const signals = await store.getSignals();
       expect(signals).toHaveLength(1);
       const signal = await firstSignal(store);
-      expect(signal.type).toBe("proposal_outcome");
+      expect(signal.type).toBe("proposal.outcome.accepted");
       expect(signal.source).toBe("event_bus");
       expect(signal.timestamp).toBeInstanceOf(Date);
     });
@@ -254,12 +255,15 @@ describe("ProposalOutcomeRecorder", () => {
     it("calls logger.info on successful outcome recording", async () => {
       const store = new InMemoryMemoryStore();
       const infoArgs: Array<[string, ...unknown[]]> = [];
-      const logger = {
+      const logger: Logger = {
+        debug: () => {},
         info: (msg: string, ...rest: unknown[]) => {
-          infoArgs.push([msg, ...rest]);
+          infoArgs.push([msg, ...(rest as unknown[])]);
         },
+        warn: () => {},
+        error: () => {},
       };
-      const recorder = new ProposalOutcomeRecorder({ store, logger: logger as never });
+      const recorder = new ProposalOutcomeRecorder({ store, logger });
       const proposal = makeProposal();
 
       await recorder.recordOutcome(proposal, "accepted");
