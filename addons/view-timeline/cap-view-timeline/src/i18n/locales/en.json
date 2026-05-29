@@ -1,0 +1,13 @@
+{
+  "timeline": {
+    "prev": "Previous",
+    "next": "Next",
+    "today": "Today",
+    "empty": "No records to display in this time window.",
+    "mode": {
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    }
+  }
+}

@@ -23,7 +23,15 @@ export interface ExecResult {
   exitCode: number;
 }
 
-/** Inject a custom executor in tests to avoid real subprocesses. */
+/**
+ * Inject a custom executor in tests to avoid real subprocesses.
+ *
+ * The optional `options.signal` is provided by {@link withTimeout} so executors
+ * can forward it to their spawn mechanism (e.g. `Bun.spawn`'s `signal` option
+ * or `child_process.spawn`'s `signal` option). When aborted, the underlying
+ * process is sent SIGTERM. Executors that ignore the signal remain functional
+ * but will leak orphan subprocesses on timeout.
+ */
 export type ProcessExecutor = (
   cmd: string,
   args: string[],
@@ -321,11 +329,15 @@ export class DeployBuilder {
 // ── Default executor using Bun.spawn ─────────────────────────────────────
 
 const defaultExecutor: ProcessExecutor = async (cmd, args, cwd, options) => {
+  const signal = options?.signal;
   const proc = Bun.spawn([cmd, ...args], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
-    signal: options?.signal,
+    // Forwarding the AbortSignal lets Bun SIGTERM the child when the caller
+    // aborts (e.g. on timeout). Without this the subprocess keeps running as
+    // an orphan after withTimeout rejects.
+    signal,
   });
   // Drain stdout and stderr concurrently to prevent deadlock when either
   // pipe's buffer fills while the other is being read sequentially.
@@ -334,21 +346,49 @@ const defaultExecutor: ProcessExecutor = async (cmd, args, cwd, options) => {
     new Response(proc.stderr).text(),
   ]);
   const exitCode = await proc.exited;
+  // Bun.spawn does NOT reject on abort — it SIGTERMs the child and resolves
+  // `exited` with a non-zero code (typically 143 = 128 + SIGTERM). Translate
+  // this back into a clear timeout error so call sites get a useful message
+  // instead of "exit 143: <empty output>".
+  if (signal?.aborted) {
+    throw new Error(`Subprocess aborted: ${cmd} ${args.join(" ")} (sent SIGTERM)`);
+  }
   return { stdout, stderr, exitCode };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-// withTimeout takes a callback so it can propagate the AbortSignal to the
-// subprocess — when the deadline fires the controller aborts, which causes
-// Bun.spawn to send SIGTERM to the child process instead of leaving it as
-// an orphan.
-async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.max(ms, 0));
-  try {
-    return await run(controller.signal);
-  } finally {
-    clearTimeout(timer);
+/**
+ * Run `task` with a hard deadline of `ms` milliseconds.
+ *
+ * The task receives an {@link AbortSignal} that fires when the deadline
+ * elapses. Cooperative tasks (e.g. `Bun.spawn` with `signal` forwarded) can
+ * terminate their underlying work — preventing orphan subprocesses that the
+ * previous Promise.race-only implementation would have leaked.
+ *
+ * Either the task's own rejection (e.g. an executor surfacing an abort as a
+ * thrown error) or the synthetic timeout rejection (when the task is unable
+ * to observe the signal in time) propagates to the caller.
+ */
+function withTimeout<T>(task: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  // Infinity short-circuit — Bun/Node's setTimeout coerces non-finite or
+  // out-of-range delays to 1ms, which would abort almost immediately if a
+  // caller passed Infinity to mean "disable the timeout".
+  if (!Number.isFinite(ms)) {
+    return task(new AbortController().signal);
   }
+  const controller = new AbortController();
+  const deadlineMs = Math.max(ms, 0);
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timerId = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Operation timed out after ${deadlineMs}ms`));
+    }, deadlineMs);
+  });
+  // Race the cooperative task against the deadline. Whoever settles first
+  // wins; the `finally` clears the timer so test runtimes don't keep alive.
+  return Promise.race([task(controller.signal), timeoutPromise]).finally(() => {
+    clearTimeout(timerId);
+  });
 }

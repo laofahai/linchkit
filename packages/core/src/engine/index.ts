@@ -60,6 +60,16 @@ export {
   type FieldLockViolationType,
   matchesLockCondition,
 } from "./field-lock-checker";
+// Generator priority aggregator (Spec 55 §7.7 Phase 3)
+export {
+  createGeneratorPriorityAggregator,
+  type GeneratorOutcomeType,
+  GeneratorPriorityAggregator,
+  type GeneratorPriorityAggregatorOptions,
+  type GeneratorPriorityConfig,
+  type GeneratorWeightRecord,
+  type OutcomeObservation,
+} from "./generator-priority-aggregator";
 // Onchange evaluator (Spec 64)
 export {
   createOnchangeEvaluator,
@@ -99,6 +109,24 @@ export {
   ProposalGenerationError,
   type ProposalGeneratorDeps,
 } from "./proposal-generator";
+// Proposal git committer (Spec 55 §7.7)
+export {
+  createProposalGitCommitter,
+  type ProposalGhRunner,
+  type ProposalGitCommitResult,
+  ProposalGitCommitter,
+  type ProposalGitCommitterOptions,
+  type ProposalGitCommitterRunResult,
+  type ProposalGitRunner,
+} from "./proposal-git-committer";
+// Proposal outcome recorder (Spec 55 §7.7 feedback loop)
+export {
+  createProposalOutcomeRecorder,
+  type ProposalOutcomePayload,
+  ProposalOutcomeRecorder,
+  type ProposalOutcomeRecorderOptions,
+  type ProposalOutcomeType,
+} from "./proposal-outcome-recorder";
 // Rule engine
 export {
   collectRules,

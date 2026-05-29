@@ -150,6 +150,29 @@ export interface ProposalGenerator {
   validate(proposal: ProposalDefinition): Promise<ProposalValidationResult>;
 }
 
+// ── Success metric (Spec 55 §7.7) ───────────────────────
+
+/**
+ * Optional success metric attached to a Proposal (Spec 55 §7.7).
+ *
+ * Consumed by Phase 2 `ProposalEffectVerifier` to determine whether the
+ * change achieved its intended outcome after merging.
+ */
+export interface SuccessMetric {
+  /** Human-readable description of what success looks like. */
+  description: string;
+  /** ID of the Insight that motivated this Proposal (for outcome correlation). */
+  insightRef?: string;
+  /** Signal type name used to measure the outcome (e.g. "action_failure_rate"). */
+  signalRef?: string;
+  /** Value of the metric before the change was applied. */
+  baselineValue?: number;
+  /** Target value the metric should reach after the change. */
+  targetValue?: number;
+  /** Unit of measurement (e.g. "ms", "%", "count"). */
+  unit?: string;
+}
+
 // ── Proposal definition ──────────────────────────────────
 
 export interface ProposalDefinition {
@@ -190,4 +213,20 @@ export interface ProposalDefinition {
   /** Approval info */
   approvedBy?: { type: string; id: string };
   rejectionReason?: string;
+
+  /**
+   * Error message captured if the `ProposalEngine.onApproved` hook (e.g. a
+   * `ProposalFileWriter`) failed when persisting the approved proposal.
+   * The approval status is NOT rolled back when this is set — the approval
+   * decision stands, but the caller can surface this error to a human so
+   * they can re-run the persistence step manually.
+   */
+  persistenceError?: string;
+
+  /**
+   * Optional success metric for Phase 2 effect verification (Spec 55 §7.7).
+   * When set, `ProposalEffectVerifier` will measure the metric after the
+   * change merges to determine whether the outcome was achieved.
+   */
+  successMetric?: SuccessMetric;
 }

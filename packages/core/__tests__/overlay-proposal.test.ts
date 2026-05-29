@@ -337,7 +337,7 @@ describe("Full overlay proposal pipeline", () => {
     expect(validated.status).toBe("validated");
 
     // Approve
-    const approved = engine.approveProposal({
+    const approved = await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "human", id: "admin-1" },
     });
@@ -377,7 +377,7 @@ describe("Full overlay proposal pipeline", () => {
     engine.submitProposal({ proposalId: proposal.id });
 
     // Since auto-approvable, approve with system user
-    engine.approveProposal({
+    await engine.approveProposal({
       proposalId: proposal.id,
       approvedBy: { type: "system", id: "auto-approval" },
     });
@@ -409,7 +409,7 @@ describe("Full overlay proposal pipeline", () => {
     engine.submitProposal({ proposalId: proposal.id });
 
     // Reject
-    engine.rejectProposal({
+    await engine.rejectProposal({
       proposalId: proposal.id,
       reason: "Required fields need design review",
     });
