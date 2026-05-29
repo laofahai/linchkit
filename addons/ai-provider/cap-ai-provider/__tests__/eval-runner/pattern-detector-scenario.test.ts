@@ -12,7 +12,10 @@ import type {
   PatternFixtureContext,
   PatternFixtureInput,
 } from "@linchkit/devtools";
-import { createPatternDetectorScenario } from "../../eval-runner/pattern-detector-scenario";
+import {
+  coerceEnabledPatterns,
+  createPatternDetectorScenario,
+} from "../../eval-runner/pattern-detector-scenario";
 
 function makeEntry(
   id: string,
@@ -149,6 +152,37 @@ describe("createPatternDetectorScenario.runLive", () => {
   });
 });
 
+describe("coerceEnabledPatterns", () => {
+  it("returns undefined when patterns is undefined (use detector defaults)", () => {
+    expect(coerceEnabledPatterns(undefined)).toBeUndefined();
+  });
+
+  it("passes through valid PatternType members unchanged", () => {
+    const valid = ["state_flow", "default_value", "repetitive_action"];
+    expect(coerceEnabledPatterns(valid)).toEqual([
+      "state_flow",
+      "default_value",
+      "repetitive_action",
+    ]);
+  });
+
+  it("accepts an empty array (explicitly disables all patterns)", () => {
+    expect(coerceEnabledPatterns([])).toEqual([]);
+  });
+
+  it("throws on an unknown pattern name, listing the offender and valid set", () => {
+    expect(() => coerceEnabledPatterns(["stateflow"])).toThrow(
+      /Unknown pattern type\(s\) in fixture enabledPatterns: stateflow\. Valid: /,
+    );
+  });
+
+  it("lists every offending name when multiple are unknown", () => {
+    expect(() => coerceEnabledPatterns(["state_flow", "bogus", "typo"])).toThrow(
+      /Unknown pattern type\(s\) in fixture enabledPatterns: bogus, typo\./,
+    );
+  });
+});
+
 describe("createPatternDetectorScenario.replayFromBaseline", () => {
   const scenario = createPatternDetectorScenario();
 
@@ -165,7 +199,7 @@ describe("createPatternDetectorScenario.replayFromBaseline", () => {
       config: { minOccurrences: 5, minConfidence: 0.7 },
     });
     const live = await scenario.runLive(fx);
-    const replayed = await scenario.replayFromBaseline(fx, undefined);
+    const replayed = await scenario.replayFromBaseline(fx, null);
     // PatternDetector uses Date.now() for insight IDs, so IDs differ across calls.
     // Verify structural equivalence (same types, entities, confidence) instead.
     const strip = (items: typeof live) => items.map(({ id: _, ...rest }) => rest);

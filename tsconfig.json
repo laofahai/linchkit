@@ -82,6 +82,8 @@
     "addons/*/cap-*/ui/**/*.tsx",
     "addons/*/cap-*/ui-kit/src/**/*.ts",
     "addons/*/cap-*/ui-kit/src/**/*.tsx",
+    "addons/*/cap-*/eval-runner/**/*.ts",
+    "addons/*/cap-*/__tests__/eval-runner/**/*.ts",
     "e2e/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
