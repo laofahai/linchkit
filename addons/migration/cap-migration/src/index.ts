@@ -5,6 +5,14 @@
  * version registry, Drizzle DB migration runner, and legacy data import tools.
  */
 
+// ── Applied-migrations reader (Spec 12 §5 — coordinator wiring) ─────
+export {
+  type AppliedMigrationsReaderOptions,
+  createAppliedMigrationsReader,
+  createDbMigrationCoordinator,
+  type DbMigrationCoordinatorOptions,
+  type MigrationStateDb,
+} from "./applied-reader";
 // ── Version compatibility (spec 38) ────────────────────────
 export type {
   BreakingChange,
