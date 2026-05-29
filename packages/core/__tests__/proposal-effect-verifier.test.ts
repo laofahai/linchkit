@@ -27,7 +27,10 @@ function makeMergedSignal(overrides: Partial<ProposalOutcomePayload> = {}): Sign
     capability: "cap-task",
     changeType: "minor",
     outcome: "merged",
-    recordedAt: new Date("2026-01-15T10:00:00Z").toISOString(),
+    authorType: "human",
+    authorId: "user-1",
+    outcomeAt: new Date("2026-01-15T10:00:00Z").toISOString(),
+    proposalCreatedAt: new Date("2026-01-10T00:00:00Z").toISOString(),
     ...overrides,
   };
   return {
@@ -72,7 +75,7 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 10, targetValue: 20 }, // no signalRef
+          successMetric: { description: "test", baselineValue: 10, targetValue: 20 }, // no signalRef
         }),
       );
       const verifier = new ProposalEffectVerifier({ store });
@@ -90,8 +93,16 @@ describe("ProposalEffectVerifier", () => {
           capability: "cap-x",
           changeType: "minor",
           outcome: "accepted",
-          recordedAt: new Date().toISOString(),
-          successMetric: { baselineValue: 5, targetValue: 50, signalRef: "cap-x" },
+          authorType: "human",
+          authorId: "user-a",
+          outcomeAt: new Date().toISOString(),
+          proposalCreatedAt: new Date().toISOString(),
+          successMetric: {
+            description: "test",
+            baselineValue: 5,
+            targetValue: 50,
+            signalRef: "cap-x",
+          },
         } satisfies ProposalOutcomePayload,
       });
       const verifier = new ProposalEffectVerifier({ store });
@@ -106,11 +117,13 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 10, targetValue: 80, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 10, targetValue: 80, signalRef: "cap-task" },
         }),
       );
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_uncertain");
       expect(rec.currentValue).toBeUndefined();
@@ -121,7 +134,7 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 10, targetValue: 80, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 10, targetValue: 80, signalRef: "cap-task" },
         }),
       );
       const verifier = new ProposalEffectVerifier({ store });
@@ -129,7 +142,7 @@ describe("ProposalEffectVerifier", () => {
 
       const effectSignals = await store.getSignals({ entity: "proposal:effect:uncertain" });
       expect(effectSignals).toHaveLength(1);
-      const p = effectSignals[0].payload as EffectVerificationPayload;
+      const p = effectSignals[0]!.payload as EffectVerificationPayload;
       expect(p.rollback_candidate).toBe(false);
     });
   });
@@ -141,12 +154,19 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-task:success_rate" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-task:success_rate",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "success_rate", 50));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_uncertain");
       expect(rec.currentValue).toBe(50);
@@ -160,12 +180,14 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 95));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.currentValue).toBe(95);
@@ -175,12 +197,14 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 90));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -189,7 +213,7 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 95));
@@ -198,7 +222,7 @@ describe("ProposalEffectVerifier", () => {
 
       const effectSignals = await store.getSignals({ entity: "proposal:effect:verified" });
       expect(effectSignals).toHaveLength(1);
-      const p = effectSignals[0].payload as EffectVerificationPayload;
+      const p = effectSignals[0]!.payload as EffectVerificationPayload;
       expect(p.rollback_candidate).toBe(false);
     });
 
@@ -206,12 +230,14 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 70));
       const verifier = new ProposalEffectVerifier({ store, verifyThreshold: 0.6 });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -224,12 +250,14 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 45));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_failed");
       expect(rec.currentValue).toBe(45);
@@ -239,12 +267,14 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 50));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_failed");
     });
@@ -253,7 +283,7 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
+          successMetric: { description: "test", baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 40));
@@ -262,7 +292,7 @@ describe("ProposalEffectVerifier", () => {
 
       const failedSignals = await store.getSignals({ entity: "proposal:effect:failed" });
       expect(failedSignals).toHaveLength(1);
-      const p = failedSignals[0].payload as EffectVerificationPayload;
+      const p = failedSignals[0]!.payload as EffectVerificationPayload;
       expect(p.rollback_candidate).toBe(true);
       expect(p.proposalId).toBe("prop-xyz-00000001");
     });
@@ -275,12 +305,14 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "my-cap" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "my-cap" },
         }),
       );
       await store.updateBaseline(makeBaseline("my-cap", "value", 95));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.signalRef).toBe("my-cap");
@@ -290,12 +322,19 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-orders:fill_rate" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-orders:fill_rate",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-orders", "fill_rate", 95));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.signalRef).toBe("cap-orders:fill_rate");
@@ -305,12 +344,62 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-foo:bar:baz" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-foo:bar:baz",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-foo", "bar:baz", 95));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_verified");
+    });
+
+    it("parses entity.metric dot-separated ref correctly", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "orders.conversionRate",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("orders", "conversionRate", 95));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_verified");
+      expect(rec.signalRef).toBe("orders.conversionRate");
+    });
+
+    it("prefers colon over dot when both present", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-orders:fill.rate",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-orders", "fill.rate", 95));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -324,13 +413,13 @@ describe("ProposalEffectVerifier", () => {
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-a",
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-a" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-a" },
         }),
       );
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-b",
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-b" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-b" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-a", "value", 95));
@@ -349,13 +438,13 @@ describe("ProposalEffectVerifier", () => {
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-1",
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-x" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-x" },
         }),
       );
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-2",
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-y" },
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-y" },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-x", "value", 95));
@@ -385,8 +474,11 @@ describe("ProposalEffectVerifier", () => {
           capability: "cap-z",
           changeType: "minor",
           outcome: "merged",
-          recordedAt: new Date("2026-01-01T00:00:00Z").toISOString(),
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-z" },
+          authorType: "human",
+          authorId: "user-1",
+          outcomeAt: new Date("2026-01-01T00:00:00Z").toISOString(),
+          proposalCreatedAt: new Date("2025-12-01T00:00:00Z").toISOString(),
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-z" },
         } satisfies ProposalOutcomePayload,
       });
       await store.recordSignal({
@@ -398,8 +490,11 @@ describe("ProposalEffectVerifier", () => {
           capability: "cap-z",
           changeType: "minor",
           outcome: "merged",
-          recordedAt: new Date("2026-02-01T00:00:00Z").toISOString(),
-          successMetric: { baselineValue: 0, targetValue: 100, signalRef: "cap-z" },
+          authorType: "human",
+          authorId: "user-1",
+          outcomeAt: new Date("2026-02-01T00:00:00Z").toISOString(),
+          proposalCreatedAt: new Date("2026-01-15T00:00:00Z").toISOString(),
+          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-z" },
         } satisfies ProposalOutcomePayload,
       });
 
@@ -407,7 +502,7 @@ describe("ProposalEffectVerifier", () => {
       const results = await verifier.verifyAll({ since: new Date("2026-01-20T00:00:00Z") });
 
       expect(results).toHaveLength(1);
-      expect(results[0].proposalId).toBe("prop-new");
+      expect(results[0]!.proposalId).toBe("prop-new");
     });
   });
 
@@ -420,12 +515,19 @@ describe("ProposalEffectVerifier", () => {
         makeMergedSignal({
           proposalId: "prop-abc",
           capability: "cap-task",
-          successMetric: { baselineValue: 10, targetValue: 90, signalRef: "cap-task:rate" },
+          successMetric: {
+            description: "test",
+            baselineValue: 10,
+            targetValue: 90,
+            signalRef: "cap-task:rate",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "rate", 85));
       const verifier = new ProposalEffectVerifier({ store });
-      const [rec] = await verifier.verifyAll();
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
 
       expect(rec.proposalId).toBe("prop-abc");
       expect(rec.capability).toBe("cap-task");

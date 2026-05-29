@@ -31,7 +31,13 @@ import type { ProposalOutcomePayload } from "./proposal-outcome-recorder";
  * InMemoryMemoryStore satisfies this interface out of the box.
  */
 export interface VerifiableSignalStore extends MemoryStore {
-  getSignals(opts?: { entity?: string; since?: Date; limit?: number }): Promise<Signal[]>;
+  getSignals(opts?: {
+    /** Filter by signal type (exact match on Signal.type). */
+    type?: string;
+    entity?: string;
+    since?: Date;
+    limit?: number;
+  }): Promise<Signal[]>;
 }
 
 // ── Result types ─────────────────────────────────────────────────────────────
@@ -43,7 +49,7 @@ export type EffectVerificationResult = "effect_verified" | "effect_uncertain" | 
 export interface EffectVerificationRecord {
   proposalId: string;
   capability: string;
-  /** Original signalRef from successMetric — format: "entity" or "entity:metric". */
+  /** Original signalRef from successMetric — format: "entity", "entity:metric", or "entity.metric". */
   signalRef: string;
   baselineValue: number;
   targetValue: number;
@@ -95,11 +101,8 @@ export class ProposalEffectVerifier {
    * Returns one EffectVerificationRecord per verifiable merged outcome.
    */
   async verifyAll(opts?: VerifyAllOptions): Promise<EffectVerificationRecord[]> {
-    // InMemoryMemoryStore.getSignals({ entity }) filters by
-    // payload.entity === entity OR s.type === entity — the latter matches
-    // Phase 1 signals whose type is "proposal:outcome:merged".
     const mergedSignals = await this.store.getSignals({
-      entity: "proposal:outcome:merged",
+      type: "proposal:outcome:merged",
       since: opts?.since,
     });
 
@@ -137,10 +140,18 @@ export class ProposalEffectVerifier {
   ): Promise<EffectVerificationRecord> {
     const { baselineValue, targetValue } = successMetric;
 
-    // Parse "entity:metric" or bare "entity" (metric defaults to "value").
+    // Parse "entity:metric", "entity.metric", or bare "entity" (metric defaults to "value").
+    // Use the first occurrence of ':' or '.', whichever appears first.
     const colonIdx = signalRef.indexOf(":");
-    const entity = colonIdx >= 0 ? signalRef.slice(0, colonIdx) : signalRef;
-    const metric = colonIdx >= 0 ? signalRef.slice(colonIdx + 1) : "value";
+    const dotIdx = signalRef.indexOf(".");
+    const sepIdx = (() => {
+      if (colonIdx < 0 && dotIdx < 0) return -1;
+      if (colonIdx < 0) return dotIdx;
+      if (dotIdx < 0) return colonIdx;
+      return Math.min(colonIdx, dotIdx);
+    })();
+    const entity = sepIdx >= 0 ? signalRef.slice(0, sepIdx) : signalRef;
+    const metric = sepIdx >= 0 ? signalRef.slice(sepIdx + 1) : "value";
 
     const baseline = await this.store.getBaseline(entity, metric);
     const verifiedAt = new Date().toISOString();
@@ -153,14 +164,21 @@ export class ProposalEffectVerifier {
       currentValue = undefined;
     } else {
       currentValue = baseline.value;
-      const requiredValue = baselineValue + this.verifyThreshold * (targetValue - baselineValue);
+      const gap = targetValue - baselineValue;
+      const requiredValue = baselineValue + this.verifyThreshold * gap;
 
-      if (currentValue >= requiredValue) {
-        result = "effect_verified";
-      } else if (currentValue <= baselineValue) {
-        result = "effect_failed";
+      if (gap > 0) {
+        // Increasing goal: current must reach requiredValue (above baseline)
+        if (currentValue >= requiredValue) result = "effect_verified";
+        else if (currentValue <= baselineValue) result = "effect_failed";
+        else result = "effect_uncertain";
+      } else if (gap < 0) {
+        // Decreasing goal: current must drop to requiredValue (below baseline)
+        if (currentValue <= requiredValue) result = "effect_verified";
+        else if (currentValue >= baselineValue) result = "effect_failed";
+        else result = "effect_uncertain";
       } else {
-        // Partial progress — check again later
+        // target === baseline — no measurable gap; cannot determine effect
         result = "effect_uncertain";
       }
     }
