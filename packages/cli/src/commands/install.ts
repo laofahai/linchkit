@@ -402,14 +402,16 @@ export const installCommand = defineCommand({
       }
     }
 
-    // Step 9: Core version compatibility check
-    const minCoreVersion = metadata.linchkit?.minVersion;
-    if (minCoreVersion) {
-      const compatible = satisfiesVersionRange(VERSION, minCoreVersion);
+    // Step 9: Core version compatibility check.
+    // Prefer the new `coreVersion` semver range; fall back to the deprecated
+    // `minVersion` for capabilities that have not migrated yet.
+    const coreVersionRange = metadata.linchkit?.coreVersion ?? metadata.linchkit?.minVersion;
+    if (coreVersionRange) {
+      const compatible = satisfiesVersionRange(VERSION, coreVersionRange);
       if (!compatible) {
         console.warn("");
         console.warn(
-          `[linch] Version warning: ${metadata.name} requires @linchkit/core ${minCoreVersion}, you have ${VERSION}`,
+          `[linch] Version warning: ${metadata.name} requires @linchkit/core ${coreVersionRange}, you have ${VERSION}`,
         );
       }
     }
@@ -447,7 +449,7 @@ export const installCommand = defineCommand({
       author: metadata.author,
       repository: metadata.repository,
       dependencies: metadata.dependencies,
-      minCoreVersion,
+      minCoreVersion: coreVersionRange,
       installedAt: new Date().toISOString(),
     });
   },

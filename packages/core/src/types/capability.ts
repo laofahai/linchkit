@@ -99,6 +99,13 @@ export interface CapabilityDefinition {
   category: CapabilityCategory;
   version: string;
 
+  /**
+   * Semver RANGE declaring which @linchkit/core versions this capability is
+   * compatible with (e.g. "^0.2.0", ">=0.2.0 <0.4.0"). Checked at boot by
+   * `enforceCoreCompatibility`. Optional — capabilities without it are skipped.
+   */
+  coreVersion?: string;
+
   dependencies?: string[];
 
   /**

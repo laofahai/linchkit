@@ -79,7 +79,17 @@ export const capabilityMetadataSchema = z.object({
   /** Compatibility constraints */
   linchkit: z
     .object({
-      /** Minimum LinchKit core version required */
+      /**
+       * Semver RANGE describing which @linchkit/core versions this capability
+       * is compatible with (e.g. "^0.2.0", ">=0.2.0 <0.4.0"). When present it
+       * takes precedence over the deprecated `minVersion`.
+       */
+      coreVersion: z.string().optional(),
+      /**
+       * @deprecated Use `coreVersion` (a semver range) instead. Still honored
+       * as a fallback when `coreVersion` is absent. Interpreted as a minimum
+       * version constraint.
+       */
       minVersion: z.string().optional(),
     })
     .optional(),

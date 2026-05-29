@@ -287,7 +287,9 @@ export const publishCommand = defineCommand({
         author: metadata.author,
         repository: metadata.repository,
         dependencies: metadata.dependencies,
-        minCoreVersion: metadata.linchkit?.minVersion,
+        // Prefer the new `coreVersion` semver range; fall back to the deprecated
+        // `minVersion` for capabilities that have not migrated yet.
+        minCoreVersion: metadata.linchkit?.coreVersion ?? metadata.linchkit?.minVersion,
         installedAt: new Date().toISOString(),
       });
 
