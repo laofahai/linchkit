@@ -11,7 +11,7 @@ issue [#89](https://github.com/laofahai/linchkit/issues/89).
 
 ## Peer Dependencies
 
-- `@linchkit/core` ^0.1.0
+- `@linchkit/core` ^0.2.0
 
 ## Links
 
