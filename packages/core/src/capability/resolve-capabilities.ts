@@ -24,17 +24,50 @@ export function mergeCapabilityPool(
   const byName = new Map<string, CapabilityDefinition>();
   const order: string[] = [];
 
-  for (const cap of explicit) {
+  for (const [index, cap] of explicit.entries()) {
+    assertNamedCapability(cap, "explicit", index);
     if (!byName.has(cap.name)) order.push(cap.name);
     byName.set(cap.name, cap);
   }
-  for (const cap of discovered) {
+  for (const [index, cap] of discovered.entries()) {
+    assertNamedCapability(cap, "discovered", index);
     if (byName.has(cap.name)) continue; // explicit wins
     byName.set(cap.name, cap);
     order.push(cap.name);
   }
 
   return order.map((name) => byName.get(name) as CapabilityDefinition);
+}
+
+/**
+ * Fail-loud guard for a capability entry before its `name` is dereferenced.
+ *
+ * `explicit` capabilities come straight from `linchkit.config.ts` and reach
+ * {@link mergeCapabilityPool} BEFORE `ConfigRegistry.create` validates them, so a
+ * null/undefined entry or one missing a non-empty string `name` would otherwise
+ * surface as a cryptic `TypeError`. A nameless capability is a config error, so
+ * we throw with a message that pinpoints the source list and index.
+ *
+ * @param cap    - Candidate capability entry (untrusted at this stage)
+ * @param source - Which list the entry came from, for the error message
+ * @param index  - Position of the entry in its source list
+ * @throws Error if `cap` is null/undefined or has no non-empty string `name`
+ */
+function assertNamedCapability(
+  cap: CapabilityDefinition | null | undefined,
+  source: "explicit" | "discovered",
+  index: number,
+): asserts cap is CapabilityDefinition {
+  if (cap === null || cap === undefined) {
+    throw new Error(
+      `mergeCapabilityPool: ${source} capability at index ${index} is null/undefined`,
+    );
+  }
+  if (typeof cap.name !== "string" || cap.name.trim() === "") {
+    throw new Error(
+      `mergeCapabilityPool: ${source} capability at index ${index} has no valid "name"`,
+    );
+  }
 }
 
 /**

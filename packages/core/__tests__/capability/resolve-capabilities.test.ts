@@ -45,6 +45,41 @@ describe("mergeCapabilityPool", () => {
   test("returns empty array for empty input", () => {
     expect(mergeCapabilityPool([], [])).toHaveLength(0);
   });
+
+  test("throws a clear error for a null explicit entry", () => {
+    const explicit = [cap("cap-auth"), null] as unknown as CapabilityDefinition[];
+    expect(() => mergeCapabilityPool(explicit, [])).toThrow(
+      /explicit capability at index 1 is null\/undefined/,
+    );
+  });
+
+  test("throws a clear error for an undefined discovered entry", () => {
+    const discovered = [undefined] as unknown as CapabilityDefinition[];
+    expect(() => mergeCapabilityPool([], discovered)).toThrow(
+      /discovered capability at index 0 is null\/undefined/,
+    );
+  });
+
+  test("throws a clear error for an explicit entry missing a name", () => {
+    const explicit = [{ label: "broken" }] as unknown as CapabilityDefinition[];
+    expect(() => mergeCapabilityPool(explicit, [])).toThrow(
+      /explicit capability at index 0 has no valid "name"/,
+    );
+  });
+
+  test("throws a clear error for an empty-string name", () => {
+    const explicit = [cap("cap-auth"), cap("   ")];
+    expect(() => mergeCapabilityPool(explicit, [])).toThrow(
+      /explicit capability at index 1 has no valid "name"/,
+    );
+  });
+
+  test("throws a clear error for a non-string name", () => {
+    const discovered = [{ name: 42 }] as unknown as CapabilityDefinition[];
+    expect(() => mergeCapabilityPool([], discovered)).toThrow(
+      /discovered capability at index 0 has no valid "name"/,
+    );
+  });
 });
 
 describe("resolveCapabilities", () => {
