@@ -336,6 +336,45 @@ describe("createAIService streaming tracing — clean drain", () => {
     expect(gen?.inputTokens).toBe(0);
     expect(gen?.outputTokens).toBe(0);
   });
+
+  it("records a successful generation with 0 tokens when totalUsage rejects after a clean drain", async () => {
+    // A clean drain is a SUCCESS even if the usage accessor is unavailable (some
+    // providers omit usage on streams). The generation must still be recorded
+    // (0 tokens) and the parent trace ended "ok" — NOT dropped + marked errored.
+    const ai = createAIService(config, {
+      getModel: async () => ({ id: "fake-model" }),
+      runStreamText: () => ({
+        textStream: (async function* () {
+          yield "a";
+          yield "b";
+        })(),
+        get totalUsage() {
+          return Promise.reject(new Error("usage unavailable"));
+        },
+        get text() {
+          return Promise.resolve("ab");
+        },
+      }),
+    });
+    const stream = await ai.completeStream?.({
+      messages: [{ role: "user", content: "x" }],
+      trace: { origin: "eval" },
+    });
+    if (!stream) throw new Error("no stream");
+    const text = await drain(stream.textStream);
+    expect(text).toBe("ab");
+    await flushMicrotasks();
+
+    expect(sink.size).toBe(1);
+    const gen = sink.query()[0];
+    expect(gen?.status).toBe("ok");
+    expect(gen?.partial).toBe(false);
+    expect(gen?.inputTokens).toBe(0);
+    expect(gen?.outputTokens).toBe(0);
+    expect(gen?.completion).toBe("ab");
+    // Parent finalized "ok" despite the usage rejection.
+    expect(sink.queryTraces()[0]?.status).toBe("ok");
+  });
 });
 
 describe("createAIService streaming tracing — abort / error", () => {

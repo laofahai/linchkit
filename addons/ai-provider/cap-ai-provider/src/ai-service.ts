@@ -995,9 +995,20 @@ function recordStreamFinish(args: {
   // and forget: nothing awaits this and the stream's output is already done.
   void (async () => {
     try {
-      const usage = await result.totalUsage;
-      const inputTokens = usage.inputTokens ?? 0;
-      const outputTokens = usage.outputTokens ?? 0;
+      // The stream drained cleanly, so this is a SUCCESS regardless of whether
+      // the usage accessor is available. Isolate the usage await so a rejected /
+      // undefined `totalUsage` falls back to 0 tokens instead of skipping the
+      // record entirely and marking the parent errored (some providers omit
+      // usage on streams). `usage?.` guards a null/undefined resolution too.
+      let inputTokens = 0;
+      let outputTokens = 0;
+      try {
+        const usage = await result.totalUsage;
+        inputTokens = usage?.inputTokens ?? 0;
+        outputTokens = usage?.outputTokens ?? 0;
+      } catch {
+        // totalUsage unavailable/rejected — keep 0 tokens; still record below.
+      }
       // Prefer the SDK's authoritative final text; fall back to the text we
       // accumulated from the chunks if the accessor is unavailable.
       let completion = outcome.streamedText;
