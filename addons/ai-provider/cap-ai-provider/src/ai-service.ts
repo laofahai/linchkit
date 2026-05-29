@@ -29,9 +29,38 @@ import type {
   AITaskType,
   AITenantConfig,
   AIToolCall,
+  AITraceSamplingConfig,
 } from "@linchkit/core";
+import { openParentTrace, recordGeneration, recordSuccess } from "./ai-tracing";
 import { CostEstimator } from "./cost-estimator";
 import { AIResponseCache } from "./response-cache";
+
+/**
+ * Internal generation runners — the seam between the service and the Vercel AI
+ * SDK. Defaults dynamically import `ai`; tests inject fakes so `complete()`
+ * runs end-to-end (and through the tracing instrumentation) without a network
+ * call. Not part of the public API.
+ *
+ * biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK result types are generic.
+ */
+type AnyGenerateResult = any;
+
+/** Injectable runners (test seam). All optional — real paths used by default. */
+export interface AIServiceInternals {
+  /** Resolve a provider LanguageModel. Defaults to the lazy SDK loader. */
+  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK LanguageModel is generic.
+  getModel?: (config: AIServiceConfig, resolved: ResolvedModel) => Promise<any>;
+  /** Run a structured (JSON) generation. Defaults to `ai.generateObject`. */
+  runGenerateObject?: (args: AnyGenerateResult) => Promise<AnyGenerateResult>;
+  /** Run a text generation. Defaults to `ai.generateText`. */
+  runGenerateText?: (args: AnyGenerateResult) => Promise<AnyGenerateResult>;
+  /**
+   * Trace sampling config. Applied at every span/record call. Defaults to
+   * recording everything; set `{ rate: 0 }` to disable tracing entirely
+   * without changing the active sink.
+   */
+  sampling?: AITraceSamplingConfig;
+}
 
 /** Infer provider type from well-known provider names */
 function inferProviderType(name: string): AIProviderType | undefined {
@@ -71,7 +100,10 @@ export const defaultAIConfig: AIServiceConfig = {
  * The service is optional — if no config is provided, use createNoopAIService()
  * from @linchkit/core instead. The system works without AI.
  */
-export function createAIService(config: AIServiceConfig): AIService {
+export function createAIService(
+  config: AIServiceConfig,
+  internals?: AIServiceInternals,
+): AIService {
   validateConfig(config);
 
   const costEstimator = new CostEstimator();
@@ -81,8 +113,8 @@ export function createAIService(config: AIServiceConfig): AIService {
     configured: true,
     defaultProvider: config.defaultProvider,
     providerNames: Object.keys(config.providers),
-    complete: (options) => executeWithFallback(config, options, costEstimator, cache),
-    completeStream: (options) => executeStream(config, options),
+    complete: (options) => executeWithFallback(config, options, costEstimator, cache, internals),
+    completeStream: (options) => executeStream(config, options, internals),
   };
 }
 
@@ -298,6 +330,7 @@ async function executeWithFallback(
   options: AICompletionOptions,
   costEstimator: CostEstimator,
   cache: AIResponseCache | undefined,
+  internals?: AIServiceInternals,
 ): Promise<AICompletionResult> {
   // Resolve tenant-specific config if tenantId is specified
   const effectiveConfig = options.tenantId ? resolveTenantConfig(config, options.tenantId) : config;
@@ -321,12 +354,34 @@ async function executeWithFallback(
     if (cached) return cached;
   }
 
+  // Open the parent trace once — it spans every retry + fallback attempt so
+  // a single trace shows the full resolution path. Non-throwing. The parent
+  // resolves the sampling decision ONCE; thread it into every child generation
+  // so a fractional rate never rolls independently (which would orphan a
+  // sampled-in generation under a sampled-out parent, or vice-versa).
+  const parent = openParentTrace(resolvedOptions.trace, { sampling: internals?.sampling });
+  // Thread the resolved parent trace id into child generations so retries land
+  // under one trace even when the caller did not pre-allocate a trace id.
+  const tracedOptions: AICompletionOptions = {
+    ...resolvedOptions,
+    trace: { ...resolvedOptions.trace, traceId: parent.traceId },
+  };
+
   const fallback = effectiveConfig.fallback;
   if (!fallback || fallback.providers.length === 0) {
     // No fallback chain — execute directly
-    const result = await executeCompletion(effectiveConfig, resolvedOptions, costEstimator);
-    cache?.set(resolvedOptions, result);
-    return result;
+    try {
+      const result = await executeCompletion(effectiveConfig, tracedOptions, costEstimator, {
+        internals,
+        sampled: parent.sampled,
+      });
+      cache?.set(resolvedOptions, result);
+      parent.end("ok");
+      return result;
+    } catch (error) {
+      parent.end("error");
+      throw error;
+    }
   }
 
   // Build provider attempt list: primary first, then fallback providers
@@ -347,8 +402,15 @@ async function executeWithFallback(
 
     for (let attempt = 0; attempt < retriesPerProvider; attempt++) {
       try {
-        const attemptOptions = { ...resolvedOptions, provider: providerName };
-        const result = await executeCompletion(effectiveConfig, attemptOptions, costEstimator);
+        const attemptOptions = { ...tracedOptions, provider: providerName };
+        const result = await executeCompletion(effectiveConfig, attemptOptions, costEstimator, {
+          internals,
+          sampled: parent.sampled,
+          // Stamp the originally-failed provider so a fallback-served success
+          // records `fallbackUsed` on its generation (the trace records BEFORE
+          // we set result.fallbackUsed below).
+          fallbackUsed: failedPrimary,
+        });
 
         // Mark if fallback was used
         if (failedPrimary) {
@@ -356,12 +418,14 @@ async function executeWithFallback(
         }
 
         cache?.set(resolvedOptions, result);
+        parent.end("ok");
         return result;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
         // Check if this error type should trigger fallback
         if (fallback.onErrors && !shouldFallback(lastError, fallback.onErrors)) {
+          parent.end("error");
           throw lastError;
         }
 
@@ -379,6 +443,7 @@ async function executeWithFallback(
   }
 
   // All providers exhausted
+  parent.end("error");
   throw new Error(`All AI providers failed. Last error: ${lastError?.message ?? "unknown"}`);
 }
 
@@ -438,12 +503,29 @@ function sleep(ms: number): Promise<void> {
 
 // ── Completion execution ────────────────────────────────────
 
+/** Tracing metadata threaded down from `executeWithFallback` per attempt. */
+interface ExecuteCompletionTrace {
+  /** Injectable SDK runners + sampling config (test seam). */
+  internals?: AIServiceInternals;
+  /** Parent-trace sampling decision — rolled once, reused for every attempt. */
+  sampled: boolean;
+  /** Provider that originally failed when this attempt is a fallback. */
+  fallbackUsed?: string;
+}
+
 async function executeCompletion(
   config: AIServiceConfig,
   options: AICompletionOptions,
   costEstimator: CostEstimator,
+  traceMeta: ExecuteCompletionTrace,
 ): Promise<AICompletionResult> {
+  const internals = traceMeta.internals;
   const startTime = Date.now();
+  const trace = options.trace;
+  // Parent trace id is threaded in by executeWithFallback; standalone callers
+  // (none in-repo) get a fresh id via the sink. recordSuccess/recordGeneration
+  // resolve it from the context, so pass the context straight through.
+  const responseFormat: "text" | "json" = options.responseFormat?.type === "json" ? "json" : "text";
 
   // Resolve model
   const resolved = resolveModel(config, options.provider, options.model);
@@ -458,29 +540,108 @@ async function executeCompletion(
     }
   }
 
-  // Get provider language model
-  const model = await getLanguageModel(config, resolved);
+  const traceId = trace?.traceId ?? resolved.modelId;
 
-  // Choose between generateText and generateObject based on responseFormat
-  if (options.responseFormat?.type === "json") {
-    // Structured output with Zod schema validation
-    const { generateObject } = await import("ai");
-    const result = await generateObject({
+  try {
+    // Get provider language model
+    const model = await (internals?.getModel
+      ? internals.getModel(config, resolved)
+      : getLanguageModel(config, resolved));
+
+    // Choose between generateText and generateObject based on responseFormat
+    if (options.responseFormat?.type === "json") {
+      // Structured output with Zod schema validation
+      const runObject = internals?.runGenerateObject ?? (await import("ai")).generateObject;
+      const result = await runObject({
+        model,
+        messages: options.messages,
+        schema: options.responseFormat.schema,
+        temperature: options.temperature ?? 0,
+        maxOutputTokens,
+        abortSignal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
+      });
+
+      const duration = Date.now() - startTime;
+      const inputTokens = result.usage?.inputTokens ?? 0;
+      const outputTokens = result.usage?.outputTokens ?? 0;
+
+      const completion: AICompletionResult = {
+        content: JSON.stringify(result.object),
+        data: result.object,
+        usage: {
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          cost: costEstimator.estimateCost(resolved.modelId, inputTokens, outputTokens),
+        },
+        model: resolved.modelId,
+        provider: resolved.provider,
+        duration,
+      };
+
+      // Record the generation (non-throwing). startedAt/endedAt are wall-clock
+      // epoch ms so a later span exporter can place it on a timeline.
+      recordSuccess({
+        result: completion,
+        context: trace,
+        traceId,
+        messages: options.messages,
+        startedAt: startTime,
+        endedAt: startTime + duration,
+        temperature: options.temperature,
+        responseFormat,
+        sampling: internals?.sampling,
+        forcedSampled: traceMeta.sampled,
+        fallbackUsed: traceMeta.fallbackUsed,
+      });
+
+      return completion;
+    }
+
+    // Text completion (with optional tool calling)
+    const runText = internals?.runGenerateText ?? (await import("ai")).generateText;
+
+    // Build tool definitions if provided
+    // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK tools type is complex
+    let tools: Record<string, any> | undefined;
+    if (options.tools && options.tools.length > 0) {
+      const { tool: defineTool, jsonSchema } = await import("ai");
+      tools = {};
+      for (const t of options.tools) {
+        tools[t.name] = defineTool({
+          description: t.description,
+          // Pass actual JSON Schema parameters from the tool definition
+          inputSchema: jsonSchema(t.parameters),
+        });
+      }
+    }
+
+    const result = await runText({
       model,
       messages: options.messages,
-      schema: options.responseFormat.schema,
       temperature: options.temperature ?? 0,
       maxOutputTokens,
+      tools,
       abortSignal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
     });
 
     const duration = Date.now() - startTime;
+
+    // Extract tool calls
+    let toolCalls: AIToolCall[] | undefined;
+    if (result.toolCalls && result.toolCalls.length > 0) {
+      toolCalls = result.toolCalls.map((tc: { toolName: string; input: unknown }) => ({
+        toolName: tc.toolName,
+        args: tc.input as Record<string, unknown>,
+      }));
+    }
+
     const inputTokens = result.usage?.inputTokens ?? 0;
     const outputTokens = result.usage?.outputTokens ?? 0;
 
-    return {
-      content: JSON.stringify(result.object),
-      data: result.object,
+    const completion: AICompletionResult = {
+      content: result.text,
+      toolCalls,
       usage: {
         inputTokens,
         outputTokens,
@@ -491,62 +652,48 @@ async function executeCompletion(
       provider: resolved.provider,
       duration,
     };
+
+    recordSuccess({
+      result: completion,
+      context: trace,
+      traceId,
+      messages: options.messages,
+      startedAt: startTime,
+      endedAt: startTime + duration,
+      temperature: options.temperature,
+      responseFormat,
+      sampling: internals?.sampling,
+      forcedSampled: traceMeta.sampled,
+      fallbackUsed: traceMeta.fallbackUsed,
+    });
+
+    return completion;
+  } catch (error) {
+    // Record the failed generation (non-throwing) before re-throwing so the
+    // fallback chain still sees the error. status: "error" with the message.
+    const endTime = Date.now();
+    recordGeneration({
+      traceId,
+      context: trace,
+      model: resolved.modelId,
+      provider: resolved.provider,
+      messages: options.messages,
+      completion: "",
+      inputTokens: 0,
+      outputTokens: 0,
+      latencyMs: endTime - startTime,
+      temperature: options.temperature,
+      responseFormat,
+      status: "error",
+      error: error instanceof Error ? error.message : String(error),
+      startedAt: startTime,
+      endedAt: endTime,
+      sampling: internals?.sampling,
+      forcedSampled: traceMeta.sampled,
+      fallbackUsed: traceMeta.fallbackUsed,
+    });
+    throw error;
   }
-
-  // Text completion (with optional tool calling)
-  const { generateText } = await import("ai");
-
-  // Build tool definitions if provided
-  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK tools type is complex
-  let tools: Record<string, any> | undefined;
-  if (options.tools && options.tools.length > 0) {
-    const { tool: defineTool, jsonSchema } = await import("ai");
-    tools = {};
-    for (const t of options.tools) {
-      tools[t.name] = defineTool({
-        description: t.description,
-        // Pass actual JSON Schema parameters from the tool definition
-        inputSchema: jsonSchema(t.parameters),
-      });
-    }
-  }
-
-  const result = await generateText({
-    model,
-    messages: options.messages,
-    temperature: options.temperature ?? 0,
-    maxOutputTokens,
-    tools,
-    abortSignal: options.timeout ? AbortSignal.timeout(options.timeout) : undefined,
-  });
-
-  const duration = Date.now() - startTime;
-
-  // Extract tool calls
-  let toolCalls: AIToolCall[] | undefined;
-  if (result.toolCalls && result.toolCalls.length > 0) {
-    toolCalls = result.toolCalls.map((tc: { toolName: string; input: unknown }) => ({
-      toolName: tc.toolName,
-      args: tc.input as Record<string, unknown>,
-    }));
-  }
-
-  const inputTokens = result.usage?.inputTokens ?? 0;
-  const outputTokens = result.usage?.outputTokens ?? 0;
-
-  return {
-    content: result.text,
-    toolCalls,
-    usage: {
-      inputTokens,
-      outputTokens,
-      totalTokens: inputTokens + outputTokens,
-      cost: costEstimator.estimateCost(resolved.modelId, inputTokens, outputTokens),
-    },
-    model: resolved.modelId,
-    provider: resolved.provider,
-    duration,
-  };
 }
 
 // ── Streaming completion ─────────────────────────────────
@@ -558,7 +705,10 @@ async function executeCompletion(
 async function executeStream(
   config: AIServiceConfig,
   options: AICompletionOptions,
+  internals?: AIServiceInternals,
 ): Promise<AIStreamResult> {
+  const startTime = Date.now();
+
   // Resolve tenant-specific config if tenantId is specified
   const effectiveConfig = options.tenantId ? resolveTenantConfig(config, options.tenantId) : config;
 
@@ -589,7 +739,9 @@ async function executeStream(
   }
 
   // Get provider language model
-  const model = await getLanguageModel(effectiveConfig, resolved);
+  const model = await (internals?.getModel
+    ? internals.getModel(effectiveConfig, resolved)
+    : getLanguageModel(effectiveConfig, resolved));
 
   const { streamText } = await import("ai");
 
@@ -599,6 +751,29 @@ async function executeStream(
     temperature: resolvedOptions.temperature ?? 0,
     maxOutputTokens,
     abortSignal: resolvedOptions.timeout ? AbortSignal.timeout(resolvedOptions.timeout) : undefined,
+  });
+
+  // Streaming limitation (PR-1): usage / cost / completion text are only known
+  // after the stream fully drains, which happens in the caller. Record a
+  // best-effort PARTIAL generation at stream open so the trace is not lost;
+  // token-accurate streaming accounting is deferred to a later PR. Non-throwing.
+  recordGeneration({
+    traceId: resolvedOptions.trace?.traceId ?? resolved.modelId,
+    context: resolvedOptions.trace,
+    model: resolved.modelId,
+    provider: resolved.provider,
+    messages: resolvedOptions.messages,
+    completion: "",
+    inputTokens: 0,
+    outputTokens: 0,
+    latencyMs: Date.now() - startTime,
+    temperature: resolvedOptions.temperature,
+    responseFormat: "text",
+    partial: true,
+    status: "partial",
+    startedAt: startTime,
+    endedAt: Date.now(),
+    sampling: internals?.sampling,
   });
 
   return {
