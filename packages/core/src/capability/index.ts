@@ -23,6 +23,19 @@ export type {
   CapabilityRequires,
 } from "./capability-manifest";
 export type {
+  CompatCapability,
+  CompatIssue,
+  CoreCompatibilityResult,
+  EnforceCoreCompatibilityOptions,
+  MetadataCompatibility,
+} from "./compatibility";
+export {
+  checkCoreCompatibility,
+  coreVersionRangeOf,
+  enforceCoreCompatibility,
+  normalizeMinVersion,
+} from "./compatibility";
+export type {
   ActionOverrideEntry,
   EntityExtensionEntry,
   EntityOverrideEntry,

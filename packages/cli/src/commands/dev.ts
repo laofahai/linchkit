@@ -10,11 +10,12 @@
  */
 
 import type { CapabilityDefinition, LinchKitConfig, TransportLifecycle } from "@linchkit/core";
-import { ConfigRegistry, initI18n } from "@linchkit/core";
+import { ConfigRegistry, initI18n, VERSION } from "@linchkit/core";
 import {
   closeDatabase,
   consoleLogger,
   detectEnvironment,
+  enforceCoreCompatibility,
   GracefulShutdownManager,
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
@@ -99,6 +100,23 @@ export const devCommand = defineCommand({
       });
       process.exit(1);
     }
+
+    // ── Core ↔ capability version-compatibility check (Spec 21 / #122) ──
+    //
+    // SAFETY: core `VERSION` is currently "0.0.1" while shipped addons declare
+    // ranges like "^0.2.0", so strict-refuse would reject EVERY addon and break
+    // dev boot. We therefore keep strict mode OFF (warn-only) for now.
+    //
+    // TODO(#122): once core `VERSION` is reconciled with addon `coreVersion`
+    // declarations, allow strict enforcement to be driven by
+    // `environment.features.strictValidation`. Until then strict stays forced
+    // off regardless of environment so the boot path never refuses addons.
+    const STRICT_COMPAT_READY = false; // flip when VERSION matches addon ranges
+    const strictCompat = STRICT_COMPAT_READY && environment.features.strictValidation;
+    enforceCoreCompatibility(capabilities, VERSION, {
+      strict: strictCompat,
+      logger: consoleLogger,
+    });
 
     // ── Create ConfigRegistry (env resolution + Zod validation + freeze) ──
     let registry: ConfigRegistry;

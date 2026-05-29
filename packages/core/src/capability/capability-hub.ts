@@ -30,30 +30,51 @@ export class CapabilityHubError extends Error {
 // ── Version matching ─────────────────────────────────────
 
 /**
- * Simple semver range check supporting ^, ~, >=, <=, =, and bare versions.
- * For simplicity, handles the most common cases:
- * - "^1.2.3" => >=1.2.3 and <2.0.0 (caret)
- * - "~1.2.3" => >=1.2.3 and <1.3.0 (tilde)
- * - ">=1.2.3" => greater or equal
- * - "1.2.3" or "=1.2.3" => exact match
+ * Parse a version string into a [major, minor, patch] tuple.
+ *
+ * Known limitation (pre-existing, intentionally not handled — YAGNI): leading
+ * non-numeric characters are stripped and a pre-release tag is flattened to its
+ * release version, so "1.2.3-alpha" parses as [1, 2, 3]. Strict-semver
+ * pre-release ordering is not implemented.
  */
-export function satisfiesVersionRange(version: string, range: string): boolean {
-  const parseVer = (v: string): [number, number, number] => {
-    const parts = v.replace(/^[^0-9]*/, "").split(".");
-    return [
-      Number.parseInt(parts[0] ?? "0", 10),
-      Number.parseInt(parts[1] ?? "0", 10),
-      Number.parseInt(parts[2] ?? "0", 10),
-    ];
-  };
+function parseVer(v: string): [number, number, number] {
+  const parts = v.replace(/^[^0-9]*/, "").split(".");
+  return [
+    Number.parseInt(parts[0] ?? "0", 10),
+    Number.parseInt(parts[1] ?? "0", 10),
+    Number.parseInt(parts[2] ?? "0", 10),
+  ];
+}
 
+/**
+ * Collapse a [major, minor, patch] tuple into a single comparable number.
+ *
+ * Known limitation (pre-existing, intentionally not handled — YAGNI): each
+ * segment is weighted by 1000, so a segment >= 1000 overflows into the next
+ * segment (e.g. "0.1000.0" mis-compares against "1.0.0").
+ */
+function toNum([major, minor, patch]: [number, number, number]): number {
+  return major * 1_000_000 + minor * 1_000 + patch;
+}
+
+/**
+ * Evaluate a single comparator (no internal whitespace) against a version.
+ * Supports ^, ~, >=, <=, >, <, =, the `*` wildcard, and bare versions.
+ */
+function satisfiesComparator(version: string, comparator: string): boolean {
   const [vMajor, vMinor, vPatch] = parseVer(version);
-  const trimmed = range.trim();
+  const vNum = toNum([vMajor, vMinor, vPatch]);
+  const trimmed = comparator.trim();
+
+  // Wildcard: "*" (and a bare empty token left after stripping an operator)
+  // matches any version.
+  if (trimmed === "" || trimmed === "*") {
+    return true;
+  }
 
   if (trimmed.startsWith("^")) {
     const [rMajor, rMinor, rPatch] = parseVer(trimmed);
-    const vNum = vMajor * 1_000_000 + vMinor * 1_000 + vPatch;
-    const rNum = rMajor * 1_000_000 + rMinor * 1_000 + rPatch;
+    const rNum = toNum([rMajor, rMinor, rPatch]);
     // npm semver: ^0.0.x locks to exact, ^0.y.z locks to minor, ^x.y.z locks to major
     if (rMajor === 0 && rMinor === 0) {
       return vNum === rNum; // ^0.0.x => exact match
@@ -67,29 +88,62 @@ export function satisfiesVersionRange(version: string, range: string): boolean {
 
   if (trimmed.startsWith("~")) {
     const [rMajor, rMinor, rPatch] = parseVer(trimmed);
-    const vNum = vMajor * 1_000_000 + vMinor * 1_000 + vPatch;
-    const rNum = rMajor * 1_000_000 + rMinor * 1_000 + rPatch;
+    const rNum = toNum([rMajor, rMinor, rPatch]);
     const ceilNum = rMajor * 1_000_000 + (rMinor + 1) * 1_000;
     return vNum >= rNum && vNum < ceilNum;
   }
 
+  // Note: ">=" / "<=" must be checked before bare ">" / "<".
   if (trimmed.startsWith(">=")) {
-    const [rMajor, rMinor, rPatch] = parseVer(trimmed);
-    const vNum = vMajor * 1_000_000 + vMinor * 1_000 + vPatch;
-    const rNum = rMajor * 1_000_000 + rMinor * 1_000 + rPatch;
-    return vNum >= rNum;
+    return vNum >= toNum(parseVer(trimmed));
   }
-
   if (trimmed.startsWith("<=")) {
-    const [rMajor, rMinor, rPatch] = parseVer(trimmed);
-    const vNum = vMajor * 1_000_000 + vMinor * 1_000 + vPatch;
-    const rNum = rMajor * 1_000_000 + rMinor * 1_000 + rPatch;
-    return vNum <= rNum;
+    return vNum <= toNum(parseVer(trimmed));
+  }
+  if (trimmed.startsWith(">")) {
+    return vNum > toNum(parseVer(trimmed));
+  }
+  if (trimmed.startsWith("<")) {
+    return vNum < toNum(parseVer(trimmed));
   }
 
   // Exact match (with or without leading "=")
   const [rMajor, rMinor, rPatch] = parseVer(trimmed);
   return vMajor === rMajor && vMinor === rMinor && vPatch === rPatch;
+}
+
+/**
+ * Semver range check supporting ^, ~, >=, <=, >, <, =, the `*` wildcard, bare
+ * versions, and whitespace-joined compound (AND) ranges.
+ *
+ * Examples:
+ * - "^1.2.3" => >=1.2.3 and <2.0.0 (caret)
+ * - "~1.2.3" => >=1.2.3 and <1.3.0 (tilde)
+ * - ">=1.2.3" => greater or equal
+ * - ">= 1.2.3" => greater or equal (whitespace after the operator is allowed)
+ * - "1.2.3" or "=1.2.3" => exact match
+ * - "*" => matches any version
+ * - ">=0.2.0 <0.4.0" => compound: AND of each comparator
+ * - ">= 0.2.0 < 0.4.0" => compound, with space after each operator
+ *
+ * NOTE: Only AND (whitespace-joined) compound ranges are supported. OR ranges
+ * ("||") are NOT supported and are treated as a single AND group (and will
+ * therefore never match).
+ *
+ * Known limitations (pre-existing, intentionally not handled — YAGNI):
+ * - `toNum` weights each version segment by 1000, so a segment >= 1000 overflows
+ *   into the next segment (e.g. "0.1000.0" mis-compares against "1.0.0").
+ * - Pre-release tags are flattened to the release version ("1.2.3-alpha" =>
+ *   "1.2.3") by `parseVer`; strict-semver pre-release ordering is not implemented.
+ */
+export function satisfiesVersionRange(version: string, range: string): boolean {
+  // Collapse whitespace that immediately follows a comparator operator so that
+  // ">= 0.2.0" becomes ">=0.2.0" and each comparator stays attached to its
+  // version. THEN split the remaining whitespace into separate AND comparators.
+  const normalized = range.trim().replace(/([<>=~^]+)\s+/g, "$1");
+  const comparators = normalized.split(/\s+/).filter(Boolean);
+  if (comparators.length === 0) return false;
+  return comparators.every((comparator) => satisfiesComparator(version, comparator));
 }
 
 // ── Validation result ────────────────────────────────────

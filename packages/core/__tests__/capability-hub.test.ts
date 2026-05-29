@@ -465,4 +465,39 @@ describe("satisfiesVersionRange", () => {
     expect(satisfiesVersionRange("1.0.0", "=1.0.0")).toBe(true);
     expect(satisfiesVersionRange("1.0.1", "1.0.0")).toBe(false);
   });
+
+  it("should match bare > and < comparators", () => {
+    expect(satisfiesVersionRange("1.0.1", ">1.0.0")).toBe(true);
+    expect(satisfiesVersionRange("1.0.0", ">1.0.0")).toBe(false);
+    expect(satisfiesVersionRange("0.9.9", "<1.0.0")).toBe(true);
+    expect(satisfiesVersionRange("1.0.0", "<1.0.0")).toBe(false);
+  });
+
+  it("should match compound (AND) ranges joined by whitespace", () => {
+    expect(satisfiesVersionRange("0.3.0", ">=0.2.0 <0.4.0")).toBe(true);
+    expect(satisfiesVersionRange("0.2.0", ">=0.2.0 <0.4.0")).toBe(true);
+    expect(satisfiesVersionRange("0.4.0", ">=0.2.0 <0.4.0")).toBe(false);
+    expect(satisfiesVersionRange("0.1.9", ">=0.2.0 <0.4.0")).toBe(false);
+  });
+
+  it("should allow whitespace after a comparator operator", () => {
+    // Regression guard: ">= 0.2.0" must not be split into [">=", "0.2.0"].
+    expect(satisfiesVersionRange("0.3.0", ">= 0.2.0")).toBe(true);
+    expect(satisfiesVersionRange("0.1.0", ">= 0.2.0")).toBe(false);
+  });
+
+  it("should match compound ranges with space after each operator", () => {
+    expect(satisfiesVersionRange("0.3.0", ">= 0.2.0 < 0.4.0")).toBe(true);
+    expect(satisfiesVersionRange("0.5.0", ">= 0.2.0 < 0.4.0")).toBe(false);
+  });
+
+  it("should match the * wildcard against any version", () => {
+    expect(satisfiesVersionRange("9.9.9", "*")).toBe(true);
+    expect(satisfiesVersionRange("0.0.1", "*")).toBe(true);
+  });
+
+  it("should fail an empty range", () => {
+    expect(satisfiesVersionRange("1.0.0", "")).toBe(false);
+    expect(satisfiesVersionRange("1.0.0", "   ")).toBe(false);
+  });
 });

@@ -178,6 +178,40 @@ describe("capabilityMetadataSchema", () => {
     }
   });
 
+  it("accepts linchkit.coreVersion semver range", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      linchkit: { coreVersion: ">=0.2.0 <0.4.0" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.linchkit?.coreVersion).toBe(">=0.2.0 <0.4.0");
+    }
+  });
+
+  it("still accepts legacy linchkit.minVersion", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      linchkit: { minVersion: "0.1.0" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.linchkit?.minVersion).toBe("0.1.0");
+    }
+  });
+
+  it("accepts both coreVersion and legacy minVersion together", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      linchkit: { coreVersion: "^0.2.0", minVersion: "0.1.0" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.linchkit?.coreVersion).toBe("^0.2.0");
+      expect(result.data.linchkit?.minVersion).toBe("0.1.0");
+    }
+  });
+
   it("accepts all valid category values", () => {
     for (const c of [
       "system",
