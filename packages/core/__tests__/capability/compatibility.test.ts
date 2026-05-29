@@ -1,8 +1,11 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, mock } from "bun:test";
+import { satisfiesVersionRange } from "../../src/capability/capability-hub";
 import {
   type CompatCapability,
   checkCoreCompatibility,
+  coreVersionRangeOf,
   enforceCoreCompatibility,
+  normalizeMinVersion,
 } from "../../src/capability/compatibility";
 import { LinchKitError } from "../../src/errors";
 import type { Logger } from "../../src/types/logger";
@@ -122,5 +125,91 @@ describe("enforceCoreCompatibility", () => {
       }),
     ).not.toThrow();
     expect(warnings).toHaveLength(1);
+  });
+});
+
+// ── normalizeMinVersion / coreVersionRangeOf ─────────────
+
+describe("normalizeMinVersion", () => {
+  it("prefixes a bare version with >=", () => {
+    expect(normalizeMinVersion("0.1.0")).toBe(">=0.1.0");
+  });
+
+  it("leaves values already starting with a comparator operator untouched", () => {
+    for (const range of [">=0.1.0", ">0.1.0", "<0.4.0", "<=0.4.0", "=0.1.0", "~0.1.0", "^0.2.0"]) {
+      expect(normalizeMinVersion(range)).toBe(range);
+    }
+  });
+
+  it("trims surrounding whitespace before normalizing", () => {
+    expect(normalizeMinVersion("  0.1.0  ")).toBe(">=0.1.0");
+  });
+
+  it("makes a bare minVersion behave as a minimum (not exact) via satisfiesVersionRange", () => {
+    // The core defect: a bare "0.1.0" is treated as an EXACT match, so a legacy
+    // cap would wrongly fail against a newer core. Normalizing to ">=0.1.0" fixes it.
+    expect(satisfiesVersionRange("0.2.0", "0.1.0")).toBe(false); // bare = exact
+    expect(satisfiesVersionRange("0.2.0", normalizeMinVersion("0.1.0"))).toBe(true); // >= range
+  });
+});
+
+describe("coreVersionRangeOf", () => {
+  it("returns undefined when neither coreVersion nor minVersion is declared", () => {
+    expect(coreVersionRangeOf(undefined)).toBeUndefined();
+    expect(coreVersionRangeOf({})).toBeUndefined();
+  });
+
+  it("prefers coreVersion verbatim (used as a range as-is)", () => {
+    expect(coreVersionRangeOf({ coreVersion: "^0.2.0" })).toBe("^0.2.0");
+    // coreVersion wins even when minVersion is also present.
+    expect(coreVersionRangeOf({ coreVersion: ">=0.2.0 <0.4.0", minVersion: "0.1.0" })).toBe(
+      ">=0.2.0 <0.4.0",
+    );
+  });
+
+  it("normalizes a deprecated bare minVersion to a >= range", () => {
+    expect(coreVersionRangeOf({ minVersion: "0.1.0" })).toBe(">=0.1.0");
+  });
+
+  it("treats a legacy minVersion:0.1.0 as COMPATIBLE with newer core 0.2.0", () => {
+    const range = coreVersionRangeOf({ minVersion: "0.1.0" });
+    expect(range).toBeDefined();
+    expect(satisfiesVersionRange("0.2.0", range as string)).toBe(true);
+  });
+
+  it("treats a legacy minVersion:0.3.0 as INCOMPATIBLE with older core 0.2.0", () => {
+    const range = coreVersionRangeOf({ minVersion: "0.3.0" });
+    expect(range).toBeDefined();
+    expect(satisfiesVersionRange("0.2.0", range as string)).toBe(false);
+  });
+});
+
+// ── defaultLogger metadata forwarding ────────────────────
+
+describe("defaultLogger (fallback)", () => {
+  afterEach(() => {
+    mock.restore();
+  });
+
+  it("forwards the structured-context 2nd arg to console.warn", () => {
+    // No `logger` option → enforceCoreCompatibility uses the internal
+    // defaultLogger, which must NOT drop the metadata 2nd argument.
+    const warnSpy = mock(() => {});
+    const original = console.warn;
+    console.warn = warnSpy as unknown as typeof console.warn;
+    try {
+      enforceCoreCompatibility([cap("cap-auth", "^0.2.0")], "0.0.1", { strict: false });
+    } finally {
+      console.warn = original;
+    }
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const [message, context] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+    expect(message).toContain("cap-auth");
+    expect(context).toEqual({
+      capability: "cap-auth",
+      required: "^0.2.0",
+      actual: "0.0.1",
+    });
   });
 });

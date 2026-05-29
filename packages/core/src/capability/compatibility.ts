@@ -38,6 +38,55 @@ export interface CoreCompatibilityResult {
   warnings: CompatIssue[];
 }
 
+/** The `linchkit` compatibility block of a capability's metadata. */
+export interface MetadataCompatibility {
+  /** Semver RANGE of compatible core versions (preferred, used verbatim). */
+  coreVersion?: string;
+  /**
+   * @deprecated Minimum compatible core version (a bare version, not a range).
+   * Used only when `coreVersion` is absent; normalized to a `>=` range so that
+   * {@link satisfiesVersionRange} treats it as a minimum rather than an exact
+   * match.
+   */
+  minVersion?: string;
+}
+
+// ── coreVersion range resolution ─────────────────────────
+
+/** Comparator operators that mark a string as already being a semver range. */
+const COMPARATOR_OPERATORS = ["<", ">", "=", "~", "^"] as const;
+
+/**
+ * Normalize a deprecated `minVersion` into an effective semver range.
+ *
+ * `minVersion` is a MINIMUM version (e.g. "0.1.0"), but {@link satisfiesVersionRange}
+ * treats a bare version as an EXACT match. To preserve the "minimum" semantics
+ * we prefix it with `>=`. If the value already starts with a comparator operator
+ * (`<`, `>`, `=`, `~`, `^`) it is assumed to already be a range and returned as-is.
+ */
+export function normalizeMinVersion(minVersion: string): string {
+  const trimmed = minVersion.trim();
+  const startsWithComparator = COMPARATOR_OPERATORS.some((op) => trimmed.startsWith(op));
+  return startsWithComparator ? trimmed : `>=${trimmed}`;
+}
+
+/**
+ * Resolve the effective core-version range a capability should be checked
+ * against, from its `linchkit` metadata block.
+ *
+ * - Prefers `coreVersion` (already a semver range) verbatim.
+ * - Falls back to the deprecated `minVersion`, normalized to a `>=` range via
+ *   {@link normalizeMinVersion} so a bare version is treated as a minimum.
+ * - Returns `undefined` when neither is declared.
+ */
+export function coreVersionRangeOf(
+  linchkit: MetadataCompatibility | undefined,
+): string | undefined {
+  if (linchkit?.coreVersion) return linchkit.coreVersion;
+  if (linchkit?.minVersion) return normalizeMinVersion(linchkit.minVersion);
+  return undefined;
+}
+
 /** Options for {@link enforceCoreCompatibility}. */
 export interface EnforceCoreCompatibilityOptions {
   /**
@@ -58,10 +107,10 @@ export interface EnforceCoreCompatibilityOptions {
  * `consoleLogger`) should inject it via options.
  */
 const defaultLogger: Logger = {
-  debug: (message) => console.debug(message),
-  info: (message) => console.info(message),
-  warn: (message) => console.warn(message),
-  error: (message) => console.error(message),
+  debug: (message: string, ...args: unknown[]) => console.debug(message, ...args),
+  info: (message: string, ...args: unknown[]) => console.info(message, ...args),
+  warn: (message: string, ...args: unknown[]) => console.warn(message, ...args),
+  error: (message: string, ...args: unknown[]) => console.error(message, ...args),
 };
 
 // ── Check ────────────────────────────────────────────────

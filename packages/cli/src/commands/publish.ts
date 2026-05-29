@@ -16,7 +16,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { TrustLevel } from "@linchkit/core";
-import { validateCapabilityMetadata } from "@linchkit/core";
+import { coreVersionRangeOf, validateCapabilityMetadata } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { registerCapability } from "../utils/local-registry-io";
 
@@ -288,8 +288,9 @@ export const publishCommand = defineCommand({
         repository: metadata.repository,
         dependencies: metadata.dependencies,
         // Prefer the new `coreVersion` semver range; fall back to the deprecated
-        // `minVersion` for capabilities that have not migrated yet.
-        minCoreVersion: metadata.linchkit?.coreVersion ?? metadata.linchkit?.minVersion,
+        // `minVersion` (normalized to a `>=` range) for capabilities that have
+        // not migrated yet.
+        minCoreVersion: coreVersionRangeOf(metadata.linchkit),
         installedAt: new Date().toISOString(),
       });
 

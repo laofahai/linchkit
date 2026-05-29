@@ -16,6 +16,7 @@ import { resolve } from "node:path";
 import type { CapabilityMetadata, TrustLevel } from "@linchkit/core";
 import {
   checkTrustPermissions,
+  coreVersionRangeOf,
   satisfiesVersionRange,
   VERSION,
   validateCapabilityMetadata,
@@ -404,8 +405,9 @@ export const installCommand = defineCommand({
 
     // Step 9: Core version compatibility check.
     // Prefer the new `coreVersion` semver range; fall back to the deprecated
-    // `minVersion` for capabilities that have not migrated yet.
-    const coreVersionRange = metadata.linchkit?.coreVersion ?? metadata.linchkit?.minVersion;
+    // `minVersion` (normalized to a `>=` range) for capabilities that have not
+    // migrated yet.
+    const coreVersionRange = coreVersionRangeOf(metadata.linchkit);
     if (coreVersionRange) {
       const compatible = satisfiesVersionRange(VERSION, coreVersionRange);
       if (!compatible) {
