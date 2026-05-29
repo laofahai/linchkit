@@ -373,6 +373,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "resolveDependencies",
   "resolveFieldMasking",
   "resolveIntent",
+  "rollbackInputFromProposal",
   "rollbackInsightId",
   "sanitizeAIOutput",
   "sanitizePII",

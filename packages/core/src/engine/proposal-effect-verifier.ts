@@ -57,6 +57,14 @@ export interface EffectVerificationRecord {
   currentValue: number | undefined;
   result: EffectVerificationResult;
   verifiedAt: string;
+  /**
+   * Merged commit SHA of the proposal under verification (Spec 55 §7.7 rollback
+   * loop). Threaded forward from the merged outcome payload's `mergedSha` so a
+   * downstream rollback `target:"revert"` change can carry the EXACT commit to
+   * `git revert`. Undefined when the merge predates SHA capture or happened
+   * out-of-band.
+   */
+  mergedSha?: string;
 }
 
 /** Payload written to MemoryStore for each verification signal. */
@@ -192,6 +200,9 @@ export class ProposalEffectVerifier {
       currentValue,
       result,
       verifiedAt,
+      // Thread the merged commit SHA forward so the rollback loop can revert the
+      // exact commit. Absent on out-of-band merges / pre-SHA-capture payloads.
+      mergedSha: payload.mergedSha,
     };
 
     await this.emitVerificationSignal(record);

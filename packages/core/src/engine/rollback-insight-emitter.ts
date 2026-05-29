@@ -160,6 +160,7 @@ function buildRollbackInsight(
     targetValue,
     currentValue,
     verifiedAt,
+    mergedSha,
   } = payload;
 
   // Robust date: fall back to the originating Signal's timestamp when verifiedAt
@@ -204,6 +205,10 @@ function buildRollbackInsight(
         baselineValue,
         targetValue,
         currentValue,
+        // Carry the merged commit SHA so the rollback translator can stamp it on
+        // the revert change (Spec 55 §7.7). Undefined when the upstream verifier
+        // had no SHA (out-of-band merge / pre-SHA-capture proposal).
+        mergedSha,
       },
     },
     summary,

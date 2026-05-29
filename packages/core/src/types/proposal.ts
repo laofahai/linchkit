@@ -93,6 +93,22 @@ export interface ProposalChange {
   definition?: ChangeDefinition;
   /** Human-readable diff description (for updates) */
   diff?: string;
+  /**
+   * The merged commit SHA to revert (Spec 55 §7.7 rollback loop).
+   *
+   * Only meaningful on a `target:"revert"` change. Carries the commit SHA of
+   * the regressed proposal — captured when that proposal graduated to a PR via
+   * `ProposalGitCommitter` and threaded through the
+   * outcome → effect-verification → rollback-insight → translator chain — so a
+   * rollback executor (`DeployRollbackOrchestrator`) can `git revert` the
+   * CORRECT commit instead of only naming the reverted proposal.
+   *
+   * Optional: the upstream chain may lack the SHA (e.g. the original proposal
+   * predates SHA capture, or merged out-of-band). When absent, the rollback
+   * draft is still produced and the human reviewer must supply the SHA before
+   * a rollback can execute. This field NEVER triggers auto-execution.
+   */
+  revertSha?: string;
 }
 
 // ── Impact analysis ──────────────────────────────────────

@@ -135,6 +135,26 @@ describe("RollbackInsightEmitter", () => {
       });
     });
 
+    it("threads mergedSha from the payload into the insight evidence context", async () => {
+      // Slice B: the merged commit SHA must survive the verifier → emitter hop so
+      // the rollback translator can stamp it on the revert change's revertSha.
+      const store = makeStore();
+      await store.recordSignal(makeFailedSignal({ mergedSha: "deadbeef1234" }));
+      const emitter = new RollbackInsightEmitter({ store });
+      const insight = first(await emitter.emitAll());
+
+      expect(insight.evidence.context).toMatchObject({ mergedSha: "deadbeef1234" });
+    });
+
+    it("carries mergedSha=undefined when the payload had no SHA", async () => {
+      const store = makeStore();
+      await store.recordSignal(makeFailedSignal());
+      const emitter = new RollbackInsightEmitter({ store });
+      const insight = first(await emitter.emitAll());
+
+      expect((insight.evidence.context as { mergedSha?: string }).mergedSha).toBeUndefined();
+    });
+
     it("sets deterministic confidence/impact/causality/createdAt", async () => {
       const store = makeStore();
       await store.recordSignal(makeFailedSignal());

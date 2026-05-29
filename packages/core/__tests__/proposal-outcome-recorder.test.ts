@@ -144,6 +144,44 @@ describe("ProposalOutcomeRecorder", () => {
       expect(payload.outcome).toBe("merged");
       expect(payload.proposalId).toBe("proposal-test-abc123");
     });
+
+    it("stamps mergedSha onto the merged payload (Spec 55 §7.7 rollback loop)", async () => {
+      // Slice B: the commitSha returned by ProposalGitCommitter is the SHA source
+      // and enters the rollback chain here, on the merged outcome payload.
+      const store = new InMemoryMemoryStore();
+      const recorder = new ProposalOutcomeRecorder({ store });
+      const proposal = makeProposal({ status: "committed" });
+
+      await recorder.recordOutcome(proposal, "merged", { mergedSha: "abc1234def" });
+
+      const payload = extractPayload(await firstSignal(store));
+      expect(payload.mergedSha).toBe("abc1234def");
+    });
+
+    it("leaves mergedSha undefined on a merged payload when none supplied", async () => {
+      const store = new InMemoryMemoryStore();
+      const recorder = new ProposalOutcomeRecorder({ store });
+      const proposal = makeProposal({ status: "committed" });
+
+      await recorder.recordOutcome(proposal, "merged");
+
+      const payload = extractPayload(await firstSignal(store));
+      expect(payload.mergedSha).toBeUndefined();
+    });
+
+    it("ignores mergedSha for a non-merged outcome and warns", async () => {
+      const store = new InMemoryMemoryStore();
+      const warnings: string[] = [];
+      const logger = { warn: (msg: string) => warnings.push(msg) } as unknown as Logger;
+      const recorder = new ProposalOutcomeRecorder({ store, logger });
+      const proposal = makeProposal();
+
+      await recorder.recordOutcome(proposal, "accepted", { mergedSha: "abc1234def" });
+
+      const payload = extractPayload(await firstSignal(store));
+      expect(payload.mergedSha).toBeUndefined();
+      expect(warnings.some((w) => w.includes("ignoring mergedSha"))).toBe(true);
+    });
   });
 
   describe("recordOutcome — withdrawn", () => {
