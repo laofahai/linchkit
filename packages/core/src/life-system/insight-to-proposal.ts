@@ -318,9 +318,16 @@ interface RollbackEvidenceContext {
   mergedSha?: unknown;
 }
 
-/** Narrow an `unknown` evidence field to a non-empty string, else `undefined`. */
+/**
+ * Narrow an `unknown` evidence field to a non-empty string, else `undefined`.
+ * Trims first so a whitespace-only value (e.g. `"   "`) is treated as absent and
+ * the returned SHA never carries surrounding whitespace (which would otherwise
+ * produce a malformed `(commit    )` diff and a junk sidecar value).
+ */
 function nonEmptyStringOrUndefined(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /** Narrow an `unknown` evidence field to a finite number, else `undefined`. */

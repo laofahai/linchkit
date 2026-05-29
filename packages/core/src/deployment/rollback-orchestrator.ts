@@ -446,7 +446,12 @@ export function rollbackInputFromProposal(
   extras: { titleOverride?: string; bodyNote?: string } = {},
 ): RollbackInput | null {
   // Governance gate: only an approved Proposal may feed a rollback execution.
-  if (proposal.status !== "approved") return null;
+  // Defensive against null/malformed input (this is a consumption point that may
+  // receive deserialized/untrusted Proposals): a missing proposal or a
+  // non-array `changes` declines rather than throwing a TypeError.
+  if (!proposal || proposal.status !== "approved" || !Array.isArray(proposal.changes)) {
+    return null;
+  }
 
   const revertChange = proposal.changes.find((change) => change.target === "revert");
   const commitSha = revertChange?.revertSha;

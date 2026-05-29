@@ -425,8 +425,8 @@ describe("rollbackCandidateTranslator", () => {
     expect(proposal.status).toBe("draft");
   });
 
-  it("ignores a non-string/empty mergedSha (no revertSha stamped)", async () => {
-    for (const bad of ["", 12345, null]) {
+  it("ignores a non-string/empty/whitespace mergedSha (no revertSha stamped)", async () => {
+    for (const bad of ["", "   ", 12345, null]) {
       const insight = makeRollbackInsight({
         evidence: {
           signals: [],

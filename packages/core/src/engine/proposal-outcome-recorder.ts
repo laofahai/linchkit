@@ -169,7 +169,10 @@ export class ProposalOutcomeRecorder {
     mergedSha: string | undefined,
   ): string | undefined {
     if (outcome === "merged") {
-      return mergedSha;
+      // Trim and drop empty/whitespace-only values so only a real SHA is stored
+      // (and never propagated downstream as a junk revertSha).
+      const trimmed = mergedSha?.trim();
+      return trimmed && trimmed.length > 0 ? trimmed : undefined;
     }
     if (mergedSha !== undefined) {
       this.logger?.warn?.(
