@@ -49,6 +49,14 @@ export interface MetadataCompatibility {
    * match.
    */
   minVersion?: string;
+  /**
+   * @deprecated Legacy alias of `minVersion`. Every shipped addon's
+   * `package.json` declares this key under `linchkit.minCoreVersion`. Used only
+   * when both `coreVersion` and `minVersion` are absent; normalized to a `>=`
+   * range via {@link normalizeMinVersion} so a bare version is treated as a
+   * minimum. A value that is already a range (e.g. "^0.2.0") is kept as-is.
+   */
+  minCoreVersion?: string;
 }
 
 // ── coreVersion range resolution ─────────────────────────
@@ -74,16 +82,31 @@ export function normalizeMinVersion(minVersion: string): string {
  * Resolve the effective core-version range a capability should be checked
  * against, from its `linchkit` metadata block.
  *
+ * Precedence: `coreVersion ?? minVersion ?? minCoreVersion`.
  * - Prefers `coreVersion` (already a semver range) verbatim.
- * - Falls back to the deprecated `minVersion`, normalized to a `>=` range via
- *   {@link normalizeMinVersion} so a bare version is treated as a minimum.
- * - Returns `undefined` when neither is declared.
+ * - Falls back to the deprecated `minVersion`, then the legacy
+ *   `minCoreVersion` alias, each normalized to a `>=` range via
+ *   {@link normalizeMinVersion} so a bare version is treated as a minimum
+ *   while a value that is already a range is kept as-is.
+ * - Returns `undefined` when none of the three is declared.
  */
 export function coreVersionRangeOf(
   linchkit: MetadataCompatibility | undefined,
 ): string | undefined {
-  if (linchkit?.coreVersion) return linchkit.coreVersion;
-  if (linchkit?.minVersion) return normalizeMinVersion(linchkit.minVersion);
+  // `scanAddonsPath` reads `package.json` directly without validating it against
+  // `capabilityMetadataSchema`, so a malformed/third-party addon could declare a
+  // non-string value here. Guard every field with `typeof` so `normalizeMinVersion`
+  // never calls `.trim()` on a number/boolean (a TypeError the scanner's
+  // try/catch would silently swallow, dropping the addon).
+  if (typeof linchkit?.coreVersion === "string" && linchkit.coreVersion) {
+    return linchkit.coreVersion;
+  }
+  if (typeof linchkit?.minVersion === "string" && linchkit.minVersion) {
+    return normalizeMinVersion(linchkit.minVersion);
+  }
+  if (typeof linchkit?.minCoreVersion === "string" && linchkit.minCoreVersion) {
+    return normalizeMinVersion(linchkit.minCoreVersion);
+  }
   return undefined;
 }
 

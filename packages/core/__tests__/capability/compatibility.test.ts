@@ -182,6 +182,28 @@ describe("coreVersionRangeOf", () => {
     expect(range).toBeDefined();
     expect(satisfiesVersionRange("0.2.0", range as string)).toBe(false);
   });
+
+  it("reads the legacy minCoreVersion alias shipped addons declare", () => {
+    // A bare version is normalized to a `>=` range...
+    expect(coreVersionRangeOf({ minCoreVersion: "0.2.0" })).toBe(">=0.2.0");
+    // ...while a value that is already a range is kept verbatim.
+    expect(coreVersionRangeOf({ minCoreVersion: "^0.2.0" })).toBe("^0.2.0");
+  });
+
+  it("applies the precedence coreVersion ?? minVersion ?? minCoreVersion", () => {
+    // coreVersion wins over both deprecated keys.
+    expect(
+      coreVersionRangeOf({
+        coreVersion: ">=0.2.0 <0.4.0",
+        minVersion: "0.1.0",
+        minCoreVersion: "^0.2.0",
+      }),
+    ).toBe(">=0.2.0 <0.4.0");
+    // minVersion wins over minCoreVersion when coreVersion is absent.
+    expect(coreVersionRangeOf({ minVersion: "0.1.0", minCoreVersion: "^0.2.0" })).toBe(">=0.1.0");
+    // minCoreVersion is the last resort.
+    expect(coreVersionRangeOf({ minCoreVersion: "^0.2.0" })).toBe("^0.2.0");
+  });
 });
 
 // ── defaultLogger metadata forwarding ────────────────────
