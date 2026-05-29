@@ -109,6 +109,14 @@ export {
   type ProposalGitCommitterRunResult,
   type ProposalGitRunner,
 } from "./proposal-git-committer";
+// Proposal outcome recorder (Spec 55 §7.7 feedback loop)
+export {
+  createProposalOutcomeRecorder,
+  type ProposalOutcomePayload,
+  ProposalOutcomeRecorder,
+  type ProposalOutcomeRecorderOptions,
+  type ProposalOutcomeType,
+} from "./proposal-outcome-recorder";
 // Rule engine
 export {
   collectRules,

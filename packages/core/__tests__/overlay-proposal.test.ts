@@ -409,7 +409,7 @@ describe("Full overlay proposal pipeline", () => {
     engine.submitProposal({ proposalId: proposal.id });
 
     // Reject
-    engine.rejectProposal({
+    await engine.rejectProposal({
       proposalId: proposal.id,
       reason: "Required fields need design review",
     });

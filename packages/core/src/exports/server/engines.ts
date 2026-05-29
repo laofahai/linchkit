@@ -66,6 +66,7 @@ export {
   type CreateProposalOptions,
   createProposalEngine,
   type OnApprovedHook,
+  type OnRejectedHook,
   ProposalEngine,
   type ProposalEngineOptions,
 } from "../../engine/proposal-engine";
@@ -89,6 +90,13 @@ export {
   type ProposalGitCommitterRunResult,
   type ProposalGitRunner,
 } from "../../engine/proposal-git-committer";
+export {
+  createProposalOutcomeRecorder,
+  type ProposalOutcomePayload,
+  ProposalOutcomeRecorder,
+  type ProposalOutcomeRecorderOptions,
+  type ProposalOutcomeType,
+} from "../../engine/proposal-outcome-recorder";
 export {
   collectRules,
   evaluateConditions,

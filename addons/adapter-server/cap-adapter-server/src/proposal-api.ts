@@ -245,7 +245,15 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
   app.post(
     "/api/proposals/:id/reject",
-    ({ params, body, set }: { params: { id: string }; body: unknown; set: { status: number } }) => {
+    async ({
+      params,
+      body,
+      set,
+    }: {
+      params: { id: string };
+      body: unknown;
+      set: { status: number };
+    }) => {
       try {
         const proposal = proposalEngine.getProposal(params.id);
 
@@ -264,7 +272,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
         }
 
         const reason = (body as Record<string, string>)?.reason ?? "Rejected by user";
-        const rejected = proposalEngine.rejectProposal({ proposalId: params.id, reason });
+        const rejected = await proposalEngine.rejectProposal({ proposalId: params.id, reason });
         return { success: true, data: serializeProposal(rejected) };
       } catch (err) {
         set.status = 422;
