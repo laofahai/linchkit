@@ -209,7 +209,7 @@
       "minConfidence": 0.7
     }
   },
-  "context": { "now": "2026-05-24T10:00:00Z" },
+  "context": { "now": "2026-05-24T19:00:00Z" },
   "expected": {
     "matchers": [
       { "name": "pattern_count_min", "args": { "value": 1 } },

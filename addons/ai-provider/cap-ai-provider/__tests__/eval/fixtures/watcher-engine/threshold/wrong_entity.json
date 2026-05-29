@@ -25,7 +25,7 @@
   "context": {},
   "expected": {
     "matchers": [
-      { "name": "watcher_not_fired", "args": { "watcherName": "high-value-invoice" } },
+      { "name": "no_watchers_fired", "args": {} },
       { "name": "watcher_fire_count", "args": { "value": 0 } }
     ]
   }

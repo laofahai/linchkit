@@ -108,10 +108,13 @@ export type WatcherEngineScenarioAdapter = ScenarioAdapter<
 export function createWatcherEngineScenario(): WatcherEngineScenarioAdapter {
   return {
     async runLive(fx) {
-      return runWatcherEngine(fx.input, fx.context);
+      return await runWatcherEngine(fx.input, fx.context);
     },
-    replayFromBaseline(fx) {
-      return runWatcherEngine(fx.input, fx.context);
+    async replayFromBaseline(fx, _baseline) {
+      // Deterministic rule-based scenario: recompute from the fixture and
+      // ignore the baseline. `await` the async engine so callers receive
+      // the resolved array, not a Promise.
+      return await runWatcherEngine(fx.input, fx.context);
     },
   };
 }

@@ -10,7 +10,7 @@
         "tenantId": "tenant-A",
         "actorId": "user-1",
         "actionName": "generate_report",
-        "success": true,
+        "success": false,
         "cost": 0.5,
         "tokens": 5000
       },

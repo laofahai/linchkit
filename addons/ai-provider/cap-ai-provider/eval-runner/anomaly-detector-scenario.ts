@@ -26,7 +26,12 @@ function runDetector(
       timestamp: new Date(event.timestamp),
     });
   }
-  const now = context?.now ? new Date(context.now) : new Date();
+  // Keep replays deterministic: never fall back to `new Date()` (wall clock).
+  // When `context.now` is omitted, anchor the detection window to the latest
+  // event timestamp so the fixed-date fixture always stays in-window — the
+  // same intent as the pattern/watcher scenarios, which have no wall-clock
+  // dependence at all.
+  const now = context?.now ? new Date(context.now) : latestEventDate(input.events);
   const anomalies = detector.detect({
     now,
     tenantId: context?.tenantId,
@@ -43,6 +48,20 @@ function runDetector(
   }));
 }
 
+/**
+ * Deterministic clock for fixtures that omit `context.now`: the most recent
+ * event timestamp. Falls back to the Unix epoch only when there are no events
+ * (in which case the detector short-circuits on `minEventsForDetection`).
+ */
+function latestEventDate(events: AnomalyFixtureInput["events"]): Date {
+  let latest = 0;
+  for (const event of events) {
+    const t = new Date(event.timestamp).getTime();
+    if (!Number.isNaN(t) && t > latest) latest = t;
+  }
+  return new Date(latest);
+}
+
 export type AnomalyDetectorScenarioAdapter = ScenarioAdapter<
   AnomalyFixtureInput,
   AnomalyFixtureContext,
@@ -55,7 +74,7 @@ export function createAnomalyDetectorScenario(): AnomalyDetectorScenarioAdapter 
     async runLive(fx) {
       return runDetector(fx.input, fx.context);
     },
-    replayFromBaseline(fx) {
+    replayFromBaseline(fx, _baseline) {
       return runDetector(fx.input, fx.context);
     },
   };

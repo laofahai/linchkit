@@ -2,7 +2,7 @@
   "id": "pd-rep-5",
   "scenario": "pattern-detector",
   "tags": ["repetitive_action", "multiple_actors"],
-  "description": "actor-alice and actor-bob each call approve_order 5+ times with same field value — grouped separately, produces 2 repetitive_action patterns",
+  "description": "actor-alice and actor-bob each call approve_order 5 times; alice's priority is consistently 'high' (channel varies: web/mobile/web/web/web) and bob's is consistently 'low' (all via api) — grouped per actor, producing 2 repetitive_action patterns",
   "input": {
     "entries": [
       {

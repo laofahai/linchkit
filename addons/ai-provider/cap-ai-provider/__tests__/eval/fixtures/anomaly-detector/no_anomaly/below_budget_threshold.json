@@ -2,7 +2,7 @@
   "id": "no-anomaly-below-budget-threshold",
   "scenario": "anomaly-detector",
   "tags": ["no_anomaly", "budget"],
-  "description": "12 events totaling $1.50 cost in a 1hr window — below the $2.08/hr threshold, no budget anomaly",
+  "description": "12 events totaling $1.48 cost in a 1hr window — below the $2.08/hr threshold, no budget anomaly",
   "input": {
     "events": [
       {

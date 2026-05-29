@@ -2,7 +2,7 @@
   "id": "no-anomaly-below-repetitive-threshold",
   "scenario": "anomaly-detector",
   "tags": ["no_anomaly", "repetitive"],
-  "description": "12 events where the same action appears 15 times in total, but default threshold is 20 — no repetitive_action anomaly",
+  "description": "15 events; the most-repeated action (query_data) appears 12 times, below the configured threshold of 20 — no repetitive_action anomaly",
   "input": {
     "events": [
       {

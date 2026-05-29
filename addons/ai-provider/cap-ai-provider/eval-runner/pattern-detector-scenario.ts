@@ -17,7 +17,7 @@ import { PatternDetector } from "../src/pattern-detector";
 
 async function runPatternDetector(
   input: PatternFixtureInput,
-  context: PatternFixtureContext | undefined,
+  _context: PatternFixtureContext | undefined,
 ): Promise<PatternEvalOutput> {
   const logger = new InMemoryExecutionLogger();
 
@@ -36,9 +36,12 @@ async function runPatternDetector(
     });
   }
 
-  // Always default to a large lookback window so fixture entries are always
-  // within the detection window regardless of when the test runs (PatternDetector
-  // computes the window as new Date() - lookbackDays). Never mutate input.config.
+  // PatternDetector computes its lookback window as `new Date() - lookbackDays`
+  // (wall clock; it has no injectable clock unlike AnomalyDetector), so
+  // `context.now` cannot deterministically anchor the window here. Instead,
+  // default to a very large lookback so fixed-date fixture entries always stay
+  // in-window regardless of when the test runs. Build a NEW config object —
+  // never mutate the caller's `input.config` (fixtures may be reused).
   const config = input.config ?? {};
   const detector = new PatternDetector({
     ...config,
@@ -72,10 +75,13 @@ export type PatternDetectorScenarioAdapter = ScenarioAdapter<
 export function createPatternDetectorScenario(): PatternDetectorScenarioAdapter {
   return {
     async runLive(fx) {
-      return runPatternDetector(fx.input, fx.context);
+      return await runPatternDetector(fx.input, fx.context);
     },
-    replayFromBaseline(fx, _baseline) {
-      return runPatternDetector(fx.input, fx.context);
+    async replayFromBaseline(fx, _baseline) {
+      // Deterministic rule-based scenario: recompute from the fixture and
+      // ignore the baseline. `await` the async detector so callers receive
+      // the resolved array, not a Promise.
+      return await runPatternDetector(fx.input, fx.context);
     },
   };
 }

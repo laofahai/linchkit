@@ -2,7 +2,7 @@
   "id": "diverse-combined-with-error-rate",
   "scenario": "anomaly-detector",
   "tags": ["diverse", "error_rate", "multi_anomaly"],
-  "description": "Diverse burst (15 distinct actions in 20 events) AND high error rate (11/20 = 55%) — 2 anomalies triggered simultaneously",
+  "description": "Diverse burst (18 distinct actions in 20 events) AND high error rate (11/20 = 55%) — 2 anomalies triggered simultaneously",
   "input": {
     "events": [
       {

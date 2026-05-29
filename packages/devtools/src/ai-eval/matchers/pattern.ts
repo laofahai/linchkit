@@ -77,6 +77,11 @@ const pattern_confidence_min: MatcherFn<PatternEvalOutput> = (output, args) => {
 const pattern_entity_equals: MatcherFn<PatternEvalOutput> = (output, args) => {
   if (typeof args.value !== "string")
     return fail("pattern_entity_equals", "arg 'value' must be a string");
+  if (output.length === 0)
+    return fail(
+      "pattern_entity_equals",
+      `expected at least one pattern with entity "${args.value}", but output was empty`,
+    );
   const wrong = output.filter((p: PatternEvalOutputItem) => p.entity !== args.value);
   if (wrong.length === 0) return pass("pattern_entity_equals", args.value);
   return fail(

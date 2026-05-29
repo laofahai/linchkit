@@ -2,7 +2,7 @@
   "id": "error-rate-tenant-filtered",
   "scenario": "anomaly-detector",
   "tags": ["error_rate", "tenant_filter", "alert"],
-  "description": "20 events across 2 tenants; tenant-A has 6/9 errors (67%) — high_error_rate anomaly when filtered by tenant-A",
+  "description": "20 events across 2 tenants; tenant-A has 7/9 errors (78%) — high_error_rate anomaly when filtered by tenant-A",
   "input": {
     "events": [
       {
@@ -187,13 +187,13 @@
       }
     ],
     "config": {
-      "tenantId": "tenant-A",
       "minEventsForDetection": 5,
       "windowSizeMs": 3600000
     }
   },
   "context": {
-    "now": "2026-05-24T10:00:00Z"
+    "now": "2026-05-24T10:00:00Z",
+    "tenantId": "tenant-A"
   },
   "expected": {
     "matchers": [

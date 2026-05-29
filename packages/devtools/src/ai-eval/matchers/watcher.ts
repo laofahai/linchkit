@@ -38,17 +38,25 @@ const watcher_fired: MatcherFn<WatcherEvalOutput> = (output, args) => {
   );
 };
 
-/** Assert that a specific watcher did NOT fire. */
+/** Assert that a specific watcher was evaluated and did NOT fire. */
 const watcher_not_fired: MatcherFn<WatcherEvalOutput> = (output, args) => {
   if (typeof args.watcherName !== "string")
     return fail("watcher_not_fired", "arg 'watcherName' must be a string");
   const entry = output.find((w: WatcherEvalOutputItem) => w.watcherName === args.watcherName);
-  if (!entry) return pass("watcher_not_fired");
+  // Absence must FAIL, not vacuously pass: a typo'd or never-configured watcher
+  // name would otherwise silently "pass" without testing anything. This matcher
+  // asserts the named watcher WAS evaluated and chose not to fire. Cases where a
+  // watcher is intentionally never evaluated (disabled / wrong-entity) assert
+  // the empty result set via `no_watchers_fired` instead.
+  if (!entry)
+    return fail(
+      "watcher_not_fired",
+      `watcher "${args.watcherName}" was not evaluated (absent from results) — ` +
+        "use no_watchers_fired for watchers the engine never evaluates",
+      output.map((w: WatcherEvalOutputItem) => w.watcherName),
+    );
   if (!entry.fired) return pass("watcher_not_fired");
-  return fail(
-    "watcher_not_fired",
-    `watcher "${args.watcherName}" fired but was expected not to`,
-  );
+  return fail("watcher_not_fired", `watcher "${args.watcherName}" fired but was expected not to`);
 };
 
 /** Assert that no watchers fired. */
