@@ -9,7 +9,7 @@
  * transport factories through the capability contract.
  */
 
-import type { CapabilityDefinition, LinchKitConfig, TransportLifecycle } from "@linchkit/core";
+import type { LinchKitConfig, TransportLifecycle } from "@linchkit/core";
 import { ConfigRegistry, initI18n } from "@linchkit/core";
 import {
   closeDatabase,
@@ -19,7 +19,7 @@ import {
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
-import { loadConfig } from "../utils/load-config";
+import { loadConfig, resolveActiveCapabilities } from "../utils/load-config";
 import { wireDevEngines } from "./dev-wiring";
 import { buildRegistries, wireAuthProvider } from "./startup/build-registries";
 import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
@@ -88,8 +88,8 @@ export const devCommand = defineCommand({
       }
     }
 
-    // Extract from capabilities
-    const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
+    // Resolve active capabilities (config + addons_path discovery, deps + auto-install)
+    const capabilities = await resolveActiveCapabilities(config);
 
     // ── Create ConfigRegistry (env resolution + Zod validation + freeze) ──
     let registry: ConfigRegistry;

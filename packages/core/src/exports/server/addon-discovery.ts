@@ -4,3 +4,4 @@
 
 export { scanAddonsPath } from "../../capability/addon-scanner";
 export { resolveAutoInstall, resolveDependencies } from "../../capability/auto-install";
+export { mergeCapabilityPool, resolveCapabilities } from "../../capability/resolve-capabilities";

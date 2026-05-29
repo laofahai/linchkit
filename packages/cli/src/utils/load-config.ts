@@ -3,7 +3,8 @@
  */
 
 import { resolve } from "node:path";
-import type { LinchKitConfig } from "@linchkit/core";
+import type { CapabilityDefinition, LinchKitConfig } from "@linchkit/core";
+import { resolveCapabilities, scanAddonsPath } from "@linchkit/core/server";
 
 export interface LoadConfigResult {
   config: LinchKitConfig;
@@ -46,4 +47,22 @@ export async function loadConfig(cwd?: string): Promise<LoadConfigResult> {
     }
     throw new Error(`Failed to load config: ${configPath}\n${message}`);
   }
+}
+
+/**
+ * Resolve the active capability set for the boot path.
+ *
+ * Scans `config.addons_path` for capability packages, then merges them with
+ * `config.capabilities` and runs the dependency + auto-install resolvers
+ * (see `resolveCapabilities`). The returned list is what the runtime should
+ * actually activate.
+ *
+ * @param config - Loaded LinchKit project configuration
+ * @returns Active capabilities (explicit + pulled deps + auto-installed)
+ */
+export async function resolveActiveCapabilities(
+  config: LinchKitConfig,
+): Promise<CapabilityDefinition[]> {
+  const discovered = await scanAddonsPath(config.addons_path ?? []);
+  return resolveCapabilities(config.capabilities ?? [], discovered);
 }
