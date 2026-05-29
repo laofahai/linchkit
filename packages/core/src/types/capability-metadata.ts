@@ -82,7 +82,7 @@ export const capabilityMetadataSchema = z.object({
       /**
        * Semver RANGE describing which @linchkit/core versions this capability
        * is compatible with (e.g. "^0.2.0", ">=0.2.0 <0.4.0"). When present it
-       * takes precedence over the deprecated `minVersion`.
+       * takes precedence over the deprecated `minVersion` / `minCoreVersion`.
        */
       coreVersion: z.string().optional(),
       /**
@@ -91,6 +91,14 @@ export const capabilityMetadataSchema = z.object({
        * version constraint.
        */
       minVersion: z.string().optional(),
+      /**
+       * @deprecated Legacy alias of `minVersion` carried by shipped addons'
+       * `package.json` (`linchkit.minCoreVersion`). Recognized so it is no
+       * longer silently stripped at parse time; honored only when both
+       * `coreVersion` and `minVersion` are absent. Interpreted as a minimum
+       * version constraint (a bare version is normalized to a `>=` range).
+       */
+      minCoreVersion: z.string().optional(),
     })
     .optional(),
 });

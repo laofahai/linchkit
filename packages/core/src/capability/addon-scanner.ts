@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { CapabilityDefinition } from "../types/capability";
+import { coreVersionRangeOf, type MetadataCompatibility } from "./compatibility";
 
 /**
  * Scan addon_path directories for capability packages.
@@ -38,12 +39,27 @@ export async function scanAddonsPath(addonsPaths: string[]): Promise<CapabilityD
         const capPath = join(groupPath, capDir);
         try {
           const pkg = await import(join(capPath, "package.json"));
-          const mainEntry = pkg.default?.main ?? pkg.main ?? "src/index.ts";
+          const pkgJson = (pkg.default ?? pkg) as {
+            main?: string;
+            linchkit?: MetadataCompatibility;
+          };
+          const mainEntry = pkgJson.main ?? "src/index.ts";
           const mod = await import(join(capPath, mainEntry));
           const capDef = mod.default ?? mod;
 
           if (capDef && typeof capDef === "object" && capDef.name && capDef.label) {
-            capabilities.push(capDef as CapabilityDefinition);
+            const def = capDef as CapabilityDefinition;
+            // Populate the boot-time compatibility range (Spec 21 / #122) from
+            // the addon's `package.json` `linchkit` block (coreVersion ??
+            // minVersion ?? minCoreVersion). The runtime definition rarely
+            // declares `coreVersion` itself, so without this the boot check in
+            // `enforceCoreCompatibility` would see `undefined` for every addon.
+            // A range declared explicitly on the definition still wins.
+            if (def.coreVersion === undefined) {
+              const range = coreVersionRangeOf(pkgJson.linchkit);
+              if (range !== undefined) def.coreVersion = range;
+            }
+            capabilities.push(def);
           }
         } catch {
           // Skip capabilities that fail to load

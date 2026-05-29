@@ -212,6 +212,32 @@ describe("capabilityMetadataSchema", () => {
     }
   });
 
+  it("recognizes legacy linchkit.minCoreVersion (no longer silently stripped)", () => {
+    // Every shipped addon's package.json declares `linchkit.minCoreVersion`.
+    // The schema must surface it so `coreVersionRangeOf` can read it at boot.
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      linchkit: { minCoreVersion: "^0.2.0" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.linchkit?.minCoreVersion).toBe("^0.2.0");
+    }
+  });
+
+  it("accepts all three linchkit version keys together", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      linchkit: { coreVersion: ">=0.2.0 <0.4.0", minVersion: "0.1.0", minCoreVersion: "^0.2.0" },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.linchkit?.coreVersion).toBe(">=0.2.0 <0.4.0");
+      expect(result.data.linchkit?.minVersion).toBe("0.1.0");
+      expect(result.data.linchkit?.minCoreVersion).toBe("^0.2.0");
+    }
+  });
+
   it("accepts all valid category values", () => {
     for (const c of [
       "system",

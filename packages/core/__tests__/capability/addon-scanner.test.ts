@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { scanAddonsPath } from "../../src/capability/addon-scanner";
+import type { MetadataCompatibility } from "../../src/capability/compatibility";
+import { enforceCoreCompatibility } from "../../src/capability/compatibility";
 
 const TMP = join(import.meta.dir, "__tmp_addon_scan__");
 
@@ -13,13 +15,17 @@ afterEach(() => {
   rmSync(TMP, { recursive: true, force: true });
 });
 
-function makeAddon(group: string, capName: string, capDef: string) {
+function makeAddon(
+  group: string,
+  capName: string,
+  capDef: string,
+  linchkit?: MetadataCompatibility,
+) {
   const dir = join(TMP, group, capName, "src");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(TMP, group, capName, "package.json"),
-    JSON.stringify({ name: `@linchkit/${capName}`, main: "src/index.ts" }),
-  );
+  const pkg: Record<string, unknown> = { name: `@linchkit/${capName}`, main: "src/index.ts" };
+  if (linchkit) pkg.linchkit = linchkit;
+  writeFileSync(join(TMP, group, capName, "package.json"), JSON.stringify(pkg));
   writeFileSync(join(dir, "index.ts"), capDef);
 }
 
@@ -90,5 +96,104 @@ describe("scanAddonsPath", () => {
   test("returns empty for non-existent path", async () => {
     const caps = await scanAddonsPath(["/non/existent/path"]);
     expect(caps).toHaveLength(0);
+  });
+
+  // ── Spec 21 / #122: boot-time coreVersion population ──
+
+  test("populates coreVersion from the addon's package.json linchkit.minCoreVersion", async () => {
+    // Shipped addons declare a bare `minCoreVersion` range under `linchkit`.
+    // Without population the boot-time compatibility check sees `undefined`.
+    makeAddon(
+      "test-group",
+      "cap-mincore",
+      `
+      export default {
+        name: "cap-mincore",
+        label: "MinCore",
+        type: "standard",
+        category: "business",
+        version: "0.1.0",
+      };
+    `,
+      { minCoreVersion: "^0.2.0" },
+    );
+
+    const caps = await scanAddonsPath([TMP]);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]?.coreVersion).toBe("^0.2.0");
+  });
+
+  test("normalizes a bare minCoreVersion to a >= range on the runtime definition", async () => {
+    makeAddon(
+      "test-group",
+      "cap-bare",
+      `
+      export default {
+        name: "cap-bare",
+        label: "Bare",
+        type: "standard",
+        category: "business",
+        version: "0.1.0",
+      };
+    `,
+      { minCoreVersion: "0.2.0" },
+    );
+
+    const caps = await scanAddonsPath([TMP]);
+    expect(caps[0]?.coreVersion).toBe(">=0.2.0");
+  });
+
+  test("an explicit coreVersion on the definition wins over package.json metadata", async () => {
+    makeAddon(
+      "test-group",
+      "cap-explicit",
+      `
+      export default {
+        name: "cap-explicit",
+        label: "Explicit",
+        type: "standard",
+        category: "business",
+        version: "0.1.0",
+        coreVersion: ">=0.3.0",
+      };
+    `,
+      { minCoreVersion: "^0.2.0" },
+    );
+
+    const caps = await scanAddonsPath([TMP]);
+    expect(caps[0]?.coreVersion).toBe(">=0.3.0");
+  });
+
+  test("scanned coreVersion makes the boot check WARN (not throw) on VERSION skew", async () => {
+    // The #122 trap: core VERSION "0.0.1" vs an addon's "^0.2.0" must surface a
+    // warning at boot — never a throw — when strict mode is off (the default).
+    makeAddon(
+      "test-group",
+      "cap-skew",
+      `
+      export default {
+        name: "cap-skew",
+        label: "Skew",
+        type: "standard",
+        category: "business",
+        version: "0.1.0",
+      };
+    `,
+      { minCoreVersion: "^0.2.0" },
+    );
+
+    const caps = await scanAddonsPath([TMP]);
+    const warnings: string[] = [];
+    const noop = () => {};
+
+    expect(() =>
+      enforceCoreCompatibility(caps, "0.0.1", {
+        strict: false,
+        logger: { debug: noop, info: noop, warn: (m) => warnings.push(m), error: noop },
+      }),
+    ).not.toThrow();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("cap-skew");
+    expect(warnings[0]).toContain("^0.2.0");
   });
 });
