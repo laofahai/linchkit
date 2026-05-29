@@ -225,8 +225,11 @@ export class DeployRollbackOrchestrator {
    *   7. gh pr create with rollback title + body.
    *   8. Parse and return the PR URL.
    *
-   * Throws on any hard failure. The caller should arrange cleanup (e.g.
-   * delete the local branch) if desired.
+   * Throws on any hard failure. On failure after branch creation begins, a
+   * best-effort cleanup (abort the in-progress revert + reset the working tree
+   * back to the original ref) runs before the original error propagates, so the
+   * repository is not left in a "reverting"/unmerged state. The caller may
+   * still delete the local branch afterwards if desired.
    */
   async orchestrate(input: RollbackInput): Promise<RollbackResult> {
     const { commitSha, titleOverride, bodyNote } = input;
@@ -235,6 +238,9 @@ export class DeployRollbackOrchestrator {
     if (!normalizedSha) {
       throw new Error("DeployRollbackOrchestrator: commitSha must be non-empty");
     }
+    // Strict format validation: reject anything that is not a 7-40 char hex SHA.
+    // This prevents flag/argument injection into the `git` commands the SHA is
+    // later passed to (e.g. a value beginning with "--").
     if (!/^[0-9a-f]{7,40}$/i.test(normalizedSha)) {
       throw new Error("DeployRollbackOrchestrator: commitSha must be a valid hex SHA (7-40 chars)");
     }
@@ -260,106 +266,145 @@ export class DeployRollbackOrchestrator {
       );
     }
 
-    // ── Step 3: create branch ─────────────────────────────────────────────
+    // Capture the ref HEAD points at before we start mutating the working tree,
+    // so a failure can restore it (best-effort). Empty string when unresolved.
+    const originalRefResult = await this.gitRunner(["rev-parse", "HEAD"], cwd);
+    const originalRef = originalRefResult.exitCode === 0 ? originalRefResult.stdout.trim() : "";
+
     const branch = buildBranchName(this.branchPrefix, normalizedSha, this.clock);
-    const remoteRef = `${this.remote}/${this.baseBranch}`;
 
-    const checkoutFromRemote = await this.gitRunner(["checkout", "-b", branch, remoteRef], cwd);
-    if (checkoutFromRemote.exitCode !== 0) {
-      const checkoutFromLocal = await this.gitRunner(
-        ["checkout", "-b", branch, this.baseBranch],
-        cwd,
-      );
-      if (checkoutFromLocal.exitCode !== 0) {
-        failStep("checkout", checkoutFromLocal);
+    // Everything from branch creation onward can leave the working tree in a
+    // dirty/"reverting" state on failure. Wrap it so any error triggers a
+    // best-effort cleanup before the original error propagates.
+    try {
+      // ── Step 3: create branch ───────────────────────────────────────────
+      const remoteRef = `${this.remote}/${this.baseBranch}`;
+      const checkoutFromRemote = await this.gitRunner(["checkout", "-b", branch, remoteRef], cwd);
+      if (checkoutFromRemote.exitCode !== 0) {
+        const checkoutFromLocal = await this.gitRunner(
+          ["checkout", "-b", branch, this.baseBranch],
+          cwd,
+        );
+        if (checkoutFromLocal.exitCode !== 0) {
+          failStep("checkout", checkoutFromLocal);
+        }
       }
-    }
 
-    // ── Step 4: git revert ────────────────────────────────────────────────
-    const revertResult = await this.gitRunner(["revert", normalizedSha, "--no-edit"], cwd);
-    if (revertResult.exitCode !== 0) {
-      // Best-effort cleanup: abort the in-progress revert so the working tree is clean.
-      await this.gitRunner(["revert", "--abort"], cwd).catch(() => undefined);
-      failStep("revert", revertResult);
-    }
-
-    // ── Step 5: capture revert commit SHA ─────────────────────────────────
-    const headResult = await this.gitRunner(["rev-parse", "HEAD"], cwd);
-    if (headResult.exitCode !== 0) {
-      failStep("rev-parse HEAD", headResult);
-    }
-    const revertCommitSha = headResult.stdout.trim();
-
-    // ── Step 6: push ──────────────────────────────────────────────────────
-    const pushResult = await this.gitRunner(["push", "-u", this.remote, branch], cwd);
-    if (pushResult.exitCode !== 0) {
-      failStep("push", pushResult);
-    }
-
-    // ── Step 7: open PR ───────────────────────────────────────────────────
-    const prTitle = titleOverride ?? this.buildPrTitle(normalizedSha, subject);
-    let prBody = this.buildPrBody(normalizedSha, subject);
-    if (bodyNote && bodyNote.trim().length > 0) {
-      prBody = `${prBody}\n\n---\n\n${bodyNote.trim()}`;
-    }
-
-    let prResult = await this.ghRunner(
-      [
-        "pr",
-        "create",
-        "--base",
-        this.baseBranch,
-        "--head",
-        branch,
-        "--title",
-        prTitle,
-        "--body",
-        prBody,
-        "--label",
-        "rollback",
-      ],
-      cwd,
-    );
-    if (prResult.exitCode !== 0) {
-      // Retry without --label only when `gh` specifically reports the label is missing.
-      // For any other failure (network, auth, duplicate PR) we fail immediately to avoid
-      // opening a duplicate PR.
-      if (!LABEL_MISSING_REGEX.test(prResult.stderr)) {
-        failStep("pr create", prResult);
+      // ── Step 4: git revert ──────────────────────────────────────────────
+      const revertResult = await this.gitRunner(["revert", normalizedSha, "--no-edit"], cwd);
+      if (revertResult.exitCode !== 0) {
+        failStep("revert", revertResult);
       }
-      this.logger?.warn?.(
-        `DeployRollbackOrchestrator: gh pr create with --label rollback failed (exit ${prResult.exitCode}): ${prResult.stderr.trim()} — retrying without label`,
-      );
-      prResult = await this.ghRunner(
-        [
-          "pr",
-          "create",
-          "--base",
-          this.baseBranch,
-          "--head",
-          branch,
-          "--title",
-          prTitle,
-          "--body",
-          prBody,
-        ],
-        cwd,
-      );
+
+      // ── Step 5: capture revert commit SHA ───────────────────────────────
+      const headResult = await this.gitRunner(["rev-parse", "HEAD"], cwd);
+      if (headResult.exitCode !== 0) {
+        failStep("rev-parse HEAD", headResult);
+      }
+      const revertCommitSha = headResult.stdout.trim();
+
+      // ── Step 6: push ────────────────────────────────────────────────────
+      const pushResult = await this.gitRunner(["push", "-u", this.remote, branch], cwd);
+      if (pushResult.exitCode !== 0) {
+        failStep("push", pushResult);
+      }
+
+      // ── Step 7: open PR ─────────────────────────────────────────────────
+      const prTitle = titleOverride ?? this.buildPrTitle(normalizedSha, subject);
+      let prBody = this.buildPrBody(normalizedSha, subject);
+      if (bodyNote && bodyNote.trim().length > 0) {
+        prBody = `${prBody}\n\n---\n\n${bodyNote.trim()}`;
+      }
+
+      let { result: prResult, prUrl } = await this.createRollbackPr(branch, prTitle, prBody, true);
       if (prResult.exitCode !== 0) {
-        failStep("pr create", prResult);
+        // Retry without --label only when `gh` specifically reports the label is missing.
+        // For any other failure (network, auth, duplicate PR) we fail immediately to avoid
+        // opening a duplicate PR.
+        if (!LABEL_MISSING_REGEX.test(prResult.stderr)) {
+          failStep("pr create", prResult);
+        }
+        this.logger?.warn?.(
+          `DeployRollbackOrchestrator: gh pr create with --label rollback failed (exit ${prResult.exitCode}): ${prResult.stderr.trim()} — retrying without label`,
+        );
+        ({ result: prResult, prUrl } = await this.createRollbackPr(branch, prTitle, prBody, false));
+        if (prResult.exitCode !== 0) {
+          failStep("pr create", prResult);
+        }
       }
-    }
 
-    const prUrl = extractPrUrl(prResult.stdout);
-    if (!prUrl) {
-      throw new Error(
-        `DeployRollbackOrchestrator: could not parse PR URL from 'gh pr create' stdout: ${prResult.stdout.trim()}`,
+      if (!prUrl) {
+        throw new Error(
+          `DeployRollbackOrchestrator: could not parse PR URL from 'gh pr create' stdout: ${prResult.stdout.trim()}`,
+        );
+      }
+
+      this.logger?.info?.(`DeployRollbackOrchestrator: PR opened at ${prUrl} (branch ${branch})`);
+
+      return { branch, revertCommitSha, prUrl };
+    } catch (error) {
+      // Best-effort cleanup: never mask the original error.
+      await this.cleanupAfterFailure(originalRef);
+      throw error;
+    }
+  }
+
+  /**
+   * Run `gh pr create` for a rollback branch and extract the resulting PR URL.
+   *
+   * Shared by both the labelled (first attempt) and unlabelled (retry) paths so
+   * the args and URL-extraction logic live in exactly one place.
+   *
+   * @param withLabel When true, appends `--label rollback`.
+   */
+  private async createRollbackPr(
+    branch: string,
+    prTitle: string,
+    prBody: string,
+    withLabel: boolean,
+  ): Promise<{ result: RollbackRunResult; prUrl: string | undefined }> {
+    const args = [
+      "pr",
+      "create",
+      "--base",
+      this.baseBranch,
+      "--head",
+      branch,
+      "--title",
+      prTitle,
+      "--body",
+      prBody,
+      ...(withLabel ? ["--label", "rollback"] : []),
+    ];
+    const result = await this.ghRunner(args, { cwd: this.repoDir });
+    return { result, prUrl: extractPrUrl(result.stdout) ?? undefined };
+  }
+
+  /**
+   * Best-effort recovery after a mid-flow failure. Aborts any in-progress
+   * revert and resets the working tree back to `originalRef` so subsequent
+   * operations are not blocked by a "reverting"/unmerged state.
+   *
+   * All steps swallow their own errors and log via the injected logger — this
+   * must never throw, so it cannot mask the original failure.
+   */
+  private async cleanupAfterFailure(originalRef: string): Promise<void> {
+    const cwd = { cwd: this.repoDir };
+    try {
+      // Clears the in-progress revert (no-op exit!=0 when none is active).
+      await this.gitRunner(["revert", "--abort"], cwd).catch(() => undefined);
+      if (originalRef) {
+        // Discard the partial revert state and return to the pre-flow ref.
+        await this.gitRunner(["reset", "--hard", originalRef], cwd).catch(() => undefined);
+        await this.gitRunner(["checkout", originalRef], cwd).catch(() => undefined);
+      }
+    } catch (cleanupError) {
+      this.logger?.warn?.(
+        `DeployRollbackOrchestrator: best-effort cleanup failed — ${
+          cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        }`,
       );
     }
-
-    this.logger?.info?.(`DeployRollbackOrchestrator: PR opened at ${prUrl} (branch ${branch})`);
-
-    return { branch, revertCommitSha, prUrl };
   }
 }
 

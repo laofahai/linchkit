@@ -287,6 +287,7 @@ describe("DeployRollbackOrchestrator — checkout fallback", () => {
     const gitRunner = makeGitRunner({
       "fetch origin main": ok(),
       [`log -1 --format=%s ${BASE_SHA}`]: ok("some fix"),
+      "rev-parse HEAD": ok(`${REVERT_SHA}\n`),
       [`checkout -b ${FIXED_BRANCH} origin/main`]: fail("unknown revision", 128),
       [`checkout -b ${FIXED_BRANCH} main`]: fail("ref not found", 128),
     });
@@ -371,6 +372,62 @@ describe("DeployRollbackOrchestrator — revert failure", () => {
     });
     await expect(orch.orchestrate({ commitSha: BASE_SHA })).rejects.toThrow("revert");
     expect(gitLog.some((c) => c.args[0] === "revert" && c.args[1] === "--abort")).toBe(true);
+  });
+
+  it("runs full cleanup (revert --abort + reset --hard originalRef) and propagates the original error", async () => {
+    const ORIGINAL_REF = "1111111111111111111111111111111111111111";
+    const gitLog: GitCallLog = [];
+    // rev-parse HEAD is called twice: once to capture originalRef (before branch
+    // creation), and the test reuses the same mock value throughout.
+    const responses = {
+      ...happyGitResponses(),
+      "rev-parse HEAD": ok(`${ORIGINAL_REF}\n`),
+      [`revert ${BASE_SHA} --no-edit`]: fail("CONFLICT (content): Merge conflict", 1),
+      "revert --abort": ok(),
+      [`reset --hard ${ORIGINAL_REF}`]: ok(),
+      [`checkout ${ORIGINAL_REF}`]: ok(),
+    };
+    const gitRunner = makeGitRunner(responses, gitLog);
+    const orch = createDeployRollbackOrchestrator({
+      repoDir: REPO_DIR,
+      clock: FIXED_CLOCK,
+      gitRunner,
+      ghRunner: makeGhRunner({}),
+      logger: silentLogger,
+    });
+
+    // The propagated error must be the original revert failure, NOT a cleanup error.
+    await expect(orch.orchestrate({ commitSha: BASE_SHA })).rejects.toThrow("'revert' failed");
+
+    // originalRef is captured before any mutation, then cleanup restores it.
+    expect(gitLog.some((c) => c.args[0] === "revert" && c.args[1] === "--abort")).toBe(true);
+    expect(
+      gitLog.some(
+        (c) => c.args[0] === "reset" && c.args[1] === "--hard" && c.args[2] === ORIGINAL_REF,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not throw from cleanup even when cleanup git calls fail", async () => {
+    const gitLog: GitCallLog = [];
+    // All cleanup calls fail; cleanupAfterFailure must swallow them and still
+    // surface the original push failure.
+    const responses = {
+      ...happyGitResponses(),
+      [`push -u origin ${FIXED_BRANCH}`]: fail("remote rejected", 1),
+      "revert --abort": fail("no revert in progress", 1),
+      [`reset --hard ${REVERT_SHA}`]: fail("reset failed", 1),
+      [`checkout ${REVERT_SHA}`]: fail("checkout failed", 1),
+    };
+    const gitRunner = makeGitRunner(responses, gitLog);
+    const orch = createDeployRollbackOrchestrator({
+      repoDir: REPO_DIR,
+      clock: FIXED_CLOCK,
+      gitRunner,
+      ghRunner: makeGhRunner({}),
+      logger: silentLogger,
+    });
+    await expect(orch.orchestrate({ commitSha: BASE_SHA })).rejects.toThrow("'push' failed");
   });
 });
 
