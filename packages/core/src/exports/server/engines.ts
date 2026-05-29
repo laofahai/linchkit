@@ -117,6 +117,14 @@ export {
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
 } from "../../engine/proposal-outcome-recorder";
+export {
+  createRollbackInsightEmitter,
+  type EmitAllOptions,
+  ROLLBACK_CANDIDATE_TAG,
+  RollbackInsightEmitter,
+  type RollbackInsightEmitterOptions,
+  rollbackInsightId,
+} from "../../engine/rollback-insight-emitter";
 
 export {
   collectRules,

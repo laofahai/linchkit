@@ -77,6 +77,11 @@ export type {
   ProposalOutcomeRecorderOptions,
   ProposalOutcomeType,
 } from "../../engine/proposal-outcome-recorder";
+export type {
+  EmitAllOptions,
+  RollbackInsightEmitter,
+  RollbackInsightEmitterOptions,
+} from "../../engine/rollback-insight-emitter";
 
 export type {
   RuleEvalInput,
