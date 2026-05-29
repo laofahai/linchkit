@@ -31,9 +31,44 @@ import type {
   AIToolCall,
   AITraceSamplingConfig,
 } from "@linchkit/core";
-import { fallbackTraceId, openParentTrace, recordGeneration, recordSuccess } from "./ai-tracing";
+import {
+  fallbackTraceId,
+  logTracingError,
+  openParentTrace,
+  type ParentTraceHandle,
+  recordGeneration,
+  recordSuccess,
+} from "./ai-tracing";
 import { CostEstimator } from "./cost-estimator";
 import { AIResponseCache } from "./response-cache";
+
+/**
+ * The subset of the Vercel AI SDK `streamText` result the streaming path reads
+ * for accurate post-drain accounting. Each accessor is a `PromiseLike` that the
+ * SDK resolves only AFTER the stream fully drains (it "automatically consumes
+ * the stream"), so we MUST await them only once the consumer has finished
+ * iterating `textStream` — never before, or we would consume the stream out
+ * from under the consumer.
+ *
+ * Mirrors `StreamTextResult` (ai@6) `usage` / `totalUsage` / `text` /
+ * `finishReason` accessors; declared structurally so tests can inject a fake
+ * without depending on the SDK's generic result type.
+ */
+export interface StreamTextLike {
+  /** Text delta stream the consumer iterates. */
+  readonly textStream: AsyncIterable<string>;
+  /**
+   * Total token usage across all steps, resolved after drain. `totalUsage`
+   * sums multi-step usage; fields may be `undefined` when a provider omits
+   * them (coerced to 0 at the call site, mirroring the completion path).
+   */
+  readonly totalUsage: PromiseLike<{
+    inputTokens?: number;
+    outputTokens?: number;
+  }>;
+  /** Full generated text, resolved after drain. */
+  readonly text: PromiseLike<string>;
+}
 
 /**
  * Internal generation runners — the seam between the service and the Vercel AI
@@ -54,6 +89,13 @@ export interface AIServiceInternals {
   runGenerateObject?: (args: AnyGenerateResult) => Promise<AnyGenerateResult>;
   /** Run a text generation. Defaults to `ai.generateText`. */
   runGenerateText?: (args: AnyGenerateResult) => Promise<AnyGenerateResult>;
+  /**
+   * Run a streaming text generation. Defaults to `ai.streamText`. Returns a
+   * result exposing the consumer's `textStream` plus post-drain `totalUsage` /
+   * `text` accessors (see {@link StreamTextLike}). SYNCHRONOUS like the SDK's
+   * `streamText` — it returns a result object immediately and streams lazily.
+   */
+  runStreamText?: (args: AnyGenerateResult) => StreamTextLike;
   /**
    * Trace sampling config. Applied at every span/record call. Defaults to
    * recording everything; set `{ rate: 0 }` to disable tracing entirely
@@ -114,7 +156,7 @@ export function createAIService(
     defaultProvider: config.defaultProvider,
     providerNames: Object.keys(config.providers),
     complete: (options) => executeWithFallback(config, options, costEstimator, cache, internals),
-    completeStream: (options) => executeStream(config, options, internals),
+    completeStream: (options) => executeStream(config, options, costEstimator, internals),
   };
 }
 
@@ -702,11 +744,23 @@ async function executeCompletion(
 
 /**
  * Execute a streaming completion request.
- * Returns an async iterable of text chunks using Vercel AI SDK's streamText.
+ *
+ * Returns an async iterable of text chunks backed by the Vercel AI SDK's
+ * `streamText`. Token usage, cost, and the full completion text are only known
+ * AFTER the stream fully drains (the SDK's `totalUsage` / `text` accessors are
+ * `PromiseLike`s that "automatically consume the stream" and resolve only once
+ * iteration finishes — see {@link StreamTextLike}). So we do NOT record at
+ * stream open; instead we wrap `textStream` and record exactly one ACCURATE
+ * generation when the consumer finishes draining it (`partial: false`,
+ * `status: "ok"`, correct tokens/cost/completion/latency). If the consumer
+ * aborts or the stream errors before draining, we record a single
+ * `partial: true` / `status: "error"` record instead. Either way the recording
+ * is strictly non-throwing and never alters the consumer's stream or timing.
  */
 async function executeStream(
   config: AIServiceConfig,
   options: AICompletionOptions,
+  costEstimator: CostEstimator,
   internals?: AIServiceInternals,
 ): Promise<AIStreamResult> {
   const startTime = Date.now();
@@ -745,44 +799,258 @@ async function executeStream(
     ? internals.getModel(effectiveConfig, resolved)
     : getLanguageModel(effectiveConfig, resolved));
 
-  const { streamText } = await import("ai");
+  // Open the parent trace ONCE (mirrors the completion path) so the stream's
+  // generation lands under a parent and the trace's token/cost rollup is
+  // correct. The sampling decision is resolved here and threaded into the
+  // child generation via `forcedSampled` so a fractional rate rolls once.
+  // Non-throwing — an inert handle is returned on failure.
+  const parent = openParentTrace(resolvedOptions.trace, { sampling: internals?.sampling });
 
-  const result = streamText({
-    model,
-    messages: resolvedOptions.messages,
-    temperature: resolvedOptions.temperature ?? 0,
-    maxOutputTokens,
-    abortSignal: resolvedOptions.timeout ? AbortSignal.timeout(resolvedOptions.timeout) : undefined,
-  });
+  try {
+    // Use the injectable runner (test seam); default to the SDK's `streamText`,
+    // which is SYNCHRONOUS — it returns a result object immediately and streams
+    // lazily as the consumer iterates `textStream`.
+    let result: StreamTextLike;
+    if (internals?.runStreamText) {
+      result = internals.runStreamText({
+        model,
+        messages: resolvedOptions.messages,
+        temperature: resolvedOptions.temperature ?? 0,
+        maxOutputTokens,
+        abortSignal: resolvedOptions.timeout
+          ? AbortSignal.timeout(resolvedOptions.timeout)
+          : undefined,
+      });
+    } else {
+      const { streamText } = await import("ai");
+      result = streamText({
+        model,
+        messages: resolvedOptions.messages,
+        temperature: resolvedOptions.temperature ?? 0,
+        maxOutputTokens,
+        abortSignal: resolvedOptions.timeout
+          ? AbortSignal.timeout(resolvedOptions.timeout)
+          : undefined,
+      }) as StreamTextLike;
+    }
 
-  // Streaming limitation (PR-1): usage / cost / completion text are only known
-  // after the stream fully drains, which happens in the caller. Record a
-  // best-effort PARTIAL generation at stream open so the trace is not lost;
-  // token-accurate streaming accounting is deferred to a later PR. Non-throwing.
-  recordGeneration({
-    // Fall back to a FRESH unique id per call (never the model name) so
-    // untraced streams stay isolated instead of all sharing one static traceId.
-    traceId: resolvedOptions.trace?.traceId ?? fallbackTraceId(),
-    context: resolvedOptions.trace,
-    model: resolved.modelId,
-    provider: resolved.provider,
-    messages: resolvedOptions.messages,
-    completion: "",
-    inputTokens: 0,
-    outputTokens: 0,
-    latencyMs: Date.now() - startTime,
-    temperature: resolvedOptions.temperature,
-    responseFormat: "text",
-    partial: true,
-    status: "partial",
-    startedAt: startTime,
-    endedAt: Date.now(),
-    sampling: internals?.sampling,
-  });
+    return {
+      // Wrap the SDK stream so accounting is recorded once iteration finishes —
+      // accurate on a clean drain, partial/error on an abort. The wrapper yields
+      // the SAME chunks in the SAME order, so the consumer sees identical output.
+      textStream: instrumentStreamText({
+        result,
+        costEstimator,
+        resolved,
+        options: resolvedOptions,
+        startTime,
+        parent,
+        sampling: internals?.sampling,
+      }),
+      model: resolved.modelId,
+      provider: resolved.provider,
+    };
+  } catch (error) {
+    // Acquiring the stream failed AFTER the parent trace was opened (the `ai`
+    // import rejected, or `streamText` / the injected runner threw
+    // synchronously). The consumer never receives a stream to drain, so
+    // `instrumentStreamText`'s own finalizer can never run — finalize the parent
+    // here so the opened trace is never left without a matching end, then
+    // re-throw to the caller. `parent.end` is non-throwing.
+    parent.end("error");
+    throw error;
+  }
+}
 
-  return {
-    textStream: result.textStream,
-    model: resolved.modelId,
-    provider: resolved.provider,
-  };
+/** Inputs for {@link instrumentStreamText}. */
+interface InstrumentStreamInput {
+  /** The SDK (or fake) stream result exposing `textStream` + post-drain usage. */
+  readonly result: StreamTextLike;
+  readonly costEstimator: CostEstimator;
+  readonly resolved: ResolvedModel;
+  readonly options: AICompletionOptions;
+  /** Stream-open wall-clock epoch ms (latency baseline). */
+  readonly startTime: number;
+  /**
+   * Parent trace handle (from `openParentTrace`). Carries the trace id +
+   * sampling decision threaded into the child generation, plus the non-throwing
+   * `end()` finalizer called once the stream finishes (success or error).
+   */
+  readonly parent: ParentTraceHandle;
+  /** Sampling config (only consulted for the standalone fallback path). */
+  readonly sampling?: AITraceSamplingConfig;
+}
+
+/**
+ * Wrap an SDK text stream so token-accurate accounting is recorded exactly
+ * once when the stream finishes.
+ *
+ * On a clean drain: await `totalUsage` + `text` (resolved only after the stream
+ * is fully consumed), compute cost with the SAME estimator the completion path
+ * uses, and record ONE accurate `partial: false` / `status: "ok"` generation.
+ *
+ * On abort / error before draining: record ONE `partial: true` /
+ * `status: "error"` generation, then re-throw so the consumer's iteration still
+ * surfaces the error (we instrument, we never swallow the stream's own error).
+ *
+ * The recording itself is wrapped in {@link recordStreamFinish} so a tracing
+ * failure is swallowed and never affects the consumer's stream.
+ */
+async function* instrumentStreamText(input: InstrumentStreamInput): AsyncGenerator<string> {
+  const { result } = input;
+  let fullText = "";
+  // Tracks whether the clean-drain or error path already finalized the trace, so
+  // the `finally` below only handles the third case: a consumer that abandons
+  // the stream early (`break`/`return` without an error).
+  let settled = false;
+  try {
+    for await (const chunk of result.textStream) {
+      fullText += chunk;
+      yield chunk;
+    }
+    // Clean drain — the usage / text accessors are now resolved. Capture the
+    // drain-completion time HERE (not after awaiting the post-drain
+    // usage/text promises in the recorder) so `latencyMs` reflects how long the
+    // stream actually took, not extra time the SDK spends resolving accounting.
+    const endedAt = Date.now();
+    settled = true;
+    recordStreamFinish({ input, outcome: { kind: "done", streamedText: fullText, endedAt } });
+  } catch (error) {
+    // The stream itself failed (or the consumer's `break`/`return` triggered an
+    // AbortSignal that the SDK surfaced as a throw). Record a partial/error
+    // generation, then re-throw the ORIGINAL error so the consumer still sees
+    // it — tracing must not swallow the stream's own failure.
+    settled = true;
+    recordStreamFinish({
+      input,
+      outcome: { kind: "error", error, partialText: fullText },
+    });
+    throw error;
+  } finally {
+    // The consumer abandoned the stream early (`break`/`return` with no error),
+    // so neither the clean-drain nor the error path ran. Do NOT record a
+    // generation: `totalUsage` / `text` never resolve on a non-drained stream,
+    // so awaiting them could hang the fire-and-forget recorder forever. But DO
+    // finalize the parent trace so a `startTrace` is never left without a
+    // matching `endTrace` (an open-trace leak). `parent.end` is non-throwing.
+    if (!settled) {
+      input.parent.end("ok");
+    }
+  }
+}
+
+/** Outcome of draining a stream, passed to {@link recordStreamFinish}. */
+type StreamFinishOutcome =
+  | { kind: "done"; streamedText: string; endedAt: number }
+  | { kind: "error"; error: unknown; partialText: string };
+
+/**
+ * Record the final generation for a finished stream. STRICTLY non-throwing —
+ * any failure (including awaiting the SDK usage/text promises) is swallowed and
+ * logged once via the tracing wrapper, so a tracing failure can NEVER break or
+ * alter the consumer's stream. Runs AFTER the consumer has finished iterating,
+ * so awaiting `totalUsage` / `text` here never consumes the stream out from
+ * under the consumer.
+ */
+function recordStreamFinish(args: {
+  input: InstrumentStreamInput;
+  outcome: StreamFinishOutcome;
+}): void {
+  const { input, outcome } = args;
+  const { result, costEstimator, resolved, options, startTime, parent, sampling } = input;
+
+  if (outcome.kind === "error") {
+    // Abort / stream error before a clean drain — usage is unknown, so record a
+    // single partial/error generation with zero tokens (mirrors the completion
+    // error path). Synchronous so it cannot stall or throw asynchronously.
+    const endedAt = Date.now();
+    recordGeneration({
+      traceId: parent.traceId,
+      context: options.trace,
+      model: resolved.modelId,
+      provider: resolved.provider,
+      messages: options.messages,
+      completion: outcome.partialText,
+      inputTokens: 0,
+      outputTokens: 0,
+      latencyMs: endedAt - startTime,
+      temperature: options.temperature,
+      responseFormat: "text",
+      partial: true,
+      status: "error",
+      error: outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
+      startedAt: startTime,
+      endedAt,
+      sampling,
+      forcedSampled: parent.sampled,
+    });
+    // Finalize the parent trace as errored (non-throwing).
+    parent.end("error");
+    return;
+  }
+
+  // Clean drain — await the post-drain usage/text accessors, compute cost, and
+  // record ONE accurate generation. The await is wrapped so a rejected/throwing
+  // accessor is swallowed (the consumer's stream has already completed). Fire
+  // and forget: nothing awaits this and the stream's output is already done.
+  void (async () => {
+    try {
+      // The stream drained cleanly, so this is a SUCCESS regardless of whether
+      // the usage accessor is available. Isolate the usage await so a rejected /
+      // undefined `totalUsage` falls back to 0 tokens instead of skipping the
+      // record entirely and marking the parent errored (some providers omit
+      // usage on streams). `usage?.` guards a null/undefined resolution too.
+      let inputTokens = 0;
+      let outputTokens = 0;
+      try {
+        const usage = await result.totalUsage;
+        inputTokens = usage?.inputTokens ?? 0;
+        outputTokens = usage?.outputTokens ?? 0;
+      } catch {
+        // totalUsage unavailable/rejected — keep 0 tokens; still record below.
+      }
+      // Prefer the SDK's authoritative final text; fall back to the text we
+      // accumulated from the chunks if the accessor is unavailable.
+      let completion = outcome.streamedText;
+      try {
+        completion = await result.text;
+      } catch {
+        // Keep the accumulated text — recordGeneration below is still accurate
+        // on tokens/cost even if the SDK text accessor rejects.
+      }
+      // Use the drain-completion time captured in `instrumentStreamText` so
+      // latency excludes the time spent awaiting the post-drain usage/text
+      // promises above.
+      const endedAt = outcome.endedAt;
+      recordGeneration({
+        traceId: parent.traceId,
+        context: options.trace,
+        model: resolved.modelId,
+        provider: resolved.provider,
+        messages: options.messages,
+        completion,
+        inputTokens,
+        outputTokens,
+        cost: costEstimator.estimateCost(resolved.modelId, inputTokens, outputTokens),
+        latencyMs: endedAt - startTime,
+        temperature: options.temperature,
+        responseFormat: "text",
+        partial: false,
+        status: "ok",
+        startedAt: startTime,
+        endedAt,
+        sampling,
+        forcedSampled: parent.sampled,
+      });
+      // Finalize the parent trace as ok (non-throwing).
+      parent.end("ok");
+    } catch (err) {
+      // Awaiting usage/text rejected (or recordGeneration's own guard somehow
+      // escaped). Swallow — a tracing failure must never escape into the
+      // consumer's already-completed stream. Log once via the tracing latch.
+      logTracingError("stream-finish", err);
+      // Still finalize the parent so the trace does not leak open.
+      parent.end("error");
+    }
+  })();
 }
