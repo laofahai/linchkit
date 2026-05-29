@@ -3,4 +3,4 @@
  */
 
 export { scanAddonsPath } from "../../capability/addon-scanner";
-export { resolveAutoInstall } from "../../capability/auto-install";
+export { resolveAutoInstall, resolveDependencies } from "../../capability/auto-install";

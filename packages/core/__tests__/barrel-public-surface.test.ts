@@ -344,6 +344,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "resolveAutoInstall",
   "resolveConditionVariables",
   "resolveDataAccess",
+  "resolveDependencies",
   "resolveFieldMasking",
   "resolveIntent",
   "sanitizeAIOutput",
