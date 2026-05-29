@@ -76,20 +76,24 @@ export function resolveDependencies(
     byName.set(cap.name, cap);
   }
 
-  const active = new Set(explicit.map((c) => c.name));
-  const result = [...explicit];
-  const queue = [...explicit];
+  const active = new Set<string>();
+  const result: CapabilityDefinition[] = [];
 
-  while (queue.length > 0) {
-    // biome-ignore lint/style/noNonNullAssertion: queue is non-empty by loop guard
-    const cap = queue.shift()!;
+  for (const cap of explicit) {
+    if (active.has(cap.name)) continue;
+    active.add(cap.name);
+    result.push(cap);
+  }
+
+  for (let i = 0; i < result.length; i++) {
+    const cap = result[i];
+    if (!cap) break;
     for (const depName of cap.dependencies ?? []) {
       if (active.has(depName)) continue;
       const dep = byName.get(depName);
       if (dep) {
         active.add(depName);
         result.push(dep);
-        queue.push(dep);
       }
       // Missing dep: silently skip; validation will catch it later
     }

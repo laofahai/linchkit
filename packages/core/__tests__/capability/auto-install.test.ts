@@ -138,6 +138,11 @@ describe("resolveDependencies", () => {
     expect(resolveDependencies([], [])).toHaveLength(0);
   });
 
+  test("deduplicates duplicate names in explicit", () => {
+    const result = resolveDependencies([cap("A"), cap("A")], []);
+    expect(result.map((c) => c.name)).toEqual(["A"]);
+  });
+
   test("explicit wins over available on name collision", () => {
     const explicitA = cap("A", { version: "2.0.0", dependencies: ["B"] });
     const availableA = cap("A", { version: "1.0.0" });
