@@ -38,7 +38,12 @@ export {
   type JSONImportSourceOptions,
 } from "./data-importer";
 // ── Drizzle DB migration runner ────────────────────────────
-export { type MigrateOptions, runMigrations } from "./db-migrate";
+export {
+  type MigrateOptions,
+  type ReverseMigrateOptions,
+  runMigrations,
+  runReverseMigration,
+} from "./db-migrate";
 export {
   type BuiltInTransform,
   type FieldMapping,

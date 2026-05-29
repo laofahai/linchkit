@@ -54,6 +54,23 @@ export {
   livenessCheck,
 } from "./health-check";
 export {
+  createMigrationCoordinator,
+  type DrizzleKitRunner,
+  type ForwardApplyRunner,
+  type JournalReader,
+  MigrationCoordinator,
+  type MigrationCoordinatorOptions,
+  type MigrationDirection,
+  type MigrationDirReader,
+  type MigrationPhase,
+  type MigrationReleaseType,
+  type MigrationResult,
+  type MigrationRunResult,
+  type PendingMigration,
+  type PreFlightResult,
+  type SqlExecutor,
+} from "./migration-coordinator";
+export {
   createDeployRollbackOrchestrator,
   DeployRollbackOrchestrator,
   type DeployRollbackOrchestratorOptions,
