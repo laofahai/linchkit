@@ -229,6 +229,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "ProposalGenerationError",
   "ProposalGitCommitter",
   "RelationRegistry",
+  "RollingUpdateCoordinator",
   "TableRegistry",
   "TenantOverrideStore",
   "approvalStatusEnum",
