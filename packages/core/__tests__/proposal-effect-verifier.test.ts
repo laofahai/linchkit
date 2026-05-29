@@ -117,7 +117,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 10, targetValue: 80, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 10,
+            targetValue: 80,
+            signalRef: "cap-task",
+          },
         }),
       );
       const verifier = new ProposalEffectVerifier({ store });
@@ -134,7 +139,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 10, targetValue: 80, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 10,
+            targetValue: 80,
+            signalRef: "cap-task",
+          },
         }),
       );
       const verifier = new ProposalEffectVerifier({ store });
@@ -180,7 +190,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 95));
@@ -197,7 +212,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 90));
@@ -213,7 +233,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 95));
@@ -230,7 +255,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 70));
@@ -250,7 +280,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 50,
+            targetValue: 80,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 45));
@@ -267,7 +302,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 50,
+            targetValue: 80,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 50));
@@ -283,7 +323,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 50, targetValue: 80, signalRef: "cap-task" },
+          successMetric: {
+            description: "test",
+            baselineValue: 50,
+            targetValue: 80,
+            signalRef: "cap-task",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-task", "value", 40));
@@ -298,6 +343,134 @@ describe("ProposalEffectVerifier", () => {
     });
   });
 
+  // ── verifyAll — decreasing goals ──────────────────────────────────────────
+
+  describe("verifyAll — decreasing goals", () => {
+    // baseline 100 → target 50, default threshold 0.9 → requiredValue 55.
+
+    it("returns effect_verified when current overshoots below the target", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 100,
+            targetValue: 50,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 40));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_verified");
+      expect(rec.currentValue).toBe(40);
+    });
+
+    it("returns effect_verified exactly at the required threshold", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 100,
+            targetValue: 50,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 55));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_verified");
+    });
+
+    it("returns effect_uncertain with partial progress toward target", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 100,
+            targetValue: 50,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 70));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_uncertain");
+    });
+
+    it("returns effect_failed when the metric stays flat at baseline", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 100,
+            targetValue: 50,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 100));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_failed");
+    });
+
+    it("returns effect_failed when the metric moves the wrong way", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 100,
+            targetValue: 50,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 120));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_failed");
+    });
+
+    it("returns effect_uncertain when target equals baseline (no measurable gap)", async () => {
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          successMetric: {
+            description: "test",
+            baselineValue: 50,
+            targetValue: 50,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 50));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      const rec = results[0]!;
+
+      expect(rec.result).toBe("effect_uncertain");
+    });
+  });
+
   // ── signalRef parsing ─────────────────────────────────────────────────────
 
   describe("signalRef parsing", () => {
@@ -305,7 +478,12 @@ describe("ProposalEffectVerifier", () => {
       const store = makeStore();
       await store.recordSignal(
         makeMergedSignal({
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "my-cap" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "my-cap",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("my-cap", "value", 95));
@@ -413,13 +591,23 @@ describe("ProposalEffectVerifier", () => {
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-a",
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-a" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-a",
+          },
         }),
       );
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-b",
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-b" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-b",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-a", "value", 95));
@@ -438,13 +626,23 @@ describe("ProposalEffectVerifier", () => {
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-1",
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-x" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-x",
+          },
         }),
       );
       await store.recordSignal(
         makeMergedSignal({
           proposalId: "prop-2",
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-y" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-y",
+          },
         }),
       );
       await store.updateBaseline(makeBaseline("cap-x", "value", 95));
@@ -478,7 +676,12 @@ describe("ProposalEffectVerifier", () => {
           authorId: "user-1",
           outcomeAt: new Date("2026-01-01T00:00:00Z").toISOString(),
           proposalCreatedAt: new Date("2025-12-01T00:00:00Z").toISOString(),
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-z" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-z",
+          },
         } satisfies ProposalOutcomePayload,
       });
       await store.recordSignal({
@@ -494,7 +697,12 @@ describe("ProposalEffectVerifier", () => {
           authorId: "user-1",
           outcomeAt: new Date("2026-02-01T00:00:00Z").toISOString(),
           proposalCreatedAt: new Date("2026-01-15T00:00:00Z").toISOString(),
-          successMetric: { description: "test", baselineValue: 0, targetValue: 100, signalRef: "cap-z" },
+          successMetric: {
+            description: "test",
+            baselineValue: 0,
+            targetValue: 100,
+            signalRef: "cap-z",
+          },
         } satisfies ProposalOutcomePayload,
       });
 
