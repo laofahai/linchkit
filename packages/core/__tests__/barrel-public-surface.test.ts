@@ -189,7 +189,6 @@ const EXPECTED_SERVER_EXPORTS = [
   "CacheManager",
   "DEFAULT_COMPUTE_TIMEOUT_MS",
   "DefaultOverlayRegistry",
-  "DeployBuilder",
   "DeployWebhookHandler",
   "DerivedPropertyEngine",
   "DrizzleApprovalStore",

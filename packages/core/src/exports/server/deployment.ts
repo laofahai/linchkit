@@ -1,30 +1,49 @@
-// Deployment engines (server-only — spawn child processes, write files)
+/**
+ * Deployment runtime — health checks, graceful shutdown, environment,
+ * deploy webhooks, blue-green instance switching (server-only).
+ */
+
 export {
+  type AggregatedHealthStatus,
   type BlueGreenConfig,
   BlueGreenDeployer,
-  type BlueGreenDeployResult,
-  createBlueGreenDeployer,
-  type ProcessHandle,
-} from "../../deployment/blue-green-deployer";
-export {
-  createDeployBuilder,
+  createCacheCheck,
+  createDatabaseCheck,
+  createEntityCheck,
+  createEventBusCheck,
   type DeployArtifact,
-  DeployBuilder,
-  type DeployConfig,
-  DeployError,
-  type DeployHandle,
-  type DeployHooks,
+  type DeployEvent,
   type DeployPhase,
-  type DeployStatus,
-} from "../../deployment/builder";
-export {
+  type DeployResult,
+  type DeployWebhookConfig,
+  DeployWebhookHandler,
+  detectEnvironment,
+  type EnvironmentConfig,
+  type EnvironmentFeatureFlags,
+  type EnvironmentName,
+  GracefulShutdownManager,
+  type GracefulShutdownManagerOptions,
+  type HealthCheckFn,
+  HealthCheckRegistry,
+  type HealthCheckRegistryOptions,
+  type HealthCheckResult,
+  type HealthStatus,
+  type HttpFetcher,
+  livenessCheck,
+  type NginxReloader,
   type NodeDeployClient,
   type NodeDeployStatus,
   type NodePhase,
-  type RollingUpdateCoordinator,
-  RollingUpdateCoordinator as RollingUpdateCoordinatorImpl,
+  type ProcessHandle,
+  type ProcessLauncher,
+  RollingUpdateCoordinator,
   type RollingUpdateCoordinatorConfig,
   type RollingUpdatePhase,
   type RollingUpdateResult,
   type RollingUpdateRollbackResult,
-} from "../../deployment/rolling-update";
+  type ShutdownHook,
+  type ShutdownPhase,
+  type ShutdownStatus,
+  validateRequiredEnvVars,
+  type WebhookHandleResult,
+} from "../../deployment";
