@@ -54,6 +54,16 @@ export {
   livenessCheck,
 } from "./health-check";
 export {
+  createDeployRollbackOrchestrator,
+  DeployRollbackOrchestrator,
+  type DeployRollbackOrchestratorOptions,
+  type RollbackGhRunner,
+  type RollbackGitRunner,
+  type RollbackInput,
+  type RollbackResult,
+  type RollbackRunResult,
+} from "./rollback-orchestrator";
+export {
   type DeployArtifact,
   type NodeDeployClient,
   type NodeDeployStatus,
