@@ -1,5 +1,5 @@
 ---
-"@linchkit/core": patch
+"@linchkit/core": minor
 ---
 
 feat(spec-55): RollbackInsightEmitter — surface rollback Insights from failed proposal effects (§7.7 Phase 2 downstream)

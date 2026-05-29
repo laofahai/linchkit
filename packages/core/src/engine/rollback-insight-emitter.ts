@@ -98,7 +98,9 @@ export class RollbackInsightEmitter {
         continue;
       }
 
-      const insight = buildRollbackInsight(id, payload);
+      // The originating Signal always carries a valid `timestamp: Date`; thread
+      // it through as a deterministic fallback for a missing/invalid verifiedAt.
+      const insight = buildRollbackInsight(id, payload, signal.timestamp);
       this.emitted.set(id, insight);
       newInsights.push(insight);
 
@@ -140,8 +142,16 @@ export function rollbackInsightId(proposalId: string): string {
  * - `causality: "causal"` — the verifier measured the metric after the merge,
  *   attributing the failure to the merged change.
  * - `impact: "high"` — a shipped-then-failed change is a high-priority signal.
+ *
+ * `fallbackTimestamp` is the originating Signal's `timestamp` (always a valid
+ * `Date`), used for `createdAt` / evidence timestamp when `verifiedAt` is
+ * missing or unparseable — keeping the result deterministic (no `Date.now()`).
  */
-function buildRollbackInsight(id: string, payload: EffectVerificationPayload): Insight {
+function buildRollbackInsight(
+  id: string,
+  payload: EffectVerificationPayload,
+  fallbackTimestamp: Date,
+): Insight {
   const {
     proposalId,
     capability,
@@ -152,9 +162,17 @@ function buildRollbackInsight(id: string, payload: EffectVerificationPayload): I
     verifiedAt,
   } = payload;
 
-  // Re-shape the verification payload as a SensorSignal-style evidence entry so
-  // it slots into InsightEvidence.signals without widening the type contract.
-  const verifiedDate = new Date(verifiedAt);
+  // Robust date: fall back to the originating Signal's timestamp when verifiedAt
+  // is absent or yields an Invalid Date — never produce an unserializable date.
+  const parsed = verifiedAt === undefined ? Number.NaN : new Date(verifiedAt).getTime();
+  const verifiedDate = Number.isNaN(parsed) ? fallbackTimestamp : new Date(parsed);
+
+  // SensorSignal.value is a required `number`, so a missing measurement cannot
+  // be represented as `undefined`. We fall back to the baseline for `value` but
+  // record `hasMeasurement: false` in context so downstream consumers can tell a
+  // baseline fallback apart from a genuine reading (avoids masking a "no
+  // measurement" state as a real baseline reading).
+  const hasMeasurement = currentValue !== undefined;
   const evidenceSignal: SensorSignal = {
     sensor: "proposal-effect-verifier",
     source: "event_bus",
@@ -163,7 +181,7 @@ function buildRollbackInsight(id: string, payload: EffectVerificationPayload): I
     baseline: baselineValue,
     deviation: 0,
     confidence: ROLLBACK_INSIGHT_CONFIDENCE,
-    context: { proposalId, capability, signalRef, result: payload.result },
+    context: { proposalId, capability, signalRef, result: payload.result, hasMeasurement },
   };
 
   const currentText = currentValue === undefined ? "no measurement" : String(currentValue);

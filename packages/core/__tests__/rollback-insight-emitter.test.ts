@@ -148,6 +148,24 @@ describe("RollbackInsightEmitter", () => {
       // createdAt derives from the signal's verifiedAt, not Date.now()
       expect(insight.createdAt.toISOString()).toBe("2026-01-20T00:00:00.000Z");
     });
+
+    it("falls back to the signal timestamp when verifiedAt is missing or invalid", async () => {
+      const store = makeStore();
+      const signalTs = new Date("2026-03-15T12:00:00Z");
+      // verifiedAt cast to a deliberately invalid value to exercise the fallback.
+      await store.recordSignal(
+        makeFailedSignal({ verifiedAt: "not-a-date" as unknown as string }, signalTs),
+      );
+      const emitter = new RollbackInsightEmitter({ store });
+      const insight = first(await emitter.emitAll());
+
+      // createdAt and the evidence signal timestamp fall back to the signal ts.
+      expect(Number.isNaN(insight.createdAt.getTime())).toBe(false);
+      expect(insight.createdAt.toISOString()).toBe(signalTs.toISOString());
+      const sig = first(insight.evidence.signals);
+      expect(Number.isNaN(sig.timestamp.getTime())).toBe(false);
+      expect(sig.timestamp.toISOString()).toBe(signalTs.toISOString());
+    });
   });
 
   // ── emitAll — skip conditions ──────────────────────────────────────────────
