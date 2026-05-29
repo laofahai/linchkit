@@ -12,7 +12,10 @@ import type {
   PatternFixtureContext,
   PatternFixtureInput,
 } from "@linchkit/devtools";
-import { createPatternDetectorScenario } from "../../eval-runner/pattern-detector-scenario";
+import {
+  coerceEnabledPatterns,
+  createPatternDetectorScenario,
+} from "../../eval-runner/pattern-detector-scenario";
 
 function makeEntry(
   id: string,
@@ -146,6 +149,37 @@ describe("createPatternDetectorScenario.runLive", () => {
     const out = await scenario.runLive(fx);
     // No single currency dominates at 90% confidence
     expect(out.every((p) => p.type !== "default_value")).toBe(true);
+  });
+});
+
+describe("coerceEnabledPatterns", () => {
+  it("returns undefined when patterns is undefined (use detector defaults)", () => {
+    expect(coerceEnabledPatterns(undefined)).toBeUndefined();
+  });
+
+  it("passes through valid PatternType members unchanged", () => {
+    const valid = ["state_flow", "default_value", "repetitive_action"];
+    expect(coerceEnabledPatterns(valid)).toEqual([
+      "state_flow",
+      "default_value",
+      "repetitive_action",
+    ]);
+  });
+
+  it("accepts an empty array (explicitly disables all patterns)", () => {
+    expect(coerceEnabledPatterns([])).toEqual([]);
+  });
+
+  it("throws on an unknown pattern name, listing the offender and valid set", () => {
+    expect(() => coerceEnabledPatterns(["stateflow"])).toThrow(
+      /Unknown pattern type\(s\) in fixture enabledPatterns: stateflow\. Valid: /,
+    );
+  });
+
+  it("lists every offending name when multiple are unknown", () => {
+    expect(() => coerceEnabledPatterns(["state_flow", "bogus", "typo"])).toThrow(
+      /Unknown pattern type\(s\) in fixture enabledPatterns: bogus, typo\./,
+    );
   });
 });
 

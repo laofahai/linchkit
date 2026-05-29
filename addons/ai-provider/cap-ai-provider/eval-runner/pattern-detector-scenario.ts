@@ -48,12 +48,22 @@ function coerceActorType(type: string): ActorType {
 
 /**
  * Narrow the fixture's `enabledPatterns: string[]` to the detector's
- * `PatternType[]`. Unknown names are dropped rather than silently widened,
- * so a typo in a fixture cannot enable an undefined detector branch.
+ * `PatternType[]`. Fail loud on unknown names: a fixture typo (e.g.
+ * `"stateflow"` instead of `"state_flow"`) would otherwise silently drop the
+ * pattern and yield a false-green eval. `undefined` is passed through
+ * unchanged — that path means "use the detector defaults" and is legitimate.
  */
-function coerceEnabledPatterns(patterns: string[] | undefined): PatternType[] | undefined {
+export function coerceEnabledPatterns(patterns: string[] | undefined): PatternType[] | undefined {
   if (!patterns) return undefined;
-  return patterns.filter((p): p is PatternType => (PATTERN_TYPES as readonly string[]).includes(p));
+  const valid = PATTERN_TYPES as readonly string[];
+  const unknown = patterns.filter((p) => !valid.includes(p));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown pattern type(s) in fixture enabledPatterns: ${unknown.join(", ")}. ` +
+        `Valid: ${PATTERN_TYPES.join(", ")}`,
+    );
+  }
+  return patterns as PatternType[];
 }
 
 async function runPatternDetector(
