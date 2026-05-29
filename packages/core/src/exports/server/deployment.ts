@@ -1,16 +1,20 @@
 /**
  * Deployment runtime — health checks, graceful shutdown, environment,
- * deploy webhooks (server-only).
+ * deploy webhooks, blue-green instance switching (server-only).
  */
 
 export {
   type AggregatedHealthStatus,
+  type BlueGreenConfig,
+  BlueGreenDeployer,
   createCacheCheck,
   createDatabaseCheck,
   createEntityCheck,
   createEventBusCheck,
   type DeployArtifact,
   type DeployEvent,
+  type DeployPhase,
+  type DeployResult,
   type DeployWebhookConfig,
   DeployWebhookHandler,
   detectEnvironment,
@@ -24,10 +28,14 @@ export {
   type HealthCheckRegistryOptions,
   type HealthCheckResult,
   type HealthStatus,
+  type HttpFetcher,
   livenessCheck,
+  type NginxReloader,
   type NodeDeployClient,
   type NodeDeployStatus,
   type NodePhase,
+  type ProcessHandle,
+  type ProcessLauncher,
   RollingUpdateCoordinator,
   type RollingUpdateCoordinatorConfig,
   type RollingUpdatePhase,

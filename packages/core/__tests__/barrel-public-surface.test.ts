@@ -184,6 +184,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "ActionRegistry",
   "AlertEngine",
   "BatchValidationError",
+  "BlueGreenDeployer",
   "CACHE_INVALIDATION_CHANNEL",
   "CacheManager",
   "DEFAULT_COMPUTE_TIMEOUT_MS",

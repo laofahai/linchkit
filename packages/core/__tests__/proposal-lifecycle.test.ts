@@ -153,9 +153,9 @@ describe("ProposalEngine.rejectProposal", () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
 
-    await expect(
-      engine.rejectProposal({ proposalId: proposal.id, reason: "no" }),
-    ).rejects.toThrow('expected status "validated"');
+    await expect(engine.rejectProposal({ proposalId: proposal.id, reason: "no" })).rejects.toThrow(
+      'expected status "validated"',
+    );
   });
 });
 
