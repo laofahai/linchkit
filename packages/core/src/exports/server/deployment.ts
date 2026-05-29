@@ -61,6 +61,7 @@ export {
   type RollingUpdatePhase,
   type RollingUpdateResult,
   type RollingUpdateRollbackResult,
+  rollbackInputFromProposal,
   type ShutdownHook,
   type ShutdownPhase,
   type ShutdownStatus,

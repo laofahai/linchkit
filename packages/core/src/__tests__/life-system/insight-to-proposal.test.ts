@@ -369,6 +369,77 @@ describe("rollbackCandidateTranslator", () => {
     // Governance safety is untouched — the translator still emits a draft.
     expect(proposal.status).toBe("draft");
   });
+
+  it("stamps revertSha on the revert change from evidence.context.mergedSha", async () => {
+    // Slice B: the merged commit SHA threaded end-to-end (committer → outcome →
+    // effect-verifier → rollback Insight) lands on the typed revertSha field so a
+    // rollback executor can `git revert` the EXACT commit, not just name the proposal.
+    const sha = "abc1234def5678";
+    const insight = makeRollbackInsight({
+      evidence: {
+        signals: [],
+        context: {
+          proposalId: "proposal_abc",
+          capability: "cap-life-demo",
+          signalRef: "purchase_request:approval_latency",
+          baselineValue: 120,
+          targetValue: 60,
+          currentValue: 180,
+          mergedSha: sha,
+        },
+      },
+    });
+    const proposal = await rollbackCandidateTranslator(insight, {
+      now: () => FROZEN_NOW,
+      idGenerator: () => "proposal_rollback_sha",
+    });
+    if (!proposal) throw new Error("expected proposal");
+
+    const change = proposal.changes[0];
+    if (!change) throw new Error("expected one change");
+    expect(change.revertSha).toBe(sha);
+    // The SHA also surfaces in the human-readable diff for reviewers.
+    expect(change.diff).toContain(sha);
+    // ...and is mirrored on the evidence sidecar for provenance.
+    const sidecar = (proposal as unknown as { evidence: { context: { revertSha?: string } } })
+      .evidence;
+    expect(sidecar.context.revertSha).toBe(sha);
+    // Governance unchanged — stamping a SHA never auto-executes anything.
+    expect(proposal.status).toBe("draft");
+  });
+
+  it("omits revertSha when evidence carries no mergedSha (still a valid draft)", async () => {
+    // The upstream chain may lack a SHA (out-of-band merge / pre-SHA-capture).
+    // The draft must still be produced, just without the optional revertSha.
+    const proposal = await rollbackCandidateTranslator(makeRollbackInsight(), {
+      now: () => FROZEN_NOW,
+      idGenerator: () => "proposal_rollback_no_sha",
+    });
+    if (!proposal) throw new Error("expected proposal");
+
+    const change = proposal.changes[0];
+    if (!change) throw new Error("expected one change");
+    // Absent rather than an empty string, so consumers can branch on undefined.
+    expect(change.revertSha).toBeUndefined();
+    expect("revertSha" in change).toBe(false);
+    expect(proposal.status).toBe("draft");
+  });
+
+  it("ignores a non-string/empty/whitespace mergedSha (no revertSha stamped)", async () => {
+    for (const bad of ["", "   ", 12345, null]) {
+      const insight = makeRollbackInsight({
+        evidence: {
+          signals: [],
+          context: { proposalId: "proposal_abc", capability: "cap-life-demo", mergedSha: bad },
+        },
+      });
+      const proposal = await rollbackCandidateTranslator(insight, {
+        idGenerator: () => "proposal_rollback_bad_sha",
+      });
+      if (!proposal) throw new Error("expected proposal");
+      expect(proposal.changes[0]?.revertSha).toBeUndefined();
+    }
+  });
 });
 
 describe("InsightTranslatorRegistry", () => {

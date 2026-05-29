@@ -58,6 +58,16 @@ export interface ProposalOutcomePayload {
   rejectionReason?: string;
   /** Carried through for Phase 2 ProposalEffectVerifier. */
   successMetric?: ProposalDefinition["successMetric"];
+  /**
+   * Merged commit SHA of the graduated proposal (Spec 55 §7.7 rollback loop).
+   *
+   * Populated for the "merged" outcome from the `commitSha` that
+   * `ProposalGitCommitter.commitAndOpenPR` returns. Threaded forward through the
+   * effect-verification → rollback-insight → translator chain so a rollback
+   * `target:"revert"` change can carry the EXACT commit to `git revert`. Absent
+   * when the merge happened out-of-band or predates SHA capture.
+   */
+  mergedSha?: string;
   /** ISO-8601 — when the outcome was recorded. */
   outcomeAt: string;
   /** ISO-8601 — when the Proposal was originally created. */
@@ -71,6 +81,17 @@ export interface ProposalOutcomeRecorderOptions {
   store: MemoryStore;
   /** Optional structured logger. */
   logger?: Logger;
+}
+
+/** Per-call extras for {@link ProposalOutcomeRecorder.recordOutcome}. */
+export interface RecordOutcomeOptions {
+  /**
+   * Merged commit SHA, supplied for the "merged" outcome from the `commitSha`
+   * that `ProposalGitCommitter.commitAndOpenPR` returns. Threaded onto the
+   * outcome payload so the rollback loop can later revert the exact commit.
+   * Ignored (with a warning) for non-"merged" outcomes.
+   */
+  mergedSha?: string;
 }
 
 // ── ProposalOutcomeRecorder ──────────────────────────────────
@@ -90,9 +111,19 @@ export class ProposalOutcomeRecorder {
    * Writes a Signal of type `proposal.outcome.<outcome>` to the configured
    * store. The signal carries enough context for future Insight generators to
    * compute per-generator acceptance ratios without re-fetching the Proposal.
+   *
+   * For the "merged" outcome, pass `{ mergedSha }` (the `commitSha` returned by
+   * `ProposalGitCommitter.commitAndOpenPR`) so the rollback loop can later
+   * revert the exact commit. A `mergedSha` on a non-"merged" outcome is ignored
+   * with a warning.
    */
-  async recordOutcome(proposal: ProposalDefinition, outcome: ProposalOutcomeType): Promise<void> {
+  async recordOutcome(
+    proposal: ProposalDefinition,
+    outcome: ProposalOutcomeType,
+    options: RecordOutcomeOptions = {},
+  ): Promise<void> {
     const now = new Date();
+    const mergedSha = this.resolveMergedSha(proposal.id, outcome, options.mergedSha);
     const payload: ProposalOutcomePayload = {
       proposalId: proposal.id,
       outcome,
@@ -103,6 +134,7 @@ export class ProposalOutcomeRecorder {
       approvedBy: outcome === "accepted" ? proposal.approvedBy : undefined,
       rejectionReason: outcome === "rejected" ? proposal.rejectionReason : undefined,
       successMetric: proposal.successMetric,
+      mergedSha,
       outcomeAt: now.toISOString(),
       proposalCreatedAt: proposal.createdAt.toISOString(),
     };
@@ -120,6 +152,34 @@ export class ProposalOutcomeRecorder {
       `ProposalOutcomeRecorder: recorded "${outcome}" for proposal "${proposal.id}"`,
       { proposalId: proposal.id, outcome, capability: proposal.capability },
     );
+  }
+
+  /**
+   * Resolve the `mergedSha` to stamp onto the outcome payload.
+   *
+   * - "merged" outcome: returns the supplied SHA verbatim (or `undefined` when
+   *   the caller did not provide one — e.g. an out-of-band merge).
+   * - Any other outcome: a SHA is meaningless, so it is dropped and a warning is
+   *   logged. The SHA only describes a graduated commit, which exists solely for
+   *   the "merged" outcome.
+   */
+  private resolveMergedSha(
+    proposalId: string,
+    outcome: ProposalOutcomeType,
+    mergedSha: string | undefined,
+  ): string | undefined {
+    if (outcome === "merged") {
+      // Trim and drop empty/whitespace-only values so only a real SHA is stored
+      // (and never propagated downstream as a junk revertSha).
+      const trimmed = mergedSha?.trim();
+      return trimmed && trimmed.length > 0 ? trimmed : undefined;
+    }
+    if (mergedSha !== undefined) {
+      this.logger?.warn?.(
+        `ProposalOutcomeRecorder: ignoring mergedSha for non-"merged" outcome "${outcome}" on proposal "${proposalId}"`,
+      );
+    }
+    return undefined;
   }
 
   /**

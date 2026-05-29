@@ -309,6 +309,25 @@ interface RollbackEvidenceContext {
   baselineValue?: unknown;
   targetValue?: unknown;
   currentValue?: unknown;
+  /**
+   * Merged commit SHA of the regressed proposal (Spec 55 §7.7), threaded by
+   * {@link import("../engine/rollback-insight-emitter").RollbackInsightEmitter}
+   * from the effect-verification signal. Optional — absent on out-of-band
+   * merges or proposals that predate SHA capture.
+   */
+  mergedSha?: unknown;
+}
+
+/**
+ * Narrow an `unknown` evidence field to a non-empty string, else `undefined`.
+ * Trims first so a whitespace-only value (e.g. `"   "`) is treated as absent and
+ * the returned SHA never carries surrounding whitespace (which would otherwise
+ * produce a malformed `(commit    )` diff and a junk sidecar value).
+ */
+function nonEmptyStringOrUndefined(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /** Narrow an `unknown` evidence field to a finite number, else `undefined`. */
@@ -343,11 +362,16 @@ function firstNonEmptyString(...candidates: unknown[]): string {
  * so the draft passes Phase-1 validation (a `revert:<proposalId>` name would
  * fail `INVALID_NAME` on the colon/uppercase). The target proposalId is carried
  * out-of-band in the change `diff` and the evidence sidecar's
- * `context.revertProposalId`, so the eventual rollback-execution / SHA-threading
- * follow-up can still resolve which proposal to revert.
+ * `context.revertProposalId`, so a rollback executor can resolve which proposal
+ * to revert.
  *
- * Slice A does NOT thread the merged commit SHA — a separate follow-up resolves
- * the actual SHA at deploy time.
+ * When the rollback Insight evidence carries `context.mergedSha` (threaded from
+ * `ProposalGitCommitter` → outcome → effect-verifier → RollbackInsightEmitter),
+ * that SHA is stamped on the revert change's typed `revertSha` field so
+ * `DeployRollbackOrchestrator` can `git revert` the EXACT commit. The SHA is
+ * OPTIONAL — when absent the draft is still produced and a human reviewer must
+ * supply the SHA before a rollback can execute. Stamping the SHA NEVER triggers
+ * auto-execution: the proposal remains `status: "draft"`.
  *
  * Returns `null` (declines) when the insight is not a tagged anomaly carrying a
  * non-empty `evidence.context.proposalId`. Malformed insights (e.g. an
@@ -387,13 +411,24 @@ export const rollbackCandidateTranslator: InsightTranslator = (insight, ctx) => 
   const baselineValue = numberOrUndefined(context.baselineValue);
   const currentValue = numberOrUndefined(context.currentValue);
 
+  // The merged commit SHA of the regressed proposal, threaded from the
+  // effect-verification signal via the rollback Insight evidence. When present,
+  // it is stamped on the revert change so DeployRollbackOrchestrator can
+  // `git revert` the EXACT commit instead of only naming the proposal.
+  const revertSha = nonEmptyStringOrUndefined(context.mergedSha);
+
   const change: ProposalChange = {
     target: "revert",
     operation: "update",
     // Fixed NAME_PATTERN-valid name; the target proposalId lives in `diff` and
     // the evidence sidecar so the draft can pass Phase-1 validation.
     name: REVERT_CHANGE_NAME,
-    diff: `Roll back merged proposal "${proposalId}" on capability "${capability}".`,
+    diff: revertSha
+      ? `Roll back merged proposal "${proposalId}" (commit ${revertSha}) on capability "${capability}".`
+      : `Roll back merged proposal "${proposalId}" on capability "${capability}".`,
+    // Optional typed slot the rollback executor reads; omitted when the upstream
+    // chain lacked a SHA so the field never carries an empty string.
+    ...(revertSha ? { revertSha } : {}),
   };
 
   // INVERSE successMetric: the rollback succeeds when the metric returns from
@@ -443,6 +478,9 @@ export const rollbackCandidateTranslator: InsightTranslator = (insight, ctx) => 
     revertProposalId: proposalId,
     capability,
     signalRef,
+    // Mirror the SHA on the sidecar so provenance survives even if a consumer
+    // reads the evidence trace rather than the typed change field.
+    revertSha,
   };
   Object.defineProperty(proposal, "evidence", {
     value: { ...evidence, context: traceContext },

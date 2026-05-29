@@ -341,6 +341,35 @@ describe("ProposalEffectVerifier", () => {
       expect(p.rollback_candidate).toBe(true);
       expect(p.proposalId).toBe("prop-xyz-00000001");
     });
+
+    it("threads mergedSha from the merged outcome payload into the record and failed signal", async () => {
+      // Slice B: the merged commit SHA captured at graduation must survive the
+      // outcome → effect-verification hop so it can reach the rollback translator.
+      const store = makeStore();
+      await store.recordSignal(
+        makeMergedSignal({
+          mergedSha: "cafebabe9999",
+          successMetric: {
+            description: "test",
+            baselineValue: 50,
+            targetValue: 80,
+            signalRef: "cap-task",
+          },
+        }),
+      );
+      await store.updateBaseline(makeBaseline("cap-task", "value", 40));
+      const verifier = new ProposalEffectVerifier({ store });
+      const results = await verifier.verifyAll();
+      const record = results[0];
+      if (!record) throw new Error("expected one verification record");
+      expect(record.mergedSha).toBe("cafebabe9999");
+
+      const failedSignals = await store.getSignals({ entity: "proposal:effect:failed" });
+      const failedSignal = failedSignals[0];
+      if (!failedSignal) throw new Error("expected one failed signal");
+      const p = failedSignal.payload as EffectVerificationPayload;
+      expect(p.mergedSha).toBe("cafebabe9999");
+    });
   });
 
   // ── verifyAll — decreasing goals ──────────────────────────────────────────

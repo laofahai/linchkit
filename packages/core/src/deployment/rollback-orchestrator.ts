@@ -20,6 +20,7 @@
  */
 
 import type { Logger } from "../types/logger";
+import type { ProposalDefinition } from "../types/proposal";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -412,4 +413,53 @@ export function createDeployRollbackOrchestrator(
   options: DeployRollbackOrchestratorOptions,
 ): DeployRollbackOrchestrator {
   return new DeployRollbackOrchestrator(options);
+}
+
+// ── Proposal → RollbackInput bridge (Spec 55 §7.7 consumption point) ───────
+
+/**
+ * Resolve the {@link RollbackInput} for a HUMAN-APPROVED rollback Proposal,
+ * reading the merged commit SHA threaded onto its `target:"revert"` change
+ * (`change.revertSha`) by `rollbackCandidateTranslator`.
+ *
+ * This is the explicit CONSUMPTION POINT for the SHA threaded end-to-end
+ * (`ProposalGitCommitter.commitSha` → outcome `mergedSha` → effect-verification
+ * → rollback Insight evidence → revert `change.revertSha`). It is a PURE,
+ * side-effect-free extractor — it does NOT call {@link
+ * DeployRollbackOrchestrator.orchestrate}, touch Git, or auto-execute anything.
+ * A caller deliberately invokes `orchestrate(rollbackInputFromProposal(p))`
+ * only AFTER the rollback Proposal has cleared the human approval gate, keeping
+ * the "AI Never Modifies Production Directly" guarantee intact.
+ *
+ * Returns `null` (declines, never throws) when:
+ *   - the proposal is not yet `status: "approved"` (governance gate not passed);
+ *   - it carries no `target:"revert"` change;
+ *   - that change has no usable `revertSha` (the upstream chain lacked a SHA —
+ *     a human must supply one before a rollback can run).
+ *
+ * @param proposal A rollback Proposal produced by `rollbackCandidateTranslator`.
+ * @param extras Optional passthrough for {@link RollbackInput.titleOverride} /
+ *   {@link RollbackInput.bodyNote}.
+ */
+export function rollbackInputFromProposal(
+  proposal: ProposalDefinition,
+  extras: { titleOverride?: string; bodyNote?: string } = {},
+): RollbackInput | null {
+  // Governance gate: only an approved Proposal may feed a rollback execution.
+  // Defensive against null/malformed input (this is a consumption point that may
+  // receive deserialized/untrusted Proposals): a missing proposal or a
+  // non-array `changes` declines rather than throwing a TypeError.
+  if (!proposal || proposal.status !== "approved" || !Array.isArray(proposal.changes)) {
+    return null;
+  }
+
+  const revertChange = proposal.changes.find((change) => change.target === "revert");
+  const commitSha = revertChange?.revertSha;
+  if (typeof commitSha !== "string" || commitSha.trim().length === 0) return null;
+
+  return {
+    commitSha: commitSha.trim(),
+    titleOverride: extras.titleOverride,
+    bodyNote: extras.bodyNote,
+  };
 }

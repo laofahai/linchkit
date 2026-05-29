@@ -5,7 +5,9 @@ import {
   type RollbackGhRunner,
   type RollbackGitRunner,
   type RollbackRunResult,
+  rollbackInputFromProposal,
 } from "../src/deployment/rollback-orchestrator";
+import type { ProposalDefinition } from "../src/types/proposal";
 
 const REPO_DIR = "/tmp/fake-repo";
 const BASE_SHA = "abc123def4567890abcdef1234567890abcdef12";
@@ -568,5 +570,75 @@ describe("DeployRollbackOrchestrator — custom options", () => {
     const result = await orch.orchestrate({ commitSha: BASE_SHA });
     expect(result.branch).toMatch(/^revert\//);
     expect(result.prUrl).toBe(FAKE_PR_URL);
+  });
+});
+
+// ── rollbackInputFromProposal (Spec 55 §7.7 consumption point) ──────────────
+
+describe("rollbackInputFromProposal", () => {
+  const FIXED_NOW = new Date("2026-05-29T00:00:00.000Z");
+
+  function makeRevertProposal(overrides: Partial<ProposalDefinition> = {}): ProposalDefinition {
+    return {
+      id: "proposal_rollback_1",
+      title: 'Roll back proposal "proposal_abc"',
+      description: "Rollback candidate.",
+      author: { type: "ai", id: "rollback-translator", name: "Rollback Translator" },
+      capability: "cap-life-demo",
+      changeType: "major",
+      changes: [{ target: "revert", operation: "update", name: "revert", revertSha: BASE_SHA }],
+      impact: {
+        schemasAffected: [],
+        actionsAffected: [],
+        rulesAffected: [],
+        dependentsAffected: ["cap-life-demo"],
+        migrationRequired: false,
+      },
+      status: "approved",
+      createdAt: FIXED_NOW,
+      updatedAt: FIXED_NOW,
+      ...overrides,
+    };
+  }
+
+  it("extracts a RollbackInput from an approved revert proposal carrying revertSha", () => {
+    const input = rollbackInputFromProposal(makeRevertProposal());
+    expect(input).not.toBeNull();
+    expect(input?.commitSha).toBe(BASE_SHA);
+  });
+
+  it("threads optional title/body extras through", () => {
+    const input = rollbackInputFromProposal(makeRevertProposal(), {
+      titleOverride: "manual rollback",
+      bodyNote: "approved by ops",
+    });
+    expect(input?.titleOverride).toBe("manual rollback");
+    expect(input?.bodyNote).toBe("approved by ops");
+  });
+
+  it("declines (null) when the proposal is not approved — governance gate", () => {
+    // The whole point of Slice B: a draft must NEVER feed an execution.
+    expect(rollbackInputFromProposal(makeRevertProposal({ status: "draft" }))).toBeNull();
+    expect(rollbackInputFromProposal(makeRevertProposal({ status: "validated" }))).toBeNull();
+  });
+
+  it("declines (null) when the revert change has no revertSha", () => {
+    const noSha = makeRevertProposal({
+      changes: [{ target: "revert", operation: "update", name: "revert" }],
+    });
+    expect(rollbackInputFromProposal(noSha)).toBeNull();
+  });
+
+  it("declines (null) when there is no revert change", () => {
+    const noRevert = makeRevertProposal({
+      changes: [{ target: "view", operation: "create", name: "x" }],
+    });
+    expect(rollbackInputFromProposal(noRevert)).toBeNull();
+  });
+
+  it("does not throw on a proposal with empty changes", () => {
+    const empty = makeRevertProposal({ changes: [] });
+    expect(() => rollbackInputFromProposal(empty)).not.toThrow();
+    expect(rollbackInputFromProposal(empty)).toBeNull();
   });
 });

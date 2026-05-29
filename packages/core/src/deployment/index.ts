@@ -77,6 +77,7 @@ export {
   type RollbackInput,
   type RollbackResult,
   type RollbackRunResult,
+  rollbackInputFromProposal,
 } from "./rollback-orchestrator";
 export {
   type DeployArtifact,
