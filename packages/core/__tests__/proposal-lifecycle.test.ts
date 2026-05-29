@@ -140,16 +140,13 @@ describe("ProposalEngine.rejectProposal", () => {
     const proposal = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: proposal.id });
 
-    const result = engine.rejectProposal({
+    const result = await engine.rejectProposal({
       proposalId: proposal.id,
       reason: "Not needed right now",
     });
 
-    // rejectProposal returns void; re-read to verify state transition
-    await expect(result).resolves.toBeUndefined();
-    const rejected = engine.getProposal(proposal.id);
-    expect(rejected.status).toBe("rejected");
-    expect(rejected.rejectionReason).toBe("Not needed right now");
+    expect(result.status).toBe("rejected");
+    expect(result.rejectionReason).toBe("Not needed right now");
   });
 
   it("throws when rejecting a non-validated proposal", async () => {
@@ -472,12 +469,12 @@ describe("Full proposal lifecycle", () => {
     expect(engine.getProposal(proposal.id).status).toBe("deployed");
   });
 
-  it("draft → validated → rejected", () => {
+  it("draft → validated → rejected", async () => {
     const engine = createTestEngine();
 
     const proposal = engine.createProposal(baseProposalOptions);
     engine.submitProposal({ proposalId: proposal.id });
-    engine.rejectProposal({
+    await engine.rejectProposal({
       proposalId: proposal.id,
       reason: "Too many changes at once",
     });
