@@ -340,6 +340,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "registerDoctorCheck",
   "resetObservability",
   "resolveAutoInstall",
+  "resolveDependencies",
   "resolveConditionVariables",
   "resolveDataAccess",
   "resolveFieldMasking",

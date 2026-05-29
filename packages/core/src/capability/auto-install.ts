@@ -35,3 +35,65 @@ export function resolveAutoInstall(
 
   return [...explicit, ...activated];
 }
+
+/**
+ * Resolve transitive hard dependencies for an explicit capability set.
+ *
+ * When capabilities are explicitly activated (e.g. from linchkit.config.ts
+ * or a starter pack), this function walks their `dependencies` arrays and
+ * pulls matching capabilities from the `available` pool into the active set,
+ * repeating until the set stabilises (fixed-point / BFS).
+ *
+ * This is the "push" complement to `resolveAutoInstall` (which is "pull"):
+ * - resolveAutoInstall: auto-install me when my deps appear in the active set
+ * - resolveDependencies: when I am explicitly installed, also pull in my deps
+ *
+ * Missing dependencies (names not found in `available`) are silently skipped —
+ * runtime validation is responsible for surfacing those as hard errors.
+ *
+ * Recommended call sequence in startup:
+ * ```
+ * const discovered  = await scanAddonsPath(config.addons_path ?? []);
+ * const withDeps    = resolveDependencies(config.capabilities ?? [], discovered);
+ * const activeCaps  = resolveAutoInstall(withDeps, discovered);
+ * ```
+ *
+ * @param explicit  - Capabilities explicitly requested (e.g. from config)
+ * @param available - Pool of all capabilities that can satisfy dependencies
+ * @returns Deduplicated list: explicit + all transitively reachable hard deps
+ */
+export function resolveDependencies(
+  explicit: CapabilityDefinition[],
+  available: CapabilityDefinition[],
+): CapabilityDefinition[] {
+  // Build lookup: explicit caps can also satisfy each other's deps.
+  // If the same name appears in both, the explicit version wins.
+  const byName = new Map<string, CapabilityDefinition>();
+  for (const cap of available) {
+    byName.set(cap.name, cap);
+  }
+  for (const cap of explicit) {
+    byName.set(cap.name, cap);
+  }
+
+  const active = new Set(explicit.map((c) => c.name));
+  const result = [...explicit];
+  const queue = [...explicit];
+
+  while (queue.length > 0) {
+    // biome-ignore lint/style/noNonNullAssertion: queue is non-empty by loop guard
+    const cap = queue.shift()!;
+    for (const depName of cap.dependencies ?? []) {
+      if (active.has(depName)) continue;
+      const dep = byName.get(depName);
+      if (dep) {
+        active.add(depName);
+        result.push(dep);
+        queue.push(dep);
+      }
+      // Missing dep: silently skip; validation will catch it later
+    }
+  }
+
+  return result;
+}
