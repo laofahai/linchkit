@@ -154,76 +154,68 @@ export class InMemoryAITraceStore implements AITraceSink {
   }
 
   query(options?: AITraceQueryOptions): AIGeneration[] {
-    let results = [...this.generations];
+    // Single backwards pass over the generation buffer (insertion-ordered):
+    // iterating from the tail yields most-recent-first directly, applies every
+    // filter per element, and early-terminates once `limit` matches are
+    // collected — avoiding repeated full-array `.filter()` passes over up to
+    // `maxGenerations` (50k default) records. Filter semantics are identical to
+    // the previous reverse-then-slice implementation: strict `>`/`<` time
+    // bounds and most-recent-first order.
+    const limit = options?.limit;
+    // A negative `limit` previously skipped the slice entirely (no cap); only a
+    // non-negative integer caps the result set. `limit === 0` ⇒ empty.
+    const hasLimit = limit !== undefined && limit >= 0;
+    if (hasLimit && limit === 0) return [];
 
-    if (options?.traceId) {
-      results = results.filter((g) => g.traceId === options.traceId);
-    }
-    if (options?.model) {
-      results = results.filter((g) => g.model === options.model);
-    }
-    if (options?.status) {
-      results = results.filter((g) => g.status === options.status);
-    }
-    if (options?.tenantId) {
-      results = results.filter((g) => this.traces.get(g.traceId)?.tenantId === options.tenantId);
-    }
-    if (options?.scenario) {
-      results = results.filter((g) => this.traces.get(g.traceId)?.scenario === options.scenario);
-    }
-    if (options?.origin) {
-      results = results.filter((g) => this.traces.get(g.traceId)?.origin === options.origin);
-    }
-    if (options?.after !== undefined) {
-      const after = options.after;
-      results = results.filter((g) => g.startedAt > after);
-    }
-    if (options?.before !== undefined) {
-      const before = options.before;
-      results = results.filter((g) => g.startedAt < before);
-    }
-
-    results.reverse(); // most recent first
-
-    if (options?.limit !== undefined && options.limit >= 0) {
-      results = results.slice(0, options.limit);
+    const results: AIGeneration[] = [];
+    for (let i = this.generations.length - 1; i >= 0; i--) {
+      const g = this.generations[i];
+      if (g === undefined) continue;
+      if (options?.traceId && g.traceId !== options.traceId) continue;
+      if (options?.model && g.model !== options.model) continue;
+      if (options?.status && g.status !== options.status) continue;
+      if (options?.after !== undefined && !(g.startedAt > options.after)) continue;
+      if (options?.before !== undefined && !(g.startedAt < options.before)) continue;
+      // Tenant / scenario / origin live on the parent trace; resolve lazily and
+      // only when those filters are set so the common path skips the map lookup.
+      if (options?.tenantId || options?.scenario || options?.origin) {
+        const trace = this.traces.get(g.traceId);
+        if (options?.tenantId && trace?.tenantId !== options.tenantId) continue;
+        if (options?.scenario && trace?.scenario !== options.scenario) continue;
+        if (options?.origin && trace?.origin !== options.origin) continue;
+      }
+      results.push(g);
+      if (hasLimit && results.length >= limit) break;
     }
     return results;
   }
 
   queryTraces(options?: AITraceQueryOptions): AITrace[] {
-    let results = this.traceOrder
-      .map((id) => this.traces.get(id))
-      .filter((t): t is AITrace => t !== undefined);
+    // Single backwards pass over `traceOrder` (insertion-ordered): yields
+    // most-recent-first directly, applies every filter per element, and
+    // early-terminates once `limit` matches are collected — avoiding repeated
+    // full-array `.filter()` passes. Filter semantics are identical to the
+    // previous reverse-then-slice implementation: strict `>`/`<` time bounds
+    // and most-recent-first order.
+    const limit = options?.limit;
+    const hasLimit = limit !== undefined && limit >= 0;
+    if (hasLimit && limit === 0) return [];
 
-    if (options?.traceId) {
-      results = results.filter((t) => t.traceId === options.traceId);
-    }
-    if (options?.tenantId) {
-      results = results.filter((t) => t.tenantId === options.tenantId);
-    }
-    if (options?.scenario) {
-      results = results.filter((t) => t.scenario === options.scenario);
-    }
-    if (options?.origin) {
-      results = results.filter((t) => t.origin === options.origin);
-    }
-    if (options?.status) {
-      results = results.filter((t) => t.status === options.status);
-    }
-    if (options?.after !== undefined) {
-      const after = options.after;
-      results = results.filter((t) => t.startedAt > after);
-    }
-    if (options?.before !== undefined) {
-      const before = options.before;
-      results = results.filter((t) => t.startedAt < before);
-    }
-
-    results.reverse(); // most recent first
-
-    if (options?.limit !== undefined && options.limit >= 0) {
-      results = results.slice(0, options.limit);
+    const results: AITrace[] = [];
+    for (let i = this.traceOrder.length - 1; i >= 0; i--) {
+      const id = this.traceOrder[i];
+      if (id === undefined) continue;
+      const t = this.traces.get(id);
+      if (t === undefined) continue;
+      if (options?.traceId && t.traceId !== options.traceId) continue;
+      if (options?.tenantId && t.tenantId !== options.tenantId) continue;
+      if (options?.scenario && t.scenario !== options.scenario) continue;
+      if (options?.origin && t.origin !== options.origin) continue;
+      if (options?.status && t.status !== options.status) continue;
+      if (options?.after !== undefined && !(t.startedAt > options.after)) continue;
+      if (options?.before !== undefined && !(t.startedAt < options.before)) continue;
+      results.push(t);
+      if (hasLimit && results.length >= limit) break;
     }
     return results;
   }

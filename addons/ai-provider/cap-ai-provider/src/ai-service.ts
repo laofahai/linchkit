@@ -31,7 +31,7 @@ import type {
   AIToolCall,
   AITraceSamplingConfig,
 } from "@linchkit/core";
-import { openParentTrace, recordGeneration, recordSuccess } from "./ai-tracing";
+import { fallbackTraceId, openParentTrace, recordGeneration, recordSuccess } from "./ai-tracing";
 import { CostEstimator } from "./cost-estimator";
 import { AIResponseCache } from "./response-cache";
 
@@ -540,7 +540,9 @@ async function executeCompletion(
     }
   }
 
-  const traceId = trace?.traceId ?? resolved.modelId;
+  // Fall back to a FRESH unique id per call (never the model name) so untraced
+  // calls stay isolated instead of all collapsing under one static traceId.
+  const traceId = trace?.traceId ?? fallbackTraceId();
 
   try {
     // Get provider language model
@@ -758,7 +760,9 @@ async function executeStream(
   // best-effort PARTIAL generation at stream open so the trace is not lost;
   // token-accurate streaming accounting is deferred to a later PR. Non-throwing.
   recordGeneration({
-    traceId: resolvedOptions.trace?.traceId ?? resolved.modelId,
+    // Fall back to a FRESH unique id per call (never the model name) so
+    // untraced streams stay isolated instead of all sharing one static traceId.
+    traceId: resolvedOptions.trace?.traceId ?? fallbackTraceId(),
     context: resolvedOptions.trace,
     model: resolved.modelId,
     provider: resolved.provider,

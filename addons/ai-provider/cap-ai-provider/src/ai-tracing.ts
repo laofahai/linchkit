@@ -40,11 +40,15 @@ const TRACE_SPAN_NAME = "linchkit.ai.generation";
 const MAX_ERROR_LENGTH = 2_000;
 
 /**
- * Mint a trace id, guarding against an environment where `crypto.randomUUID`
- * is unavailable (or itself throws). Used for the inert fallback handle so even
- * the id-generation step in the non-throwing wrappers can never escape.
+ * Mint a FRESH, unique trace id, guarding against an environment where
+ * `crypto.randomUUID` is unavailable (or itself throws). Used for the inert
+ * fallback handle so even the id-generation step in the non-throwing wrappers
+ * can never escape, AND as the per-call `traceId` fallback in `ai-service.ts`
+ * when no caller-supplied / ambient trace id exists — minting a unique id per
+ * call keeps untraced calls isolated instead of collapsing every call for a
+ * model under one static id (which would corrupt trace isolation + rollups).
  */
-function fallbackTraceId(): string {
+export function fallbackTraceId(): string {
   try {
     if (typeof crypto !== "undefined" && crypto.randomUUID) {
       return crypto.randomUUID();

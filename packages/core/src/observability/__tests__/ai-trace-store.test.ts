@@ -87,6 +87,39 @@ describe("InMemoryAITraceStore — record & query", () => {
     expect(limited.map((g) => g.model)).toEqual(["m-c", "m-b"]);
   });
 
+  it("limit early-termination returns the same items as full-scan-then-slice (FINDING 3/4)", () => {
+    // The single-pass backwards iteration with early break must return EXACTLY
+    // the prefix that the old reverse-then-slice produced: most-recent-first,
+    // capped at `limit`, with all filters still applied.
+    const store = new InMemoryAITraceStore();
+    // Two tenants interleaved so the filtered + limited result is a non-trivial
+    // subset rather than just the tail of the buffer.
+    store.startTrace({ traceId: "ta", name: "a", tenantId: "tenant-a" });
+    store.startTrace({ traceId: "tb", name: "b", tenantId: "tenant-b" });
+    for (let i = 0; i < 10; i++) {
+      const traceId = i % 2 === 0 ? "ta" : "tb";
+      store.recordGeneration(baseGen({ traceId, model: `m${i}` }));
+    }
+
+    // Reference: full unlimited result, then slice — what the old code did.
+    const fullA = store.query({ tenantId: "tenant-a" });
+    const referenceTop2 = fullA.slice(0, 2);
+    const earlyTerminated = store.query({ tenantId: "tenant-a", limit: 2 });
+    expect(earlyTerminated.map((g) => g.model)).toEqual(referenceTop2.map((g) => g.model));
+    // Newest tenant-a generations first (m8 was recorded after m6, …).
+    expect(earlyTerminated.map((g) => g.model)).toEqual(["m8", "m6"]);
+
+    // Same equivalence for queryTraces.
+    const fullTraces = store.queryTraces();
+    const referenceTrace1 = fullTraces.slice(0, 1);
+    const earlyTraces = store.queryTraces({ limit: 1 });
+    expect(earlyTraces.map((t) => t.traceId)).toEqual(referenceTrace1.map((t) => t.traceId));
+
+    // limit 0 ⇒ empty; negative limit ⇒ uncapped (matches old slice guard).
+    expect(store.query({ limit: 0 })).toHaveLength(0);
+    expect(store.query({ limit: -1 })).toHaveLength(store.query().length);
+  });
+
   it("filters by model, status, and traceId", () => {
     const store = new InMemoryAITraceStore();
     store.recordGeneration(baseGen({ traceId: "x", model: "gpt-4o" }));
