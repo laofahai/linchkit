@@ -107,11 +107,24 @@ export class ProposalEffectVerifier {
 
     for (const signal of mergedSignals) {
       const payload = signal.payload as ProposalOutcomePayload | null;
-      const signalRef = payload?.successMetric?.signalRef;
-      if (!payload || !signalRef) {
+      const successMetric = payload?.successMetric;
+      const signalRef = successMetric?.signalRef;
+      // Need a signalRef plus numeric baseline/target to compute progress.
+      if (
+        !payload ||
+        !successMetric ||
+        !signalRef ||
+        successMetric.baselineValue === undefined ||
+        successMetric.targetValue === undefined
+      ) {
         continue;
       }
-      results.push(await this.verifySingle(payload, signalRef, payload.successMetric));
+      results.push(
+        await this.verifySingle(payload, signalRef, {
+          baselineValue: successMetric.baselineValue,
+          targetValue: successMetric.targetValue,
+        }),
+      );
     }
 
     return results;
@@ -120,7 +133,7 @@ export class ProposalEffectVerifier {
   private async verifySingle(
     payload: ProposalOutcomePayload,
     signalRef: string,
-    successMetric: NonNullable<ProposalOutcomePayload["successMetric"]>,
+    successMetric: { baselineValue: number; targetValue: number },
   ): Promise<EffectVerificationRecord> {
     const { baselineValue, targetValue } = successMetric;
 

@@ -150,25 +150,26 @@ export interface ProposalGenerator {
   validate(proposal: ProposalDefinition): Promise<ProposalValidationResult>;
 }
 
-// ── Success metric ───────────────────────────────────────
+// ── Success metric (Spec 55 §7.7) ───────────────────────
 
 /**
- * Optional success criterion attached to a Proposal (Spec 55 §7.7).
+ * Optional success metric attached to a Proposal (Spec 55 §7.7).
  *
- * Specifies what "working" looks like after the Proposal is applied so the
- * `ProposalEffectVerifier` (Phase 2) can compare the baseline measured before
- * the change against the observed value after the change.
+ * Consumed by Phase 2 `ProposalEffectVerifier` to determine whether the
+ * change achieved its intended outcome after merging.
  */
-export interface ProposalSuccessMetric {
+export interface SuccessMetric {
   /** Human-readable description of what success looks like. */
   description: string;
-  /** Reference to the Insight or signal that establishes the baseline. */
+  /** ID of the Insight that motivated this Proposal (for outcome correlation). */
+  insightRef?: string;
+  /** Signal type name used to measure the outcome (e.g. "action_failure_rate"). */
   signalRef?: string;
-  /** Numeric baseline value measured before the Proposal was applied. */
-  baseline?: number;
-  /** Target numeric value that constitutes success. */
-  target?: number;
-  /** Unit of measurement for `baseline` / `target` (e.g. "%", "count"). */
+  /** Value of the metric before the change was applied. */
+  baselineValue?: number;
+  /** Target value the metric should reach after the change. */
+  targetValue?: number;
+  /** Unit of measurement (e.g. "ms", "%", "count"). */
   unit?: string;
 }
 
@@ -223,9 +224,9 @@ export interface ProposalDefinition {
   persistenceError?: string;
 
   /**
-   * Optional success criterion for this Proposal (Spec 55 §7.7).
-   * When set, `ProposalEffectVerifier` (Phase 2) can measure whether the
-   * change achieved its intended effect after it merges.
+   * Optional success metric for Phase 2 effect verification (Spec 55 §7.7).
+   * When set, `ProposalEffectVerifier` will measure the metric after the
+   * change merges to determine whether the outcome was achieved.
    */
-  successMetric?: ProposalSuccessMetric;
+  successMetric?: SuccessMetric;
 }
