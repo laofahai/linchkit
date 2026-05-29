@@ -412,8 +412,14 @@ export function recordSuccess(params: {
 
 let warnedOnce = false;
 
-/** Log a tracing failure once per process at warn level, then go quiet. */
-function logTracingError(stage: string, err: unknown): void {
+/**
+ * Log a tracing failure once per process at warn level, then go quiet.
+ *
+ * Exported so other tracing call sites (e.g. the streaming finish-hook in
+ * `ai-service.ts`) share the SAME once-only latch — a single noisy stage must
+ * not let a sibling stage re-arm the warning.
+ */
+export function logTracingError(stage: string, err: unknown): void {
   if (warnedOnce) return;
   warnedOnce = true;
   const message = err instanceof Error ? err.message : String(err);
