@@ -337,9 +337,12 @@ describe("createIntentScenario.replayFromBaseline", () => {
     };
   }
 
-  it("returns the recorded entry by fixture id on the happy path", () => {
+  it("returns the recorded entry by fixture id on the happy path", async () => {
     const fx = recordedFixture();
-    const out = scenario.replayFromBaseline(fx, baselineFor(fx));
+    // `replayFromBaseline` is typed `Promise<TOutput>` by the ScenarioAdapter
+    // contract; the intent adapter happens to resolve synchronously. `await`
+    // narrows the union so the recorded fields can be asserted directly.
+    const out = await scenario.replayFromBaseline(fx, baselineFor(fx));
     expect(out.action).toBe("create_purchase_request");
     expect(out.explanation).toBe("replayed");
   });

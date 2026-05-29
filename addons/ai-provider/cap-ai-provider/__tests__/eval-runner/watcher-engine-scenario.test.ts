@@ -231,7 +231,7 @@ describe("createWatcherEngineScenario.replayFromBaseline", () => {
       ],
     });
     const live = await scenario.runLive(fx);
-    const replayed = await scenario.replayFromBaseline(fx, undefined);
+    const replayed = await scenario.replayFromBaseline(fx, null);
     expect(replayed).toEqual(live);
   });
 });

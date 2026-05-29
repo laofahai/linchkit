@@ -165,7 +165,7 @@ describe("createPatternDetectorScenario.replayFromBaseline", () => {
       config: { minOccurrences: 5, minConfidence: 0.7 },
     });
     const live = await scenario.runLive(fx);
-    const replayed = await scenario.replayFromBaseline(fx, undefined);
+    const replayed = await scenario.replayFromBaseline(fx, null);
     // PatternDetector uses Date.now() for insight IDs, so IDs differ across calls.
     // Verify structural equivalence (same types, entities, confidence) instead.
     const strip = (items: typeof live) => items.map(({ id: _, ...rest }) => rest);

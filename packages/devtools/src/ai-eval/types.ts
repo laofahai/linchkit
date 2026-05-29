@@ -310,6 +310,19 @@ export interface PatternExecLogInput {
   tenantId?: string;
   timestamp: string;
   actor: { id: string; type: string };
+  /**
+   * Record this entry mutated. Required (alongside `stateTransition`) for the
+   * detector's `state_flow` analysis, which groups transitions by
+   * `entity::recordId` to reconstruct per-record state paths. Optional so
+   * non-state-flow fixtures stay valid.
+   */
+  recordId?: string;
+  /**
+   * The state change this entry performed (`from` → `to`). The detector reads
+   * this top-level field directly — see `PatternDetector.detectStateFlowPatterns`
+   * in `@linchkit/cap-ai-provider`. Optional so non-state-flow fixtures stay valid.
+   */
+  stateTransition?: { from: string; to: string };
 }
 
 /** Input shape for pattern-detector eval fixtures. */

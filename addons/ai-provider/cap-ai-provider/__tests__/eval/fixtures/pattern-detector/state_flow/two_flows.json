@@ -11,10 +11,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "approved", "recordId": "req-001" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-20T08:00:00Z",
-        "actor": { "id": "user-alice", "type": "user" }
+        "actor": {
+          "id": "user-alice",
+          "type": "user"
+        },
+        "recordId": "req-001",
+        "stateTransition": {
+          "from": "draft",
+          "to": "approved"
+        }
       },
       {
         "id": "e-sf5-2",
@@ -22,10 +30,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "approved", "recordId": "req-002" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-20T12:00:00Z",
-        "actor": { "id": "user-alice", "type": "user" }
+        "actor": {
+          "id": "user-alice",
+          "type": "user"
+        },
+        "recordId": "req-002",
+        "stateTransition": {
+          "from": "draft",
+          "to": "approved"
+        }
       },
       {
         "id": "e-sf5-3",
@@ -33,10 +49,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "approved", "recordId": "req-003" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-21T09:00:00Z",
-        "actor": { "id": "user-bob", "type": "user" }
+        "actor": {
+          "id": "user-bob",
+          "type": "user"
+        },
+        "recordId": "req-003",
+        "stateTransition": {
+          "from": "draft",
+          "to": "approved"
+        }
       },
       {
         "id": "e-sf5-4",
@@ -44,10 +68,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "approved", "recordId": "req-004" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-22T10:00:00Z",
-        "actor": { "id": "user-carol", "type": "user" }
+        "actor": {
+          "id": "user-carol",
+          "type": "user"
+        },
+        "recordId": "req-004",
+        "stateTransition": {
+          "from": "draft",
+          "to": "approved"
+        }
       },
       {
         "id": "e-sf5-5",
@@ -55,10 +87,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "approved", "recordId": "req-005" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-23T09:00:00Z",
-        "actor": { "id": "user-alice", "type": "user" }
+        "actor": {
+          "id": "user-alice",
+          "type": "user"
+        },
+        "recordId": "req-005",
+        "stateTransition": {
+          "from": "draft",
+          "to": "approved"
+        }
       },
       {
         "id": "e-sf5-6",
@@ -66,10 +106,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "rejected", "recordId": "req-011" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-20T09:00:00Z",
-        "actor": { "id": "user-dave", "type": "user" }
+        "actor": {
+          "id": "user-dave",
+          "type": "user"
+        },
+        "recordId": "req-011",
+        "stateTransition": {
+          "from": "draft",
+          "to": "rejected"
+        }
       },
       {
         "id": "e-sf5-7",
@@ -77,10 +125,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "rejected", "recordId": "req-012" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-21T08:00:00Z",
-        "actor": { "id": "user-dave", "type": "user" }
+        "actor": {
+          "id": "user-dave",
+          "type": "user"
+        },
+        "recordId": "req-012",
+        "stateTransition": {
+          "from": "draft",
+          "to": "rejected"
+        }
       },
       {
         "id": "e-sf5-8",
@@ -88,10 +144,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "rejected", "recordId": "req-013" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-21T14:00:00Z",
-        "actor": { "id": "user-eve", "type": "user" }
+        "actor": {
+          "id": "user-eve",
+          "type": "user"
+        },
+        "recordId": "req-013",
+        "stateTransition": {
+          "from": "draft",
+          "to": "rejected"
+        }
       },
       {
         "id": "e-sf5-9",
@@ -99,10 +163,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "rejected", "recordId": "req-014" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-22T09:00:00Z",
-        "actor": { "id": "user-dave", "type": "user" }
+        "actor": {
+          "id": "user-dave",
+          "type": "user"
+        },
+        "recordId": "req-014",
+        "stateTransition": {
+          "from": "draft",
+          "to": "rejected"
+        }
       },
       {
         "id": "e-sf5-10",
@@ -110,10 +182,18 @@
         "entity": "request",
         "capability": "cap-request",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "rejected", "recordId": "req-015" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-23T10:00:00Z",
-        "actor": { "id": "user-eve", "type": "user" }
+        "actor": {
+          "id": "user-eve",
+          "type": "user"
+        },
+        "recordId": "req-015",
+        "stateTransition": {
+          "from": "draft",
+          "to": "rejected"
+        }
       }
     ],
     "config": {
@@ -121,11 +201,23 @@
       "minConfidence": 0.7
     }
   },
-  "context": { "now": "2026-05-24T10:00:00Z" },
+  "context": {
+    "now": "2026-05-24T10:00:00Z"
+  },
   "expected": {
     "matchers": [
-      { "name": "pattern_count_min", "args": { "value": 2 } },
-      { "name": "pattern_type_includes", "args": { "value": "state_flow" } }
+      {
+        "name": "pattern_count_min",
+        "args": {
+          "value": 2
+        }
+      },
+      {
+        "name": "pattern_type_includes",
+        "args": {
+          "value": "state_flow"
+        }
+      }
     ]
   }
 }

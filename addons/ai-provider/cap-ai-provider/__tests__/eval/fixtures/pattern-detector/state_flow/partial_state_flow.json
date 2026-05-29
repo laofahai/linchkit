@@ -11,10 +11,18 @@
         "entity": "order",
         "capability": "cap-order",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-101" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-21T08:00:00Z",
-        "actor": { "id": "user-alice", "type": "user" }
+        "actor": {
+          "id": "user-alice",
+          "type": "user"
+        },
+        "recordId": "ord-101",
+        "stateTransition": {
+          "from": "draft",
+          "to": "submitted"
+        }
       },
       {
         "id": "e-sf3-2",
@@ -22,10 +30,18 @@
         "entity": "order",
         "capability": "cap-order",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-102" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-21T14:00:00Z",
-        "actor": { "id": "user-bob", "type": "user" }
+        "actor": {
+          "id": "user-bob",
+          "type": "user"
+        },
+        "recordId": "ord-102",
+        "stateTransition": {
+          "from": "draft",
+          "to": "submitted"
+        }
       },
       {
         "id": "e-sf3-3",
@@ -33,10 +49,18 @@
         "entity": "order",
         "capability": "cap-order",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-103" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-22T09:00:00Z",
-        "actor": { "id": "user-carol", "type": "user" }
+        "actor": {
+          "id": "user-carol",
+          "type": "user"
+        },
+        "recordId": "ord-103",
+        "stateTransition": {
+          "from": "draft",
+          "to": "submitted"
+        }
       },
       {
         "id": "e-sf3-4",
@@ -44,10 +68,18 @@
         "entity": "order",
         "capability": "cap-order",
         "status": "succeeded",
-        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-104" },
+        "input": {},
         "tenantId": "tenant-1",
         "timestamp": "2026-05-23T10:00:00Z",
-        "actor": { "id": "user-alice", "type": "user" }
+        "actor": {
+          "id": "user-alice",
+          "type": "user"
+        },
+        "recordId": "ord-104",
+        "stateTransition": {
+          "from": "draft",
+          "to": "submitted"
+        }
       }
     ],
     "config": {
@@ -55,11 +87,23 @@
       "minConfidence": 0.7
     }
   },
-  "context": { "now": "2026-05-24T10:00:00Z" },
+  "context": {
+    "now": "2026-05-24T10:00:00Z"
+  },
   "expected": {
     "matchers": [
-      { "name": "pattern_count", "args": { "value": 0 } },
-      { "name": "pattern_type_absent", "args": { "value": "state_flow" } }
+      {
+        "name": "pattern_count",
+        "args": {
+          "value": 0
+        }
+      },
+      {
+        "name": "pattern_type_absent",
+        "args": {
+          "value": "state_flow"
+        }
+      }
     ]
   }
 }
