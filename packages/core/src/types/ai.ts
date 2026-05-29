@@ -9,6 +9,7 @@
  */
 
 import type { ZodSchema } from "zod";
+import type { AITraceContext } from "../observability/ai-trace";
 
 // ── Provider configuration ──────────────────────────────────
 
@@ -180,6 +181,13 @@ export interface AICompletionOptions {
   tenantId?: string;
   /** Whether to use response cache (default: follows global cache config) */
   cache?: boolean;
+  /**
+   * Optional tracing context (Spec 69 Phase 3). When supplied, the provider
+   * wrapper stamps the recorded generation with this scenario / fixture /
+   * eval-run provenance and groups it under the given trace. Non-breaking —
+   * omit it and tracing falls back to the ambient `getCurrentTrace()`.
+   */
+  trace?: AITraceContext;
 }
 
 // ── Completion result ───────────────────────────────────────

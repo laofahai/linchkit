@@ -3,6 +3,39 @@
  * execution logger, metrics, trace context, tracer (server-only).
  */
 
+export type {
+  AIGeneration,
+  AITrace,
+  AITraceContext,
+  AITraceMessage,
+  AITraceOrigin,
+  AITraceQueryOptions,
+  AITraceSamplingConfig,
+  AITraceSink,
+  AITraceStatus,
+  EndTraceParams,
+  RecordGenerationParams,
+  RedactionMode,
+  RedactionPolicy,
+  StartTraceParams,
+} from "../../observability/ai-trace";
+export {
+  DEFAULT_SAMPLING,
+  defaultRedactionFor,
+  EVAL_REDACTION,
+  PRODUCTION_REDACTION,
+  redactContent,
+  redactPromptMessages,
+  shouldSample,
+} from "../../observability/ai-trace";
+export {
+  getAITraceSink,
+  InMemoryAITraceStore,
+  NoopAITraceSink,
+  noopAITraceSink,
+  resetAITraceSink,
+  setAITraceSink,
+} from "../../observability/ai-trace-store";
 export {
   type AlertCondition,
   type AlertEffect,

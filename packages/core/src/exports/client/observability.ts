@@ -5,6 +5,22 @@
  */
 
 export type {
+  AIGeneration,
+  AITrace,
+  AITraceContext,
+  AITraceMessage,
+  AITraceOrigin,
+  AITraceQueryOptions,
+  AITraceSamplingConfig,
+  AITraceSink,
+  AITraceStatus,
+  EndTraceParams,
+  RecordGenerationParams,
+  RedactionMode,
+  RedactionPolicy,
+  StartTraceParams,
+} from "../../observability/ai-trace";
+export type {
   AlertCondition,
   AlertEffect,
   AlertEvaluationResult,

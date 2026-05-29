@@ -20,7 +20,7 @@
  * user confirms, CommandLayer executes (Spec 52 §1.1).
  */
 
-import type { ActionDefinition, AIService } from "@linchkit/core";
+import type { ActionDefinition, AIService, AITraceContext } from "@linchkit/core";
 import { z } from "zod";
 import { type ActionCatalogEntry, buildIntentSystemPrompt } from "./intent-prompt";
 
@@ -68,6 +68,14 @@ export interface ResolveIntentInput {
    * whatever the provider happens to default to.
    */
   model?: string;
+  /**
+   * Optional AI tracing context (Spec 69 Phase 3) forwarded verbatim to
+   * `ai.complete()`. Lets the eval framework attribute the resolver's AI call
+   * to a scenario / fixture / eval-run with the right redaction origin. When
+   * unset no extra tracing metadata is attached (ambient tracing still
+   * applies).
+   */
+  trace?: AITraceContext;
 }
 
 /**
@@ -189,6 +197,9 @@ export async function resolveIntent(
       // Only forward `model` when the caller pinned one — otherwise the
       // AIService picks its configured default.
       ...(input.model ? { model: input.model } : {}),
+      // Forward the tracing context so the recorded generation carries the
+      // scenario / fixture / eval-run provenance (Spec 69 Phase 3).
+      ...(input.trace ? { trace: input.trace } : {}),
     });
     rawContent = result.content;
   } catch {

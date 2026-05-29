@@ -89,6 +89,18 @@ export function createIntentScenario(): IntentScenarioAdapter {
           // Forward the pinned model — without this the AIService picks its
           // configured default and the eval baseline gets mislabeled.
           ...(deps.model ? { model: deps.model } : {}),
+          // Attach tracing provenance so the recorded generation is tagged
+          // with the scenario / fixture / model and uses the eval redaction
+          // origin (verbatim — fixtures are trusted). Spec 69 Phase 3.
+          trace: {
+            name: "intent",
+            scenario: "intent",
+            fixtureId: fx.id,
+            tags: fx.tags,
+            origin: "eval",
+            ...(deps.model ? { model: deps.model } : {}),
+            ...(deps.tenantId ? { tenantId: deps.tenantId } : {}),
+          },
         },
         { ai: deps.ai, ontology },
       );
