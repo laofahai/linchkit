@@ -62,8 +62,17 @@ export interface ProposalFileWriterOptions {
 
 // ── Defaults ────────────────────────────────────────────────
 
+/**
+ * Change targets that materialise a source file on disk. `"revert"` is excluded
+ * because a rollback change (Spec 55 §7.7) has no definition file to write — it
+ * is skipped by `writeApprovedProposal` before any map lookup happens. Keeping
+ * the maps keyed by this `Exclude<…>` type preserves exhaustiveness over the
+ * writable targets without inventing a fake `"revert"` entry.
+ */
+type WritableChangeTarget = Exclude<ProposalChangeTarget, "revert">;
+
 /** Map a change target to its subdirectory (relative to `<cap>/src/`). */
-const TARGET_SUBDIR: Record<ProposalChangeTarget, string> = {
+const TARGET_SUBDIR: Record<WritableChangeTarget, string> = {
   entity: "entities",
   action: "actions",
   rule: "rules",
@@ -75,7 +84,7 @@ const TARGET_SUBDIR: Record<ProposalChangeTarget, string> = {
 };
 
 /** Map a change target to its file-name discriminator. */
-const TARGET_KIND_SUFFIX: Record<ProposalChangeTarget, string> = {
+const TARGET_KIND_SUFFIX: Record<WritableChangeTarget, string> = {
   entity: "entity",
   action: "action",
   rule: "rule",
@@ -87,7 +96,7 @@ const TARGET_KIND_SUFFIX: Record<ProposalChangeTarget, string> = {
 };
 
 /** Map a change target to its `defineXxx` factory name. */
-const TARGET_FACTORY: Record<ProposalChangeTarget, string> = {
+const TARGET_FACTORY: Record<WritableChangeTarget, string> = {
   entity: "defineEntity",
   action: "defineAction",
   rule: "defineRule",
@@ -214,9 +223,21 @@ function buildHeader(proposal: ProposalDefinition, change: ProposalChange): stri
   ].join("\n");
 }
 
+/** Narrow a change target to a writable one, throwing if it is `"revert"`. */
+function assertWritableTarget(target: ProposalChangeTarget): WritableChangeTarget {
+  if (target === "revert") {
+    // Unreachable in normal flow — writeApprovedProposal skips revert changes
+    // before any path/codegen resolution. Guards against future callers.
+    throw new Error(
+      'ProposalFileWriter: "revert" changes carry no source file and cannot be written',
+    );
+  }
+  return target;
+}
+
 /** Default codegen: import the matching `defineXxx` and re-emit the change. */
 function defaultCodegen(proposal: ProposalDefinition, change: ProposalChange): string {
-  const factory = TARGET_FACTORY[change.target];
+  const factory = TARGET_FACTORY[assertWritableTarget(change.target)];
   const definition = change.definition ?? { name: change.name };
   const header = buildHeader(proposal, change);
 
@@ -318,6 +339,17 @@ export class ProposalFileWriter {
 
     const written: string[] = [];
     for (const change of proposal.changes) {
+      // A revert change (Spec 55 §7.7 rollback loop) has no definition file to
+      // write — it instructs a separate human-approved deploy step to roll back
+      // the named proposal. Skip it here, mirroring the delete-operation skip.
+      if (change.target === "revert") {
+        this.logger?.warn?.(
+          `ProposalFileWriter: skipping revert change "${change.name}" — no source file to write; rollback is handled by the deploy pipeline`,
+          { proposalId: proposal.id, target: change.target, name: change.name },
+        );
+        continue;
+      }
+
       if (change.operation === "delete") {
         this.logger?.warn?.(
           `ProposalFileWriter: skipping delete operation for "${change.name}" — manual removal required`,
@@ -397,8 +429,9 @@ export class ProposalFileWriter {
       group = await resolveCapGroup(this.rootDir, capName);
       groupCache?.set(capName, group);
     }
-    const subdir = TARGET_SUBDIR[change.target];
-    const kindSuffix = TARGET_KIND_SUFFIX[change.target];
+    const writableTarget = assertWritableTarget(change.target);
+    const subdir = TARGET_SUBDIR[writableTarget];
+    const kindSuffix = TARGET_KIND_SUFFIX[writableTarget];
     // Include the change name so multiple changes of the same target kind
     // within one proposal don't collide on the same path.
     const safeName = change.name.replace(/[^a-zA-Z0-9_-]/g, "_");

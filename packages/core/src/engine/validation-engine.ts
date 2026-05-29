@@ -147,6 +147,13 @@ export function validatePhase1(options: {
     }
 
     if (change.operation === "delete") continue;
+    // A `target:"revert"` change (Spec 55 §7.7 rollback loop) intentionally
+    // carries no `definition` — it only names the proposal to roll back via its
+    // `diff`/evidence sidecar; the rollback is executed by a separate
+    // human-approved deploy step. Skip the MISSING_DEFINITION requirement (and
+    // the target-specific definition validation below) just as we skip deletes,
+    // so a governance-safe draft rollback Proposal can reach the approval gate.
+    if (change.target === "revert") continue;
     if (!change.definition) {
       errors.push({
         code: "MISSING_DEFINITION",

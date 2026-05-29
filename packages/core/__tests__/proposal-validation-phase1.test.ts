@@ -308,6 +308,25 @@ describe("validatePhase1", () => {
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "MISSING_DEFINITION")).toBe(true);
   });
+
+  it('passes a target:"revert" change despite having no definition (Spec 55 §7.7)', () => {
+    // A rollback Proposal carries a single definition-less revert change with a
+    // fixed, NAME_PATTERN-valid name. Phase-1 must NOT flag MISSING_DEFINITION
+    // or INVALID_NAME for it, or the draft can never reach the approval gate.
+    const result = validatePhase1({
+      changes: [
+        {
+          target: "revert",
+          operation: "update",
+          name: "revert",
+          diff: 'Roll back merged proposal "proposal_abc".',
+        },
+      ],
+    });
+
+    expect(result.status).toBe("passed");
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ── validatePhase1: duplicate detection ─────────────────
