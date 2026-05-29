@@ -230,6 +230,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "ProposalGitCommitter",
   "ProposalOutcomeRecorder",
   "RelationRegistry",
+  "RollingUpdateCoordinator",
   "TableRegistry",
   "TenantOverrideStore",
   "approvalStatusEnum",
