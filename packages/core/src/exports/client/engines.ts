@@ -54,6 +54,15 @@ export {
 export type { PermissionRegistry } from "../../engine/permission-engine";
 
 export type {
+  EffectVerificationPayload,
+  EffectVerificationRecord,
+  EffectVerificationResult,
+  ProposalEffectVerifier,
+  ProposalEffectVerifierOptions,
+  VerifiableSignalStore,
+  VerifyAllOptions,
+} from "../../engine/proposal-effect-verifier";
+export type {
   CreateProposalOptions,
   OnApprovedHook,
   ProposalEngine,
@@ -68,6 +77,7 @@ export type {
   ProposalOutcomeRecorderOptions,
   ProposalOutcomeType,
 } from "../../engine/proposal-outcome-recorder";
+
 export type {
   RuleEvalInput,
   RuleEvalOptions,

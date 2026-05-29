@@ -72,6 +72,16 @@ export {
   resolveDataAccess,
 } from "../../engine/permission-engine";
 export {
+  createProposalEffectVerifier,
+  type EffectVerificationPayload,
+  type EffectVerificationRecord,
+  type EffectVerificationResult,
+  ProposalEffectVerifier,
+  type ProposalEffectVerifierOptions,
+  type VerifiableSignalStore,
+  type VerifyAllOptions,
+} from "../../engine/proposal-effect-verifier";
+export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
@@ -107,6 +117,7 @@ export {
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
 } from "../../engine/proposal-outcome-recorder";
+
 export {
   collectRules,
   evaluateConditions,
