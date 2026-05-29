@@ -155,15 +155,27 @@ jobs:
               );
               return;
             }
-            // Outdated threads reference code that has since changed — the
-            // original concern was superseded by subsequent commits. Exclude
-            // them from the blocking set; they are logged for transparency.
+            // Outdated threads reference code that has since been changed — the
+            // original concern may no longer apply to the current diff. Skipping
+            // them here matches the intent of GitHub's own "outdated" label and
+            // prevents bot-generated suggestions (Gemini / CodeRabbit) from
+            // permanently blocking PRs after the author has declined them and
+            // the code at that location has moved on.
+            //
+            // Security note: an author cannot silently "outdate" a thread about
+            // a security issue by making a superficial change — the reviewer can
+            // always post a new comment on the updated code if the concern still
+            // applies. Outdated = code changed; the concern must be re-raised on
+            // the new code if it is still relevant.
             const unresolved = threads.filter(t => !t.isResolved && !t.isOutdated);
-            const outdated = threads.filter(t => !t.isResolved && t.isOutdated);
-            if (outdated.length > 0) {
-              core.info(`${outdated.length} outdated unresolved thread(s) skipped (code changed since review).`);
-            }
+            const outdatedUnresolved = threads.filter(t => !t.isResolved && t.isOutdated);
             const total = threads.length;
+
+            if (outdatedUnresolved.length > 0) {
+              core.info(
+                `${outdatedUnresolved.length} outdated unresolved thread(s) skipped (code has changed since the comment was posted).`,
+              );
+            }
 
             // Build human-readable description for the commit status.
             // The Statuses API only supports a short description (<=140 chars);
@@ -179,12 +191,12 @@ jobs:
                   .replace(/\r?\n/g, ' ');
                 core.info(`  - [${author}] ${snippet}`);
               }
-              core.info(`${unresolved.length}/${total} review thread(s) unresolved.`);
+              core.info(`${unresolved.length}/${total} review thread(s) unresolved (non-outdated).`);
             } else if (total === 0) {
               description = 'No review threads';
               core.info('No review threads on this PR — gate passes.');
             } else {
-              description = `All ${total} review thread(s) resolved.`;
+              description = `All ${total} review thread(s) resolved or outdated.`;
               core.info(description + ' Gate passes.');
             }
 

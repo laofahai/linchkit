@@ -59,9 +59,19 @@ export interface CreateProposalOptions {
  */
 export type OnApprovedHook = (proposal: ProposalDefinition) => Promise<void> | void;
 
+/**
+ * Hook invoked after a proposal transitions from "validated" → "rejected".
+ *
+ * Mirrors {@link OnApprovedHook}. Errors thrown by this hook are swallowed
+ * and logged — the rejection status is NOT rolled back.
+ */
+export type OnRejectedHook = (proposal: ProposalDefinition) => Promise<void> | void;
+
 export interface ProposalEngineOptions {
   /** Hook fired after a successful approval. See {@link OnApprovedHook}. */
   onApproved?: OnApprovedHook;
+  /** Hook fired after a successful rejection. See {@link OnRejectedHook}. */
+  onRejected?: OnRejectedHook;
   /** Optional logger used to surface hook failures. */
   logger?: Logger;
 }
@@ -73,10 +83,12 @@ export class ProposalEngine {
   private versions = new Map<string, VersionRecord>();
   private semanticRelations: SemanticRelation[] = [];
   private readonly onApproved?: OnApprovedHook;
+  private readonly onRejectedHook?: OnRejectedHook;
   private readonly logger?: Logger;
 
   constructor(options: ProposalEngineOptions = {}) {
     this.onApproved = options.onApproved;
+    this.onRejectedHook = options.onRejected;
     this.logger = options.logger;
   }
 
@@ -285,8 +297,14 @@ export class ProposalEngine {
 
   /**
    * Reject a validated proposal (validated → rejected).
+   *
+   * If an `onRejected` hook is configured, it is invoked after the status
+   * transition. Hook failures are logged and swallowed — the rejection stands.
    */
-  rejectProposal(options: { proposalId: string; reason: string }): ProposalDefinition {
+  async rejectProposal(options: {
+    proposalId: string;
+    reason: string;
+  }): Promise<ProposalDefinition> {
     const { proposalId, reason } = options;
     const proposal = this.getProposal(proposalId);
 
@@ -299,6 +317,18 @@ export class ProposalEngine {
     proposal.status = "rejected";
     proposal.rejectionReason = reason;
     proposal.updatedAt = new Date();
+
+    if (this.onRejectedHook) {
+      try {
+        await this.onRejectedHook(proposal);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger?.error?.(
+          `ProposalEngine.onRejected hook failed for proposal "${proposalId}": ${message}`,
+          { proposalId, error: message },
+        );
+      }
+    }
 
     return proposal;
   }

@@ -43,6 +43,16 @@ export {
   PipelineError,
   type SlotName,
 } from "../../engine/command-layer";
+// Generator priority aggregator (Spec 55 §7.7 Phase 3)
+export {
+  createGeneratorPriorityAggregator,
+  type GeneratorOutcomeType,
+  GeneratorPriorityAggregator,
+  type GeneratorPriorityAggregatorOptions,
+  type GeneratorPriorityConfig,
+  type GeneratorWeightRecord,
+  type OutcomeObservation,
+} from "../../engine/generator-priority-aggregator";
 export {
   createOnchangeEvaluator,
   DEFAULT_COMPUTE_TIMEOUT_MS,
@@ -66,6 +76,7 @@ export {
   type CreateProposalOptions,
   createProposalEngine,
   type OnApprovedHook,
+  type OnRejectedHook,
   ProposalEngine,
   type ProposalEngineOptions,
 } from "../../engine/proposal-engine";
@@ -89,6 +100,13 @@ export {
   type ProposalGitCommitterRunResult,
   type ProposalGitRunner,
 } from "../../engine/proposal-git-committer";
+export {
+  createProposalOutcomeRecorder,
+  type ProposalOutcomePayload,
+  ProposalOutcomeRecorder,
+  type ProposalOutcomeRecorderOptions,
+  type ProposalOutcomeType,
+} from "../../engine/proposal-outcome-recorder";
 export {
   collectRules,
   evaluateConditions,
