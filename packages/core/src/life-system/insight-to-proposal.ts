@@ -10,9 +10,15 @@
  * registered later via capability extensions (mirrors `extensions.sensors`).
  */
 
+import { ROLLBACK_CANDIDATE_TAG } from "../engine/rollback-insight-emitter";
 import type { OntologyRegistry } from "../ontology/ontology-registry";
 import type { Insight, InsightEvidence, InsightType } from "../types/life-system";
-import type { ProposalAuthor, ProposalChange, ProposalDefinition } from "../types/proposal";
+import type {
+  ProposalAuthor,
+  ProposalChange,
+  ProposalDefinition,
+  SuccessMetric,
+} from "../types/proposal";
 import type { ViewDefinition } from "../types/view";
 
 // ── Translator key ──────────────────────────────────────────
@@ -23,8 +29,12 @@ import type { ViewDefinition } from "../types/view";
  *
  * - `structural` insights discriminate on `evidence.context.kind`
  *   (one of {@link import("../types/life-system").StructuralIssueKind}).
- * - Non-structural insights fall back to `Insight.type` alone for now;
- *   later slices may refine (e.g. anomaly + sensor name).
+ * - Insights tagged `rollback_candidate` (Spec 55 §7.7 Phase 2) discriminate
+ *   on that tag, yielding `\`${type}:rollback_candidate\`` (e.g.
+ *   `anomaly:rollback_candidate`) so a dedicated rollback translator handles
+ *   them WITHOUT hijacking ordinary anomaly insights.
+ * - All other non-structural insights fall back to `Insight.type` alone for
+ *   now; later slices may refine (e.g. anomaly + sensor name).
  */
 export type InsightTranslatorKey = string;
 
@@ -36,6 +46,12 @@ export function insightTranslatorKey(insight: Insight): InsightTranslatorKey {
       return `structural:${kind}`;
     }
     return "structural:unknown";
+  }
+  // Rollback-candidate insights route to a dedicated translator. The tag is the
+  // sole discriminator so ordinary `anomaly` insights (no tag) still key on the
+  // bare type and are unaffected.
+  if (insight.tags?.includes(ROLLBACK_CANDIDATE_TAG)) {
+    return `${insight.type}:${ROLLBACK_CANDIDATE_TAG}`;
   }
   return insight.type;
 }
@@ -261,6 +277,163 @@ export const schemaNoViewTranslator: InsightTranslator = (insight, ctx) => {
   return proposal;
 };
 
+/** Author stamped on rollback proposals so provenance is unambiguous. */
+const ROLLBACK_AUTHOR: ProposalAuthor = {
+  type: "ai",
+  id: "rollback-translator",
+  name: "Rollback Translator",
+};
+
+/**
+ * Fixed name for the single `target:"revert"` change a rollback Proposal carries.
+ *
+ * Must satisfy the validation engine's `NAME_PATTERN` (`/^[a-z][a-z0-9_]*$/`),
+ * so it deliberately does NOT embed the target proposalId (which may contain a
+ * colon or uppercase, e.g. `rollback-insight:proposal_abc`). The proposalId
+ * being reverted is carried in the change `diff` and the evidence sidecar's
+ * `context.revertProposalId` instead. A rollback Proposal always has exactly one
+ * revert change, so a constant name never collides under the DUPLICATE_CHANGE check.
+ */
+export const REVERT_CHANGE_NAME = "revert";
+
+/**
+ * Shape of the evidence context carried by a `rollback_candidate` Insight,
+ * as produced by {@link import("../engine/rollback-insight-emitter").RollbackInsightEmitter}.
+ * All numeric fields are optional because the upstream verifier may lack a
+ * post-merge measurement; only `proposalId` is required to translate.
+ */
+interface RollbackEvidenceContext {
+  proposalId?: unknown;
+  capability?: unknown;
+  signalRef?: unknown;
+  baselineValue?: unknown;
+  targetValue?: unknown;
+  currentValue?: unknown;
+}
+
+/** Narrow an `unknown` evidence field to a finite number, else `undefined`. */
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * Translator for `rollback_candidate`-tagged anomaly Insights (Spec 55 §7.7
+ * Phase 2). Emits a GOVERNANCE-SAFE `status: "draft"` rollback Proposal so the
+ * failed change flows through the normal Insight → Proposal pipeline to the
+ * HUMAN approval gate.
+ *
+ * This translator NEVER executes a rollback: it does not call
+ * DeployRollbackOrchestrator, does not touch Git, and does not auto-approve.
+ * It only materialises the intent to revert as a reviewable draft Proposal
+ * carrying a single `target: "revert"` change.
+ *
+ * The revert change uses the fixed, NAME_PATTERN-valid name {@link REVERT_CHANGE_NAME}
+ * so the draft passes Phase-1 validation (a `revert:<proposalId>` name would
+ * fail `INVALID_NAME` on the colon/uppercase). The target proposalId is carried
+ * out-of-band in the change `diff` and the evidence sidecar's
+ * `context.revertProposalId`, so the eventual rollback-execution / SHA-threading
+ * follow-up can still resolve which proposal to revert.
+ *
+ * Slice A does NOT thread the merged commit SHA — a separate follow-up resolves
+ * the actual SHA at deploy time.
+ *
+ * Returns `null` (declines) when the insight is not a tagged anomaly carrying a
+ * non-empty `evidence.context.proposalId`.
+ */
+export const rollbackCandidateTranslator: InsightTranslator = (insight, ctx) => {
+  // Defensive guard: only a tagged anomaly with a usable proposalId qualifies.
+  if (insight.type !== "anomaly") return null;
+  if (!insight.tags?.includes(ROLLBACK_CANDIDATE_TAG)) return null;
+
+  const context = insight.evidence.context as RollbackEvidenceContext;
+  const proposalId = context.proposalId;
+  if (typeof proposalId !== "string" || proposalId.length === 0) return null;
+
+  const now = ctx.now?.() ?? new Date();
+  const idGen = ctx.idGenerator ?? defaultIdGenerator;
+  const author = ctx.author ?? ROLLBACK_AUTHOR;
+
+  // Capability is resolved from evidence first, then the context override,
+  // then the shared default — keeping the rollback scoped to the failed change.
+  const capability =
+    typeof context.capability === "string" && context.capability.length > 0
+      ? context.capability
+      : (ctx.capability ?? DEFAULT_CAPABILITY);
+
+  const signalRef = typeof context.signalRef === "string" ? context.signalRef : undefined;
+  // The INVERSE successMetric reuses only the pre-merge baseline (→ new target)
+  // and the regressed current value (→ new baseline). The original targetValue
+  // is intentionally not extracted — it has no role in a rollback's metric.
+  const baselineValue = numberOrUndefined(context.baselineValue);
+  const currentValue = numberOrUndefined(context.currentValue);
+
+  const change: ProposalChange = {
+    target: "revert",
+    operation: "update",
+    // Fixed NAME_PATTERN-valid name; the target proposalId lives in `diff` and
+    // the evidence sidecar so the draft can pass Phase-1 validation.
+    name: REVERT_CHANGE_NAME,
+    diff: `Roll back merged proposal "${proposalId}" on capability "${capability}".`,
+  };
+
+  // INVERSE successMetric: the rollback succeeds when the metric returns from
+  // the regressed `currentValue` back toward the pre-merge `baselineValue`.
+  const successMetric: SuccessMetric = {
+    description: `Revert proposal "${proposalId}" should restore ${signalRef ?? "the metric"} toward its pre-merge baseline.`,
+    insightRef: insight.id,
+    signalRef,
+    baselineValue: currentValue,
+    targetValue: baselineValue,
+  };
+
+  const proposal: ProposalDefinition = {
+    id: idGen(),
+    title: `Roll back proposal "${proposalId}" on "${capability}"`,
+    description: insight.summary,
+    author,
+    capability,
+    changeType: "major",
+    changes: [change],
+    impact: {
+      schemasAffected: [],
+      actionsAffected: [],
+      rulesAffected: [],
+      // Conservative: a rollback only re-affects the capability it reverts.
+      dependentsAffected: [capability],
+      migrationRequired: false,
+    },
+    status: "draft",
+    successMetric,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  // Attach an evidence trace sidecar mirroring schemaNoViewTranslator's contract
+  // exactly: the provenance lives under `.context` (not flat) and the sidecar is
+  // enumerable so `JSON.stringify` and `ProposalGitCommitter.readSourceInsights`
+  // (which reads `evidence.context.insightId`) can both recover it. `context`
+  // also carries `revertProposalId` so the rollback-execution / SHA-threading
+  // follow-up can resolve which proposal to revert.
+  const evidence = cloneEvidence(insight.evidence);
+  const traceContext: Record<string, unknown> = {
+    ...evidence.context,
+    insightId: insight.id,
+    insightSummary: insight.summary,
+    insightCausality: insight.causality,
+    revertProposalId: proposalId,
+    capability,
+    signalRef,
+  };
+  Object.defineProperty(proposal, "evidence", {
+    value: { ...evidence, context: traceContext },
+    enumerable: true,
+    writable: false,
+    configurable: false,
+  });
+
+  return proposal;
+};
+
 // ── Default registry factory ────────────────────────────────
 
 /**
@@ -271,6 +444,7 @@ export const schemaNoViewTranslator: InsightTranslator = (insight, ctx) => {
 export function createDefaultInsightTranslatorRegistry(): InsightTranslatorRegistry {
   const registry = createInsightTranslatorRegistry();
   registry.register("structural:schema_no_view", schemaNoViewTranslator);
+  registry.register(`anomaly:${ROLLBACK_CANDIDATE_TAG}`, rollbackCandidateTranslator);
   return registry;
 }
 
