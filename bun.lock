@@ -10,7 +10,7 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@modelcontextprotocol/sdk": "1.29.0",
-        "@restatedev/restate-sdk": "1.14.2",
+        "@restatedev/restate-sdk": "1.14.4",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
         "dataloader": "^2.2.3",
@@ -286,7 +286,7 @@
       "name": "@linchkit/cap-flow-restate",
       "version": "1.0.0",
       "dependencies": {
-        "@restatedev/restate-sdk": "1.14.2",
+        "@restatedev/restate-sdk": "1.14.4",
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
@@ -518,6 +518,17 @@
       },
       "devDependencies": {
         "typescript": "^6.0.2",
+      },
+    },
+    "packages/starters/starter-minimal": {
+      "name": "@linchkit/starter-minimal",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
       },
     },
   },
@@ -870,6 +881,8 @@
 
     "@linchkit/devtools": ["@linchkit/devtools@workspace:packages/devtools"],
 
+    "@linchkit/starter-minimal": ["@linchkit/starter-minimal@workspace:packages/starters/starter-minimal"],
+
     "@linchkit/ui-kit": ["@linchkit/ui-kit@workspace:addons/adapter-ui/cap-adapter-ui/ui-kit"],
 
     "@manypkg/find-root": ["@manypkg/find-root@1.1.0", "", { "dependencies": { "@babel/runtime": "^7.5.5", "@types/node": "^12.7.1", "find-up": "^4.1.0", "fs-extra": "^8.1.0" } }, "sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA=="],
@@ -1112,9 +1125,9 @@
 
     "@repeaterjs/repeater": ["@repeaterjs/repeater@3.0.6", "https://registry.npmmirror.com/@repeaterjs/repeater/-/repeater-3.0.6.tgz", {}, "sha512-Javneu5lsuhwNCryN+pXH93VPQ8g0dBX7wItHFgYiwQmzE1sVdg5tWHiOgHywzL2W21XQopa7IwIEnNbmeUJYA=="],
 
-    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.14.2", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.14.2" } }, "sha512-qh6g0oTH7wuy9hGm2gdAmsfOO8StYYS1Yy5goQ2dhBk1OsO/GPy4jcMdWwRSgIaql7LvDpXBrj5orQU1+QXC2Q=="],
+    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.14.4", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.14.4" } }, "sha512-H3nqBlHvNwDgfYdAqTe7+fgvkRoNrOOKVKwPB2/ucDyLZUx15yr3FU5aKWQCuM0TVvkSE3bwYWvLIXoVUpEbtw=="],
 
-    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.14.2", "", {}, "sha512-fJPgdp8ITo0uaCS3zbrAqwv7l7CayF1uA84e1Iz8tqvBTllMdGuio5j/kwDlzXf2Ad7FFFdyKx4CjaSTCpo3PA=="],
+    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.14.4", "", {}, "sha512-q1ukObKmcwRSznuOt73TST6kvh8mjQaWU9dmHhbWCbx2xddUsj4LiGD2MkuTfMhl42SFNCdbp6Lvew1Wy+7IlQ=="],
 
     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.0.0-rc.10", "https://registry.npmmirror.com/@rolldown/binding-android-arm64/-/binding-android-arm64-1.0.0-rc.10.tgz", { "os": "android", "cpu": "arm64" }, "sha512-jOHxwXhxmFKuXztiu1ORieJeTbx5vrTkcOkkkn2d35726+iwhrY1w/+nYY/AGgF12thg33qC3R1LMBF5tHTZHg=="],
 

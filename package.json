@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": [
     "packages/*",
+    "packages/starters/*",
     "addons/*/cap-*",
     "addons/adapter-ui/cap-adapter-ui/ui-kit"
   ],

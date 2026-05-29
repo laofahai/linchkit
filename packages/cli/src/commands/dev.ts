@@ -19,7 +19,7 @@ import {
 } from "@linchkit/core/server";
 import { defineCommand } from "citty";
 import { generateCapabilityStylesheet } from "../utils/generate-capability-styles";
-import { loadConfig } from "../utils/load-config";
+import { loadConfig, resolveActiveCapabilities } from "../utils/load-config";
 import { wireDevEngines } from "./dev-wiring";
 import { buildRegistries, wireAuthProvider } from "./startup/build-registries";
 import { collectCapabilityDefinitions } from "./startup/collect-capabilities";
@@ -88,8 +88,17 @@ export const devCommand = defineCommand({
       }
     }
 
-    // Extract from capabilities
-    const capabilities = (config.capabilities ?? []) as CapabilityDefinition[];
+    // Resolve active capabilities (config + addons_path discovery, deps + auto-install)
+    let capabilities: CapabilityDefinition[];
+    try {
+      capabilities = await resolveActiveCapabilities(config);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      consoleLogger.error(`Failed to resolve capabilities: ${msg}`, {
+        error: err instanceof Error ? err.stack : undefined,
+      });
+      process.exit(1);
+    }
 
     // ── Create ConfigRegistry (env resolution + Zod validation + freeze) ──
     let registry: ConfigRegistry;
