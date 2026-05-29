@@ -48,6 +48,7 @@ export {
   createDefaultInsightTranslatorRegistry,
   createInsightTranslatorRegistry,
   insightTranslatorKey,
+  rollbackCandidateTranslator,
   schemaNoViewTranslator,
 } from "./insight-to-proposal";
 export type { MemoryEngineOptions } from "./memory-engine";

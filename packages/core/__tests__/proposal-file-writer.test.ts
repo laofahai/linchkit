@@ -521,6 +521,40 @@ describe("ProposalFileWriter formatter option", () => {
     // Whether Biome ran or not, the file must exist with valid generated code.
     expect(contents).toContain("defineRule(");
   });
+
+  it('skips a target:"revert" change (no file written) and warns (Spec 55 §7.7)', async () => {
+    const logs: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const logger = {
+      info: (message: string, context?: Record<string, unknown>) => {
+        logs.push({ message, context });
+      },
+      warn: (message: string, context?: Record<string, unknown>) => {
+        logs.push({ message, context });
+      },
+    };
+
+    const revertChange: ProposalChange = {
+      target: "revert",
+      operation: "update",
+      // Fixed, validation-safe name produced by rollbackCandidateTranslator; the
+      // proposalId being reverted is carried in `diff`, not in `name`.
+      name: "revert",
+      diff: 'Roll back merged proposal "proposal_abc".',
+    };
+
+    const writer = new ProposalFileWriter({ rootDir: tmpDir, logger });
+    const proposal = makeApprovedProposal({ changes: [revertChange] });
+
+    const written = await writer.writeApprovedProposal(proposal);
+
+    // Nothing was written for a revert change — it has no source file.
+    expect(written).toEqual([]);
+
+    const warning = logs.find((l) => l.message.includes("skipping revert change"));
+    expect(warning).toBeDefined();
+    expect(warning?.context?.target).toBe("revert");
+    expect(warning?.context?.name).toBe("revert");
+  });
 });
 
 /** A self-contained entity create — passes Phase 1 validation without registry. */

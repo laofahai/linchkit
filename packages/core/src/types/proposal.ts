@@ -48,7 +48,18 @@ export type ProposalChangeTarget =
   | "state"
   | "event"
   | "flow"
-  | "overlay";
+  | "overlay"
+  /**
+   * Revert a previously-merged Proposal (Spec 55 §7.7 Phase 2 rollback loop).
+   * A revert change carries no definition file; its `name` is a fixed,
+   * validation-safe identifier (`"revert"`) and the proposalId to roll back is
+   * carried in the change `diff` and the proposal's evidence sidecar
+   * (`evidence.context.revertProposalId`). Phase-1 validation skips the
+   * MISSING_DEFINITION requirement for these changes, and the on-disk
+   * ProposalFileWriter SKIPS them; the actual rollback is performed by a
+   * separate, human-approved deploy step.
+   */
+  | "revert";
 
 export type ProposalChangeOperation = "create" | "update" | "delete";
 
