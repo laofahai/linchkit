@@ -205,7 +205,7 @@ export async function runEval<TOutput = unknown>(
   for (const fx of fixtures) {
     const aiOutput = opts.live
       ? await runLiveSafely<TOutput>(scenarioAdapter, fx, opts.deps)
-      : (scenarioAdapter.replayFromBaseline(fx, priorBaseline) as TOutput);
+      : ((await scenarioAdapter.replayFromBaseline(fx, priorBaseline)) as TOutput);
 
     const matcherResults = invokeMatchers(fx, aiOutput, runDeps.matcherRegistry);
     const passed = matcherResults.every((r) => !r.strict || r.passed);

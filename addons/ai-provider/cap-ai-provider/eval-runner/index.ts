@@ -7,7 +7,19 @@
  */
 
 export {
+  type AnomalyDetectorScenarioAdapter,
+  createAnomalyDetectorScenario,
+} from "./anomaly-detector-scenario";
+export {
   createIntentScenario,
   type IntentScenarioAdapter,
   type IntentScenarioDeps,
 } from "./intent-scenario";
+export {
+  createPatternDetectorScenario,
+  type PatternDetectorScenarioAdapter,
+} from "./pattern-detector-scenario";
+export {
+  createWatcherEngineScenario,
+  type WatcherEngineScenarioAdapter,
+} from "./watcher-engine-scenario";

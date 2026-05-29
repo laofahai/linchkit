@@ -1,0 +1,149 @@
+{
+  "id": "repetitive-with-errors",
+  "scenario": "anomaly-detector",
+  "tags": ["repetitive", "error_rate", "multi_anomaly"],
+  "description": "Repetitive action (10 calls of same action) AND high error rate (7/12 = 58%) — 2 anomalies triggered simultaneously",
+  "input": {
+    "events": [
+      {
+        "timestamp": "2026-05-24T09:00:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:04:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:08:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:12:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:16:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:20:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:24:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:28:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:32:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:36:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:40:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "summarize_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:44:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      }
+    ],
+    "config": {
+      "minEventsForDetection": 12,
+      "repetitiveActionThreshold": 10,
+      "errorRateThreshold": 0.5,
+      "windowSizeMs": 3600000
+    }
+  },
+  "context": {
+    "now": "2026-05-24T10:00:00Z"
+  },
+  "expected": {
+    "matchers": [
+      {
+        "name": "anomaly_count",
+        "args": {
+          "value": 2
+        }
+      },
+      {
+        "name": "anomaly_type_includes",
+        "args": {
+          "value": "repetitive_action"
+        }
+      },
+      {
+        "name": "anomaly_type_includes",
+        "args": {
+          "value": "high_error_rate"
+        }
+      }
+    ]
+  }
+}

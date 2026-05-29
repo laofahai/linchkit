@@ -1,0 +1,32 @@
+{
+  "id": "we-nf-4",
+  "scenario": "watcher-engine",
+  "tags": ["not-fired", "threshold", "field-not-numeric"],
+  "description": "Threshold watcher on field='status' which is a string — engine returns field_not_numeric, watcher does NOT fire",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-23", "amount": 800, "status": "active" },
+    "oldRecord": { "id": "rec-23", "amount": 800, "status": "draft" },
+    "watchers": [
+      {
+        "name": "status-threshold",
+        "label": "Status Threshold (invalid)",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "threshold",
+          "field": "status",
+          "condition": { "gt": 0 }
+        },
+        "effect": { "action": "notify_team", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_not_fired", "args": { "watcherName": "status-threshold" } },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

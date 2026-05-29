@@ -29,8 +29,11 @@ export {
   writeCanonicalBaseline,
 } from "./baseline";
 export { type CliDeps, type CliRunResult, type LoadLiveDepsResult, runCli } from "./cli";
+export { anomalyMatchers, registerAnomalyMatchers } from "./matchers/anomaly";
 export { intentMatchers, registerIntentMatchers } from "./matchers/intent";
+export { patternMatchers, registerPatternMatchers } from "./matchers/pattern";
 export { createMatcherRegistry, type MatcherRegistry } from "./matchers/registry";
+export { registerWatcherMatchers, watcherMatchers } from "./matchers/watcher";
 export { type MarkdownReportOptions, renderJsonReport, renderMarkdownReport } from "./reporters";
 export {
   EvalFailureError,
@@ -47,6 +50,11 @@ export {
   type ScenarioRegistry,
 } from "./scenarios";
 export type {
+  AnomalyEvalOutput,
+  AnomalyEvalOutputItem,
+  AnomalyFixtureContext,
+  AnomalyFixtureInput,
+  AnomalyUsageEventInput,
   BaselineDiff,
   BaselineFile,
   BaselineFixtureEntry,
@@ -59,5 +67,20 @@ export type {
   MatcherInvocation,
   MatcherResult,
   OntologyRegistryLike,
+  PatternEvalOutput,
+  PatternEvalOutputItem,
+  PatternExecLogInput,
+  PatternFixtureContext,
+  PatternFixtureInput,
   RunReport,
+  WatcherDefInput,
+  WatcherEvalOutput,
+  WatcherEvalOutputItem,
+  WatcherFixtureContext,
+  WatcherFixtureInput,
+  WatcherScheduleTriggerInput,
+  WatcherSetChangeTriggerInput,
+  WatcherStalenessTriggerInput,
+  WatcherThresholdTriggerInput,
+  WatcherTriggerInput,
 } from "./types";

@@ -18,14 +18,20 @@ export interface ScenarioAdapter<
   /** Hit the real AI service and return the scenario output. */
   runLive(fx: EvalFixture<TInput, TContext>, deps: TDeps): Promise<TOutput>;
   /**
-   * Look up the recorded output in a prior baseline. Throws when the
-   * fixture is absent — spec 69 §6.4 demands replay fail loud rather
-   * than silently skip.
+   * Reproduce the scenario output without hitting the live AI service.
+   *
+   * Baseline-backed scenarios (e.g. intent) look up the recorded output
+   * in `baseline` and throw when the fixture is absent — spec 69 §6.4
+   * demands replay fail loud rather than silently skip. Deterministic
+   * rule-based scenarios (anomaly / pattern / watcher) recompute the
+   * output from the fixture and ignore `baseline`; those that wrap an
+   * async engine return a `Promise`, so the runner always `await`s the
+   * result.
    */
   replayFromBaseline(
     fx: EvalFixture<TInput, TContext>,
     baseline: BaselineFile<TOutput> | null,
-  ): TOutput;
+  ): TOutput | Promise<TOutput>;
 }
 
 export interface ScenarioRegistry {

@@ -1,0 +1,219 @@
+{
+  "id": "pd-sf-4",
+  "scenario": "pattern-detector",
+  "tags": ["state_flow", "multi_step"],
+  "description": "6 records each going through draft→reviewed→approved→closed (4-step flow) → 1 state_flow pattern",
+  "input": {
+    "entries": [
+      {
+        "id": "e-sf4-1",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "reviewed", "recordId": "ctr-001" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf4-2",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "reviewed", "toState": "approved", "recordId": "ctr-001" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T12:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf4-3",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "approved", "toState": "closed", "recordId": "ctr-001" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T16:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf4-4",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "reviewed", "recordId": "ctr-002" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf4-5",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "reviewed", "toState": "approved", "recordId": "ctr-002" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T12:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf4-6",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "approved", "toState": "closed", "recordId": "ctr-002" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T16:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf4-7",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "reviewed", "recordId": "ctr-003" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf4-8",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "reviewed", "toState": "approved", "recordId": "ctr-003" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T13:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf4-9",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "approved", "toState": "closed", "recordId": "ctr-003" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T17:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf4-10",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "reviewed", "recordId": "ctr-004" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf4-11",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "reviewed", "toState": "approved", "recordId": "ctr-004" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T12:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf4-12",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "approved", "toState": "closed", "recordId": "ctr-004" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T16:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf4-13",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "reviewed", "recordId": "ctr-005" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf4-14",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "reviewed", "toState": "approved", "recordId": "ctr-005" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T11:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf4-15",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "approved", "toState": "closed", "recordId": "ctr-005" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T15:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf4-16",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "reviewed", "recordId": "ctr-006" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T16:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf4-17",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "reviewed", "toState": "approved", "recordId": "ctr-006" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T17:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf4-18",
+        "action": "transition_state",
+        "entity": "contract",
+        "capability": "cap-contract",
+        "status": "succeeded",
+        "input": { "fromState": "approved", "toState": "closed", "recordId": "ctr-006" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T18:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T19:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "state_flow" } }
+    ]
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "id": "diverse-just-below-threshold",
+  "scenario": "anomaly-detector",
+  "tags": ["diverse", "no_anomaly", "boundary"],
+  "description": "14 events with 14 distinct action names — just below diverseActionThreshold=15, no diverse_action_burst anomaly",
+  "input": {
+    "events": [
+      {
+        "timestamp": "2026-05-24T09:00:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:04:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 200
+      },
+      {
+        "timestamp": "2026-05-24T09:08:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:12:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "extract_entities",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 90
+      },
+      {
+        "timestamp": "2026-05-24T09:16:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "translate_text",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 150
+      },
+      {
+        "timestamp": "2026-05-24T09:20:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "generate_report",
+        "success": true,
+        "cost": 0.05,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:24:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "analyze_sentiment",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:28:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "detect_language",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 50
+      },
+      {
+        "timestamp": "2026-05-24T09:32:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "rewrite_content",
+        "success": true,
+        "cost": 0.03,
+        "tokens": 300
+      },
+      {
+        "timestamp": "2026-05-24T09:36:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "check_grammar",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:40:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "answer_question",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 200
+      },
+      {
+        "timestamp": "2026-05-24T09:44:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "code_completion",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 250
+      },
+      {
+        "timestamp": "2026-05-24T09:48:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "image_caption",
+        "success": true,
+        "cost": 0.03,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:52:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "embed_text",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      }
+    ],
+    "config": {
+      "minEventsForDetection": 10,
+      "diverseActionThreshold": 15,
+      "windowSizeMs": 3600000
+    }
+  },
+  "context": {
+    "now": "2026-05-24T10:00:00Z"
+  },
+  "expected": {
+    "matchers": [
+      {
+        "name": "anomaly_count",
+        "args": {
+          "value": 0
+        }
+      },
+      {
+        "name": "anomaly_type_absent",
+        "args": {
+          "value": "diverse_action_burst"
+        }
+      }
+    ]
+  }
+}

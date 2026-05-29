@@ -1,0 +1,33 @@
+{
+  "id": "we-sc-5",
+  "scenario": "watcher-engine",
+  "tags": ["set_change", "added", "fires", "no-old-record"],
+  "description": "No oldRecord provided, new record matches filter (status='active'), on='added' — old defaults to non-matching, watcher fires",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-14", "amount": 600, "status": "active" },
+    "watchers": [
+      {
+        "name": "order-became-active",
+        "label": "Order Became Active",
+        "enabled": true,
+        "watch": {
+          "entity": "order",
+          "filter": { "field": "target.status", "operator": "eq", "value": "active" }
+        },
+        "trigger": {
+          "type": "set_change",
+          "on": "added"
+        },
+        "effect": { "action": "start_fulfillment", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_fired", "args": { "watcherName": "order-became-active" } },
+      { "name": "watcher_fire_count", "args": { "value": 1 } }
+    ]
+  }
+}

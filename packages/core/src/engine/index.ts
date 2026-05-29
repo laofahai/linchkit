@@ -96,12 +96,26 @@ export {
   resolveConditionVariables,
   resolveDataAccess,
 } from "./permission-engine";
+// Proposal effect verifier (Spec 55 §7.7 Phase 2)
+export {
+  createProposalEffectVerifier,
+  type EffectVerificationPayload,
+  type EffectVerificationRecord,
+  type EffectVerificationResult,
+  ProposalEffectVerifier,
+  type ProposalEffectVerifierOptions,
+  type VerifiableSignalStore,
+  type VerifyAllOptions,
+} from "./proposal-effect-verifier";
 // Proposal engine
 export {
   bumpVersion,
   type CreateProposalOptions,
   createProposalEngine,
+  type OnApprovedHook,
+  type OnRejectedHook,
   ProposalEngine,
+  type ProposalEngineOptions,
 } from "./proposal-engine";
 // Proposal generator (AI-powered)
 export {
@@ -119,6 +133,7 @@ export {
   type ProposalGitCommitterRunResult,
   type ProposalGitRunner,
 } from "./proposal-git-committer";
+
 // Proposal outcome recorder (Spec 55 §7.7 feedback loop)
 export {
   createProposalOutcomeRecorder,
@@ -127,6 +142,7 @@ export {
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
 } from "./proposal-outcome-recorder";
+
 // Rule engine
 export {
   collectRules,

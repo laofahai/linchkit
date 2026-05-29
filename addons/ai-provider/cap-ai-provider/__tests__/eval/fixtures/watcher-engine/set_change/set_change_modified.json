@@ -1,0 +1,34 @@
+{
+  "id": "we-sc-3",
+  "scenario": "watcher-engine",
+  "tags": ["set_change", "modified", "fires"],
+  "description": "Both old and new record match filter (status='active'), amount changed — modified trigger fires",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-12", "amount": 1200, "status": "active" },
+    "oldRecord": { "id": "rec-12", "amount": 800, "status": "active" },
+    "watchers": [
+      {
+        "name": "active-order-modified",
+        "label": "Active Order Modified",
+        "enabled": true,
+        "watch": {
+          "entity": "order",
+          "filter": { "field": "target.status", "operator": "eq", "value": "active" }
+        },
+        "trigger": {
+          "type": "set_change",
+          "on": "modified"
+        },
+        "effect": { "action": "recalculate_order", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_fired", "args": { "watcherName": "active-order-modified" } },
+      { "name": "watcher_fire_count", "args": { "value": 1 } }
+    ]
+  }
+}

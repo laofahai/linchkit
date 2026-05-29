@@ -1,0 +1,42 @@
+{
+  "id": "we-nf-3",
+  "scenario": "watcher-engine",
+  "tags": ["not-fired", "staleness", "not-reactive"],
+  "description": "Watcher with staleness trigger type is not reactive to mutations — evaluateAfterMutation returns fired=false",
+  "input": {
+    "entityName": "order",
+    "record": {
+      "id": "rec-22",
+      "amount": 800,
+      "status": "pending",
+      "last_updated_at": "2024-01-01T00:00:00Z"
+    },
+    "oldRecord": {
+      "id": "rec-22",
+      "amount": 500,
+      "status": "draft",
+      "last_updated_at": "2023-12-01T00:00:00Z"
+    },
+    "watchers": [
+      {
+        "name": "stale-order-alert",
+        "label": "Stale Order Alert",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "staleness",
+          "field": "last_updated_at",
+          "threshold": "7d"
+        },
+        "effect": { "action": "flag_stale_order", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_not_fired", "args": { "watcherName": "stale-order-alert" } },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

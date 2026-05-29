@@ -1,0 +1,34 @@
+{
+  "id": "we-sc-2",
+  "scenario": "watcher-engine",
+  "tags": ["set_change", "removed", "fires"],
+  "description": "Status changes from 'active' to 'closed' — filter matched old record but not new (removed), watcher fires",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-11", "amount": 800, "status": "closed" },
+    "oldRecord": { "id": "rec-11", "amount": 800, "status": "active" },
+    "watchers": [
+      {
+        "name": "order-left-active",
+        "label": "Order Left Active Set",
+        "enabled": true,
+        "watch": {
+          "entity": "order",
+          "filter": { "field": "target.status", "operator": "eq", "value": "active" }
+        },
+        "trigger": {
+          "type": "set_change",
+          "on": "removed"
+        },
+        "effect": { "action": "archive_order", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_fired", "args": { "watcherName": "order-left-active" } },
+      { "name": "watcher_fire_count", "args": { "value": 1 } }
+    ]
+  }
+}

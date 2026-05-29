@@ -1,0 +1,87 @@
+{
+  "id": "pd-rep-1",
+  "scenario": "pattern-detector",
+  "tags": ["repetitive_action", "basic"],
+  "description": "actor-alice calls approve_order 6 times, always with status=VIP — 6/6=100% > 0.7 → 1 repetitive_action pattern",
+  "input": {
+    "entries": [
+      {
+        "id": "e-rep1-1",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "note": "expedite" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep1-2",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "note": "rush" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep1-3",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "note": "standard" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T15:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep1-4",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "note": "expedite" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep1-5",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "note": "rush" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-rep1-6",
+        "action": "approve_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "status": "VIP", "note": "standard" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "repetitive_action" } }
+    ]
+  }
+}

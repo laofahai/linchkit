@@ -1,0 +1,87 @@
+{
+  "id": "pd-def-4",
+  "scenario": "pattern-detector",
+  "tags": ["default_value", "partial_match"],
+  "description": "6 entries for entity 'order'; field region=APAC matches 5/6=83% (> 0.7 threshold) → 1 default_value pattern detected despite one outlier",
+  "input": {
+    "entries": [
+      {
+        "id": "e-def4-1",
+        "action": "place_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "region": "APAC", "priority": "normal" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-def4-2",
+        "action": "place_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "region": "APAC", "priority": "urgent" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-def4-3",
+        "action": "place_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "region": "APAC", "priority": "normal" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T15:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-def4-4",
+        "action": "place_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "region": "EMEA", "priority": "normal" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-dave", "type": "user" }
+      },
+      {
+        "id": "e-def4-5",
+        "action": "place_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "region": "APAC", "priority": "low" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-def4-6",
+        "action": "place_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "region": "APAC", "priority": "urgent" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "default_value" } }
+    ]
+  }
+}

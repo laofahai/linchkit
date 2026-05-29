@@ -1,0 +1,98 @@
+{
+  "id": "pd-rep-2",
+  "scenario": "pattern-detector",
+  "tags": ["repetitive_action", "number_field"],
+  "description": "actor-bob calls create_order 7 times, always with amount=100 — 7/7=100% > 0.7 → 1 repetitive_action pattern on numeric field",
+  "input": {
+    "entries": [
+      {
+        "id": "e-rep2-1",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep2-2",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "EUR" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep2-3",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep2-4",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "GBP" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep2-5",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T16:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep2-6",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "EUR" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-rep2-7",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "repetitive_action" } }
+    ]
+  }
+}

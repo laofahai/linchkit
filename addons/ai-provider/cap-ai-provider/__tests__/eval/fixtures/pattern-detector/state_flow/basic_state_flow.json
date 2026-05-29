@@ -1,0 +1,131 @@
+{
+  "id": "pd-sf-1",
+  "scenario": "pattern-detector",
+  "tags": ["state_flow", "basic"],
+  "description": "5 records each going through draft→submitted→approved state transitions → 1 state_flow pattern detected",
+  "input": {
+    "entries": [
+      {
+        "id": "e-sf1-1",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-001" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf1-2",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "submitted", "toState": "approved", "recordId": "ord-001" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf1-3",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-002" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf1-4",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "submitted", "toState": "approved", "recordId": "ord-002" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T11:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf1-5",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-003" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T08:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf1-6",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "submitted", "toState": "approved", "recordId": "ord-003" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf1-7",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-004" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf1-8",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "submitted", "toState": "approved", "recordId": "ord-004" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T11:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf1-9",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-005" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf1-10",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "submitted", "toState": "approved", "recordId": "ord-005" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T10:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "state_flow" } }
+    ]
+  }
+}

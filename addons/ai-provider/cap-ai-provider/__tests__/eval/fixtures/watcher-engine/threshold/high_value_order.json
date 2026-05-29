@@ -1,0 +1,32 @@
+{
+  "id": "we-thr-1",
+  "scenario": "watcher-engine",
+  "tags": ["threshold", "fires"],
+  "description": "Order with amount=1500 exceeds threshold gt:1000 — watcher should fire",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-1", "amount": 1500, "status": "pending" },
+    "oldRecord": { "id": "rec-1", "amount": 500, "status": "draft" },
+    "watchers": [
+      {
+        "name": "high-value-order",
+        "label": "High Value Order Alert",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "threshold",
+          "field": "amount",
+          "condition": { "gt": 1000 }
+        },
+        "effect": { "action": "notify_team", "params": { "channel": "sales" } }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_fired", "args": { "watcherName": "high-value-order" } },
+      { "name": "watcher_fire_count", "args": { "value": 1 } }
+    ]
+  }
+}

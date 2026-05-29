@@ -1,0 +1,82 @@
+{
+  "id": "pd-no-4",
+  "scenario": "pattern-detector",
+  "tags": ["no_pattern", "no_entity"],
+  "description": "Entries have no entity field set — default_value detector groups by entity and finds nothing; 6 entries but entity is absent so no grouping possible",
+  "input": {
+    "entries": [
+      {
+        "id": "e-no4-1",
+        "action": "sync_data",
+        "capability": "cap-sync",
+        "status": "succeeded",
+        "input": { "mode": "full", "target": "db" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T06:00:00Z",
+        "actor": { "id": "system-1", "type": "system" }
+      },
+      {
+        "id": "e-no4-2",
+        "action": "sync_data",
+        "capability": "cap-sync",
+        "status": "succeeded",
+        "input": { "mode": "full", "target": "db" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T06:00:00Z",
+        "actor": { "id": "system-1", "type": "system" }
+      },
+      {
+        "id": "e-no4-3",
+        "action": "sync_data",
+        "capability": "cap-sync",
+        "status": "succeeded",
+        "input": { "mode": "full", "target": "db" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T06:00:00Z",
+        "actor": { "id": "system-1", "type": "system" }
+      },
+      {
+        "id": "e-no4-4",
+        "action": "sync_data",
+        "capability": "cap-sync",
+        "status": "succeeded",
+        "input": { "mode": "full", "target": "db" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T18:00:00Z",
+        "actor": { "id": "system-1", "type": "system" }
+      },
+      {
+        "id": "e-no4-5",
+        "action": "sync_data",
+        "capability": "cap-sync",
+        "status": "succeeded",
+        "input": { "mode": "full", "target": "db" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T06:00:00Z",
+        "actor": { "id": "system-1", "type": "system" }
+      },
+      {
+        "id": "e-no4-6",
+        "action": "sync_data",
+        "capability": "cap-sync",
+        "status": "succeeded",
+        "input": { "mode": "full", "target": "db" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T06:00:00Z",
+        "actor": { "id": "system-1", "type": "system" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7,
+      "enabledPatterns": ["default_value"]
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count", "args": { "value": 0 } },
+      { "name": "pattern_type_absent", "args": { "value": "default_value" } }
+    ]
+  }
+}
