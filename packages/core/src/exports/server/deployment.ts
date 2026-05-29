@@ -5,6 +5,7 @@
 
 export {
   type AggregatedHealthStatus,
+  type AppliedMigrationsReader,
   type BlueGreenConfig,
   BlueGreenDeployer,
   createCacheCheck,
@@ -21,7 +22,6 @@ export {
   type DeployRollbackOrchestratorOptions,
   type DeployWebhookConfig,
   DeployWebhookHandler,
-  type DrizzleKitRunner,
   detectEnvironment,
   type EnvironmentConfig,
   type EnvironmentFeatureFlags,
@@ -35,7 +35,6 @@ export {
   type HealthCheckResult,
   type HealthStatus,
   type HttpFetcher,
-  type JournalReader,
   livenessCheck,
   MigrationCoordinator,
   type MigrationCoordinatorOptions,
@@ -44,7 +43,6 @@ export {
   type MigrationPhase,
   type MigrationReleaseType,
   type MigrationResult,
-  type MigrationRunResult,
   type NginxReloader,
   type NodeDeployClient,
   type NodeDeployStatus,

@@ -18,12 +18,23 @@
  *     are irreversible → blocker + `ok=false` UNLESS `allowIrreversible` is
  *     set (the "manual confirmation" gate).
  *
- * All I/O (the drizzle-kit subprocess, the forward apply, reverse SQL execution,
- * filesystem reads) is injectable so the core logic is unit-testable without a
- * real database, drizzle-kit binary, or disk. The default forward apply wraps
- * cap-migration's `runMigrations(db)`; the default reverse SQL executor wraps
- * cap-migration's `runReverseMigration(db, { sqlPath })`. The coordinator itself
- * stays DB-agnostic via the injected runners.
+ * Applied-vs-pending detection is DB-driven, NOT journal-driven. Drizzle's
+ * `<migrationsDir>/meta/_journal.json` is the on-disk registry of every
+ * GENERATED migration (written by `drizzle-kit generate`); it says nothing about
+ * what has actually been applied to a given database. The genuinely-applied set
+ * lives in the DB (drizzle's `__drizzle_migrations` table). The coordinator
+ * therefore consumes an injected `appliedMigrationsReader` that returns the tags
+ * applied to the target DB, and computes `pending = on-disk MINUS applied`. The
+ * coordinator stays DB-agnostic: the concrete DB-querying reader belongs in
+ * cap-migration (which holds the db handle), so the reader is REQUIRED — there
+ * is deliberately no journal-based fallback.
+ *
+ * All I/O (the forward apply, reverse SQL execution, filesystem listing, and the
+ * applied-set read) is injectable so the core logic is unit-testable without a
+ * real database or disk. The default forward apply wraps cap-migration's
+ * `runMigrations(db)`; the default reverse SQL executor wraps cap-migration's
+ * `runReverseMigration(db, { sqlPath })`. The coordinator itself stays
+ * DB-agnostic via the injected runners.
  *
  * This engine is intentionally DECOUPLED from BlueGreenDeployer and
  * DeployRollbackOrchestrator — wiring it into the deploy path is a later concern.
@@ -33,18 +44,6 @@
 import type { Logger } from "../types/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────
-
-export interface MigrationRunResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
-/** Async runner for the `drizzle-kit` binary. Args are passed verbatim, no shell. */
-export type DrizzleKitRunner = (
-  args: readonly string[],
-  options: { cwd: string },
-) => Promise<MigrationRunResult>;
 
 /**
  * Apply all pending forward migrations. Default wraps cap-migration's
@@ -67,28 +66,26 @@ export type SqlExecutor = (sqlPath: string) => Promise<void>;
 export type MigrationDirReader = () => Promise<readonly string[]>;
 
 /**
- * Read the set of already-applied migration tags from drizzle's journal.
+ * Read the set of migration tags ACTUALLY APPLIED to the target database.
  *
- * Drizzle records applied migrations in `<migrationsDir>/meta/_journal.json`
- * as `{ entries: [{ idx, version, when, tag }] }`, where `tag` is the migration
- * filename stem (e.g. "0001_greedy_king_bedlam"). The coordinator diffs this
- * against the on-disk dir listing to compute the genuinely-pending set.
+ * This is the source of truth for the applied-vs-pending partition. It MUST
+ * reflect the database state, NOT the on-disk migration registry: drizzle's
+ * `<migrationsDir>/meta/_journal.json` lists every GENERATED migration (written
+ * by `drizzle-kit generate`) and would make the pending set always empty. The
+ * genuinely-applied set lives in drizzle's `__drizzle_migrations` table
+ * (`id, hash, created_at`, where `created_at` equals the journal entry's `when`),
+ * so a correct reader queries that table and maps each row back to its tag.
  *
- * Injectable so tests feed a canned journal without touching disk. The default
- * reads + parses the journal file, gracefully treating a missing/empty/malformed
- * journal as "nothing applied yet" (fresh DB) — never throws.
+ * Returns the set of applied migration tags (e.g. "0001_greedy_king_bedlam").
+ * The coordinator intersects this set with the on-disk listing for reverse and
+ * subtracts it from the on-disk listing for forward.
+ *
+ * Required: a concrete DB-querying reader belongs in cap-migration (which holds
+ * the db handle). The core coordinator stays DB-agnostic and has no default —
+ * omitting it throws a clear error rather than silently falling back to the
+ * journal (which would be incorrect).
  */
-export type JournalReader = () => Promise<ReadonlySet<string>>;
-
-/** Shape of a single drizzle journal entry we care about. */
-interface DrizzleJournalEntry {
-  tag: string;
-}
-
-/** Shape of the drizzle `_journal.json` we consume. */
-interface DrizzleJournal {
-  entries?: readonly DrizzleJournalEntry[];
-}
+export type AppliedMigrationsReader = () => Promise<ReadonlySet<string>>;
 
 export type MigrationPhase =
   | "idle"
@@ -153,8 +150,6 @@ export interface MigrationCoordinatorOptions {
    * of being a blocker. Default: false.
    */
   allowIrreversible?: boolean;
-  /** Injectable drizzle-kit runner for tests. Default: Bun.spawn. */
-  drizzleKitRunner?: DrizzleKitRunner;
   /** Injectable forward apply. Default: cap-migration runMigrations(db). */
   forwardApply?: ForwardApplyRunner;
   /** Injectable reverse SQL executor. Default: cap-migration runReverseMigration. */
@@ -162,11 +157,13 @@ export interface MigrationCoordinatorOptions {
   /** Injectable migrations-dir reader. Default: drizzle migrations dir listing. */
   dirReader?: MigrationDirReader;
   /**
-   * Injectable reader of the applied-migration tag set from drizzle's journal.
-   * Default: reads `<migrationsDir>/meta/_journal.json`. A missing/empty journal
-   * means "nothing applied yet" (fresh DB).
+   * REQUIRED reader of the migration tags ACTUALLY APPLIED to the target DB.
+   * There is no default (a journal-based fallback would be incorrect — the
+   * journal lists generated, not applied, migrations). A correct reader queries
+   * drizzle's `__drizzle_migrations` table; that DB-aware implementation belongs
+   * in cap-migration. Omitting it makes every applied/pending discovery throw.
    */
-  journalReader?: JournalReader;
+  appliedMigrationsReader?: AppliedMigrationsReader;
   /** Injectable classifier of the release type. Default: () => "safe". */
   classifyRelease?: () => MigrationReleaseType | Promise<MigrationReleaseType>;
   /** Optional logger. */
@@ -180,8 +177,6 @@ export interface MigrationCoordinatorOptions {
 const DEFAULT_MIGRATIONS_DIR = "drizzle/migrations";
 const FORWARD_SQL_RE = /^(\d{4,})_[A-Za-z0-9_-]+\.sql$/;
 const REVERSE_SUFFIX = ".down.sql";
-/** Drizzle's journal lives under `<migrationsDir>/meta/_journal.json`. */
-const JOURNAL_RELATIVE_PATH = "meta/_journal.json";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -217,24 +212,6 @@ function safeJoin(repoDir: string, migrationsDir: string, file: string): string 
   return `${repoDir}/${migrationsDir}/${file}`;
 }
 
-// ── Default runners ──────────────────────────────────────────────────────
-
-const defaultDrizzleKitRunner: DrizzleKitRunner = async (args, options) => {
-  // CLAUDE.md: invoke drizzle-kit via the local bin, NOT bunx (EPIPE on macOS).
-  const proc = Bun.spawn({
-    cmd: ["bun", "./node_modules/.bin/drizzle-kit", ...args],
-    cwd: options.cwd,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-  const exitCode = await proc.exited;
-  return { stdout, stderr, exitCode };
-};
-
 // ── MigrationCoordinator ───────────────────────────────────────────────────
 
 export class MigrationCoordinator {
@@ -242,11 +219,10 @@ export class MigrationCoordinator {
   private readonly migrationsDir: string;
   private readonly dryRun: boolean;
   private readonly allowIrreversible: boolean;
-  private readonly drizzleKitRunner: DrizzleKitRunner;
   private readonly forwardApply: ForwardApplyRunner;
   private readonly sqlExecutor: SqlExecutor;
   private readonly dirReader: MigrationDirReader;
-  private readonly journalReader: JournalReader;
+  private readonly appliedMigrationsReader: AppliedMigrationsReader;
   private readonly classifyRelease: () => MigrationReleaseType | Promise<MigrationReleaseType>;
   private readonly logger?: Logger;
   private readonly clock: () => number;
@@ -256,7 +232,6 @@ export class MigrationCoordinator {
     this.migrationsDir = options.migrationsDir ?? DEFAULT_MIGRATIONS_DIR;
     this.dryRun = options.dryRun ?? false;
     this.allowIrreversible = options.allowIrreversible ?? false;
-    this.drizzleKitRunner = options.drizzleKitRunner ?? defaultDrizzleKitRunner;
     this.forwardApply =
       options.forwardApply ??
       (() => {
@@ -272,7 +247,13 @@ export class MigrationCoordinator {
         );
       });
     this.dirReader = options.dirReader ?? this.defaultDirReader.bind(this);
-    this.journalReader = options.journalReader ?? this.defaultJournalReader.bind(this);
+    this.appliedMigrationsReader =
+      options.appliedMigrationsReader ??
+      (() => {
+        throw new Error(
+          "MigrationCoordinator: appliedMigrationsReader is required to determine applied migrations. Inject one that queries the DB (drizzle's __drizzle_migrations table) — the on-disk journal does NOT reflect what is applied.",
+        );
+      });
     this.classifyRelease = options.classifyRelease ?? (() => "safe");
     this.logger = options.logger;
     this.clock = options.clock ?? Date.now;
@@ -340,19 +321,19 @@ export class MigrationCoordinator {
   /**
    * Apply all pending forward migrations via `forwardApply`.
    *
-   * "Pending" is computed by diffing the on-disk migrations against drizzle's
-   * journal, so it is ONLY the not-yet-applied set. On `dryRun`, forwardApply is
-   * NEVER called — returns `phase:"done"` with no applied ids. On success, returns
-   * `phase:"done"`.
+   * "Pending" is computed by subtracting the DB-applied set (from
+   * `appliedMigrationsReader`) from the on-disk migrations, so it is ONLY the
+   * not-yet-applied set. On `dryRun`, forwardApply is NEVER called — returns
+   * `phase:"done"` with no applied ids. On success, returns `phase:"done"`.
    *
    * On failure, performs a best-effort reverse of EXACTLY the pending migrations
    * this run attempted (those that have a committed `down.sql`), newest → oldest,
    * never masking the original error, and returns `phase:"aborted", success:false`.
    *
-   * CRITICAL safety guarantee: already-applied migrations (those recorded in the
-   * journal before this run) are NEVER in `pending`, so a forward failure can
-   * never run their `down.sql` and wipe data the journal already accounts for.
-   * Never throws on operational failure.
+   * CRITICAL safety guarantee: already-applied migrations (those the DB reports as
+   * applied before this run) are NEVER in `pending`, so a forward failure can
+   * never run their `down.sql` and wipe data the DB already holds. Never throws on
+   * operational failure.
    */
   async migrateForward(): Promise<MigrationResult> {
     const startMs = this.clock();
@@ -365,7 +346,7 @@ export class MigrationCoordinator {
     }
 
     // Capture the migrations we are about to apply so a failure can attempt a
-    // best-effort reverse of EXACTLY those (the journal-diffed pending set —
+    // best-effort reverse of EXACTLY those (the DB-diffed pending set —
     // never already-applied migrations).
     let pending: PendingMigration[];
     try {
@@ -414,8 +395,8 @@ export class MigrationCoordinator {
   }
 
   /**
-   * Reverse applied (journal-recorded) migrations by executing their committed
-   * `down.sql` in newest → oldest id order via `sqlExecutor`.
+   * Reverse DB-applied migrations by executing their committed `down.sql` in
+   * newest → oldest id order via `sqlExecutor`.
    *
    * `targetId` semantics — EXCLUSIVE floor (the intuitive `migrate:down --to <id>`
    * contract): every applied migration STRICTLY NEWER than `targetId` is reverted;
@@ -425,8 +406,8 @@ export class MigrationCoordinator {
    * call is rejected (`success:false`, nothing executed) rather than silently
    * rolling everything back.
    *
-   * Only journal-recorded migrations are ever considered — pending (not-yet-
-   * applied) migrations are never reverted here.
+   * Only DB-applied migrations are ever considered — pending (not-yet-applied)
+   * migrations are never reverted here.
    *
    * If any migration to be reverted lacks a `down.sql`, NO statements are
    * executed (no partial execution) — returns a blocker `success:false`.
@@ -455,8 +436,9 @@ export class MigrationCoordinator {
 
     let applied: PendingMigration[];
     try {
-      // "applied" = migrations present on disk (journal-backed); reverse the
-      // newest first. discoverApplied returns id-ascending; we reverse below.
+      // "applied" = migrations the DB reports as applied AND present on disk;
+      // reverse the newest first. discoverApplied returns id-ascending; we
+      // reverse below.
       applied = await this.discoverApplied();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -553,7 +535,8 @@ export class MigrationCoordinator {
   /**
    * List every forward migration on disk (id-ascending), each annotated with
    * whether a sibling `down.sql` exists. This is the raw on-disk set — neither
-   * the applied nor the pending partition. Callers diff it against the journal.
+   * the applied nor the pending partition. Callers diff it against the DB-applied
+   * set from `appliedMigrationsReader`.
    */
   private async listOnDisk(): Promise<PendingMigration[]> {
     const files = await this.dirReader();
@@ -579,24 +562,32 @@ export class MigrationCoordinator {
   }
 
   /**
-   * Applied = on-disk forward migrations whose tag IS recorded in the drizzle
-   * journal (`<migrationsDir>/meta/_journal.json`). Id-ascending. These are the
-   * candidates `migrateReverse` may roll back — never the pending set.
+   * Applied = on-disk forward migrations whose tag the DB reports as applied
+   * (via `appliedMigrationsReader`). Id-ascending. Intersecting with the on-disk
+   * listing guarantees every returned migration could have a committed `down.sql`
+   * to reverse. These are the candidates `migrateReverse` may roll back — never
+   * the pending set.
    */
   private async discoverApplied(): Promise<PendingMigration[]> {
-    const [onDisk, appliedTags] = await Promise.all([this.listOnDisk(), this.journalReader()]);
+    const [onDisk, appliedTags] = await Promise.all([
+      this.listOnDisk(),
+      this.appliedMigrationsReader(),
+    ]);
     return onDisk.filter((m) => appliedTags.has(m.id));
   }
 
   /**
-   * Pending = on-disk forward migrations whose tag is NOT recorded in the drizzle
-   * journal. Id-ascending. This is the set `migrateForward` applies and the ONLY
+   * Pending = on-disk forward migrations whose tag the DB does NOT report as
+   * applied. Id-ascending. This is the set `migrateForward` applies and the ONLY
    * set its failure-reverse may touch — already-applied migrations are excluded so
-   * a forward failure can never wipe rows the journal already accounts for. A
-   * missing/empty journal means every on-disk migration is pending (fresh DB).
+   * a forward failure can never wipe rows the DB already holds. An empty applied
+   * set means every on-disk migration is pending (fresh DB).
    */
   private async discoverPending(): Promise<PendingMigration[]> {
-    const [onDisk, appliedTags] = await Promise.all([this.listOnDisk(), this.journalReader()]);
+    const [onDisk, appliedTags] = await Promise.all([
+      this.listOnDisk(),
+      this.appliedMigrationsReader(),
+    ]);
     return onDisk.filter((m) => !appliedTags.has(m.id));
   }
 
@@ -610,44 +601,6 @@ export class MigrationCoordinator {
       names.push(entry);
     }
     return names;
-  }
-
-  /**
-   * Default journalReader: parse `<migrationsDir>/meta/_journal.json` into the
-   * set of applied `tag`s. A missing, empty, or malformed journal yields an empty
-   * set ("nothing applied yet" — fresh DB). Never throws: a broken journal must
-   * not block discovery, it just makes every on-disk migration look pending.
-   */
-  private async defaultJournalReader(): Promise<ReadonlySet<string>> {
-    const journalPath = `${this.repoDir}/${this.migrationsDir}/${JOURNAL_RELATIVE_PATH}`;
-    try {
-      const file = Bun.file(journalPath);
-      if (!(await file.exists())) {
-        this.logger?.debug?.("MigrationCoordinator: no journal — treating DB as fresh", {
-          journalPath,
-        });
-        return new Set<string>();
-      }
-      const raw = (await file.text()).trim();
-      if (raw.length === 0) {
-        return new Set<string>();
-      }
-      const parsed = JSON.parse(raw) as DrizzleJournal;
-      const tags = new Set<string>();
-      for (const entry of parsed.entries ?? []) {
-        if (typeof entry?.tag === "string" && entry.tag.length > 0) {
-          tags.add(entry.tag);
-        }
-      }
-      return tags;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger?.warn?.("MigrationCoordinator: could not read journal — treating DB as fresh", {
-        journalPath,
-        error: msg,
-      });
-      return new Set<string>();
-    }
   }
 
   /**

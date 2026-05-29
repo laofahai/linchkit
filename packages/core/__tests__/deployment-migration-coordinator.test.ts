@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
+  type AppliedMigrationsReader,
   createMigrationCoordinator,
-  type DrizzleKitRunner,
-  type JournalReader,
   MigrationCoordinator,
   type MigrationCoordinatorOptions,
   type MigrationDirReader,
@@ -29,10 +28,11 @@ function dirReaderOf(...files: string[]): MigrationDirReader {
 }
 
 /**
- * journalReader that reports the given migration tags as already applied. With
- * no args it reports "nothing applied yet" (fresh DB).
+ * appliedMigrationsReader that reports the given migration tags as ACTUALLY
+ * APPLIED to the DB. With no args it reports "nothing applied yet" (fresh DB).
+ * This is the DB-driven source of truth — NOT the on-disk drizzle journal.
  */
-function journalOf(...tags: string[]): JournalReader {
+function appliedOf(...tags: string[]): AppliedMigrationsReader {
   return async () => new Set(tags);
 }
 
@@ -48,10 +48,10 @@ function absPath(file: string): string {
 }
 
 /**
- * Default test options. By default the journal is EMPTY (fresh DB) so every
- * on-disk migration is pending — matching the original "all files are pending"
- * assumption of the forward/preFlight suites. Reverse tests that need migrations
- * to be applied override `journalReader` explicitly.
+ * Default test options. By default the DB reports NOTHING applied (fresh DB) so
+ * every on-disk migration is pending — matching the original "all files are
+ * pending" assumption of the forward/preFlight suites. Tests that need
+ * migrations to be applied override `appliedMigrationsReader` explicitly.
  */
 function baseOpts(
   overrides: Partial<MigrationCoordinatorOptions> = {},
@@ -61,7 +61,7 @@ function baseOpts(
     migrationsDir: MIGRATIONS_DIR,
     logger: silentLogger,
     clock: FIXED_CLOCK,
-    journalReader: journalOf(),
+    appliedMigrationsReader: appliedOf(),
     ...overrides,
   };
 }
@@ -271,11 +271,13 @@ describe("MigrationCoordinator — migrateForward", () => {
   });
 });
 
-// ── journal-awareness (applied vs pending) ───────────────────────────────────
+// ── applied-vs-pending partition (DB-driven, NOT journal-driven) ─────────────
 
-describe("MigrationCoordinator — journal-awareness", () => {
-  // The full on-disk set: 100 already-applied migrations (0000..0099, each with a
-  // down.sql) + 1 genuinely-new pending migration (0100, also with a down.sql).
+describe("MigrationCoordinator — applied/pending partition", () => {
+  // The full on-disk set: 100 GENERATED migrations (0000..0099, each with a
+  // down.sql) plus 1 newer GENERATED migration (0100, also with a down.sql).
+  // The drizzle journal would list ALL 101 — but the DB only has 0000..0099
+  // applied, so 0100 is the only genuinely-pending migration.
   function bigOnDisk(): MigrationDirReader {
     const files: string[] = [];
     for (let i = 0; i <= 100; i++) {
@@ -291,6 +293,22 @@ describe("MigrationCoordinator — journal-awareness", () => {
     return tags;
   }
 
+  // Partition test: applied={0000..0099} (from the DB reader), on-disk={0000..0100}
+  // → pending={0100}. This is the regression the journal bug broke: the journal
+  // lists 0100 as generated, so journal-diffing would yield an EMPTY pending set
+  // and `migrateForward` would never apply 0100.
+  it("pending = on-disk MINUS DB-applied (0100 only, from the reader)", async () => {
+    const c = createMigrationCoordinator(
+      baseOpts({
+        dirReader: bigOnDisk(),
+        appliedMigrationsReader: appliedOf(...appliedTags(100)), // DB has 0000..0099
+      }),
+    );
+    const result = await c.preFlight();
+    expect(result.pending.map((m) => m.id)).toEqual(["0100_m100"]);
+    expect(result.ok).toBe(true);
+  });
+
   it("preFlight.pending contains ONLY the not-applied on-disk migrations", async () => {
     const c = createMigrationCoordinator(
       baseOpts({
@@ -302,8 +320,8 @@ describe("MigrationCoordinator — journal-awareness", () => {
           "0009_c.sql",
           "0009_c.down.sql",
         ),
-        // 0007 + 0008 already applied; only 0009 is pending.
-        journalReader: journalOf("0007_a", "0008_b"),
+        // DB reports 0007 + 0008 applied; only 0009 is pending.
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b"),
       }),
     );
     const result = await c.preFlight();
@@ -317,7 +335,7 @@ describe("MigrationCoordinator — journal-awareness", () => {
         // 0007 is APPLIED but has NO down.sql — it must NOT block future releases.
         // 0008 is pending and fully reversible.
         dirReader: dirReaderOf("0007_a.sql", "0008_b.sql", "0008_b.down.sql"),
-        journalReader: journalOf("0007_a"),
+        appliedMigrationsReader: appliedOf("0007_a"),
       }),
     );
     const result = await c.preFlight();
@@ -334,7 +352,7 @@ describe("MigrationCoordinator — journal-awareness", () => {
       baseOpts({
         // 0007 applied + reversible; 0008 pending WITHOUT a down.sql → blocker.
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql"),
-        journalReader: journalOf("0007_a"),
+        appliedMigrationsReader: appliedOf("0007_a"),
       }),
     );
     const result = await c.preFlight();
@@ -351,7 +369,7 @@ describe("MigrationCoordinator — journal-awareness", () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: bigOnDisk(),
-        journalReader: journalOf(...appliedTags(100)), // 0000..0099 applied
+        appliedMigrationsReader: appliedOf(...appliedTags(100)), // 0000..0099 applied
         forwardApply: async () => {
           throw new Error("apply blew up");
         },
@@ -371,7 +389,7 @@ describe("MigrationCoordinator — journal-awareness", () => {
     }
   });
 
-  it("forward success applies ONLY the pending ids (not the whole journal)", async () => {
+  it("forward success applies ONLY the pending ids (not the whole on-disk set)", async () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: dirReaderOf(
@@ -382,7 +400,7 @@ describe("MigrationCoordinator — journal-awareness", () => {
           "0009_c.sql",
           "0009_c.down.sql",
         ),
-        journalReader: journalOf("0007_a", "0008_b"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b"),
         forwardApply: async () => {},
       }),
     );
@@ -391,12 +409,12 @@ describe("MigrationCoordinator — journal-awareness", () => {
     expect(result.applied).toEqual(["0009_c"]);
   });
 
-  it("missing/empty journal treats all on-disk migrations as pending (fresh DB)", async () => {
+  it("empty applied set treats all on-disk migrations as pending (fresh DB)", async () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql", "0008_b.down.sql"),
-        // journalReader returns an empty set → nothing applied yet.
-        journalReader: journalOf(),
+        // DB reports nothing applied yet.
+        appliedMigrationsReader: appliedOf(),
       }),
     );
     const result = await c.preFlight();
@@ -408,7 +426,7 @@ describe("MigrationCoordinator — journal-awareness", () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql", "0008_b.down.sql"),
-        journalReader: journalOf("0007_a", "0008_b"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b"),
         forwardApply: async () => {},
       }),
     );
@@ -436,7 +454,7 @@ describe("MigrationCoordinator — migrateReverse", () => {
           "0009_c.sql",
           "0009_c.down.sql",
         ),
-        journalReader: journalOf("0007_a", "0008_b", "0009_c"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b", "0009_c"),
         sqlExecutor: recordingExecutor(reverseLog),
       }),
     );
@@ -458,7 +476,7 @@ describe("MigrationCoordinator — migrateReverse", () => {
       baseOpts({
         // 0008 has no down.sql.
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql"),
-        journalReader: journalOf("0007_a", "0008_b"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b"),
         sqlExecutor: recordingExecutor(reverseLog),
       }),
     );
@@ -481,7 +499,7 @@ describe("MigrationCoordinator — migrateReverse", () => {
           "0009_c.sql",
           "0009_c.down.sql",
         ),
-        journalReader: journalOf("0007_a", "0008_b", "0009_c"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b", "0009_c"),
         sqlExecutor: recordingExecutor(reverseLog),
       }),
     );
@@ -496,7 +514,7 @@ describe("MigrationCoordinator — migrateReverse", () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql", "0008_b.down.sql"),
-        journalReader: journalOf("0007_a", "0008_b"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b"),
         sqlExecutor: recordingExecutor(reverseLog),
       }),
     );
@@ -511,7 +529,7 @@ describe("MigrationCoordinator — migrateReverse", () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql", "0008_b.down.sql"),
-        journalReader: journalOf("0007_a", "0008_b"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b"),
         sqlExecutor: recordingExecutor(reverseLog),
       }),
     );
@@ -534,7 +552,7 @@ describe("MigrationCoordinator — migrateReverse", () => {
           "0009_c.sql",
           "0009_c.down.sql",
         ),
-        journalReader: journalOf("0007_a", "0008_b", "0009_c"),
+        appliedMigrationsReader: appliedOf("0007_a", "0008_b", "0009_c"),
         sqlExecutor: async (sqlPath) => {
           reverseLog.push(sqlPath);
           if (sqlPath.includes("0008_b")) throw new Error("down failed");
@@ -581,7 +599,7 @@ describe("MigrationCoordinator — injection rejection", () => {
     const c = createMigrationCoordinator(
       baseOpts({
         dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0007_a/../evil.sql"),
-        journalReader: journalOf("0007_a"),
+        appliedMigrationsReader: appliedOf("0007_a"),
         sqlExecutor: recordingExecutor(reverseLog),
       }),
     );
@@ -593,7 +611,7 @@ describe("MigrationCoordinator — injection rejection", () => {
   });
 });
 
-// ── default runners are wired (no accidental real-IO at construct time) ──────
+// ── defaults / required injection ────────────────────────────────────────────
 
 describe("MigrationCoordinator — defaults", () => {
   it("default forwardApply throws a descriptive error when not injected", async () => {
@@ -603,6 +621,7 @@ describe("MigrationCoordinator — defaults", () => {
       logger: silentLogger,
       clock: FIXED_CLOCK,
       dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql"),
+      appliedMigrationsReader: appliedOf(),
     });
     const result = await c.migrateForward();
     // forwardApply default throws → caught → aborted; reverse is best-effort but
@@ -612,65 +631,31 @@ describe("MigrationCoordinator — defaults", () => {
     expect(result.error).toContain("no forwardApply provided");
   });
 
-  it("does not invoke the drizzle-kit runner during pre-flight (read-only)", async () => {
-    let kitCalls = 0;
-    const drizzleKitRunner: DrizzleKitRunner = async () => {
-      kitCalls++;
-      return { stdout: "", stderr: "", exitCode: 0 };
-    };
-    const c = createMigrationCoordinator(
-      baseOpts({ dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql"), drizzleKitRunner }),
-    );
-    await c.preFlight();
-    expect(kitCalls).toBe(0);
-  });
-
-  it("default journalReader treats a missing journal as a fresh DB (everything pending)", async () => {
-    // No journalReader injected → the real default reads /tmp/fake-repo/.../meta/
-    // _journal.json which does not exist → empty applied set → all on-disk pending.
+  it("throws a clear error when appliedMigrationsReader is not injected (no journal fallback)", async () => {
+    // The applied set MUST come from the DB. Without an injected reader the
+    // coordinator refuses to guess (it never falls back to the on-disk journal,
+    // which lists generated — not applied — migrations).
     const c = createMigrationCoordinator({
       repoDir: REPO_DIR,
       migrationsDir: MIGRATIONS_DIR,
       logger: silentLogger,
       clock: FIXED_CLOCK,
-      dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql", "0008_b.down.sql"),
+      dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql"),
+      // appliedMigrationsReader deliberately omitted.
     });
-    const result = await c.preFlight();
-    expect(result.pending.map((m) => m.id)).toEqual(["0007_a", "0008_b"]);
-    expect(result.ok).toBe(true);
-  });
 
-  it("default journalReader parses a real drizzle _journal.json from disk", async () => {
-    const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const root = mkdtempSync(`${tmpdir()}/mig-coord-`);
-    try {
-      const metaDir = `${root}/${MIGRATIONS_DIR}/meta`;
-      mkdirSync(metaDir, { recursive: true });
-      writeFileSync(
-        `${metaDir}/_journal.json`,
-        JSON.stringify({
-          version: "7",
-          dialect: "postgresql",
-          entries: [
-            { idx: 0, version: "7", when: 1, tag: "0007_a", breakpoints: true },
-            // 0008_b deliberately NOT in the journal → pending.
-          ],
-        }),
-      );
-      const c = createMigrationCoordinator({
-        repoDir: root,
-        migrationsDir: MIGRATIONS_DIR,
-        logger: silentLogger,
-        clock: FIXED_CLOCK,
-        // dirReader injected so we don't depend on writing the .sql files too.
-        dirReader: dirReaderOf("0007_a.sql", "0007_a.down.sql", "0008_b.sql", "0008_b.down.sql"),
-      });
-      const result = await c.preFlight();
-      // 0007_a is in the journal → applied; only 0008_b is pending.
-      expect(result.pending.map((m) => m.id)).toEqual(["0008_b"]);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
+    // preFlight surfaces the discovery error path; migrateForward maps it to a
+    // failed result rather than throwing.
+    await expect(c.preFlight()).rejects.toThrow(/appliedMigrationsReader is required/);
+
+    const fwd = await c.migrateForward();
+    expect(fwd.success).toBe(false);
+    expect(fwd.phase).toBe("failed");
+    expect(fwd.error).toContain("appliedMigrationsReader is required");
+
+    const rev = await c.migrateReverse();
+    expect(rev.success).toBe(false);
+    expect(rev.phase).toBe("failed");
+    expect(rev.error).toContain("appliedMigrationsReader is required");
   });
 });
