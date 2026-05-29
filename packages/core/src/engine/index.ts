@@ -142,6 +142,15 @@ export {
   type ProposalOutcomeRecorderOptions,
   type ProposalOutcomeType,
 } from "./proposal-outcome-recorder";
+// Rollback insight emitter (Spec 55 §7.7 Phase 2 feedback loop — downstream)
+export {
+  createRollbackInsightEmitter,
+  type EmitAllOptions,
+  ROLLBACK_CANDIDATE_TAG,
+  RollbackInsightEmitter,
+  type RollbackInsightEmitterOptions,
+  rollbackInsightId,
+} from "./rollback-insight-emitter";
 
 // Rule engine
 export {
