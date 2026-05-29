@@ -300,6 +300,56 @@ describe("rollbackCandidateTranslator", () => {
     expect(await rollbackCandidateTranslator(structuralTagged, {})).toBeNull();
   });
 
+  it("does NOT throw and declines (null) for a malformed insight with undefined/null evidence", async () => {
+    // FINDING 1 regression guard: runtime Insights (deserialized from storage,
+    // or malformed) may carry an undefined/null `evidence` despite the type
+    // saying it is required. The translator must access it defensively and
+    // decline rather than throw a TypeError.
+    const undefinedEvidence = makeRollbackInsight({
+      evidence: undefined,
+    } as unknown as Partial<Insight>);
+    let result: unknown;
+    expect(() => {
+      result = rollbackCandidateTranslator(undefinedEvidence, {});
+    }).not.toThrow();
+    expect(await result).toBeNull();
+
+    const nullEvidence = makeRollbackInsight({
+      evidence: null,
+    } as unknown as Partial<Insight>);
+    expect(() => rollbackCandidateTranslator(nullEvidence, {})).not.toThrow();
+    expect(await rollbackCandidateTranslator(nullEvidence, {})).toBeNull();
+  });
+
+  it("falls back to insight.entity for capability when context.capability is absent", async () => {
+    // FINDING 2: a rollback must target the capability that owns the regressed
+    // proposal. When evidence.context.capability is missing/empty, the fallback
+    // prefers the insight's own entity over the generic DEFAULT_CAPABILITY.
+    const insight = makeRollbackInsight({
+      entity: "cap-purchase",
+      evidence: {
+        signals: [],
+        // No `capability` key — forces the fallback chain.
+        context: { proposalId: "proposal_abc", signalRef: "x" },
+      },
+    });
+    const proposal = await rollbackCandidateTranslator(insight, {
+      now: () => FROZEN_NOW,
+      idGenerator: () => "proposal_rollback_entity",
+    });
+    if (!proposal) throw new Error("expected proposal");
+
+    // Resolved from insight.entity, NOT the "evolution" default nor ctx override.
+    expect(proposal.capability).toBe("cap-purchase");
+    expect(proposal.impact.dependentsAffected).toEqual(["cap-purchase"]);
+    expect(proposal.title).toContain("cap-purchase");
+    expect(proposal.changes[0]?.diff).toContain("cap-purchase");
+
+    const sidecar = (proposal as unknown as { evidence: { context: { capability: string } } })
+      .evidence;
+    expect(sidecar.context.capability).toBe("cap-purchase");
+  });
+
   it("produces a draft that PASSES validateProposal() (reaches the approval gate)", async () => {
     // FINDING 1 regression guard: the draft revert Proposal must survive Phase-1
     // validation, otherwise submitProposal() never sets status "validated" and

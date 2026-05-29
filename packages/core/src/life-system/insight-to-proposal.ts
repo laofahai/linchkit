@@ -317,6 +317,18 @@ function numberOrUndefined(value: unknown): number | undefined {
 }
 
 /**
+ * Return the first candidate that is a non-empty string. Used to resolve a
+ * fallback chain (most specific → most generic) while skipping any candidate
+ * that is missing, empty, or not a string.
+ */
+function firstNonEmptyString(...candidates: unknown[]): string {
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.length > 0) return candidate;
+  }
+  return DEFAULT_CAPABILITY;
+}
+
+/**
  * Translator for `rollback_candidate`-tagged anomaly Insights (Spec 55 §7.7
  * Phase 2). Emits a GOVERNANCE-SAFE `status: "draft"` rollback Proposal so the
  * failed change flows through the normal Insight → Proposal pipeline to the
@@ -338,14 +350,19 @@ function numberOrUndefined(value: unknown): number | undefined {
  * the actual SHA at deploy time.
  *
  * Returns `null` (declines) when the insight is not a tagged anomaly carrying a
- * non-empty `evidence.context.proposalId`.
+ * non-empty `evidence.context.proposalId`. Malformed insights (e.g. an
+ * undefined/null `evidence`) decline rather than throw.
  */
 export const rollbackCandidateTranslator: InsightTranslator = (insight, ctx) => {
   // Defensive guard: only a tagged anomaly with a usable proposalId qualifies.
   if (insight.type !== "anomaly") return null;
   if (!insight.tags?.includes(ROLLBACK_CANDIDATE_TAG)) return null;
 
-  const context = insight.evidence.context as RollbackEvidenceContext;
+  // `evidence`/`evidence.context` are typed required, but runtime Insights
+  // (deserialized from storage, or malformed) may carry an undefined/null
+  // `evidence`. Access defensively so a malformed insight declines (returns
+  // null) instead of throwing a TypeError.
+  const context = (insight.evidence?.context ?? {}) as RollbackEvidenceContext;
   const proposalId = context.proposalId;
   if (typeof proposalId !== "string" || proposalId.length === 0) return null;
 
@@ -353,12 +370,15 @@ export const rollbackCandidateTranslator: InsightTranslator = (insight, ctx) => 
   const idGen = ctx.idGenerator ?? defaultIdGenerator;
   const author = ctx.author ?? ROLLBACK_AUTHOR;
 
-  // Capability is resolved from evidence first, then the context override,
-  // then the shared default — keeping the rollback scoped to the failed change.
-  const capability =
-    typeof context.capability === "string" && context.capability.length > 0
-      ? context.capability
-      : (ctx.capability ?? DEFAULT_CAPABILITY);
+  // Capability is resolved from the most specific source first so the rollback
+  // stays scoped to the capability that owns the regressed proposal:
+  //   evidence context → the insight's own entity → ctx override → shared default.
+  const capability = firstNonEmptyString(
+    context.capability,
+    insight.entity,
+    ctx.capability,
+    DEFAULT_CAPABILITY,
+  );
 
   const signalRef = typeof context.signalRef === "string" ? context.signalRef : undefined;
   // The INVERSE successMetric reuses only the pre-merge baseline (→ new target)
