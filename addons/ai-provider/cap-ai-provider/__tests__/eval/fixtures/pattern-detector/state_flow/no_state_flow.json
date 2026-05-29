@@ -1,0 +1,110 @@
+{
+  "id": "pd-sf-2",
+  "scenario": "pattern-detector",
+  "tags": ["state_flow", "no_pattern"],
+  "description": "8 entries without stateTransition/fromState/toState fields — no state_flow patterns should be detected",
+  "input": {
+    "entries": [
+      {
+        "id": "e-sf2-1",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 100, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf2-2",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 200, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf2-3",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 350, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf2-4",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 500, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf2-5",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 150, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T16:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf2-6",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 275, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-dave", "type": "user" }
+      },
+      {
+        "id": "e-sf2-7",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 400, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T15:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf2-8",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "amount": 600, "currency": "USD" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7,
+      "enabledPatterns": ["state_flow"]
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count", "args": { "value": 0 } },
+      { "name": "pattern_type_absent", "args": { "value": "state_flow" } }
+    ]
+  }
+}

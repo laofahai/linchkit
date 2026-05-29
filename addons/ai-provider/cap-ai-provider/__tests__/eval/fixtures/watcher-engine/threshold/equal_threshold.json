@@ -1,0 +1,32 @@
+{
+  "id": "we-thr-4",
+  "scenario": "watcher-engine",
+  "tags": ["threshold", "fires", "eq-condition"],
+  "description": "Order with amount=1000 exactly matches condition eq:1000 — watcher should fire",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-4", "amount": 1000, "status": "pending" },
+    "oldRecord": { "id": "rec-4", "amount": 750, "status": "draft" },
+    "watchers": [
+      {
+        "name": "exact-thousand-order",
+        "label": "Exact Thousand Order",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "threshold",
+          "field": "amount",
+          "condition": { "eq": 1000 }
+        },
+        "effect": { "action": "flag_order", "params": { "reason": "round-number" } }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_fired", "args": { "watcherName": "exact-thousand-order" } },
+      { "name": "watcher_fire_count", "args": { "value": 1 } }
+    ]
+  }
+}

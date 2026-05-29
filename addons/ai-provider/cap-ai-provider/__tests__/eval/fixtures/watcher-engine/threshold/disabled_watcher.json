@@ -1,0 +1,32 @@
+{
+  "id": "we-thr-6",
+  "scenario": "watcher-engine",
+  "tags": ["threshold", "not-fired", "disabled"],
+  "description": "Watcher with enabled=false should NOT fire even though condition is met (amount=1500 > 1000)",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-6", "amount": 1500, "status": "pending" },
+    "oldRecord": { "id": "rec-6", "amount": 200, "status": "draft" },
+    "watchers": [
+      {
+        "name": "disabled-high-value-order",
+        "label": "Disabled High Value Order Alert",
+        "enabled": false,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "threshold",
+          "field": "amount",
+          "condition": { "gt": 1000 }
+        },
+        "effect": { "action": "notify_team", "params": { "channel": "sales" } }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "no_watchers_fired", "args": {} },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

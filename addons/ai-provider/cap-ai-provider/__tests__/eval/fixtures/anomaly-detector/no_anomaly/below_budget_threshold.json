@@ -1,0 +1,131 @@
+{
+  "id": "no-anomaly-below-budget-threshold",
+  "scenario": "anomaly-detector",
+  "tags": ["no_anomaly", "budget"],
+  "description": "12 events totaling $1.48 cost in a 1hr window — below the $2.08/hr threshold, no budget anomaly",
+  "input": {
+    "events": [
+      {
+        "timestamp": "2026-05-24T09:00:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.12,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:05:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.12,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:10:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.13,
+        "tokens": 600
+      },
+      {
+        "timestamp": "2026-05-24T09:15:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.13,
+        "tokens": 600
+      },
+      {
+        "timestamp": "2026-05-24T09:20:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.12,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:25:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.12,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:30:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "extract_entities",
+        "success": true,
+        "cost": 0.13,
+        "tokens": 600
+      },
+      {
+        "timestamp": "2026-05-24T09:35:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.12,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:40:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.13,
+        "tokens": 600
+      },
+      {
+        "timestamp": "2026-05-24T09:45:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.12,
+        "tokens": 500
+      },
+      {
+        "timestamp": "2026-05-24T09:50:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "extract_entities",
+        "success": true,
+        "cost": 0.13,
+        "tokens": 600
+      },
+      {
+        "timestamp": "2026-05-24T09:55:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.11,
+        "tokens": 450
+      }
+    ],
+    "config": {
+      "windowSizeMs": 3600000,
+      "budgetBurnRateThreshold": 0.5
+    }
+  },
+  "context": {
+    "now": "2026-05-24T10:00:00Z"
+  },
+  "expected": {
+    "matchers": [
+      { "name": "anomaly_count", "args": { "value": 0 } },
+      { "name": "anomaly_type_absent", "args": { "value": "budget_burn_rate" } }
+    ]
+  }
+}

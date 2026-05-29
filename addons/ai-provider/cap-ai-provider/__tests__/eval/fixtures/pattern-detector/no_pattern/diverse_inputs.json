@@ -1,0 +1,106 @@
+{
+  "id": "pd-no-2",
+  "scenario": "pattern-detector",
+  "tags": ["no_pattern", "diverse_inputs"],
+  "description": "8 entries for the same action+actor, but field values are varied — no single value exceeds 70% frequency",
+  "input": {
+    "entries": [
+      {
+        "id": "e-no2-1",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "USD", "priority": "low" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-2",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "EUR", "priority": "medium" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T12:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-3",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "GBP", "priority": "high" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-4",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "JPY", "priority": "low" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-5",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "USD", "priority": "medium" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-6",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "EUR", "priority": "high" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T15:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-7",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "CNY", "priority": "low" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T11:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-no2-8",
+        "action": "create_order",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "currency": "AUD", "priority": "medium" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [{ "name": "pattern_count", "args": { "value": 0 } }]
+  }
+}

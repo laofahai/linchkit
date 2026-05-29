@@ -1,0 +1,214 @@
+{
+  "id": "error-rate-tenant-filtered",
+  "scenario": "anomaly-detector",
+  "tags": ["error_rate", "tenant_filter", "alert"],
+  "description": "20 events across 2 tenants; tenant-A has 7/9 errors (78%) — high_error_rate anomaly when filtered by tenant-A",
+  "input": {
+    "events": [
+      {
+        "timestamp": "2026-05-24T09:00:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:03:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:06:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "summarize_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:09:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "summarize_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:12:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-5",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:15:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-5",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:18:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "extract_entities",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:21:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-6",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:24:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "query_data",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:27:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-5",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 200
+      },
+      {
+        "timestamp": "2026-05-24T09:30:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-2",
+        "actionName": "classify_intent",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:33:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-6",
+        "actionName": "extract_entities",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 90
+      },
+      {
+        "timestamp": "2026-05-24T09:36:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-3",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:39:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-5",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:42:00Z",
+        "tenantId": "tenant-A",
+        "actorId": "user-1",
+        "actionName": "summarize_text",
+        "success": false,
+        "cost": 0,
+        "tokens": 0
+      },
+      {
+        "timestamp": "2026-05-24T09:45:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-6",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      },
+      {
+        "timestamp": "2026-05-24T09:48:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-5",
+        "actionName": "summarize_text",
+        "success": true,
+        "cost": 0.02,
+        "tokens": 200
+      },
+      {
+        "timestamp": "2026-05-24T09:51:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-6",
+        "actionName": "classify_intent",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 80
+      },
+      {
+        "timestamp": "2026-05-24T09:54:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-5",
+        "actionName": "extract_entities",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 90
+      },
+      {
+        "timestamp": "2026-05-24T09:57:00Z",
+        "tenantId": "tenant-B",
+        "actorId": "user-6",
+        "actionName": "query_data",
+        "success": true,
+        "cost": 0.01,
+        "tokens": 100
+      }
+    ],
+    "config": {
+      "minEventsForDetection": 5,
+      "windowSizeMs": 3600000
+    }
+  },
+  "context": {
+    "now": "2026-05-24T10:00:00Z",
+    "tenantId": "tenant-A"
+  },
+  "expected": {
+    "matchers": [
+      {
+        "name": "anomaly_count_min",
+        "args": {
+          "value": 1
+        }
+      },
+      {
+        "name": "anomaly_type_includes",
+        "args": {
+          "value": "high_error_rate"
+        }
+      }
+    ]
+  }
+}

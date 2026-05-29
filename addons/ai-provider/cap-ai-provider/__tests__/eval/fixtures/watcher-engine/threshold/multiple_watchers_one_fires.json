@@ -1,0 +1,45 @@
+{
+  "id": "we-thr-3",
+  "scenario": "watcher-engine",
+  "tags": ["threshold", "multiple-watchers", "partial-fire"],
+  "description": "Two threshold watchers: amount>1000 fires, amount>2000 does not fire (amount=1500)",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-3", "amount": 1500, "status": "pending" },
+    "oldRecord": { "id": "rec-3", "amount": 800, "status": "draft" },
+    "watchers": [
+      {
+        "name": "medium-value-order",
+        "label": "Medium Value Order",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "threshold",
+          "field": "amount",
+          "condition": { "gt": 1000 }
+        },
+        "effect": { "action": "notify_team", "params": { "channel": "sales" } }
+      },
+      {
+        "name": "premium-value-order",
+        "label": "Premium Value Order",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "threshold",
+          "field": "amount",
+          "condition": { "gt": 2000 }
+        },
+        "effect": { "action": "notify_team", "params": { "channel": "vip" } }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_fired", "args": { "watcherName": "medium-value-order" } },
+      { "name": "watcher_not_fired", "args": { "watcherName": "premium-value-order" } },
+      { "name": "watcher_fire_count", "args": { "value": 1 } }
+    ]
+  }
+}

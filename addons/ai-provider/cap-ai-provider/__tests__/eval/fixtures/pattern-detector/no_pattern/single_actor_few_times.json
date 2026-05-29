@@ -1,0 +1,62 @@
+{
+  "id": "pd-no-3",
+  "scenario": "pattern-detector",
+  "tags": ["no_pattern", "single_actor", "below_threshold"],
+  "description": "Actor performs the same action only 4 times (< minOccurrences=5) — group size too small for repetitive_action",
+  "input": {
+    "entries": [
+      {
+        "id": "e-no3-1",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "type": "hardware", "urgency": "high" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no3-2",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "type": "hardware", "urgency": "high" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T14:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no3-3",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "type": "hardware", "urgency": "high" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-no3-4",
+        "action": "submit_request",
+        "entity": "purchase_request",
+        "capability": "cap-purchase",
+        "status": "succeeded",
+        "input": { "type": "hardware", "urgency": "high" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [{ "name": "pattern_count", "args": { "value": 0 } }]
+  }
+}

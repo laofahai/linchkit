@@ -1,0 +1,31 @@
+{
+  "id": "we-nf-2",
+  "scenario": "watcher-engine",
+  "tags": ["not-fired", "schedule", "not-reactive"],
+  "description": "Watcher with schedule trigger type is not reactive to mutations — evaluateAfterMutation returns fired=false",
+  "input": {
+    "entityName": "order",
+    "record": { "id": "rec-21", "amount": 5000, "status": "active" },
+    "oldRecord": { "id": "rec-21", "amount": 100, "status": "draft" },
+    "watchers": [
+      {
+        "name": "daily-order-check",
+        "label": "Daily Order Check",
+        "enabled": true,
+        "watch": { "entity": "order" },
+        "trigger": {
+          "type": "schedule",
+          "cron": "0 9 * * *"
+        },
+        "effect": { "action": "generate_daily_report", "params": {} }
+      }
+    ]
+  },
+  "context": {},
+  "expected": {
+    "matchers": [
+      { "name": "watcher_not_fired", "args": { "watcherName": "daily-order-check" } },
+      { "name": "watcher_fire_count", "args": { "value": 0 } }
+    ]
+  }
+}

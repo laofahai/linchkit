@@ -1,0 +1,65 @@
+{
+  "id": "pd-sf-3",
+  "scenario": "pattern-detector",
+  "tags": ["state_flow", "below_threshold"],
+  "description": "Only 4 records follow the draft→submitted state transition pattern (< minOccurrences=5) → 0 state_flow patterns",
+  "input": {
+    "entries": [
+      {
+        "id": "e-sf3-1",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-101" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-sf3-2",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-102" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-sf3-3",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-103" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-sf3-4",
+        "action": "transition_state",
+        "entity": "order",
+        "capability": "cap-order",
+        "status": "succeeded",
+        "input": { "fromState": "draft", "toState": "submitted", "recordId": "ord-104" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count", "args": { "value": 0 } },
+      { "name": "pattern_type_absent", "args": { "value": "state_flow" } }
+    ]
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "id": "pd-rep-6",
+  "scenario": "pattern-detector",
+  "tags": ["repetitive_action", "string_field"],
+  "description": "actor-eve calls send_notification 6 times, always with channel=email (6/6=100%) → 1 repetitive_action pattern on string field",
+  "input": {
+    "entries": [
+      {
+        "id": "e-rep6-1",
+        "action": "send_notification",
+        "entity": "notification",
+        "capability": "cap-notification",
+        "status": "succeeded",
+        "input": { "channel": "email", "template": "welcome" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T10:00:00Z",
+        "actor": { "id": "user-eve", "type": "user" }
+      },
+      {
+        "id": "e-rep6-2",
+        "action": "send_notification",
+        "entity": "notification",
+        "capability": "cap-notification",
+        "status": "succeeded",
+        "input": { "channel": "email", "template": "reminder" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T10:00:00Z",
+        "actor": { "id": "user-eve", "type": "user" }
+      },
+      {
+        "id": "e-rep6-3",
+        "action": "send_notification",
+        "entity": "notification",
+        "capability": "cap-notification",
+        "status": "succeeded",
+        "input": { "channel": "email", "template": "alert" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T09:00:00Z",
+        "actor": { "id": "user-eve", "type": "user" }
+      },
+      {
+        "id": "e-rep6-4",
+        "action": "send_notification",
+        "entity": "notification",
+        "capability": "cap-notification",
+        "status": "succeeded",
+        "input": { "channel": "email", "template": "welcome" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T16:00:00Z",
+        "actor": { "id": "user-eve", "type": "user" }
+      },
+      {
+        "id": "e-rep6-5",
+        "action": "send_notification",
+        "entity": "notification",
+        "capability": "cap-notification",
+        "status": "succeeded",
+        "input": { "channel": "email", "template": "digest" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T10:00:00Z",
+        "actor": { "id": "user-eve", "type": "user" }
+      },
+      {
+        "id": "e-rep6-6",
+        "action": "send_notification",
+        "entity": "notification",
+        "capability": "cap-notification",
+        "status": "succeeded",
+        "input": { "channel": "email", "template": "reminder" },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T10:00:00Z",
+        "actor": { "id": "user-eve", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 1 } },
+      { "name": "pattern_type_includes", "args": { "value": "repetitive_action" } }
+    ]
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "id": "pd-def-3",
+  "scenario": "pattern-detector",
+  "tags": ["default_value", "two_patterns"],
+  "description": "7 entries for entity 'invoice'; both currency=USD (7/7=100%) AND type=standard (7/7=100%) always same → 2 default_value patterns",
+  "input": {
+    "entries": [
+      {
+        "id": "e-def3-1",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 200 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T08:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-def3-2",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 450 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-20T14:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-def3-3",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 100 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-21T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      },
+      {
+        "id": "e-def3-4",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 750 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T10:00:00Z",
+        "actor": { "id": "user-alice", "type": "user" }
+      },
+      {
+        "id": "e-def3-5",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 300 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-22T16:00:00Z",
+        "actor": { "id": "user-dave", "type": "user" }
+      },
+      {
+        "id": "e-def3-6",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 600 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-23T09:00:00Z",
+        "actor": { "id": "user-bob", "type": "user" }
+      },
+      {
+        "id": "e-def3-7",
+        "action": "create_invoice",
+        "entity": "invoice",
+        "capability": "cap-invoice",
+        "status": "succeeded",
+        "input": { "currency": "USD", "type": "standard", "amount": 125 },
+        "tenantId": "tenant-1",
+        "timestamp": "2026-05-24T09:00:00Z",
+        "actor": { "id": "user-carol", "type": "user" }
+      }
+    ],
+    "config": {
+      "minOccurrences": 5,
+      "minConfidence": 0.7
+    }
+  },
+  "context": { "now": "2026-05-24T10:00:00Z" },
+  "expected": {
+    "matchers": [
+      { "name": "pattern_count_min", "args": { "value": 2 } },
+      { "name": "pattern_type_includes", "args": { "value": "default_value" } },
+      { "name": "pattern_entity_equals", "args": { "value": "invoice" } }
+    ]
+  }
+}
