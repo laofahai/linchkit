@@ -123,6 +123,30 @@ describe("scanAddonsPath", () => {
     expect(caps[0]?.coreVersion).toBe("^0.2.0");
   });
 
+  test("populates coreVersion even when the addon's default export is frozen", async () => {
+    // A frozen default export (or a named-export namespace object) cannot be
+    // mutated in place — the scanner must shallow-copy before stamping
+    // coreVersion, or the assignment throws and the addon is silently dropped.
+    makeAddon(
+      "test-group",
+      "cap-frozen",
+      `
+      export default Object.freeze({
+        name: "cap-frozen",
+        label: "Frozen",
+        type: "standard",
+        category: "business",
+        version: "0.1.0",
+      });
+    `,
+      { minCoreVersion: "^0.2.0" },
+    );
+
+    const caps = await scanAddonsPath([TMP]);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]?.coreVersion).toBe("^0.2.0");
+  });
+
   test("normalizes a bare minCoreVersion to a >= range on the runtime definition", async () => {
     makeAddon(
       "test-group",

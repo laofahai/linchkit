@@ -93,9 +93,20 @@ export function normalizeMinVersion(minVersion: string): string {
 export function coreVersionRangeOf(
   linchkit: MetadataCompatibility | undefined,
 ): string | undefined {
-  if (linchkit?.coreVersion) return linchkit.coreVersion;
-  if (linchkit?.minVersion) return normalizeMinVersion(linchkit.minVersion);
-  if (linchkit?.minCoreVersion) return normalizeMinVersion(linchkit.minCoreVersion);
+  // `scanAddonsPath` reads `package.json` directly without validating it against
+  // `capabilityMetadataSchema`, so a malformed/third-party addon could declare a
+  // non-string value here. Guard every field with `typeof` so `normalizeMinVersion`
+  // never calls `.trim()` on a number/boolean (a TypeError the scanner's
+  // try/catch would silently swallow, dropping the addon).
+  if (typeof linchkit?.coreVersion === "string" && linchkit.coreVersion) {
+    return linchkit.coreVersion;
+  }
+  if (typeof linchkit?.minVersion === "string" && linchkit.minVersion) {
+    return normalizeMinVersion(linchkit.minVersion);
+  }
+  if (typeof linchkit?.minCoreVersion === "string" && linchkit.minCoreVersion) {
+    return normalizeMinVersion(linchkit.minCoreVersion);
+  }
   return undefined;
 }
 
