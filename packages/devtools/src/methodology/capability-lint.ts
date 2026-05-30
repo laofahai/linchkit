@@ -190,7 +190,7 @@ const CORE_INTERNAL_RE = /^@linchkit\/core\/(?:src|dist)(?:\/|$)/;
 function escapesIntoCoreInternals(filePath: string, capRoot: string, specifier: string): boolean {
   if (!specifier.startsWith(".") || !specifier.includes("..")) return false;
   // Use node:path's dirname so the file's directory is derived correctly on
-  // both POSIX ("/") and Windows ("\") separators. A manual lastIndexOf("/")
+  // both POSIX ("/") and Windows ("\\") separators. A manual lastIndexOf("/")
   // returns -1 on Windows paths and would resolve relative to the CWD instead.
   const fileDir = dirname(filePath);
   const resolved = resolve(fileDir, specifier);
@@ -199,7 +199,7 @@ function escapesIntoCoreInternals(filePath: string, capRoot: string, specifier: 
   // escaping path ALSO points at a `core` segment. Testing `rel` (not the
   // absolute path) avoids false positives when an unrelated ancestor directory
   // happens to be named "core" (e.g. a repo checked out under /…/core/…).
-  return rel.startsWith("..") && /(?:^|\/)core(?:\/|$)/.test(rel);
+  return rel.startsWith("..") && /(?:^\/|\/)core(?:\/|$)/.test(rel);
 }
 
 function checkImportBoundary(root: string): CapabilityLintIssue[] {
@@ -311,23 +311,59 @@ function isIgnoredDir(name: string): boolean {
 }
 
 /**
- * Strip comments from source so the import-specifier regexes never match a
- * path that only appears in commented-out code or prose (e.g. a JSDoc block
- * that mentions `@linchkit/core/src/...`, as THIS file's own header does).
+ * Strip block and line comments using a char-scan tokenizer that understands
+ * string literals. This prevents over-stripping of `//` sequences that appear
+ * inside a string literal (e.g. `const msg = "use // to divide"` or a URL
+ * `"https://example.com"` not preceded by `:`).
  *
- * Dependency-free, no AST:
- *  - Block comments (including multi-line) are removed via `[\s\S]*?`.
- *  - Line comments are removed to end of line, BUT a `//` immediately preceded
- *    by `:` is left intact so URLs inside strings (`https://...`) are not
- *    mistaken for the start of a comment.
+ * Regex literal detection is deliberately omitted (KISS); a `//` inside a
+ * regex literal could only cause a false negative on an import that appears on
+ * the *same physical line* after the regex — an impossible pattern in practice.
  *
- * It is intentionally applied to the FULL content (not per-line), so the
- * existing full-content regexes still span newlines for multi-line imports.
+ * Applied to the full content so multi-line import statements span newlines.
  */
 function stripComments(content: string): string {
-  return content
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+  const out: string[] = [];
+  let i = 0;
+  const len = content.length;
+
+  while (i < len) {
+    const ch = content[i];
+
+    // Block comment: /* ... */
+    if (ch === "/" && content[i + 1] === "*") {
+      i += 2;
+      while (i < len && !(content[i] === "*" && content[i + 1] === "/")) i++;
+      i += 2; // consume */
+      continue;
+    }
+
+    // Line comment: // ...
+    if (ch === "/" && content[i + 1] === "/") {
+      while (i < len && content[i] !== "\n") i++;
+      continue;
+    }
+
+    // String literal: preserve contents so `//` inside strings is not stripped.
+    if (ch === '"' || ch === "'" || ch === "`") {
+      const quote = ch;
+      out.push(content[i++]);
+      while (i < len) {
+        if (content[i] === "\\") {
+          out.push(content[i++]);
+          if (i < len) out.push(content[i++]);
+          continue;
+        }
+        out.push(content[i]);
+        if (content[i++] === quote) break;
+      }
+      continue;
+    }
+
+    out.push(content[i++]);
+  }
+
+  return out.join("");
 }
 
 /**

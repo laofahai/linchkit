@@ -300,4 +300,73 @@ describe("lintCapability", () => {
     const result = lintCapability(root);
     expect(result.issues.filter((i) => i.check === "test-existence")).toHaveLength(0);
   });
+
+  // stripComments hardening (issue #414): // inside string literals
+  it("does NOT suppress an import after a string literal containing //", () => {
+    // A string with `//` not preceded by `:` used to match the old line-comment
+    // regex `(^|[^:])//`, stripping everything from `//` to end-of-line. That
+    // caused a false negative when a real import followed on the same line.
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeFile(
+      root,
+      "src/index.ts",
+      [
+        // Contrived but exercises the bug: real code has imports on own lines, yet
+        // this edge case must still detect the forbidden import.
+        `const msg = "Use // to divide"; import { x } from "@linchkit/core/src/foo";`,
+        `export {};`,
+      ].join("\n"),
+    );
+    writeFile(root, "src/k.test.ts", `import { test } from "bun:test";\ntest("k", () => {});\n`);
+
+    const result = lintCapability(root);
+    // The deep import must still be flagged — NOT silently missed.
+    expect(result.ok).toBe(false);
+    const boundary = result.issues.filter((i) => i.check === "import-boundary");
+    expect(boundary).toHaveLength(1);
+    expect(boundary[0]?.message).toContain("@linchkit/core/src/foo");
+  });
+
+  it("does NOT suppress a clean import after a string literal containing //", () => {
+    // The barrel import must still be found (no false positives introduced).
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeFile(
+      root,
+      "src/index.ts",
+      [
+        `const sep = "a // b";`,
+        `import { defineEntity } from "@linchkit/core";`,
+        `export {};`,
+      ].join("\n"),
+    );
+    writeFile(root, "src/l.test.ts", `import { test } from "bun:test";\ntest("l", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "import-boundary")).toHaveLength(0);
+    expect(result.ok).toBe(true);
+  });
+
+  it("preserves URL strings not preceded by colon (single-quote, double-quote)", () => {
+    // Ensure strings like `'ftp://host'` (where `//` is not preceded by `:` in
+    // the surrounding token stream) do not trigger spurious comment stripping.
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeFile(
+      root,
+      "src/index.ts",
+      [
+        `const a = 'ftp://host/path';`,
+        `const b = "file://local";`,
+        `import { defineEntity } from "@linchkit/core";`,
+        `export {};`,
+      ].join("\n"),
+    );
+    writeFile(root, "src/m.test.ts", `import { test } from "bun:test";\ntest("m", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "import-boundary")).toHaveLength(0);
+    expect(result.ok).toBe(true);
+  });
 });
