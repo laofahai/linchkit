@@ -59,7 +59,7 @@ async function firstSignal(store: InMemoryMemoryStore): Promise<Signal> {
 
 describe("ProposalOutcomeRecorder", () => {
   describe("recordOutcome — accepted", () => {
-    it("writes a proposal.outcome.accepted signal to the store", async () => {
+    it("writes a proposal:outcome:accepted signal to the store", async () => {
       const store = new InMemoryMemoryStore();
       const recorder = new ProposalOutcomeRecorder({ store });
       const proposal = makeProposal();
@@ -69,7 +69,7 @@ describe("ProposalOutcomeRecorder", () => {
       const signals = await store.getSignals();
       expect(signals).toHaveLength(1);
       const signal = await firstSignal(store);
-      expect(signal.type).toBe("proposal.outcome.accepted");
+      expect(signal.type).toBe("proposal:outcome:accepted");
       expect(signal.source).toBe("event_bus");
       expect(signal.timestamp).toBeInstanceOf(Date);
     });
@@ -140,7 +140,11 @@ describe("ProposalOutcomeRecorder", () => {
 
       await recorder.recordOutcome(proposal, "merged");
 
-      const payload = extractPayload(await firstSignal(store));
+      const signal = await firstSignal(store);
+      // The colon convention is canonical and is exactly what
+      // ProposalEffectVerifier.verifyAll queries (`proposal:outcome:merged`).
+      expect(signal.type).toBe("proposal:outcome:merged");
+      const payload = extractPayload(signal);
       expect(payload.outcome).toBe("merged");
       expect(payload.proposalId).toBe("proposal-test-abc123");
     });
