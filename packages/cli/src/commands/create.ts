@@ -22,6 +22,7 @@ const VALID_CATEGORIES = [
   "infrastructure",
   "integration",
   "ui",
+  "view",
   "utility",
   "starter",
 ] as const;

@@ -275,6 +275,7 @@ describe("capabilityMetadataSchema", () => {
       "integration",
       "business",
       "ui",
+      "view",
       "utility",
       "starter",
     ]) {

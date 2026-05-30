@@ -187,6 +187,7 @@ business
   business.sales           — 销售
   business.project         — 项目管理
 ui
+view
 utility
 starter
 ```
@@ -200,6 +201,7 @@ starter
 | `integration` | 外部系统集成 | network.external | **cap-adapter-server (HTTP/GraphQL)**, cap-adapter-mcp, cap-adapter-a2a, cap-adapter-ag-ui, sms, email, payment |
 | `business` | 业务模块 | 无 | 采购管理, 库存管理, HR |
 | `ui` | UI 增强 | 无 | **cap-adapter-ui (shell)**, cap-admin, dashboard, report, gantt view |
+| `view` | UI 视图渲染能力 | 无 | cap-view-calendar, cap-view-kanban, cap-view-timeline |
 | `utility` | 通用工具 | 无 | import-export, tag, comment |
 | `starter` | 启动包 | 无 | starter-business, starter-saas |
 
@@ -219,7 +221,7 @@ Capability 可以声明需要的系统级权限，安装时用户确认：
 | `process.spawn` | 启动子进程 | 极少数 |
 
 安全原则：
-- `business` / `utility` / `ui` 类 Capability 默认无系统权限
+- `business` / `utility` / `ui` / `view` 类 Capability 默认无系统权限
 - `infrastructure` / `integration` 类显式声明需要的权限
 - AI 生成的 Capability 不能声明系统权限（必须人工添加）
 - 安装时提示用户确认权限
