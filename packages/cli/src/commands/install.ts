@@ -13,9 +13,10 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { CapabilityMetadata, TrustLevel } from "@linchkit/core";
+import type { CapabilityMetadata } from "@linchkit/core";
 import {
   checkTrustPermissions,
+  computeEffectiveTrust,
   coreVersionRangeOf,
   satisfiesVersionRange,
   VERSION,
@@ -154,14 +155,11 @@ export function validateTypeCompatibility(
   return { errors, warnings };
 }
 
-/**
- * Infer trust level from package name convention.
- */
-export function inferTrustLevel(packageName: string): TrustLevel {
-  if (packageName.startsWith("@linchkit/")) return "official";
-  if (packageName.startsWith("linchkit-cap-")) return "community";
-  return "unverified";
-}
+// Trust inference + clamp now live in @linchkit/core (`computeEffectiveTrust`,
+// `inferTrustLevel`) — single source of truth shared with `publish`. Re-export
+// `inferTrustLevel` so existing importers (e.g. the CLI test suite) keep their
+// import path.
+export { inferTrustLevel } from "@linchkit/core";
 
 export const installCommand = defineCommand({
   meta: {
@@ -376,8 +374,14 @@ export const installCommand = defineCommand({
       }
     }
 
-    // Step 7: Trust level check
-    const trustLevel = inferTrustLevel(packageName);
+    // Step 7: Trust level check.
+    // Effective trust = clamp(declared ?? inferred). A capability MAY declare a
+    // `trustLevel` in its capability.json, but the declaration can only LOWER
+    // its standing — never exceed what the package name justifies (anti-spoof).
+    const trustLevel = computeEffectiveTrust({
+      name: packageName,
+      declaredTrust: metadata.trustLevel,
+    });
     if (trustLevel === "unverified") {
       console.warn("");
       console.warn("[linch] Trust level: unverified");

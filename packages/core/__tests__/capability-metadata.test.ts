@@ -238,6 +238,36 @@ describe("capabilityMetadataSchema", () => {
     }
   });
 
+  it("accepts an optional valid trustLevel", () => {
+    for (const tier of ["official", "verified", "community", "unverified"]) {
+      const result = capabilityMetadataSchema.safeParse({
+        ...validMinimal,
+        trustLevel: tier,
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.trustLevel).toBe(tier);
+      }
+    }
+  });
+
+  it("rejects an invalid trustLevel enum value", () => {
+    const result = capabilityMetadataSchema.safeParse({
+      ...validMinimal,
+      trustLevel: "trusted",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("parses when trustLevel is absent (undefined)", () => {
+    // validMinimal omits trustLevel entirely.
+    const result = capabilityMetadataSchema.safeParse(validMinimal);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.trustLevel).toBeUndefined();
+    }
+  });
+
   it("accepts all valid category values", () => {
     for (const c of [
       "system",
