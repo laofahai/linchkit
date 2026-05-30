@@ -42,7 +42,7 @@ export type ProposalOutcomeType = "accepted" | "rejected" | "merged" | "withdraw
 
 /**
  * Structured payload written into the Memory Signal for a Proposal outcome.
- * Future Insight generators query signals of type `proposal.outcome.<outcome>`
+ * Future Insight generators query signals of type `proposal:outcome:<outcome>`
  * to compute acceptance ratios by capability, changeType, and authorId.
  */
 export interface ProposalOutcomePayload {
@@ -108,7 +108,7 @@ export class ProposalOutcomeRecorder {
   /**
    * Record a Proposal outcome event to the Memory layer.
    *
-   * Writes a Signal of type `proposal.outcome.<outcome>` to the configured
+   * Writes a Signal of type `proposal:outcome:<outcome>` to the configured
    * store. The signal carries enough context for future Insight generators to
    * compute per-generator acceptance ratios without re-fetching the Proposal.
    *
@@ -140,7 +140,7 @@ export class ProposalOutcomeRecorder {
     };
 
     const signal: Signal = {
-      type: `proposal.outcome.${outcome}`,
+      type: `proposal:outcome:${outcome}`,
       source: "event_bus",
       timestamp: now,
       payload,
