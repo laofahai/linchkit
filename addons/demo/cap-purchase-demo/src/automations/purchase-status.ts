@@ -21,7 +21,7 @@ export const autoSetSubmittedAt = defineEventHandler({
     if (event.entity !== "purchase_request") return;
 
     const newValues = event.payload._new as Record<string, unknown> | undefined;
-    if (!newValues || newValues._state !== "pending") return;
+    if (newValues?._state !== "pending") return;
 
     // In a real implementation, this would call an action to set the field.
     // For demo purposes, the logic is shown inline.
@@ -43,7 +43,7 @@ export const autoSetApprovedFields = defineEventHandler({
     if (event.entity !== "purchase_request") return;
 
     const newValues = event.payload._new as Record<string, unknown> | undefined;
-    if (!newValues || newValues._state !== "approved") return;
+    if (newValues?._state !== "approved") return;
 
     console.log(
       `[purchase-demo] Auto-setting approved_at and approved_by for purchase_request (state -> approved, actor=${event.actor.id})`,
@@ -63,7 +63,7 @@ export const notifyHighPrioritySubmission = defineEventHandler({
     if (event.entity !== "purchase_request") return;
 
     const newValues = event.payload._new as Record<string, unknown> | undefined;
-    if (!newValues || newValues._state !== "pending") return;
+    if (newValues?._state !== "pending") return;
 
     console.log(`[purchase-demo] Notification: Purchase request submitted (state -> pending)`);
   },
