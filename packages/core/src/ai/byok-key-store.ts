@@ -135,7 +135,7 @@ export function createInMemoryBYOKKeyStore(options?: InMemoryBYOKKeyStoreOptions
       assertNonEmpty(provider, "provider");
 
       const record = records.get(buildKey(tenantId, provider));
-      if (!record || record.status !== "active") {
+      if (record?.status !== "active") {
         return { provider, decryptedKey: null, source: "missing" };
       }
       const decryptedKey = await resolveEncryptedKey(record.encryptedKeyRef);

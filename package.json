@@ -9,9 +9,9 @@
   ],
   "scripts": {
     "ai:eval": "bun addons/ai-provider/cap-ai-provider/bin/ai-eval.ts",
-    "check": "bunx @biomejs/biome check .",
-    "format": "bunx @biomejs/biome format --write .",
-    "lint": "bunx @biomejs/biome lint .",
+    "check": "biome check .",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "build": "bun run --filter '@linchkit/core' build && bun run --filter '@linchkit/devtools' build && bun run --filter '@linchkit/cli' --filter '@linchkit/cap-adapter-ui' build",
@@ -26,6 +26,7 @@
     "release": "bun scripts/release.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.16",
     "@changesets/cli": "^2.30.0",
     "bun-types": "latest",
     "drizzle-kit": "^0.31.10",
