@@ -7,5 +7,10 @@
   "types": "src/index.ts",
   "peerDependencies": {
     "@linchkit/core": "workspace:*"
+  },
+  "linchkit": {
+    "minCoreVersion": "^0.2.0",
+    "type": "standard",
+    "category": "business"
   }
 }

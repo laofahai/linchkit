@@ -84,7 +84,9 @@ linchkit-cap-*                    ← 社区能力
 ```
 
 Capability 类型：standard, bridge, adapter
-分类：system, infrastructure, integration, business, ui, utility, starter
+分类：system, infrastructure, integration, business, ui, view, utility, starter
+
+> `view` 是 UI 视图渲染类能力（calendar / kanban / timeline）的专用分类。
 
 ### 2.2 M0-M1：主仓库内独立包
 

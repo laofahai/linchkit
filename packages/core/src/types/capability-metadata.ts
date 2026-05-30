@@ -19,6 +19,8 @@ export const capabilityCategoryEnum = z.enum([
   "integration",
   "business",
   "ui",
+  // Category for UI view-renderer capabilities (calendar / kanban / timeline).
+  "view",
   "utility",
   "starter",
 ]);
