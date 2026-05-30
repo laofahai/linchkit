@@ -190,7 +190,7 @@ const CORE_INTERNAL_RE = /^@linchkit\/core\/(?:src|dist)(?:\/|$)/;
 function escapesIntoCoreInternals(filePath: string, capRoot: string, specifier: string): boolean {
   if (!specifier.startsWith(".") || !specifier.includes("..")) return false;
   // Use node:path's dirname so the file's directory is derived correctly on
-  // both POSIX ("/") and Windows ("\\") separators. A manual lastIndexOf("/")
+  // both POSIX ("/") and Windows ("\") separators. A manual lastIndexOf("/")
   // returns -1 on Windows paths and would resolve relative to the CWD instead.
   const fileDir = dirname(filePath);
   const resolved = resolve(fileDir, specifier);
@@ -199,7 +199,8 @@ function escapesIntoCoreInternals(filePath: string, capRoot: string, specifier: 
   // escaping path ALSO points at a `core` segment. Testing `rel` (not the
   // absolute path) avoids false positives when an unrelated ancestor directory
   // happens to be named "core" (e.g. a repo checked out under /…/core/…).
-  return rel.startsWith("..") && /(?:^\/|\/)core(?:\/|$)/.test(rel);
+  // rel is guaranteed to start with ".." here, so /\/core/ suffices.
+  return rel.startsWith("..") && /\/core(?:\/|$)/.test(rel);
 }
 
 function checkImportBoundary(root: string): CapabilityLintIssue[] {
