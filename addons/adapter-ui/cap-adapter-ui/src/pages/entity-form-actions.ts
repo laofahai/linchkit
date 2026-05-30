@@ -130,7 +130,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
             // Allow both explicit FK fields and auto-generated FK columns from relations
             const fieldDef = schema?.fields[fieldName];
             const isRelationFk = relationFkColumns.has(fieldName);
-            if (!isRelationFk && (!fieldDef || fieldDef.type !== "string")) continue;
+            if (!isRelationFk && fieldDef?.type !== "string") continue;
             // Resolve target entity from relations
             const relation = bundle?.relations?.find(
               (l) => l.from === entityName && l.fromName === fieldName.replace(/_id$/, ""),

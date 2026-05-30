@@ -386,7 +386,7 @@ export class DerivedPropertyEngine {
     // Resolve compute-strategy fields in topological order
     for (const key of order) {
       const info = this.fields.get(key);
-      if (!info || info.strategy !== "compute") continue;
+      if (info?.strategy !== "compute") continue;
 
       const value = resolveDerivedValue(info.derived, record);
       if (value !== undefined) {
@@ -461,7 +461,7 @@ export class DerivedPropertyEngine {
     // Resolve store-strategy fields in topological order
     for (const key of order) {
       const info = this.fields.get(key);
-      if (!info || info.strategy !== "store") continue;
+      if (info?.strategy !== "store") continue;
 
       // Skip aggregates in sync mode — they need async resolution
       if (info.derived.type === "aggregate") continue;
@@ -526,7 +526,7 @@ export class DerivedPropertyEngine {
     const order = this.topoOrder.get(entityName) ?? [];
     for (const key of order) {
       const info = this.fields.get(key);
-      if (!info || info.strategy !== "store") continue;
+      if (info?.strategy !== "store") continue;
       if (info.derived.type === "aggregate") continue;
 
       // Check if any dependency is an aggregate field

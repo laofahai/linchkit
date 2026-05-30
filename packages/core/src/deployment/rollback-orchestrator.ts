@@ -449,7 +449,7 @@ export function rollbackInputFromProposal(
   // Defensive against null/malformed input (this is a consumption point that may
   // receive deserialized/untrusted Proposals): a missing proposal or a
   // non-array `changes` declines rather than throwing a TypeError.
-  if (!proposal || proposal.status !== "approved" || !Array.isArray(proposal.changes)) {
+  if (proposal?.status !== "approved" || !Array.isArray(proposal.changes)) {
     return null;
   }
 
