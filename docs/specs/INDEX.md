@@ -67,7 +67,7 @@ Capability definition, extension, composition, and distribution.
 | [01](./01_capability_structure.md) | Capability Structure | `defineCapability()` — standard/adapter/bridge types, lifecycle, dependencies | M0 | Done |
 | [14](./14_system_capabilities.md) | System Capabilities | Built-in capabilities (auth, permission, MCP, UI), cold-start packs | M0 | Partial |
 | [20](./20_extension_mechanism.md) | Extension Mechanism | `extensions` — schemas/actions/rules/views/middlewares/transports/fieldTypes/services/hooks | M0 | Done |
-| [21](./21_capability_ecosystem.md) | Capability Ecosystem | Capability lifecycle, publishing, version management, compatibility matrix | M1 | Partial |
+| [21](./21_capability_ecosystem.md) | Capability Ecosystem | Capability lifecycle, publishing, version management, compatibility matrix. Implemented: §7.2 runtime-honored standalone `capability.json`, §9.1 `linch lint-capability` quality checks, §10.1 `coreVersion` compatibility declaration + consistency. Pending: Hub (21b) + `@linchkit/starter-*` bundles | M1 | Partial |
 | [21b](./21_capability_hub.md) | Capability Hub | Discovery, registration, installation, dependency resolution | M2+ | Draft |
 | [57](./57_addon_architecture.md) | Addon Architecture | OCA pattern — addons/ grouping, autoInstall, graphqlExtensions, Panel registration | M2 | Done |
 
