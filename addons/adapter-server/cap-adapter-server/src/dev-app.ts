@@ -26,14 +26,35 @@ import {
 } from "./assemble-schema";
 import { createServer, type ServerOptions } from "./server";
 
-/** Options for {@link createDevApp}. */
-export interface CreateDevAppOptions extends AssembleDevSchemaOptions {
-  /**
-   * CORS origin configuration forwarded to `createServer`. Defaults to the
-   * dev localhost origins. Tests can pass `false` to disable CORS entirely.
-   */
-  cors?: ServerOptions["cors"];
-}
+/**
+ * Options for {@link createDevApp}.
+ *
+ * Beyond the AI service used during assembly, any `ServerOptions` field is
+ * accepted and forwarded to `createServer` — so advanced integration tests can
+ * configure CORS, actor/tenant resolvers, an event bus, subscription config,
+ * etc. The fields this factory derives from the assembled runtime (executor,
+ * commandLayer, registries, dataProvider, …) are excluded: callers must not
+ * override them.
+ */
+export interface CreateDevAppOptions
+  extends AssembleDevSchemaOptions,
+    Partial<
+      Omit<
+        ServerOptions,
+        | "executor"
+        | "commandLayer"
+        | "executionLogger"
+        | "entityRegistry"
+        | "views"
+        | "capabilities"
+        | "rules"
+        | "aiService"
+        | "states"
+        | "flows"
+        | "dataProvider"
+        | "onchangeEvaluator"
+      >
+    > {}
 
 /** Result of {@link createDevApp}: the Elysia app plus the assembled schema. */
 export interface DevApp {
@@ -56,19 +77,27 @@ export interface DevApp {
  * back to `InMemoryStore`, so this runs in CI without Postgres.
  *
  * @param capabilities - Capabilities to assemble (adapter + business + system).
- * @param options - Optional AI service and CORS configuration.
+ * @param options - AI service used during assembly, plus any `ServerOptions`
+ *   field (cors, actor/tenant resolvers, event bus, …) to forward to the server.
  * @returns The Elysia app and the assembled schema/runtime that backs it.
  */
 export function createDevApp(
   capabilities: CapabilityDefinition[],
   options?: CreateDevAppOptions,
 ): DevApp {
-  const assembled = assembleDevSchema(capabilities, { aiService: options?.aiService });
+  // `aiService` is consumed by the assembly; everything else is a ServerOptions
+  // passthrough forwarded to `createServer`.
+  const { aiService, ...serverOverrides } = options ?? {};
+  const assembled = assembleDevSchema(capabilities, { aiService });
   const { schema, runtime, contributions, onchangeEvaluator } = assembled;
 
-  // Mirror dev.ts's createServer(...) call exactly so the boot smoke test and
-  // the real dev server share one wiring path.
+  // Forward caller-supplied ServerOptions first, then the fields this factory
+  // derives from the assembled runtime — which always win (and are excluded
+  // from CreateDevAppOptions so callers cannot override them). This mirrors
+  // dev.ts's createServer(...) call so the smoke test and the real dev server
+  // share one wiring path.
   const app = createServer(schema, {
+    ...serverOverrides,
     executor: runtime.executor,
     commandLayer: runtime.commandLayer,
     executionLogger: runtime.executionLogger,
@@ -81,7 +110,6 @@ export function createDevApp(
     flows: [],
     dataProvider: runtime.dataProvider,
     onchangeEvaluator,
-    ...(options?.cors !== undefined && { cors: options.cors }),
   });
 
   return { app, assembled };
