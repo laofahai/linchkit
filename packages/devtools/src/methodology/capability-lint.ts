@@ -360,6 +360,8 @@ export function stripComments(content: string): string {
   // Keywords whose presence right before `/` means a regex literal follows.
   const regexKeywords = new Set([
     "return",
+    "throw",
+    "default",
     "typeof",
     "case",
     "in",
@@ -374,9 +376,10 @@ export function stripComments(content: string): string {
   ]);
 
   const isExprEndChar = (c: string): boolean =>
-    // Identifier/number chars, a closing bracket, or a string/regex end can
-    // terminate an expression → a following `/` is division, not a regex.
-    /[\w$)\]}'"`]/.test(c);
+    // A char can end an expression (so a following `/` is division) unless it is
+    // a punctuator that permits a regex. Testing the punctuator set by exclusion
+    // also handles Unicode identifiers, not just ASCII `\w` chars.
+    !/[=,({[;:!&|?+\-*/%<>^~]/.test(c);
 
   /** Decide whether a `/` at the current position begins a regex literal. */
   const slashStartsRegex = (): boolean => {

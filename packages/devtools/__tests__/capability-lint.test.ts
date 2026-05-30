@@ -397,6 +397,20 @@ describe("stripComments", () => {
     expect(stripped).toContain(`/a\\/\\/b/`);
     expect(stripped).not.toContain("z");
   });
+
+  it("recognizes a regex after the `throw` keyword so a trailing comment IS stripped", () => {
+    const stripped = stripComments(`function f() { throw /'/ // c\n}`);
+    expect(stripped).not.toContain("// c");
+  });
+
+  it("treats `/` after a Unicode identifier as division (so the comment is stripped)", () => {
+    // ASCII-only `\w` would misclassify a non-ASCII identifier and treat the `/`
+    // as a regex, swallowing the trailing comment. The punctuator-exclusion test
+    // keeps it as division.
+    const stripped = stripComments(`const 名 = a; 名 / 2; // gone`);
+    expect(stripped).toContain("名 / 2");
+    expect(stripped).not.toContain("gone");
+  });
 });
 
 describe("extractImportSpecifiers", () => {
