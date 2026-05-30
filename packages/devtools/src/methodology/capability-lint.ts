@@ -329,39 +329,40 @@ function stripComments(content: string): string {
   const len = content.length;
 
   while (i < len) {
-    const ch = content[i];
+    const ch = content.charAt(i);
 
     // Block comment: /* ... */
-    if (ch === "/" && content[i + 1] === "*") {
+    if (ch === "/" && content.charAt(i + 1) === "*") {
       i += 2;
-      while (i < len && !(content[i] === "*" && content[i + 1] === "/")) i++;
+      while (i < len && !(content.charAt(i) === "*" && content.charAt(i + 1) === "/")) i++;
       i += 2; // consume */
       continue;
     }
 
     // Line comment: // ...
-    if (ch === "/" && content[i + 1] === "/") {
-      while (i < len && content[i] !== "\n") i++;
+    if (ch === "/" && content.charAt(i + 1) === "/") {
+      while (i < len && content.charAt(i) !== "\n") i++;
       continue;
     }
 
     // String literal: preserve contents so `//` inside strings is not stripped.
     if (ch === '"' || ch === "'" || ch === "`") {
       const quote = ch;
-      out.push(content[i++]);
+      out.push(content.charAt(i++));
       while (i < len) {
-        if (content[i] === "\\") {
-          out.push(content[i++]);
-          if (i < len) out.push(content[i++]);
+        if (content.charAt(i) === "\\") {
+          out.push(content.charAt(i++));
+          if (i < len) out.push(content.charAt(i++));
           continue;
         }
-        out.push(content[i]);
-        if (content[i++] === quote) break;
+        const c = content.charAt(i++);
+        out.push(c);
+        if (c === quote) break;
       }
       continue;
     }
 
-    out.push(content[i++]);
+    out.push(content.charAt(i++));
   }
 
   return out.join("");
