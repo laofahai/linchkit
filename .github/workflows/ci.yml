@@ -47,3 +47,37 @@ jobs:
             exit 0
           fi
           exit "$RC"
+
+  capability-lint:
+    name: Capability Lint
+    runs-on: ubuntu-latest
+    # Advisory gate for Spec 21 §9.1: surfaces non-compliant capabilities on
+    # every PR. This job is intentionally NOT in the branch-protection required
+    # checks — it reports (red X) without blocking merge. Promote it to a
+    # required check in branch protection to make §9.1 compliance mandatory.
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Lint all capabilities (metadata, import-boundary, tests)
+        shell: bash
+        run: |
+          # Run `linch lint-capability` over every addon capability. Fail this
+          # job if any capability violates a §9.1 gate so the regression is
+          # visible on the PR. All addons pass as of this job's introduction.
+          fail=0
+          for d in addons/*/cap-*/; do
+            if ! bun packages/cli/src/index.ts lint-capability "$d"; then
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more capabilities failed lint-capability (Spec 21 §9.1)."
+          fi
+          exit "$fail"
