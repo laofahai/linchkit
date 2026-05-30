@@ -325,7 +325,9 @@ function isIgnoredDir(name: string): boolean {
  * existing full-content regexes still span newlines for multi-line imports.
  */
 function stripComments(content: string): string {
-  return content.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+  return content
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 }
 
 /**

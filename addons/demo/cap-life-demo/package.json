@@ -12,7 +12,7 @@
     "@linchkit/core": "workspace:*"
   },
   "linchkit": {
-    "minCoreVersion": "^0.2.0",
+    "coreVersion": "^0.2.0",
     "type": "standard",
     "category": "system"
   }
