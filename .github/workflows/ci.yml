@@ -10,6 +10,25 @@ jobs:
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    services:
+      # Postgres for the DB-gated integration/e2e suites. Without it those
+      # `describe.skipIf(!dbAvailable)` suites SKIP in CI — i.e. ~124 tests that
+      # never actually ran. Mirrors the `postgres-test` service in
+      # docker-compose.yml (image/creds/port) so local and CI behave identically;
+      # the tests connect to localhost:5434 via DATABASE_TEST_URL below.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: linchkit_test
+          POSTGRES_PASSWORD: linchkit_test
+          POSTGRES_DB: linchkit_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U linchkit_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v5
 
@@ -28,6 +47,11 @@ jobs:
 
       - name: Run tests
         shell: bash
+        env:
+          # Flips the DB-gated `describe.skipIf(!dbAvailable)` suites from skip to
+          # run. Matches the `postgres` service above and the hardcoded default
+          # the test files fall back to.
+          DATABASE_TEST_URL: postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test
         run: |
           # Bun 1.2.18 occasionally segfaults during process teardown
           # (panic 0x4A at exit) even when every test passes. The crash can land
