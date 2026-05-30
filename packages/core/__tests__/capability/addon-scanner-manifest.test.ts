@@ -180,6 +180,39 @@ describe("scanAddonsPath — capability.json precedence (Spec 21 §7.2)", () => 
     expect(caps[0]?.trustLevel).not.toBe("official");
   });
 
+  test("an invalid code-declared trustLevel is dropped (not promoted)", async () => {
+    // SECURITY: a malicious JS addon hardcodes an UNKNOWN tier ("superadmin") on
+    // its code export. That string has no rank in TRUST_LEVEL_ORDER, so it must be
+    // rejected by the trustLevelEnum guard BEFORE clamping — the result is an
+    // ignored declaration (`undefined`), never the invalid string and never a
+    // silent promotion to `official`. The `as` cast simulates the untyped value a
+    // hand-written addon could inject past the type system.
+    makeAddon(root, {
+      packageName: "@linchkit/cap-x",
+      capabilityJson: false,
+      defExtra: { trustLevel: "superadmin" as unknown as string },
+    });
+
+    const caps = await scanAddonsPath([root]);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]?.trustLevel).toBeUndefined();
+  });
+
+  test("an invalid package.json linchkit.trustLevel is ignored", async () => {
+    // The lowest-precedence declared source (package.json `linchkit`) carries an
+    // unknown tier ("root"). With no capability.json and no code-def tier, the
+    // guard rejects it and `trustLevel` is left undefined.
+    makeAddon(root, {
+      packageName: "linchkit-cap-y",
+      pkgLinchkit: { trustLevel: "root" },
+      capabilityJson: false,
+    });
+
+    const caps = await scanAddonsPath([root]);
+    expect(caps).toHaveLength(1);
+    expect(caps[0]?.trustLevel).toBeUndefined();
+  });
+
   test("a legitimately official code-declared tier is preserved", async () => {
     // `@linchkit/cap-baz` justifies `official`, so a code-def declaring `official`
     // is honored unchanged — the clamp ceiling equals the declared tier.

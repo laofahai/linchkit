@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { CapabilityDefinition } from "../types/capability";
 import { type CapabilityMetadata, validateCapabilityMetadata } from "../types/capability-metadata";
-import type { TrustLevel } from "../types/trust";
+import { type TrustLevel, trustLevelEnum } from "../types/trust";
 import { coreVersionRangeOf, type MetadataCompatibility } from "./compatibility";
 import { computeEffectiveTrust } from "./trust";
 
@@ -55,8 +55,10 @@ export function loadCapabilityManifest(capPath: string): CapabilityMetadata | nu
  *   (b) the standalone `capability.json` manifest — HIGHER than package.json;
  *   (c) the `package.json` `linchkit` field — fallback.
  * A declared `trustLevel` from ANY source (code-def, capability.json, or
- * package.json `linchkit`) is always clamped via `computeEffectiveTrust`
- * (anti-spoof: a declaration can only LOWER standing, never raise it).
+ * package.json `linchkit`) is first runtime-validated against the canonical
+ * `trustLevelEnum` and then clamped via `computeEffectiveTrust` (anti-spoof: a
+ * declaration can only LOWER standing, never raise it; an invalid tier is
+ * ignored entirely rather than leaking into permission checks).
  */
 export async function scanAddonsPath(addonsPaths: string[]): Promise<CapabilityDefinition[]> {
   const capabilities: CapabilityDefinition[] = [];
@@ -121,18 +123,45 @@ export async function scanAddonsPath(addonsPaths: string[]): Promise<CapabilityD
             // Trust tier (Spec 21 / #122) — the anti-spoof clamp applies to EVERY declared
             // tier regardless of source. Precedence for the declared value:
             // code-def > capability.json > package.json `linchkit`. Whichever we take is
-            // then ALWAYS clamped via computeEffectiveTrust. The clamp runs even when the
-            // tier was hardcoded on the code export — otherwise a malicious addon could
-            // ship `trustLevel: "official"` in src/index.ts and bypass the clamp entirely.
-            const declaredTrust =
+            // first runtime-VALIDATED against the canonical `trustLevelEnum`, then ALWAYS
+            // clamped via computeEffectiveTrust. Validation matters because only the
+            // manifest tier is Zod-checked upstream — `def.trustLevel` (code export) and
+            // `pkgJson.linchkit?.trustLevel` (package.json) are untrusted strings cast to
+            // `TrustLevel`. An unknown tier (e.g. "superadmin") has no rank in
+            // TRUST_LEVEL_ORDER, so it would make the clamp comparison misbehave and could
+            // leak an invalid trust level into runtime permission checks. The clamp also
+            // runs even when the tier was hardcoded on the code export — otherwise a
+            // malicious addon could ship `trustLevel: "official"` in src/index.ts and
+            // bypass the clamp entirely.
+            const rawDeclared =
               def.trustLevel ?? manifest?.trustLevel ?? pkgJson.linchkit?.trustLevel;
-            if (declaredTrust !== undefined) {
-              // Clamp ceiling is inferred from the canonical publish name, NOT the short
-              // runtime `def.name` (e.g. "cap-auth") which carries no scope/prefix and would
-              // mis-infer every addon as `unverified`. Prefer the manifest name (higher
-              // priority per §7.2), then package.json's name. Mirrors install.ts/publish.ts.
-              const canonicalName = manifest?.name ?? pkgJson.name ?? def.name;
-              def.trustLevel = computeEffectiveTrust({ name: canonicalName, declaredTrust });
+            if (rawDeclared !== undefined) {
+              const parsed = trustLevelEnum.safeParse(rawDeclared);
+              if (parsed.success) {
+                // Clamp ceiling is inferred from the canonical publish name, NOT the short
+                // runtime `def.name` (e.g. "cap-auth") which carries no scope/prefix and
+                // would mis-infer every addon as `unverified`. Prefer the manifest name
+                // (higher priority per §7.2), then package.json's name. Mirrors
+                // install.ts/publish.ts.
+                const canonicalName = manifest?.name ?? pkgJson.name ?? def.name;
+                def.trustLevel = computeEffectiveTrust({
+                  name: canonicalName,
+                  declaredTrust: parsed.data,
+                });
+              } else {
+                console.warn(
+                  `[linchkit] Ignoring invalid declared trustLevel "${String(rawDeclared)}" for capability "${def.name}"`,
+                );
+                // Defensive: if the invalid value came from the code export, do not let it
+                // survive on the runtime definition (it would otherwise reach permission
+                // checks unclamped).
+                if (
+                  def.trustLevel !== undefined &&
+                  !trustLevelEnum.safeParse(def.trustLevel).success
+                ) {
+                  def.trustLevel = undefined;
+                }
+              }
             }
 
             // Dependencies declared in capability.json fill in when the code-def
