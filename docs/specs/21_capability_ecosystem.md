@@ -285,9 +285,13 @@ $ linch install some-random-package
 ```json
 {
   "name": "@linchkit/cap-auth",
-  "coreVersion": "^0.2.0",
+  "version": "1.0.0",
+  "label": "Authentication",
   "type": "standard",
   "category": "system",
+  "linchkit": {
+    "coreVersion": "^0.2.0"
+  },
   "trustLevel": "official",
   "systemPermissions": ["database.create_table"],
   "dependencies": [
@@ -312,7 +316,9 @@ $ linch install some-random-package
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|:----:|------|
 | `name` | string | ✓ | 包名（与 npm 包名一致） |
-| `coreVersion` | semver range | ✓ | 兼容的 `@linchkit/core` 版本范围（如 `^0.2.0`）。`minCoreVersion` 为其 **@deprecated** 别名，仅在 `coreVersion` 缺失时作为兜底识别 |
+| `version` | string | ✓ | 包版本（与 npm 包版本一致） |
+| `label` | string | ✓ | 人类可读的展示名 |
+| `linchkit.coreVersion` | semver range | ✓ | 兼容的 `@linchkit/core` 版本范围（如 `^0.2.0`），嵌套在 `linchkit` 块下。`linchkit.minCoreVersion` 为其 **@deprecated** 别名，仅在 `coreVersion` 缺失时作为兜底识别 |
 | `type` | enum | ✓ | `standard` / `bridge` / `adapter` |
 | `category` | string | ✓ | 分类，见 `01_capability_structure.md` |
 | `trustLevel` | enum | — | `official` / `verified` / `community` / `unverified` |
@@ -455,9 +461,9 @@ my-capability/
 
 `coreVersion` 是声明所需 core 版本的规范字段，取值为 semver 范围（如 `^0.2.0`、`>=0.2.0 <0.4.0`）。`minCoreVersion` 是其 **@deprecated** 别名，仅在 `coreVersion` 缺失时作为兜底被识别。
 
-**两者都要声明，且范围必须一致（相等）**：`peerDependencies["@linchkit/core"]` 用于 npm 安装时的版本解析，`coreVersion` 用于运行时校验。唯一例外是 monorepo 内部私有包——其 peerDep 为 `workspace:*` 时，只需声明 `coreVersion`。
+**两者都要声明，且范围必须一致（相等）**：`peerDependencies["@linchkit/core"]` 用于 npm 安装时的版本解析，`linchkit.coreVersion` 用于运行时校验。唯一例外是 monorepo 内部私有包——其 peerDep 为 `workspace:*` 时，只需声明 `linchkit.coreVersion`。
 
-当存在独立的 `capability.json` 时，其中的 `coreVersion` 优先级高于 `package.json` 的 `linchkit` 块。
+`coreVersion` 在 `capability.json` 与 `package.json` 中都嵌套于 `linchkit` 块下。当存在独立的 `capability.json` 时，其 `linchkit.coreVersion` 优先级高于 `package.json` 的 `linchkit.coreVersion`。
 
 ### 10.2 CLI 行为
 
