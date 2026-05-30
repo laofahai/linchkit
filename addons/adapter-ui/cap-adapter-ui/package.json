@@ -71,7 +71,7 @@
     "autoprefixer": "^10.4.27"
   },
   "linchkit": {
-    "minCoreVersion": "^0.1.0",
+    "coreVersion": "^0.2.0",
     "type": "adapter",
     "category": "integration"
   }

@@ -11,8 +11,14 @@
  *     `@linchkit/core` barrel, never deep internals (`@linchkit/core/src/...`
  *     or `/dist/...`), nor relative paths that escape into core internals.
  *     Enforces CLAUDE.md: "只依赖 @linchkit/core 的公开 API（不用内部路径）".
- *  3. Test existence — at least one test file must be present (proxy for the
- *     spec's "覆盖率 > 0 / 必须有测试").
+ *  3. Test existence — at least one test file must be present AND contain at
+ *     least one executable test (`test(`/`it(`/`describe(`/`Bun.test(`); an
+ *     empty or assertion-less stub fails (proxy for the spec's "覆盖率 > 0 /
+ *     必须有测试").
+ *  4. Core version declaration consistency — `@linchkit/core` must be a
+ *     peerDependency and a core-version range must be declared (`coreVersion`,
+ *     preferred over the deprecated `minCoreVersion`); when the peerDep pins a
+ *     concrete range it must equal the declared core version (Spec 21 §10.1).
  *
  * Filesystem access uses node:fs/node:path only; import scanning is a simple
  * line/regex scan (no TS AST) to match the existing methodology approach.
@@ -58,6 +64,7 @@ export function lintCapability(dir: string): CapabilityLintResult {
   issues.push(...checkMetadata(root));
   issues.push(...checkImportBoundary(root));
   issues.push(...checkTestExistence(root));
+  issues.push(...checkCoreVersion(root));
 
   const hasError = issues.some((i) => i.level === "error");
   return { dir: root, ok: !hasError, issues };
@@ -233,28 +240,64 @@ function checkImportBoundary(root: string): CapabilityLintIssue[] {
   return issues;
 }
 
-// -- Check 3: test existence ---------------------------------------------
+// -- Check 3: test existence + executable test ---------------------------
 
 const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx)$/;
 
+/**
+ * Detects a call to a Bun/Jest-style test runner: `test(`, `it(`, `describe(`,
+ * their `.only`/`.skip`/`.each` member forms (`test.`/`it.`/`describe.`), or
+ * the explicit `Bun.test(`. Run AFTER `stripComments`, so a commented-out test
+ * never counts. The `\b` anchor avoids matching identifiers like `submit(` or
+ * `unit(`.
+ */
+const EXECUTABLE_TEST_RE = /\b(?:Bun\.test\s*\(|(?:test|it|describe)\s*(?:\(|\.))/;
+
 function checkTestExistence(root: string): CapabilityLintIssue[] {
-  if (hasTestFile(root)) return [];
-  return [
-    {
-      check: "test-existence",
-      level: "error",
-      message:
-        "No test file found. A capability must contain at least one *.test.ts(x), *.spec.ts, or a __tests__/ test (Spec 21 §9.1).",
-    },
-  ];
+  const testFiles = collectTestFiles(root);
+  if (testFiles.length === 0) {
+    return [
+      {
+        check: "test-existence",
+        level: "error",
+        message:
+          "No test file found. A capability must contain at least one *.test.ts(x), *.spec.ts, or a __tests__/ test (Spec 21 §9.1).",
+      },
+    ];
+  }
+
+  const hasExecutableTest = testFiles.some((file) => {
+    let content: string;
+    try {
+      content = readFileSync(file, "utf-8");
+    } catch {
+      return false;
+    }
+    return EXECUTABLE_TEST_RE.test(stripComments(content));
+  });
+
+  if (!hasExecutableTest) {
+    return [
+      {
+        check: "test-existence",
+        level: "error",
+        message:
+          "Test file(s) found but none contain an executable test (test(...)/it(...)/describe(...)). An empty or stub test does not satisfy coverage > 0 (Spec 21 §9.1).",
+      },
+    ];
+  }
+
+  return [];
 }
 
-function hasTestFile(dir: string): boolean {
+/** Collect all `*.test.ts(x)` / `*.spec.ts(x)` files under a directory. */
+function collectTestFiles(dir: string): string[] {
+  const out: string[] = [];
   let entries: string[];
   try {
     entries = readdirSync(dir);
   } catch {
-    return false;
+    return out;
   }
 
   for (const entry of entries) {
@@ -267,12 +310,170 @@ function hasTestFile(dir: string): boolean {
     }
     if (isDir) {
       if (isIgnoredDir(entry)) continue;
-      if (hasTestFile(full)) return true;
+      out.push(...collectTestFiles(full));
     } else if (TEST_FILE_RE.test(entry)) {
-      return true;
+      out.push(full);
     }
   }
-  return false;
+  return out;
+}
+
+// -- Check 4: core version declaration consistency -----------------------
+
+/**
+ * A `workspace:` protocol specifier used inside the monorepo (e.g.
+ * `workspace:*`). Such peerDeps resolve to the local core at build time, so we
+ * cannot compare them against a published semver range — the equality check is
+ * skipped and only presence of a declared `coreVersion` is required.
+ */
+const WORKSPACE_PROTOCOL_RE = /^workspace:/;
+
+/**
+ * Validate the @linchkit/core version contract (Spec 21 §10.1):
+ *  - `@linchkit/core` MUST be declared in `peerDependencies` → error if absent.
+ *  - A core-version range MUST be declared: `capability.json` `coreVersion`
+ *    (precedence) else `package.json` `linchkit.coreVersion`. If only the
+ *    deprecated `linchkit.minCoreVersion` is present it is accepted with a
+ *    WARNING recommending migration; if none present → error.
+ *  - When the peerDep is a concrete semver range AND a coreVersion is declared,
+ *    they MUST be equal → error on mismatch. A `workspace:*` peerDep skips the
+ *    equality check (only presence of a coreVersion is required).
+ */
+function checkCoreVersion(root: string): CapabilityLintIssue[] {
+  const issues: CapabilityLintIssue[] = [];
+
+  const packageJsonPath = join(root, "package.json");
+  if (!existsSync(packageJsonPath)) {
+    // No package.json at all — there is no peerDependencies block to inspect.
+    // The metadata check already reports the missing manifest; surface the core
+    // contract failure here too so this check is self-contained.
+    return [
+      {
+        check: "core-version",
+        level: "error",
+        message:
+          'No package.json found, so "@linchkit/core" cannot be declared in peerDependencies (Spec 21 §10.1).',
+        file: "package.json",
+      },
+    ];
+  }
+
+  const pkgParsed = readJson(packageJsonPath);
+  if (pkgParsed.error || typeof pkgParsed.value !== "object" || pkgParsed.value === null) {
+    return [
+      {
+        check: "core-version",
+        level: "error",
+        message: `Failed to parse package.json for core-version check: ${pkgParsed.error ?? "not an object"}`,
+        file: "package.json",
+      },
+    ];
+  }
+  const pkg = pkgParsed.value as Record<string, unknown>;
+
+  // 1. peerDependencies["@linchkit/core"] must be present.
+  const peerDeps =
+    typeof pkg.peerDependencies === "object" && pkg.peerDependencies !== null
+      ? (pkg.peerDependencies as Record<string, unknown>)
+      : {};
+  const peerCore = peerDeps["@linchkit/core"];
+  if (typeof peerCore !== "string" || peerCore.length === 0) {
+    issues.push({
+      check: "core-version",
+      level: "error",
+      message:
+        '"@linchkit/core" must be declared in package.json "peerDependencies" (Spec 21 §10.1).',
+      file: "package.json",
+    });
+  }
+
+  // 2. A core-version range must be declared. capability.json.coreVersion takes
+  //    precedence over package.json.linchkit.coreVersion; the deprecated
+  //    minCoreVersion is accepted as a fallback (with a warning).
+  const declared = resolveDeclaredCoreVersion(root, pkg);
+  if (declared.coreVersion === undefined && declared.minCoreVersion === undefined) {
+    issues.push({
+      check: "core-version",
+      level: "error",
+      message:
+        'No core-version range declared. Add "coreVersion" to capability.json or package.json "linchkit" (Spec 21 §10.1).',
+      file: declared.sourceFile,
+    });
+    return issues;
+  }
+
+  let effectiveRange: string;
+  if (declared.coreVersion !== undefined) {
+    effectiveRange = declared.coreVersion;
+  } else {
+    // Only the deprecated minCoreVersion is present — accept with a warning.
+    // (declared.minCoreVersion is defined here per the guard above.)
+    effectiveRange = declared.minCoreVersion as string;
+    issues.push({
+      check: "core-version",
+      level: "warning",
+      message:
+        'Deprecated "minCoreVersion" used. Migrate to "coreVersion" (a semver range) — minCoreVersion is @deprecated (Spec 21 §10.1).',
+      file: declared.sourceFile,
+    });
+  }
+
+  // 3. Equality check — only when the peerDep is a concrete range. workspace:*
+  //    resolves locally and cannot be compared, so it is skipped.
+  if (typeof peerCore === "string" && peerCore.length > 0 && !WORKSPACE_PROTOCOL_RE.test(peerCore)) {
+    if (peerCore !== effectiveRange) {
+      issues.push({
+        check: "core-version",
+        level: "error",
+        message: `Core-version mismatch: peerDependencies["@linchkit/core"] is "${peerCore}" but the declared coreVersion is "${effectiveRange}". They must be equal (Spec 21 §10.1).`,
+        file: "package.json",
+      });
+    }
+  }
+
+  return issues;
+}
+
+interface DeclaredCoreVersion {
+  /** Resolved `coreVersion` range (capability.json precedence), if any. */
+  coreVersion?: string;
+  /** Deprecated `linchkit.minCoreVersion` from package.json, if any. */
+  minCoreVersion?: string;
+  /** File the declaration came from, for issue attribution. */
+  sourceFile: string;
+}
+
+/**
+ * Resolve the declared core-version range. `capability.json` `coreVersion`
+ * wins; otherwise fall back to `package.json` `linchkit.coreVersion`, then the
+ * deprecated `package.json` `linchkit.minCoreVersion`.
+ */
+function resolveDeclaredCoreVersion(root: string, pkg: Record<string, unknown>): DeclaredCoreVersion {
+  const capabilityJsonPath = join(root, "capability.json");
+  if (existsSync(capabilityJsonPath)) {
+    const parsed = readJson(capabilityJsonPath);
+    if (!parsed.error && typeof parsed.value === "object" && parsed.value !== null) {
+      const cv = (parsed.value as Record<string, unknown>).coreVersion;
+      if (typeof cv === "string" && cv.length > 0) {
+        return { coreVersion: cv, sourceFile: "capability.json" };
+      }
+    }
+  }
+
+  const block =
+    typeof pkg.linchkit === "object" && pkg.linchkit !== null
+      ? (pkg.linchkit as Record<string, unknown>)
+      : {};
+  const cv = block.coreVersion;
+  if (typeof cv === "string" && cv.length > 0) {
+    return { coreVersion: cv, sourceFile: "package.json" };
+  }
+  const min = block.minCoreVersion;
+  if (typeof min === "string" && min.length > 0) {
+    return { minCoreVersion: min, sourceFile: "package.json" };
+  }
+
+  return { sourceFile: existsSync(capabilityJsonPath) ? "capability.json" : "package.json" };
 }
 
 // -- Filesystem helpers --------------------------------------------------

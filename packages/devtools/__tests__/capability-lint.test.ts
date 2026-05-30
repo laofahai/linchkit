@@ -33,6 +33,24 @@ const VALID_CAPABILITY_JSON = {
   label: "Sample Capability",
 };
 
+/**
+ * A package.json that satisfies the core-version check: declares
+ * `@linchkit/core` as a peerDependency and a matching `coreVersion`. Used by
+ * fixtures that exercise OTHER checks and must otherwise be fully clean.
+ */
+function writeCorePackageJson(root: string, coreRange = "^0.2.0"): void {
+  writeFile(
+    root,
+    "package.json",
+    JSON.stringify({
+      name: "@linchkit/cap-sample",
+      version: "1.0.0",
+      peerDependencies: { "@linchkit/core": coreRange },
+      linchkit: { coreVersion: coreRange },
+    }),
+  );
+}
+
 afterAll(() => {
   for (const root of tmpRoots) {
     rmSync(root, { recursive: true, force: true });
@@ -45,6 +63,7 @@ describe("lintCapability", () => {
   it("returns ok for a clean capability (valid manifest + core barrel import + test)", () => {
     const root = makeCapDir();
     writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeCorePackageJson(root);
     writeFile(root, "src/index.ts", `import { defineEntity } from "@linchkit/core";\nexport {};\n`);
     writeFile(
       root,
@@ -65,7 +84,8 @@ describe("lintCapability", () => {
       JSON.stringify({
         name: "@linchkit/cap-fallback",
         version: "1.0.0",
-        linchkit: { type: "adapter", category: "integration", minCoreVersion: "^0.1.0" },
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "adapter", category: "integration", coreVersion: "^0.2.0" },
       }),
     );
     writeFile(
@@ -158,6 +178,7 @@ describe("lintCapability", () => {
   it("does NOT flag the bare @linchkit/core barrel or public subpath imports", () => {
     const root = makeCapDir();
     writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeCorePackageJson(root);
     writeFile(
       root,
       "src/index.ts",
@@ -178,6 +199,7 @@ describe("lintCapability", () => {
   it("does NOT flag a deep import that only appears in comments", () => {
     const root = makeCapDir();
     writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeCorePackageJson(root);
     writeFile(
       root,
       "src/index.ts",
@@ -303,6 +325,256 @@ describe("lintCapability", () => {
 
     const result = lintCapability(root);
     expect(result.issues.filter((i) => i.check === "test-existence")).toHaveLength(0);
+  });
+
+  // -- Check 3 (executable test content) -------------------------------
+
+  it("accepts a test file containing a real it(...) block", () => {
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(
+      root,
+      "src/real.test.ts",
+      `import { expect, it } from "bun:test";\nit("does a thing", () => expect(1).toBe(1));\n`,
+    );
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "test-existence")).toHaveLength(0);
+  });
+
+  it("fails the basic-test check for an empty test file (no executable test)", () => {
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeCorePackageJson(root);
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    // File exists and matches the *.test.ts pattern but contains no test call.
+    writeFile(root, "src/empty.test.ts", `export {};\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    const testIssues = result.issues.filter((i) => i.check === "test-existence");
+    expect(testIssues).toHaveLength(1);
+    expect(testIssues[0]?.level).toBe("error");
+    expect(testIssues[0]?.message).toContain("executable test");
+  });
+
+  it("fails the basic-test check when the only test() call is commented out", () => {
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeCorePackageJson(root);
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(
+      root,
+      "src/commented.test.ts",
+      [
+        `import { test } from "bun:test";`,
+        `// test("disabled", () => {});`,
+        `/* test("also disabled", () => {}); */`,
+        `export {};`,
+      ].join("\n"),
+    );
+
+    const result = lintCapability(root);
+    const testIssues = result.issues.filter((i) => i.check === "test-existence");
+    expect(testIssues).toHaveLength(1);
+    expect(testIssues[0]?.level).toBe("error");
+  });
+
+  it("accepts test.only(...) and describe(...) member forms as executable tests", () => {
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(
+      root,
+      "src/member.test.ts",
+      `import { describe, test } from "bun:test";\ndescribe("suite", () => { test.only("x", () => {}); });\n`,
+    );
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "test-existence")).toHaveLength(0);
+  });
+
+  // -- Check 4 (core version declaration consistency) ------------------
+
+  it("passes when peerDep and coreVersion are present and consistent", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.2.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "core-version")).toHaveLength(0);
+    expect(result.ok).toBe(true);
+  });
+
+  it("errors when peerDep ^0.2.0 does not equal coreVersion ^0.1.0 (mismatch)", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.1.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    const cv = result.issues.filter((i) => i.check === "core-version" && i.level === "error");
+    expect(cv).toHaveLength(1);
+    expect(cv[0]?.message).toContain("^0.2.0");
+    expect(cv[0]?.message).toContain("^0.1.0");
+  });
+
+  it("errors when @linchkit/core is missing from peerDependencies", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        // No peerDependencies block at all.
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.2.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    const cv = result.issues.filter((i) => i.check === "core-version" && i.level === "error");
+    expect(cv.some((i) => i.message.includes("peerDependencies"))).toBe(true);
+  });
+
+  it("errors when no coreVersion is declared anywhere", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "standard", category: "business" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    const cv = result.issues.filter((i) => i.check === "core-version" && i.level === "error");
+    expect(cv.some((i) => i.message.includes("No core-version range declared"))).toBe(true);
+  });
+
+  it("skips the equality check when peerDep is workspace:* (only requires coreVersion)", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "workspace:*" },
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.2.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    // No equality error despite the value differing from a concrete range.
+    expect(result.issues.filter((i) => i.check === "core-version")).toHaveLength(0);
+    expect(result.ok).toBe(true);
+  });
+
+  it("accepts deprecated minCoreVersion with a migration warning (no error)", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "standard", category: "business", minCoreVersion: "^0.2.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    const cv = result.issues.filter((i) => i.check === "core-version");
+    expect(cv).toHaveLength(1);
+    expect(cv[0]?.level).toBe("warning");
+    expect(cv[0]?.message).toContain("minCoreVersion");
+    // A warning does not fail the lint.
+    expect(result.ok).toBe(true);
+  });
+
+  it("errors when a deprecated-only minCoreVersion mismatches a concrete peerDep", () => {
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "standard", category: "business", minCoreVersion: "^0.1.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    // Both the deprecation warning AND the mismatch error are reported.
+    const cv = result.issues.filter((i) => i.check === "core-version");
+    expect(cv.some((i) => i.level === "warning")).toBe(true);
+    expect(cv.some((i) => i.level === "error" && i.message.includes("mismatch"))).toBe(true);
+  });
+
+  it("prefers capability.json coreVersion over package.json linchkit.coreVersion", () => {
+    const root = makeCapDir();
+    // capability.json declares ^0.2.0 (the precedence source) and matches peerDep.
+    writeFile(
+      root,
+      "capability.json",
+      JSON.stringify({ ...VALID_CAPABILITY_JSON, coreVersion: "^0.2.0" }),
+    );
+    // package.json's linchkit.coreVersion intentionally differs; it must be ignored.
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { coreVersion: "^0.9.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "core-version")).toHaveLength(0);
+    expect(result.ok).toBe(true);
   });
 });
 
