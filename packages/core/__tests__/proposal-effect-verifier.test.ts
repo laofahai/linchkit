@@ -427,6 +427,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 55));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
       const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
@@ -447,6 +448,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 70));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
       const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_uncertain");
@@ -467,6 +469,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 100));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
       const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_failed");
@@ -487,6 +490,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 120));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
       const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_failed");
@@ -507,6 +511,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 50));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
+      expect(results).toHaveLength(1);
       const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_uncertain");
