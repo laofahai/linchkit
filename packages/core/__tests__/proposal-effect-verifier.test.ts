@@ -17,6 +17,19 @@ import type { Baseline, Signal } from "../src/types/life-system";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Return the first element of an array, failing the test loudly if it is absent.
+ * Preserves the prior `arr[0]!` behavior (a crash on empty) while surfacing a
+ * clear assertion failure instead of a silent non-null assertion.
+ */
+function firstOrThrow<T>(items: readonly T[], label = "item"): T {
+  const value = items[0];
+  if (value === undefined) {
+    throw new Error(`expected at least one ${label}`);
+  }
+  return value;
+}
+
 function makeStore(): InMemoryMemoryStore {
   return new InMemoryMemoryStore();
 }
@@ -128,7 +141,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_uncertain");
       expect(rec.currentValue).toBeUndefined();
@@ -152,7 +165,7 @@ describe("ProposalEffectVerifier", () => {
 
       const effectSignals = await store.getSignals({ entity: "proposal:effect:uncertain" });
       expect(effectSignals).toHaveLength(1);
-      const p = effectSignals[0]!.payload as EffectVerificationPayload;
+      const p = firstOrThrow(effectSignals, "effect signal").payload as EffectVerificationPayload;
       expect(p.rollback_candidate).toBe(false);
     });
   });
@@ -176,7 +189,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_uncertain");
       expect(rec.currentValue).toBe(50);
@@ -202,7 +215,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.currentValue).toBe(95);
@@ -224,7 +237,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -247,7 +260,7 @@ describe("ProposalEffectVerifier", () => {
 
       const effectSignals = await store.getSignals({ entity: "proposal:effect:verified" });
       expect(effectSignals).toHaveLength(1);
-      const p = effectSignals[0]!.payload as EffectVerificationPayload;
+      const p = firstOrThrow(effectSignals, "effect signal").payload as EffectVerificationPayload;
       expect(p.rollback_candidate).toBe(false);
     });
 
@@ -267,7 +280,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store, verifyThreshold: 0.6 });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -292,7 +305,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_failed");
       expect(rec.currentValue).toBe(45);
@@ -314,7 +327,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_failed");
     });
@@ -337,7 +350,7 @@ describe("ProposalEffectVerifier", () => {
 
       const failedSignals = await store.getSignals({ entity: "proposal:effect:failed" });
       expect(failedSignals).toHaveLength(1);
-      const p = failedSignals[0]!.payload as EffectVerificationPayload;
+      const p = firstOrThrow(failedSignals, "failed signal").payload as EffectVerificationPayload;
       expect(p.rollback_candidate).toBe(true);
       expect(p.proposalId).toBe("prop-xyz-00000001");
     });
@@ -393,7 +406,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.currentValue).toBe(40);
@@ -414,7 +427,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 55));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -434,7 +447,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 70));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_uncertain");
     });
@@ -454,7 +467,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 100));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_failed");
     });
@@ -474,7 +487,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 120));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_failed");
     });
@@ -494,7 +507,7 @@ describe("ProposalEffectVerifier", () => {
       await store.updateBaseline(makeBaseline("cap-task", "value", 50));
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_uncertain");
     });
@@ -519,7 +532,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.signalRef).toBe("my-cap");
@@ -541,7 +554,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.signalRef).toBe("cap-orders:fill_rate");
@@ -563,7 +576,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -584,7 +597,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
       expect(rec.signalRef).toBe("orders.conversionRate");
@@ -606,7 +619,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.result).toBe("effect_verified");
     });
@@ -739,7 +752,7 @@ describe("ProposalEffectVerifier", () => {
       const results = await verifier.verifyAll({ since: new Date("2026-01-20T00:00:00Z") });
 
       expect(results).toHaveLength(1);
-      expect(results[0]!.proposalId).toBe("prop-new");
+      expect(firstOrThrow(results, "verification record").proposalId).toBe("prop-new");
     });
   });
 
@@ -764,7 +777,7 @@ describe("ProposalEffectVerifier", () => {
       const verifier = new ProposalEffectVerifier({ store });
       const results = await verifier.verifyAll();
       expect(results).toHaveLength(1);
-      const rec = results[0]!;
+      const rec = firstOrThrow(results, "verification record");
 
       expect(rec.proposalId).toBe("prop-abc");
       expect(rec.capability).toBe("cap-task");
