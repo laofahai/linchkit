@@ -155,9 +155,12 @@ function resolveRequestActor(request: Request): Actor | undefined {
 
 // ── App + helpers ──────────────────────────────────────────
 
-const PORT = 32271;
-const REST_BASE = `http://localhost:${PORT}/api/actions`;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+// Bind an OS-assigned free port (listen(0)) rather than a hardcoded one so
+// parallel test runs — or an already-bound port — don't cause flaky
+// collisions. REST_BASE / GQL_URL are resolved from the actual port in
+// beforeAll, before any test runs.
+let REST_BASE: string;
+let GQL_URL: string;
 
 let app: ReturnType<typeof createDevApp>["app"];
 
@@ -173,7 +176,10 @@ beforeAll(() => {
     cors: false,
     resolveRequestActor,
   }).app;
-  app.listen(PORT);
+  app.listen(0);
+  const port = app.server?.port ?? 0;
+  REST_BASE = `http://localhost:${port}/api/actions`;
+  GQL_URL = `http://localhost:${port}/graphql`;
 });
 
 afterAll(() => {
