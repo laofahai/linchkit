@@ -7,10 +7,12 @@
  */
 
 import type { CapabilityType } from "../types/capability";
+
 // `TrustLevel` was moved to `types/trust.ts` to break a `types → capability`
 // import cycle (see types/trust.ts). Re-exported here so existing importers of
 // `@linchkit/core` (e.g. the CLI commands, search.ts) are unaffected.
 export type { TrustLevel } from "../types/trust";
+
 import type { TrustLevel } from "../types/trust";
 
 // ── Trust levels ────────────────────────────────────────

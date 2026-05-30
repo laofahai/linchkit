@@ -378,8 +378,12 @@ export const installCommand = defineCommand({
     // Effective trust = clamp(declared ?? inferred). A capability MAY declare a
     // `trustLevel` in its capability.json, but the declaration can only LOWER
     // its standing — never exceed what the package name justifies (anti-spoof).
+    // Infer from the CANONICAL `metadata.name` (from capability.json), NOT the
+    // install argument `packageName` — the latter is a path string for local
+    // installs (e.g. `./local-cap`), which would mis-infer every local install
+    // as `unverified`. This matches publish.ts.
     const trustLevel = computeEffectiveTrust({
-      name: packageName,
+      name: metadata.name,
       declaredTrust: metadata.trustLevel,
     });
     if (trustLevel === "unverified") {
