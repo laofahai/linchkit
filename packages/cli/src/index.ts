@@ -31,6 +31,7 @@ import { i18nCheckCommand } from "./commands/i18n-check";
 import { infoCommand } from "./commands/info";
 import { initCommand } from "./commands/init";
 import { installCommand } from "./commands/install";
+import { lintCapabilityCommand } from "./commands/lint-capability";
 import { mcpDevCommand } from "./commands/mcp-dev";
 import { overlayCommand } from "./commands/overlay";
 import { publishCommand } from "./commands/publish";
@@ -62,6 +63,7 @@ const RESERVED_NAMESPACES = new Set([
   "info",
   "validate",
   "check",
+  "lint-capability",
   "docs",
   "changelog",
   "doctor",
@@ -183,6 +185,7 @@ function buildCommandsManifest(
     info: "Show project metadata",
     validate: "Run comprehensive validation",
     check: "Run code quality checks",
+    "lint-capability": "Run per-capability quality checks (metadata, import-boundary, tests)",
     docs: "Generate documentation",
     changelog: "Generate changelog entries",
     doctor: "Run project health checks",
@@ -239,6 +242,7 @@ async function run() {
     info: infoCommand,
     docs: docsCommand,
     check: checkQualityCommand,
+    "lint-capability": lintCapabilityCommand,
     changelog: changelogCommand,
     validate: validateCommand,
     doctor: doctorCommand,

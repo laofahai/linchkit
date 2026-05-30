@@ -6,6 +6,11 @@
  */
 
 export {
+  type CapabilityLintIssue,
+  type CapabilityLintResult,
+  lintCapability,
+} from "./capability-lint";
+export {
   checkImportPatterns,
   type ExportBoundaryConfig,
   type FileContent,

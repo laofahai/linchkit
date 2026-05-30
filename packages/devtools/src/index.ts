@@ -141,6 +141,8 @@ export {
 // === Methodology: code quality, project structure, convention checking ===
 export {
   type ActionInfo,
+  type CapabilityLintIssue,
+  type CapabilityLintResult,
   type CommitInfo,
   checkActionDefinitions,
   checkCommitMessages,
@@ -151,6 +153,7 @@ export {
   type EntityInfo,
   type ExportBoundaryConfig,
   type FileContent,
+  lintCapability,
   type QualityIssue,
   type QualityReport,
   type Severity,
