@@ -25,6 +25,30 @@
         "tsup": "^8.5.1",
       },
     },
+    "addons/adapter-a2a/cap-adapter-a2a": {
+      "name": "@linchkit/cap-adapter-a2a",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "@linchkit/devtools": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+      },
+    },
+    "addons/adapter-ag-ui/cap-adapter-ag-ui": {
+      "name": "@linchkit/cap-adapter-ag-ui",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "@linchkit/devtools": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+      },
+    },
     "addons/adapter-mcp/cap-adapter-mcp": {
       "name": "@linchkit/cap-adapter-mcp",
       "version": "1.0.0",
@@ -68,6 +92,7 @@
       },
       "devDependencies": {
         "@linchkit/cap-ai-provider": "workspace:*",
+        "@linchkit/cap-chatter": "workspace:*",
         "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
       },
@@ -237,7 +262,7 @@
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
-        "@linchkit/core": "^0.1.0",
+        "@linchkit/core": "^0.2.0",
         "drizzle-orm": "^0.45.1",
         "graphql": "^16.13.1",
       },
@@ -820,6 +845,10 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "https://registry.npmmirror.com/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
+
+    "@linchkit/cap-adapter-a2a": ["@linchkit/cap-adapter-a2a@workspace:addons/adapter-a2a/cap-adapter-a2a"],
+
+    "@linchkit/cap-adapter-ag-ui": ["@linchkit/cap-adapter-ag-ui@workspace:addons/adapter-ag-ui/cap-adapter-ag-ui"],
 
     "@linchkit/cap-adapter-mcp": ["@linchkit/cap-adapter-mcp@workspace:addons/adapter-mcp/cap-adapter-mcp"],
 

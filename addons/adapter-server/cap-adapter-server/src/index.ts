@@ -8,6 +8,12 @@ export const VERSION = "0.0.1";
 
 export type { FindManyOptions } from "@linchkit/core/server";
 export { InMemoryStore } from "@linchkit/core/server";
+export type {
+  AssembleDevSchemaOptions,
+  AssembledDevSchema,
+  CapabilityContributions,
+} from "./assemble-schema";
+export { assembleDevSchema, extractCapabilities } from "./assemble-schema";
 export { capAdapterServer } from "./capability";
 export { generateGraphQLInputType, generateGraphQLObjectType } from "./graphql";
 export type {
