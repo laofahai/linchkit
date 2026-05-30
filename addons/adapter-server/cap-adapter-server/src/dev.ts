@@ -7,20 +7,9 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type {
-  ActionDefinition,
-  CapabilityDefinition,
-  EntityDefinition,
-  MiddlewareRegistration,
-  RelationDefinition,
-  RuleDefinition,
-  StateDefinition,
-  ViewDefinition,
-} from "@linchkit/core";
-import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
+import { consoleLogger } from "@linchkit/core/server";
+import { assembleDevSchema } from "./assemble-schema";
 import { loadConfig } from "./config-loader";
-import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
-import { createRuntimeContext } from "./runtime-context";
 import { createServer } from "./server";
 
 // ── Resolve project root ────────────────────────────────
@@ -72,138 +61,40 @@ if (existsSync(envPath)) {
 
 const config = await loadConfig({ root: projectRoot });
 
-// ── Extract capability contributions ────────────────────
-
-function extractCapabilities(capabilities: CapabilityDefinition[] = []): {
-  entities: EntityDefinition[];
-  actions: ActionDefinition[];
-  states: StateDefinition[];
-  views: ViewDefinition[];
-  relations: RelationDefinition[];
-  rules: RuleDefinition[];
-  middlewares: MiddlewareRegistration[];
-  seed: Record<string, Array<Record<string, unknown>>>;
-  extraQueryFields: Record<string, unknown>;
-  extraMutationFields: Record<string, unknown>;
-} {
-  const entities: EntityDefinition[] = [];
-  const actions: ActionDefinition[] = [];
-  const states: StateDefinition[] = [];
-  const views: ViewDefinition[] = [];
-  const relations: RelationDefinition[] = [];
-  const rules: RuleDefinition[] = [];
-  const middlewares: MiddlewareRegistration[] = [];
-  const seed: Record<string, Array<Record<string, unknown>>> = {};
-  const extraQueryFields: Record<string, unknown> = {};
-  const extraMutationFields: Record<string, unknown> = {};
-
-  for (const cap of capabilities) {
-    if (cap.entities) entities.push(...cap.entities);
-    if (cap.actions) actions.push(...cap.actions);
-    if (cap.states) states.push(...cap.states);
-    if (cap.views) views.push(...cap.views);
-    if (cap.relations) relations.push(...cap.relations);
-    if (cap.rules) rules.push(...cap.rules);
-
-    // Collect seed data from capabilities
-    if (cap.seed) {
-      for (const [entityName, records] of Object.entries(cap.seed)) {
-        if (!seed[entityName]) seed[entityName] = [];
-        seed[entityName].push(...records);
-      }
-    }
-
-    // Convert CapabilityMiddlewareRegistration → MiddlewareRegistration
-    if (cap.extensions?.middlewares) {
-      for (const mw of cap.extensions.middlewares) {
-        middlewares.push({
-          name: `${cap.name}:${mw.slot}`,
-          slot: mw.slot,
-          order: mw.priority ?? 100,
-          handler: mw.handler,
-        });
-      }
-    }
-    if (cap.extensions?.graphqlExtensions?.queryFields) {
-      Object.assign(extraQueryFields, cap.extensions.graphqlExtensions.queryFields);
-    }
-    if (cap.extensions?.graphqlExtensions?.mutationFields) {
-      Object.assign(extraMutationFields, cap.extensions.graphqlExtensions.mutationFields);
-    }
-  }
-
-  return {
-    entities,
-    actions,
-    states,
-    views,
-    relations,
-    rules,
-    middlewares,
-    seed,
-    extraQueryFields,
-    extraMutationFields,
-  };
-}
-
-const capContributions = extractCapabilities(config.capabilities);
-
-// Dev-only allow-all permission middleware. The CommandLayer now hard-fails
-// when the `permission` slot is empty (even with `skipActionSlots: true`) to
-// prevent accidental production deploys without RBAC. `dev.ts` does not wire
-// cap-permission, so inject a stub at `order: 999` that simply calls `next()`.
-// Any real permission middleware registered by a capability will run first
-// (lower order) and take precedence.
-const hasPermissionMiddleware = capContributions.middlewares.some(
-  (mw: MiddlewareRegistration) => mw.slot === "permission",
-);
-if (!hasPermissionMiddleware) {
-  capContributions.middlewares.push({
-    name: "dev:allow_all_permission",
-    slot: "permission",
-    order: 999,
-    handler: async (_ctx, next) => {
-      await next();
-    },
-  });
-  consoleLogger.warn(
-    "[permission] no permission middleware registered — dev server is running with an allow-all stub. Register cap-permission (or an equivalent) before deploying to production.",
-  );
-}
-
-// ── Merge capability entities and actions ────────────────
-
-const allEntities = capContributions.entities;
-
-// Generate CRUD actions, skip if capability already defined one with same name
-const capActionNames = new Set(capContributions.actions.map((a) => a.name));
-const crudActions = allEntities
-  .flatMap((s) => generateCrudActions(s))
-  .filter((crud) => !capActionNames.has(crud.name));
-
-const allActions: ActionDefinition[] = [...crudActions, ...capContributions.actions];
-
-// ── Initialize runtime context ──────────────────────────
-
-// Build AI service from config (requires @linchkit/cap-ai-provider when AI is configured)
+// ── Build AI service from config ─────────────────────────
+// Requires @linchkit/cap-ai-provider only when AI is configured.
 let aiService: import("@linchkit/core").AIService | undefined;
 if (config.ai) {
   const { createAIService } = await import("@linchkit/cap-ai-provider");
   aiService = createAIService(config.ai);
 }
 
-// Build capability name set for ctx.hasCapability() weak dependency checks
-const capabilityNames = new Set((config.capabilities ?? []).map((c) => c.name));
+// ── Assemble the schema (server-free, DB-free core) ──────
+// `assembleDevSchema` is the shared, exported helper that both this dev entry
+// point AND the boot smoke test exercise — so a regression that breaks schema
+// assembly (e.g. graphql types in graphqlExtensions getting clobbered) is
+// caught by CI instead of only at `bun run dev:server`.
+const assembled = assembleDevSchema(config.capabilities ?? [], { aiService });
+const {
+  schema: graphqlSchema,
+  runtime,
+  contributions: capContributions,
+  onchangeEvaluator,
+} = assembled;
 
-const runtime = createRuntimeContext({
-  entities: allEntities,
-  actions: allActions,
-  states: capContributions.states,
-  views: capContributions.views,
-  middlewares: capContributions.middlewares,
-  ai: aiService,
-  capabilityNames,
-});
+// `assembleDevSchema` injects a named allow-all stub when no capability
+// supplied a permission middleware — surface that to the operator.
+const usingPermissionStub = capContributions.middlewares.some(
+  (mw) => mw.name === "dev:allow_all_permission",
+);
+if (usingPermissionStub) {
+  consoleLogger.warn(
+    "[permission] no permission middleware registered — dev server is running with an allow-all stub. Register cap-permission (or an equivalent) before deploying to production.",
+  );
+}
+consoleLogger.warn(
+  "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
+);
 
 // Seed dev data from capabilities (only works with InMemoryStore)
 const { InMemoryStore } = await import("@linchkit/core/server");
@@ -213,40 +104,8 @@ if (runtime.dataProvider instanceof InMemoryStore) {
   }
 }
 
-// ── Build schema and start server ────────────────────────
-
-const customActions = capContributions.actions;
-
-// Construct the onchange evaluator (Spec 64). No permission capability is wired
-// into `dev.ts`, so reads from within onchange hooks are ALL ALLOWED by default.
-// Log a structured warning once at startup so operators know the evaluator has
-// no permission gate; a production install should inject a `checkReadPermission`
-// callback (e.g. from cap-permission) that consults the real RBAC graph.
-const onchangeEvaluator = createOnchangeEvaluator({
-  entityRegistry: runtime.entityRegistry,
-  dataProvider: runtime.dataProvider,
-});
-consoleLogger.warn(
-  "[onchange] no checkReadPermission configured — lookup/query helpers return data without permission enforcement. Wire cap-permission (or an equivalent) to gate entity reads inside onchange hooks.",
-);
-
-const graphqlSchema = buildGraphQLSchema(allEntities, {
-  executor: runtime.executor,
-  commandLayer: runtime.commandLayer,
-  dataProvider: runtime.dataProvider,
-  actions: customActions,
-  relations: capContributions.relations,
-  stateDefinitions: capContributions.states,
-  onchangeEvaluator,
-  extraQueryFields: capContributions.extraQueryFields as Record<
-    string,
-    import("graphql").GraphQLFieldConfig<unknown, unknown>
-  >,
-  extraMutationFields: capContributions.extraMutationFields as Record<
-    string,
-    import("graphql").GraphQLFieldConfig<unknown, unknown>
-  >,
-});
+const allEntities = assembled.allEntities;
+const allActions = assembled.allActions;
 
 const port = config.server?.port ?? 3001;
 const host = config.server?.host ?? "0.0.0.0";
