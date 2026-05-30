@@ -54,7 +54,13 @@ import type {
   StateDefinition,
 } from "@linchkit/core";
 import { defineCapability, defineRelation, resolveEnvVars } from "@linchkit/core";
-import { assembleDevSchema } from "../src/assemble-schema";
+import {
+  GraphQLString,
+  getIntrospectionQuery,
+  graphqlSync,
+  type IntrospectionQuery,
+} from "graphql";
+import { assembleDevSchema, extractCapabilities } from "../src/assemble-schema";
 import { capAdapterServer } from "../src/capability";
 
 // A silent logger so the missing-env warnings emitted by `resolveEnvVars`
@@ -222,5 +228,61 @@ describe("dev-server schema boot", () => {
     // A dev allow-all permission stub is injected (CommandLayer hard-fails on an
     // empty permission slot), confirming the permission slot is wired.
     expect(assembled.contributions.middlewares.some((m) => m.slot === "permission")).toBe(true);
+  });
+
+  it("produces a schema the graphql runtime can EXECUTE, not merely construct", () => {
+    // A schema can construct but still be unservable (e.g. a field whose type
+    // fails to resolve at execution). Run the standard introspection query — the
+    // same one a GraphQL client issues on connect — straight through
+    // `graphqlSync`. It exercises every reachable type/field resolver without a
+    // DB or HTTP layer; any unresolvable/unnamed type surfaces as a GraphQL
+    // error here rather than only at first real request in `dev:server`.
+    const { schema } = assembleDevSchema(configuredCapabilities());
+    const result = graphqlSync({ schema, source: getIntrospectionQuery() });
+
+    expect(result.errors).toBeUndefined();
+    const data = result.data as unknown as IntrospectionQuery;
+    expect(data.__schema.queryType.name).toBe("Query");
+    // The capability-contributed type the regression destroyed is introspectable.
+    expect(data.__schema.types.some((t) => t.name === "ChatterMessageConnection")).toBe(true);
+    expect(data.__schema.types.some((t) => t.name === "SmokeProject")).toBe(true);
+  });
+});
+
+describe("capability contribution merging", () => {
+  // Build a minimal capability that contributes a single root query field, so
+  // two of them collide on the same field name.
+  function capWithQueryField(name: string, field: string): CapabilityDefinition {
+    return defineCapability({
+      name,
+      label: name,
+      description: `Synthetic capability contributing query field "${field}"`,
+      type: "standard",
+      category: "business",
+      version: "0.1.0",
+      extensions: {
+        graphqlExtensions: {
+          queryFields: {
+            [field]: { type: GraphQLString, resolve: () => "ok" },
+          },
+        },
+      },
+    });
+  }
+
+  it("throws (does not silently overwrite) on a duplicate root query field", () => {
+    const a = capWithQueryField("cap-collide-a", "duplicatedField");
+    const b = capWithQueryField("cap-collide-b", "duplicatedField");
+    expect(() => extractCapabilities([a, b])).toThrow(
+      /Duplicate GraphQL query field "duplicatedField"/,
+    );
+  });
+
+  it("allows distinct query fields from different capabilities", () => {
+    const a = capWithQueryField("cap-distinct-a", "fieldA");
+    const b = capWithQueryField("cap-distinct-b", "fieldB");
+    const contributions = extractCapabilities([a, b]);
+    expect(contributions.extraQueryFields.fieldA).toBeDefined();
+    expect(contributions.extraQueryFields.fieldB).toBeDefined();
   });
 });

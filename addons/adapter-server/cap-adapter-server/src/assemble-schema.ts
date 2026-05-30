@@ -30,6 +30,31 @@ import type { GraphQLFieldConfig, GraphQLSchema } from "graphql";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext, type RuntimeContext } from "./runtime-context";
 
+/**
+ * Merge a capability's contributed GraphQL fields into the shared bucket,
+ * throwing on a name collision instead of silently overwriting.
+ *
+ * Two capabilities contributing the same root query/mutation field name would
+ * otherwise have the later one silently win — a hard-to-debug runtime surprise.
+ * Fail loud at assembly time with the offending capability and field named.
+ */
+function mergeGraphQLFields(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+  kind: "query" | "mutation",
+  capName: string,
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    if (Object.hasOwn(target, key)) {
+      throw new Error(
+        `Duplicate GraphQL ${kind} field "${key}" contributed by capability "${capName}" — ` +
+          "another capability already registered a field with this name.",
+      );
+    }
+    target[key] = value;
+  }
+}
+
 /** Flattened contributions collected across all loaded capabilities. */
 export interface CapabilityContributions {
   entities: EntityDefinition[];
@@ -89,10 +114,20 @@ export function extractCapabilities(
       }
     }
     if (cap.extensions?.graphqlExtensions?.queryFields) {
-      Object.assign(extraQueryFields, cap.extensions.graphqlExtensions.queryFields);
+      mergeGraphQLFields(
+        extraQueryFields,
+        cap.extensions.graphqlExtensions.queryFields,
+        "query",
+        cap.name,
+      );
     }
     if (cap.extensions?.graphqlExtensions?.mutationFields) {
-      Object.assign(extraMutationFields, cap.extensions.graphqlExtensions.mutationFields);
+      mergeGraphQLFields(
+        extraMutationFields,
+        cap.extensions.graphqlExtensions.mutationFields,
+        "mutation",
+        cap.name,
+      );
     }
   }
 
