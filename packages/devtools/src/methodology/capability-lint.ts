@@ -194,10 +194,12 @@ function escapesIntoCoreInternals(filePath: string, capRoot: string, specifier: 
   // returns -1 on Windows paths and would resolve relative to the CWD instead.
   const fileDir = dirname(filePath);
   const resolved = resolve(fileDir, specifier);
-  const rel = relative(capRoot, resolved);
-  // Outside the capability root → rel starts with ".."; only flag when it also
-  // points at a `core` path to stay conservative and avoid false positives.
-  return rel.startsWith("..") && /(?:^|\/)core(?:\/|$)/.test(resolved.replace(/\\/g, "/"));
+  const rel = relative(capRoot, resolved).replace(/\\/g, "/");
+  // Outside the capability root → rel starts with ".."; only flag when the
+  // escaping path ALSO points at a `core` segment. Testing `rel` (not the
+  // absolute path) avoids false positives when an unrelated ancestor directory
+  // happens to be named "core" (e.g. a repo checked out under /…/core/…).
+  return rel.startsWith("..") && /(?:^|\/)core(?:\/|$)/.test(rel);
 }
 
 function checkImportBoundary(root: string): CapabilityLintIssue[] {

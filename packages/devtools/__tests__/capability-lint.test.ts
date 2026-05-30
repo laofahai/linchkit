@@ -8,8 +8,8 @@ import { lintCapability } from "../src/methodology/capability-lint";
 
 const tmpRoots: string[] = [];
 
-function makeCapDir(): string {
-  const root = mkdtempSync(join(tmpdir(), "caplint-"));
+function makeCapDir(prefix = "caplint-"): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
   tmpRoots.push(root);
   mkdirSync(join(root, "src"), { recursive: true });
   return root;
@@ -215,6 +215,47 @@ describe("lintCapability", () => {
     expect(boundary).toHaveLength(1);
     expect(boundary[0]?.level).toBe("error");
     expect(boundary[0]?.message).toContain("@linchkit/core/src/engine/foo");
+  });
+
+  it("does NOT flag a relative escape into a non-core sibling", () => {
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    // Escapes the capability root but the relative path has no `core` segment.
+    writeFile(root, "src/x.ts", `import { a } from "../../shared/util";\nexport { a };\n`);
+    writeFile(root, "src/h.test.ts", `import { test } from "bun:test";\ntest("h", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "import-boundary")).toHaveLength(0);
+  });
+
+  it("flags a relative escape into a core sibling (import-boundary error)", () => {
+    const root = makeCapDir();
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    // Escapes the capability root and the relative path points at `core`.
+    writeFile(root, "src/x.ts", `import { a } from "../../core/internal";\nexport { a };\n`);
+    writeFile(root, "src/i.test.ts", `import { test } from "bun:test";\ntest("i", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    const boundary = result.issues.filter((i) => i.check === "import-boundary");
+    expect(boundary).toHaveLength(1);
+    expect(boundary[0]?.level).toBe("error");
+    expect(boundary[0]?.message).toContain("../../core/internal");
+    expect(boundary[0]?.file).toBe("src/x.ts");
+  });
+
+  it("does NOT flag a non-core escape even when an ancestor dir is named 'core'", () => {
+    // Regression: the old rule tested the ABSOLUTE resolved path, so any repo
+    // checked out under a `core`-named ancestor falsely flagged every escaping
+    // import. The tmpdir name here contains `core` to exercise exactly that.
+    const root = makeCapDir("core-host-");
+    expect(root.replace(/\\/g, "/")).toContain("core");
+    writeFile(root, "capability.json", JSON.stringify(VALID_CAPABILITY_JSON));
+    writeFile(root, "src/x.ts", `import { a } from "../../shared/util";\nexport { a };\n`);
+    writeFile(root, "src/j.test.ts", `import { test } from "bun:test";\ntest("j", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "import-boundary")).toHaveLength(0);
   });
 
   it("detects a multi-line deep import (regression guard for comment stripping)", () => {
