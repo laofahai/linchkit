@@ -553,10 +553,11 @@ describe("lintCapability", () => {
   it("prefers capability.json coreVersion over package.json linchkit.coreVersion", () => {
     const root = makeCapDir();
     // capability.json declares ^0.2.0 (the precedence source) and matches peerDep.
+    // Per capabilityMetadataSchema, coreVersion is nested under `linchkit`.
     writeFile(
       root,
       "capability.json",
-      JSON.stringify({ ...VALID_CAPABILITY_JSON, coreVersion: "^0.2.0" }),
+      JSON.stringify({ ...VALID_CAPABILITY_JSON, linchkit: { coreVersion: "^0.2.0" } }),
     );
     // package.json's linchkit.coreVersion intentionally differs; it must be ignored.
     writeFile(

@@ -251,7 +251,11 @@ const TEST_FILE_RE = /\.(test|spec)\.(ts|tsx)$/;
  * never counts. The `\b` anchor avoids matching identifiers like `submit(` or
  * `unit(`.
  */
-const EXECUTABLE_TEST_RE = /\b(?:Bun\.test\s*\(|(?:test|it|describe)\s*(?:\(|\.))/;
+// Match an executable test call: `test(` / `it(` / `describe(` / `Bun.test(`,
+// or a member call like `test.only(` / `it.each(`. Requiring the trailing `(`
+// after a `.member` avoids false positives on strings/paths such as
+// `"test.ts"` or `"./test.helper"` (stripComments preserves string contents).
+const EXECUTABLE_TEST_RE = /\b(?:Bun\.test\s*\(|(?:test|it|describe)\s*(?:\(|\.\s*\w+\s*\())/;
 
 function checkTestExistence(root: string): CapabilityLintIssue[] {
   const testFiles = collectTestFiles(root);
@@ -420,7 +424,11 @@ function checkCoreVersion(root: string): CapabilityLintIssue[] {
 
   // 3. Equality check — only when the peerDep is a concrete range. workspace:*
   //    resolves locally and cannot be compared, so it is skipped.
-  if (typeof peerCore === "string" && peerCore.length > 0 && !WORKSPACE_PROTOCOL_RE.test(peerCore)) {
+  if (
+    typeof peerCore === "string" &&
+    peerCore.length > 0 &&
+    !WORKSPACE_PROTOCOL_RE.test(peerCore)
+  ) {
     if (peerCore !== effectiveRange) {
       issues.push({
         check: "core-version",
@@ -448,14 +456,29 @@ interface DeclaredCoreVersion {
  * wins; otherwise fall back to `package.json` `linchkit.coreVersion`, then the
  * deprecated `package.json` `linchkit.minCoreVersion`.
  */
-function resolveDeclaredCoreVersion(root: string, pkg: Record<string, unknown>): DeclaredCoreVersion {
+function resolveDeclaredCoreVersion(
+  root: string,
+  pkg: Record<string, unknown>,
+): DeclaredCoreVersion {
   const capabilityJsonPath = join(root, "capability.json");
   if (existsSync(capabilityJsonPath)) {
     const parsed = readJson(capabilityJsonPath);
     if (!parsed.error && typeof parsed.value === "object" && parsed.value !== null) {
-      const cv = (parsed.value as Record<string, unknown>).coreVersion;
+      const capObj = parsed.value as Record<string, unknown>;
+      // capabilityMetadataSchema nests the compat fields under `linchkit`
+      // (linchkit.coreVersion / linchkit.minCoreVersion). Read the nested block
+      // first; accept a top-level value as a backward-compatible fallback.
+      const capBlock =
+        typeof capObj.linchkit === "object" && capObj.linchkit !== null
+          ? (capObj.linchkit as Record<string, unknown>)
+          : {};
+      const cv = capBlock.coreVersion ?? capObj.coreVersion;
       if (typeof cv === "string" && cv.length > 0) {
         return { coreVersion: cv, sourceFile: "capability.json" };
+      }
+      const capMin = capBlock.minCoreVersion ?? capObj.minCoreVersion;
+      if (typeof capMin === "string" && capMin.length > 0) {
+        return { minCoreVersion: capMin, sourceFile: "capability.json" };
       }
     }
   }
