@@ -66,9 +66,11 @@ const DATABASE_URL =
 const TEST_SECRET = "linchkit-e2e-test-secret-please-do-not-use-32";
 const TEST_BASE_URL = "http://localhost:3001";
 
-// In-test-only credentials — never real.
+// In-test-only credentials — never real. Deliberately a low-entropy,
+// self-describing placeholder (not a real-looking password) so secret
+// scanners don't flag it; better-auth only requires length >= 8.
 const TEST_EMAIL = "e2e-auth-user@example.com";
-const TEST_PASSWORD = "Sup3rSecret!E2E";
+const TEST_PASSWORD = "e2e-test-password-not-a-real-secret";
 
 // ── better-auth option shape ─────────────────────────────────
 
