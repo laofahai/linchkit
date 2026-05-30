@@ -315,19 +315,190 @@ function isIgnoredDir(name: string): boolean {
  * path that only appears in commented-out code or prose (e.g. a JSDoc block
  * that mentions `@linchkit/core/src/...`, as THIS file's own header does).
  *
- * Dependency-free, no AST:
- *  - Block comments (including multi-line) are removed via `[\s\S]*?`.
- *  - Line comments are removed to end of line, BUT a `//` immediately preceded
- *    by `:` is left intact so URLs inside strings (`https://...`) are not
- *    mistaken for the start of a comment.
+ * Dependency-free, no AST: a single-pass character-scan tokenizer walks the
+ * source one char at a time, tracking which lexical region it is inside, and:
+ *  - Removes `// ...` line comments (to end of line) and `/* ... *​/` block
+ *    comments (including multi-line). A block comment is replaced with a single
+ *    space so a multi-line import split across a removed block still parses
+ *    (e.g. `import /* x *​/ { a } from "..."`); line comments are
+ *    dropped entirely up to (but not including) their newline.
+ *  - Preserves the FULL contents of single-quoted strings, double-quoted
+ *    strings, template literals, and regex literals — including any `//`,
+ *    `/*`, quotes, or backslashes inside them — so a `//` in `"a // b"` or a
+ *    URL like `https://...` is never mistaken for a comment.
+ *  - Honours escape sequences inside strings/regex (`\"`, `\'`, `\\`, `\/`,
+ *    `` \` ``) so an escaped delimiter does not prematurely end the literal.
+ *
+ * Regex-vs-division heuristic: a `/` starts a regex literal only when the
+ * previous SIGNIFICANT (non-whitespace, non-comment) character cannot end an
+ * expression — i.e. it is one of `= ( , [ { ; : ! & | ? + - * / % < > ^ ~`, or
+ * the start of input, or the tail of a regex-permitting keyword (`return`,
+ * `typeof`, `case`, `in`, `of`, `do`, `else`, `yield`, `void`, `delete`,
+ * `instanceof`, `new`). Otherwise `/` is treated as the division operator, so
+ * `a / b // c` strips the `// c`, and `a / b / c` is left alone. This is a
+ * pragmatic heuristic, NOT a full JS lexer; its known limits are: it does not
+ * track whether a keyword is used as an identifier (`const of = 1; of /2/`
+ * would be misread), and it treats template literals as opaque from backtick to
+ * backtick — it does NOT recurse into `${...}` interpolation. Both are
+ * acceptable here because import specifiers never live inside `${}` and the
+ * tokenizer only ever runs to gate import-path extraction; the worst case is a
+ * harmless false negative (a real import dropped), never a false positive.
  *
  * It is intentionally applied to the FULL content (not per-line), so the
- * existing full-content regexes still span newlines for multi-line imports.
+ * downstream regexes still span newlines for multi-line imports.
+ *
+ * Exported (not via the package's public index) so the tokenizer can be unit
+ * tested directly; it remains an internal helper.
  */
-function stripComments(content: string): string {
-  return content
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+export function stripComments(content: string): string {
+  let out = "";
+  let i = 0;
+  const n = content.length;
+  // Last significant emitted char, used by the regex-vs-division heuristic.
+  let prevSignificant = "";
+
+  // Keywords whose presence right before `/` means a regex literal follows.
+  const regexKeywords = new Set([
+    "return",
+    "typeof",
+    "case",
+    "in",
+    "of",
+    "do",
+    "else",
+    "yield",
+    "void",
+    "delete",
+    "instanceof",
+    "new",
+  ]);
+
+  const isExprEndChar = (c: string): boolean =>
+    // Identifier/number chars, a closing bracket, or a string/regex end can
+    // terminate an expression → a following `/` is division, not a regex.
+    /[\w$)\]}'"`]/.test(c);
+
+  /** Decide whether a `/` at the current position begins a regex literal. */
+  const slashStartsRegex = (): boolean => {
+    if (prevSignificant === "") return true; // start of input
+    if (isExprEndChar(prevSignificant)) {
+      // Could still be a regex if the trailing word is a regex-permitting
+      // keyword (e.g. `return /x/`). Re-read the word ending at this point.
+      if (/[\w$]/.test(prevSignificant)) {
+        // Re-read the trailing identifier, skipping any whitespace already
+        // emitted between it and this `/` (e.g. `out` ends with `"return "`).
+        const word = out.match(/([\w$]+)\s*$/)?.[1] ?? "";
+        return regexKeywords.has(word);
+      }
+      return false;
+    }
+    return true; // punctuator like = ( , [ { ; : etc. → regex
+  };
+
+  while (i < n) {
+    // `i < n` guarantees an in-bounds char; the `?? ""` keeps the type `string`
+    // under `noUncheckedIndexedAccess` without an assertion. `next` may be the
+    // out-of-bounds slot, so it stays `string | undefined`.
+    const ch = content[i] ?? "";
+    const next = content[i + 1];
+
+    // -- Block comment: /* ... */ → single space ------------------------
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < n && !(content[i] === "*" && content[i + 1] === "/")) i++;
+      i += 2; // skip closing */ (clamped by loop bound on the next pass)
+      // A comment is "non-significant": leave `prevSignificant` untouched so the
+      // regex-vs-division heuristic keeps seeing the real char before the comment
+      // (e.g. `a /* c */ / b` stays division; `= /* c */ /re/` stays regex). The
+      // emitted space only keeps tokens apart for the downstream import regexes.
+      out += " ";
+      continue;
+    }
+
+    // -- Line comment: // ... → dropped to end of line ------------------
+    if (ch === "/" && next === "/") {
+      i += 2;
+      while (i < n && content[i] !== "\n") i++;
+      // Leave the newline (if any) for the next iteration to emit.
+      continue;
+    }
+
+    // -- String literal: '...' or "..." ---------------------------------
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      out += ch;
+      i++;
+      while (i < n) {
+        const c = content[i];
+        out += c;
+        if (c === "\\") {
+          // Emit the escaped char verbatim and skip it.
+          if (i + 1 < n) out += content[i + 1];
+          i += 2;
+          continue;
+        }
+        i++;
+        if (c === quote) break;
+        if (c === "\n") break; // unterminated string — stop at newline
+      }
+      prevSignificant = quote;
+      continue;
+    }
+
+    // -- Template literal: `...` (opaque, no ${} recursion) -------------
+    if (ch === "`") {
+      out += ch;
+      i++;
+      while (i < n) {
+        const c = content[i];
+        out += c;
+        if (c === "\\") {
+          if (i + 1 < n) out += content[i + 1];
+          i += 2;
+          continue;
+        }
+        i++;
+        if (c === "`") break;
+      }
+      prevSignificant = "`";
+      continue;
+    }
+
+    // -- Regex literal: /.../ flags -------------------------------------
+    if (ch === "/" && slashStartsRegex()) {
+      out += ch;
+      i++;
+      let inClass = false; // inside a [...] character class
+      while (i < n) {
+        const c = content[i];
+        out += c;
+        if (c === "\\") {
+          if (i + 1 < n) out += content[i + 1];
+          i += 2;
+          continue;
+        }
+        i++;
+        if (c === "\n") break; // unterminated regex — bail at newline
+        if (c === "[") inClass = true;
+        else if (c === "]") inClass = false;
+        else if (c === "/" && !inClass) break; // regex body ends
+      }
+      // Consume trailing flags (a-z) so a `/g` etc. is preserved verbatim.
+      while (i < n && /[a-z]/i.test(content[i] ?? "")) {
+        out += content[i];
+        i++;
+      }
+      prevSignificant = "/";
+      continue;
+    }
+
+    // -- Ordinary character ---------------------------------------------
+    out += ch;
+    i++;
+    if (!/\s/.test(ch)) prevSignificant = ch;
+  }
+
+  return out;
 }
 
 /**
@@ -335,8 +506,11 @@ function stripComments(content: string): string {
  * `require("...")` calls. A plain line/regex scan — sufficient and dependency
  * free, matching the existing methodology checkers. Comments are stripped first
  * so commented-out imports and prose are not false-positives.
+ *
+ * Exported (not via the package's public index) so it can be unit tested
+ * directly; it remains an internal helper.
  */
-function extractImportSpecifiers(content: string): string[] {
+export function extractImportSpecifiers(content: string): string[] {
   const code = stripComments(content);
   const specifiers: string[] = [];
   const fromRe = /(?:import|export)\b[^;]*?\bfrom\s+["']([^"']+)["']/g;
