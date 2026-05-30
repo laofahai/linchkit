@@ -15,6 +15,8 @@ export type {
 } from "./assemble-schema";
 export { assembleDevSchema, extractCapabilities } from "./assemble-schema";
 export { capAdapterServer } from "./capability";
+export type { CreateDevAppOptions, DevApp } from "./dev-app";
+export { createDevApp } from "./dev-app";
 export { generateGraphQLInputType, generateGraphQLObjectType } from "./graphql";
 export type {
   BuildGraphQLSchemaOptions,
