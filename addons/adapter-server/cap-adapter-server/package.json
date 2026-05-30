@@ -31,6 +31,7 @@
   "devDependencies": {
     "@linchkit/cap-ai-provider": "workspace:*",
     "@linchkit/cap-chatter": "workspace:*",
+    "@linchkit/cap-permission": "workspace:*",
     "@linchkit/core": "workspace:*",
     "typescript": "^6.0.2"
   },
