@@ -44,8 +44,12 @@ jobs:
           if [ "$RC" -eq 0 ]; then
             exit 0
           fi
-          if printf '%s\n' "$OUTPUT" | grep -qE '^\(pass\)' \
-             && ! printf '%s\n' "$OUTPUT" | grep -qE '^\(fail\)'; then
+          # Use here-strings (not `printf | grep`): the shell runs with pipefail,
+          # and `grep -q` closes the pipe on its first match (an early `(pass)`
+          # line), which SIGPIPEs printf and makes the pipeline return non-zero —
+          # defeating the check. `<<<` feeds grep directly with no pipe.
+          if grep -qE '^\(pass\)' <<< "$OUTPUT" \
+             && ! grep -qE '^\(fail\)' <<< "$OUTPUT"; then
             echo "::warning::bun test exited $RC with passing tests and no (fail) lines — treating as success (known Bun teardown segfault, panic 0x4A; the crash may precede the summary)."
             exit 0
           fi
