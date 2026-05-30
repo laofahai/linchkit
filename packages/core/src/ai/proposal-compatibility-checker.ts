@@ -274,7 +274,7 @@ function checkEnumOptionsChange(
   snapshot: CompatibilityRegistrySnapshot,
 ): CompatibilityIssue | undefined {
   const current = getField(snapshot, change.entity, change.field);
-  if (!current || current.type !== "enum") {
+  if (current?.type !== "enum") {
     return undefined;
   }
   const oldOptions = new Set((current as EnumField).options.map((o) => o.value));

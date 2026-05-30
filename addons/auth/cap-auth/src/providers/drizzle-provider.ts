@@ -190,7 +190,7 @@ class DrizzleAuthProvider implements AuthProvider {
     input: { refresh_token: string },
   ): Promise<RefreshResult> {
     const payload = await this.verifyToken(input.refresh_token);
-    if (!payload || payload.type !== "refresh") {
+    if (payload?.type !== "refresh") {
       throw new Error("Invalid or expired refresh token");
     }
 
@@ -317,7 +317,7 @@ class DrizzleAuthProvider implements AuthProvider {
 
   async resolveToken(token: string): Promise<Actor | null> {
     const payload = await this.verifyToken(token);
-    if (!payload || payload.type !== "access") return null;
+    if (payload?.type !== "access") return null;
 
     return {
       type: "human",
