@@ -23,6 +23,7 @@ import type { RelationDefinition } from "./relation";
 import type { RuleDefinition, RuleOverride } from "./rule";
 import type { StateDefinition, StateExtension } from "./state";
 import type { TransportAdapterDefinition } from "./transport";
+import type { TrustLevel } from "./trust";
 import type { ViewDefinition, ViewExtension } from "./view";
 
 // ── Menu item registration ──────────────────────────────
@@ -105,6 +106,15 @@ export interface CapabilityDefinition {
    * `enforceCoreCompatibility`. Optional — capabilities without it are skipped.
    */
   coreVersion?: string;
+
+  /**
+   * Trust tier this capability declares for itself (Spec 21 / #122). Optional.
+   * A declaration can only ever LOWER a capability's effective standing — the
+   * runtime clamps it against the name-justified tier via
+   * `computeEffectiveTrust` (anti-spoof). When absent, the name-inferred tier
+   * is used. The effective tier gates which `systemPermissions` may be held.
+   */
+  trustLevel?: TrustLevel;
 
   dependencies?: string[];
 

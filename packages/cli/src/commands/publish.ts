@@ -15,8 +15,11 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { TrustLevel } from "@linchkit/core";
-import { coreVersionRangeOf, validateCapabilityMetadata } from "@linchkit/core";
+import {
+  computeEffectiveTrust,
+  coreVersionRangeOf,
+  validateCapabilityMetadata,
+} from "@linchkit/core";
 import { defineCommand } from "citty";
 import { registerCapability } from "../utils/local-registry-io";
 
@@ -182,13 +185,10 @@ export function runPublishChecks(capDir: string): {
   return { checks, metadata };
 }
 
-// ── Determine trust level ───────────────────────────────
-
-function inferTrustLevel(name: string): TrustLevel {
-  if (name.startsWith("@linchkit/")) return "official";
-  if (name.startsWith("linchkit-cap-")) return "community";
-  return "unverified";
-}
+// Trust inference + clamp now live in @linchkit/core (`computeEffectiveTrust`)
+// — single source of truth shared with `install`. The local duplicate was
+// removed; effective trust is resolved below from the package name plus the
+// optional self-declared `trustLevel` (anti-spoof clamped).
 
 // ── Command ─────────────────────────────────────────────
 
@@ -274,8 +274,15 @@ export const publishCommand = defineCommand({
     }
 
     if (isLocal) {
-      // Register to local project registry
-      const trustLevel = inferTrustLevel(metadata.name);
+      // Register to local project registry.
+      // Effective trust = clamp(declared ?? inferred). A capability MAY declare
+      // a `trustLevel` in its capability.json, but the declaration can only
+      // LOWER its standing — never exceed what the package name justifies
+      // (anti-spoof). See `computeEffectiveTrust` in @linchkit/core.
+      const trustLevel = computeEffectiveTrust({
+        name: metadata.name,
+        declaredTrust: metadata.trustLevel,
+      });
       registerCapability(process.cwd(), {
         name: metadata.name,
         version: metadata.version,

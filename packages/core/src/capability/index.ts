@@ -58,3 +58,9 @@ export {
   createLocalRegistry,
   LocalCapabilityRegistry,
 } from "./local-registry";
+export type { ComputeEffectiveTrustInput } from "./trust";
+export {
+  clampTrust,
+  computeEffectiveTrust,
+  inferTrustLevel,
+} from "./trust";

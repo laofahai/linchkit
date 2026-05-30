@@ -7,6 +7,7 @@
  */
 
 import { z } from "zod";
+import { trustLevelEnum } from "./trust";
 
 // ── Enums ────────────────────────────────────────────
 
@@ -76,6 +77,13 @@ export const capabilityMetadataSchema = z.object({
   main: z.string().optional().default("src/index.ts"),
   /** UI entry point for capabilities that provide frontend components */
   ui: z.string().optional(),
+  /**
+   * Self-declared trust tier (Spec 21 / #122). Optional and anti-spoof: a
+   * declaration can only LOWER a capability's effective standing, never raise
+   * it above what the package name justifies. Resolved (clamped) via
+   * `computeEffectiveTrust`. When absent the name-inferred tier is used.
+   */
+  trustLevel: trustLevelEnum.optional(),
   /** Compatibility constraints */
   linchkit: z
     .object({
