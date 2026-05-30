@@ -268,10 +268,10 @@ $ linch install some-random-package
   "name": "@linchkit/cap-auth",
   "version": "1.0.0",
   "peerDependencies": {
-    "@linchkit/core": "^0.1.0"
+    "@linchkit/core": "^0.2.0"
   },
   "linchkit": {
-    "minCoreVersion": "^0.1.0",
+    "coreVersion": "^0.2.0",
     "type": "standard",
     "category": "system",
     "trustLevel": "official",
@@ -285,7 +285,7 @@ $ linch install some-random-package
 ```json
 {
   "name": "@linchkit/cap-auth",
-  "minCoreVersion": "^0.1.0",
+  "coreVersion": "^0.2.0",
   "type": "standard",
   "category": "system",
   "trustLevel": "official",
@@ -312,7 +312,7 @@ $ linch install some-random-package
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|:----:|------|
 | `name` | string | ✓ | 包名（与 npm 包名一致） |
-| `minCoreVersion` | semver range | ✓ | 要求的 core 最低版本 |
+| `coreVersion` | semver range | ✓ | 兼容的 `@linchkit/core` 版本范围（如 `^0.2.0`）。`minCoreVersion` 为其 **@deprecated** 别名，仅在 `coreVersion` 缺失时作为兜底识别 |
 | `type` | enum | ✓ | `standard` / `bridge` / `adapter` |
 | `category` | string | ✓ | 分类，见 `01_capability_structure.md` |
 | `trustLevel` | enum | — | `official` / `verified` / `community` / `unverified` |
@@ -356,7 +356,7 @@ linch install linchkit-cap-crm
   ├── 1. 解析 npm 包 → 下载
   ├── 2. 读取 capability.json / package.json linchkit 字段
   ├── 3. 检查信任层级 → 提示用户确认
-  ├── 4. 检查 minCoreVersion 兼容性 → 不兼容则警告/中止
+  ├── 4. 检查 coreVersion 兼容性 → 不兼容则警告/中止
   ├── 5. 检查 systemPermissions → 提示用户确认
   ├── 6. 解析依赖树 → 自动安装缺失的强依赖
   ├── 7. 检测循环依赖 → 有则报错
@@ -439,21 +439,25 @@ my-capability/
 ```json
 {
   "peerDependencies": {
-    "@linchkit/core": "^0.1.0"
+    "@linchkit/core": "^0.2.0"
   }
 }
 ```
 
-2. **linchkit.minCoreVersion**（元数据）：
+2. **linchkit.coreVersion**（元数据）：
 ```json
 {
   "linchkit": {
-    "minCoreVersion": "^0.1.0"
+    "coreVersion": "^0.2.0"
   }
 }
 ```
 
-两者都要声明。peerDependencies 用于 npm 安装时的版本解析，minCoreVersion 用于运行时校验。
+`coreVersion` 是声明所需 core 版本的规范字段，取值为 semver 范围（如 `^0.2.0`、`>=0.2.0 <0.4.0`）。`minCoreVersion` 是其 **@deprecated** 别名，仅在 `coreVersion` 缺失时作为兜底被识别。
+
+**两者都要声明，且范围必须一致（相等）**：`peerDependencies["@linchkit/core"]` 用于 npm 安装时的版本解析，`coreVersion` 用于运行时校验。唯一例外是 monorepo 内部私有包——其 peerDep 为 `workspace:*` 时，只需声明 `coreVersion`。
+
+当存在独立的 `capability.json` 时，其中的 `coreVersion` 优先级高于 `package.json` 的 `linchkit` 块。
 
 ### 10.2 CLI 行为
 
