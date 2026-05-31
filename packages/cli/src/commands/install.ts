@@ -13,52 +13,30 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { CapabilityMetadata } from "@linchkit/core";
 import {
   checkTrustPermissions,
   computeEffectiveTrust,
   coreVersionRangeOf,
   satisfiesVersionRange,
   VERSION,
-  validateCapabilityMetadata,
 } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { registerCapability } from "../utils/local-registry-io";
+import {
+  detectDependencyCycle,
+  loadCapabilityMetadata,
+  resolveCapabilityJsonPath,
+  validateTypeCompatibility,
+} from "./install-utils";
 
-/**
- * Resolve the path to a package's capability.json.
- * Handles both npm packages (node_modules/<name>) and local paths.
- */
-function resolveCapabilityJsonPath(packageName: string): string {
-  if (packageName.startsWith(".") || packageName.startsWith("/")) {
-    // Local path
-    return resolve(process.cwd(), packageName, "capability.json");
-  }
-  // npm package — look in node_modules
-  return resolve(process.cwd(), "node_modules", packageName, "capability.json");
-}
+export {
+  detectDependencyCycle,
+  inferTrustLevel,
+  loadCapabilityMetadata,
+  resolveCapabilityJsonPath,
+  validateTypeCompatibility,
+} from "./install-utils";
 
-/**
- * Load and validate capability metadata from a capability.json path.
- * Returns null if the file does not exist or is not a valid capability.
- */
-export function loadCapabilityMetadata(capJsonPath: string): CapabilityMetadata | null {
-  if (!existsSync(capJsonPath)) return null;
-  try {
-    const content = readFileSync(capJsonPath, "utf-8");
-    const raw = JSON.parse(content);
-    const result = validateCapabilityMetadata(raw);
-    if (result.success) return result.data;
-    return null;
-  } catch {
-    // File missing, unreadable, or invalid JSON — treat as no metadata
-    return null;
-  }
-}
-
-/**
- * Summarize extensions from capability metadata for display.
- */
 function summarizeExtensions(extensions: Record<string, unknown> | undefined): string {
   if (!extensions) return "none";
   const parts: string[] = [];
@@ -69,97 +47,6 @@ function summarizeExtensions(extensions: Record<string, unknown> | undefined): s
   }
   return parts.length > 0 ? parts.join("; ") : "none";
 }
-
-/**
- * Detect cycles in the dependency graph using DFS.
- * Returns the cycle path if one is found, or null if no cycle.
- */
-export function detectDependencyCycle(
-  packageName: string,
-  getDeps: (name: string) => string[],
-): string[] | null {
-  const visited = new Set<string>();
-  const inStack = new Set<string>();
-  const path: string[] = [];
-
-  function dfs(node: string): string[] | null {
-    if (inStack.has(node)) {
-      // Found a cycle — extract the cycle path
-      const cycleStart = path.indexOf(node);
-      return [...path.slice(cycleStart), node];
-    }
-    if (visited.has(node)) return null;
-
-    visited.add(node);
-    inStack.add(node);
-    path.push(node);
-
-    const deps = getDeps(node);
-    for (const dep of deps) {
-      const cycle = dfs(dep);
-      if (cycle) return cycle;
-    }
-
-    path.pop();
-    inStack.delete(node);
-    return null;
-  }
-
-  return dfs(packageName);
-}
-
-/**
- * Validate type compatibility between capabilities.
- * Rules:
- * - Adapter capabilities cannot depend on other adapter capabilities
- * - Bridge capabilities must depend on at least one standard capability (warning only)
- */
-export function validateTypeCompatibility(
-  metadata: CapabilityMetadata,
-  getDepMetadata: (name: string) => CapabilityMetadata | null,
-): { errors: string[]; warnings: string[] } {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  if (!metadata.dependencies || metadata.dependencies.length === 0) {
-    return { errors, warnings };
-  }
-
-  for (const depName of metadata.dependencies) {
-    const depMeta = getDepMetadata(depName);
-    if (!depMeta) continue; // Skip unresolvable deps (reported separately)
-
-    // Adapter cannot depend on another adapter
-    if (metadata.type === "adapter" && depMeta.type === "adapter") {
-      errors.push(
-        `Adapter capability "${metadata.name}" cannot depend on adapter "${depMeta.name}". ` +
-          `Adapters should only depend on standard or bridge capabilities.`,
-      );
-    }
-  }
-
-  // Bridge should depend on at least one standard capability
-  if (metadata.type === "bridge") {
-    const hasStandardDep = metadata.dependencies.some((depName) => {
-      const depMeta = getDepMetadata(depName);
-      return depMeta?.type === "standard";
-    });
-    if (!hasStandardDep && metadata.dependencies.length > 0) {
-      warnings.push(
-        `Bridge capability "${metadata.name}" does not depend on any standard capability. ` +
-          `Bridges typically connect two or more standard capabilities.`,
-      );
-    }
-  }
-
-  return { errors, warnings };
-}
-
-// Trust inference + clamp now live in @linchkit/core (`computeEffectiveTrust`,
-// `inferTrustLevel`) — single source of truth shared with `publish`. Re-export
-// `inferTrustLevel` so existing importers (e.g. the CLI test suite) keep their
-// import path.
-export { inferTrustLevel } from "@linchkit/core";
 
 export const installCommand = defineCommand({
   meta: {
