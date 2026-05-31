@@ -25,7 +25,7 @@
  * No store, channel, context, or event bus is mocked.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import type { Actor, EventRecord } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -89,10 +89,9 @@ beforeEach(() => {
   h = buildHarness();
 });
 
-afterEach(() => {
-  h.store.clear();
-  h.eventBus.clear();
-});
+// No afterEach: beforeEach builds a fresh Harness (new InMemoryStore +
+// EventBus) before every test, so there is no shared state to tear down —
+// and an afterEach would throw a masking TypeError if beforeEach ever failed.
 
 // ── Tests ───────────────────────────────────────────────────
 
