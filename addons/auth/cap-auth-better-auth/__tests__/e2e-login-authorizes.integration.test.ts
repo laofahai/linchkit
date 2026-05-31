@@ -45,6 +45,7 @@ import {
   InMemoryExecutionLogger,
   InMemoryStore,
 } from "@linchkit/core/server";
+import type { BetterAuthOptions } from "better-auth";
 import { getAuthTables } from "better-auth/db";
 import { admin } from "better-auth/plugins/admin";
 import { bearer } from "better-auth/plugins/bearer";
@@ -58,19 +59,32 @@ import { createBetterAuthProvider } from "../src/provider";
 
 // ── Test configuration ───────────────────────────────────────
 
+// When DATABASE_TEST_URL is explicitly set, the operator intends the suite to
+// run against THAT database — an unreachable one is a CI/config failure, not a
+// reason to silently skip (which would produce a false green). When it is unset
+// (local dev), we fall back to the conventional local Postgres and skip cleanly
+// if it happens to be down.
+const DATABASE_TEST_URL_SET = process.env.DATABASE_TEST_URL !== undefined;
 const DATABASE_URL =
   process.env.DATABASE_TEST_URL ??
   "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
-// Throwaway, in-test-only secret (≥32 chars to satisfy better-auth). Never a real key.
-const TEST_SECRET = "linchkit-e2e-test-secret-please-do-not-use-32";
+// All test credentials are env-overridable and otherwise RUNTIME-GENERATED, so
+// nothing secret-shaped is committed to source and the suite stays hermetic.
+// Computed once at module scope so signup and login share identical values
+// within a single run. Uses the global Web Crypto API (Bun provides it) — no
+// `node:crypto` require.
+//
+// secret: must be >= 32 chars to satisfy better-auth (two hex UUIDs = 64 chars).
+const TEST_SECRET =
+  process.env.E2E_TEST_SECRET ??
+  crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
 const TEST_BASE_URL = "http://localhost:3001";
 
-// In-test-only credentials — never real. Deliberately a low-entropy,
-// self-describing placeholder (not a real-looking password) so secret
-// scanners don't flag it; better-auth only requires length >= 8.
-const TEST_EMAIL = "e2e-auth-user@example.com";
-const TEST_PASSWORD = "e2e-test-password-not-a-real-secret";
+// email: unique-per-run so reruns against the shared DB never collide.
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? `e2e-${crypto.randomUUID()}@example.com`;
+// password: a UUID comfortably exceeds better-auth's length >= 8 requirement.
+const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? crypto.randomUUID();
 
 // ── better-auth option shape ─────────────────────────────────
 
@@ -84,8 +98,7 @@ const authOptionsForSchema = {
   baseURL: TEST_BASE_URL,
   emailAndPassword: { enabled: true },
   plugins: [bearer(), admin(), username(), phoneNumber({ sendOTP: async () => {} })],
-  // biome-ignore lint/suspicious/noExplicitAny: getAuthTables accepts the better-auth options bag
-} as any;
+} satisfies BetterAuthOptions;
 
 // ── Connection check ─────────────────────────────────────────
 
@@ -110,12 +123,35 @@ async function canConnect(): Promise<boolean> {
 const dbAvailable = await canConnect();
 
 if (!dbAvailable) {
+  if (DATABASE_TEST_URL_SET) {
+    // Fail loudly: a configured-but-unreachable DB must never silently skip.
+    throw new Error(
+      "DATABASE_TEST_URL is set but PostgreSQL is unreachable — refusing to silently skip",
+    );
+  }
   console.warn(
     "PostgreSQL not available, skipping cap-auth-better-auth e2e login integration test",
   );
 }
 
 // ── DDL helpers (derived from better-auth's own schema model) ─
+
+// better-auth's tables in FK-safe DROP order (children before `user`). This
+// test is the SOLE consumer of these tables — other DB-gated suites use their
+// own tables — so a per-run drop/recreate (beforeAll) plus an afterAll drop is
+// sufficient isolation in the shared CI Postgres, without a separate schema.
+const BETTER_AUTH_TABLES = ["session", "account", "verification", "user"] as const;
+
+/** Best-effort DROP of every better-auth table; ignores errors. */
+async function dropBetterAuthTables(database: PostgresJsDatabase): Promise<void> {
+  for (const t of BETTER_AUTH_TABLES) {
+    try {
+      await database.execute(sql.raw(`DROP TABLE IF EXISTS "${t}" CASCADE`));
+    } catch {
+      // Best-effort cleanup — ignore so teardown never masks a test failure.
+    }
+  }
+}
 
 function pgColumnType(type: string): string {
   switch (type) {
@@ -168,10 +204,8 @@ async function setupBetterAuthTables(
 ): Promise<Record<string, unknown>> {
   const tables = getAuthTables(authOptionsForSchema) as Record<string, AuthTableModel>;
 
-  // Drop in FK-safe order for a clean slate.
-  for (const t of ["session", "account", "verification", "user"]) {
-    await database.execute(sql.raw(`DROP TABLE IF EXISTS "${t}" CASCADE`));
-  }
+  // Drop in FK-safe order for a clean slate before recreating.
+  await dropBetterAuthTables(database);
 
   const drizzleSchema: Record<string, unknown> = {};
   // Create in dependency order (user before tables that reference it).
@@ -294,6 +328,9 @@ describe.skipIf(!dbAvailable)("cap-auth-better-auth e2e: login authorizes via Co
   });
 
   afterAll(async () => {
+    // Leave no residue in the shared test DB: drop the better-auth tables this
+    // suite created (best-effort) before releasing the connection.
+    if (db) await dropBetterAuthTables(db);
     if (client) await client.end();
   });
 
