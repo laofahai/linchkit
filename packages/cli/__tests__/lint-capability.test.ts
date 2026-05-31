@@ -74,7 +74,12 @@ describe("lint-capability command", () => {
     await proc.exited;
 
     expect(proc.exitCode).toBe(0);
-    const parsed = JSON.parse(stdout);
+    let parsed: ReturnType<typeof JSON.parse>;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      throw new Error(`JSON.parse failed (exitCode=${proc.exitCode}). stdout: ${stdout.slice(0, 200)}`);
+    }
     expect(parsed.ok).toBe(true);
     expect(parsed.issues).toHaveLength(0);
     expect(parsed.dir).toBe(root);
@@ -94,7 +99,12 @@ describe("lint-capability command", () => {
     await proc.exited;
 
     expect(proc.exitCode).toBe(1);
-    const parsed = JSON.parse(stdout);
+    let parsed: ReturnType<typeof JSON.parse>;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      throw new Error(`JSON.parse failed (exitCode=${proc.exitCode}). stdout: ${stdout.slice(0, 200)}`);
+    }
     expect(parsed.ok).toBe(false);
     expect(parsed.issues.some((i: { check: string }) => i.check === "metadata")).toBe(true);
     expect(parsed.issues.some((i: { check: string }) => i.check === "import-boundary")).toBe(true);
