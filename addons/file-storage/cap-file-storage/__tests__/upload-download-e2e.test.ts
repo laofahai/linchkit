@@ -19,7 +19,7 @@
  * undetected.
  */
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { Buffer } from "node:buffer";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -56,7 +56,21 @@ describe("cap-file-storage upload → download/delete e2e (real pipeline)", () =
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), "cap-file-storage-e2e-"));
     setStorageAdapter(new LocalStorageAdapter({ rootDir: root }));
+  });
 
+  afterAll(async () => {
+    resetStorageAdapter();
+    if (root) {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  beforeEach(() => {
+    // Fresh runtime per test — a new EventBus + InMemoryStore + CommandLayer —
+    // gives full isolation and makes subscription leaks impossible, so no
+    // afterEach teardown is needed. The storage adapter / temp dir is shared
+    // (tests use unique file ids).
+    captured = [];
     eventBus = createEventBus().bus;
     const executor = createActionExecutor({
       dataProvider: new InMemoryStore(),
@@ -72,17 +86,7 @@ describe("cap-file-storage upload → download/delete e2e (real pipeline)", () =
       executor.registry.register(action);
     }
     commandLayer = createCommandLayer({ executor });
-  });
 
-  afterAll(async () => {
-    resetStorageAdapter();
-    if (root) {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-
-  beforeEach(() => {
-    captured = [];
     // Subscribe synchronously so emitted events are captured before
     // `execute()` resolves (the default async path would race the assertion).
     eventBus.subscribe(
@@ -99,10 +103,6 @@ describe("cap-file-storage upload → download/delete e2e (real pipeline)", () =
       },
       { sync: true },
     );
-  });
-
-  afterEach(() => {
-    eventBus.clear();
   });
 
   it("round-trips bytes and metadata through upload then download", async () => {
@@ -132,7 +132,7 @@ describe("cap-file-storage upload → download/delete e2e (real pipeline)", () =
     expect(record.uploaded_by).toBe(ACTOR.id);
     // Server-generated key MUST be scoped under the tenant prefix and MUST NOT
     // echo the original filename (anti cross-tenant-overwrite invariant).
-    expect(record.path as string).toStartWith(`${TENANT}/`);
+    expect((record.path as string).startsWith(`${TENANT}/`)).toBe(true);
     expect(record.path as string).not.toContain("blob.bin");
 
     // file.uploaded domain event emitted with the expected payload.
