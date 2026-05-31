@@ -30,7 +30,7 @@ bun run dev
 ```bash
 bun run dev:server    # Backend on :3001
 bun run dev:ui        # Frontend on :3000 (proxies API to :3001)
-bun test              # Run all tests
+bun run test          # Run the full test suite (batched runner — see scripts/run-tests.sh)
 bun run check         # Biome lint + format
 bun run typecheck     # TypeScript strict check
 ```
@@ -75,7 +75,7 @@ All of these must pass before merge:
 ```bash
 bun run check       # Biome lint + format
 bun run typecheck   # TypeScript type checking
-bun test            # Full test suite
+bun run test        # Full test suite (batched runner — a bare `bun test` crashes mid-run and skips addons tests)
 ```
 
 ### Commit Messages

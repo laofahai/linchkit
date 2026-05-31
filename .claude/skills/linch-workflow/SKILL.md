@@ -63,7 +63,7 @@ Follow-up commits on unchanged code don't need re-runs; commits after any of the
 linch validate        # Meta-model validation (manual — run when touching definitions)
 bun run check         # Biome lint + format (hook-tracked, fresh-gated)
 bun run typecheck     # TypeScript strict check (hook-tracked, fresh-gated)
-bun test              # Full test suite (hook-tracked, fresh-gated — must be exact `bun test`, not filtered)
+bun run test          # Full test suite via scripts/run-tests.sh (hook-tracked, fresh-gated — must be exact `bun run test`). A bare `bun test` crashes mid-run (Bun panic 0x4A) and silently skips all addons tests; the batched runner runs every file and fails on any truncated batch. While iterating you may run a single subtree (e.g. `bun test ./addons/auth/`), but the gate command is `bun run test`.
 ```
 
 ## Step 5: Cross-Model Review

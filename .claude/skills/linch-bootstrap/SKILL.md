@@ -55,8 +55,9 @@ All four checks MUST pass:
 linch validate
 bun run check
 bun run typecheck
-bun test
+bun run test
 ```
+(`bun run test` runs the batched runner in `scripts/run-tests.sh`; a bare `bun test` crashes mid-run and skips every addons test.)
 
 ## Guidelines
 

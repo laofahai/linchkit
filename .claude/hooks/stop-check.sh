@@ -28,7 +28,7 @@ echo ""
 
 gate_row check_passed     "bun run check       "
 gate_row typecheck_passed "bun run typecheck   "
-gate_row tests_passed     "bun test            "
+gate_row tests_passed     "bun run test        "
 gate_row cross_model_review "Cross-model review "
 
 echo "  □ git commit"
