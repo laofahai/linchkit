@@ -32,6 +32,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Ephemeral Redis for the Redis-gated cache integration suite. Mirrors the
+  # `redis` service in .github/workflows/ci.yml (image/port). Host port 6380
+  # (not 6379) avoids clashing with a developer's local Redis, mirroring how
+  # postgres-test uses 5434. Data lives in tmpfs so nothing persists.
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
   linchkit:
     build:
       context: .
