@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import type { CapabilityMetadata } from "@linchkit/core";
 import { validateCapabilityMetadata } from "@linchkit/core";
 
@@ -13,7 +13,7 @@ import { validateCapabilityMetadata } from "@linchkit/core";
  * Handles both npm packages (node_modules/<name>) and local paths.
  */
 export function resolveCapabilityJsonPath(packageName: string): string {
-  if (packageName.startsWith(".") || packageName.startsWith("/")) {
+  if (packageName.startsWith(".") || isAbsolute(packageName)) {
     return resolve(process.cwd(), packageName, "capability.json");
   }
   return resolve(process.cwd(), "node_modules", packageName, "capability.json");
@@ -90,8 +90,16 @@ export function validateTypeCompatibility(
     return { errors, warnings };
   }
 
+  const depCache = new Map<string, CapabilityMetadata | null>();
+  const getDepMetaCached = (name: string): CapabilityMetadata | null => {
+    if (!depCache.has(name)) {
+      depCache.set(name, getDepMetadata(name));
+    }
+    return depCache.get(name) ?? null;
+  };
+
   for (const depName of metadata.dependencies) {
-    const depMeta = getDepMetadata(depName);
+    const depMeta = getDepMetaCached(depName);
     if (!depMeta) continue;
 
     if (metadata.type === "adapter" && depMeta.type === "adapter") {
@@ -104,7 +112,7 @@ export function validateTypeCompatibility(
 
   if (metadata.type === "bridge") {
     const hasStandardDep = metadata.dependencies.some((depName) => {
-      const depMeta = getDepMetadata(depName);
+      const depMeta = getDepMetaCached(depName);
       return depMeta?.type === "standard";
     });
     if (!hasStandardDep && metadata.dependencies.length > 0) {

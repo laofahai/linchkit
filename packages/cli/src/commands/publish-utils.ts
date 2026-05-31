@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { CapabilityMetadata } from "@linchkit/core";
 import { validateCapabilityMetadata } from "@linchkit/core";
 
 export interface PublishCheck {
@@ -18,14 +19,10 @@ export interface PublishCheck {
  */
 export function runPublishChecks(capDir: string): {
   checks: PublishCheck[];
-  metadata: ReturnType<typeof validateCapabilityMetadata> extends infer R
-    ? R extends { success: true; data: infer D }
-      ? D
-      : null
-    : null;
+  metadata: CapabilityMetadata | null;
 } {
   const checks: PublishCheck[] = [];
-  let metadata: ReturnType<typeof runPublishChecks>["metadata"] = null;
+  let metadata: CapabilityMetadata | null = null;
 
   // 1. capability.json exists
   const capJsonPath = resolve(capDir, "capability.json");
