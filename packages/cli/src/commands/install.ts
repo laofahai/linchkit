@@ -19,6 +19,7 @@ import {
   coreVersionRangeOf,
   satisfiesVersionRange,
   VERSION,
+  validateCapabilityMetadata,
 } from "@linchkit/core";
 import { defineCommand } from "citty";
 import { registerCapability } from "../utils/local-registry-io";
