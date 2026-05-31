@@ -50,10 +50,13 @@ async function canConnect(): Promise<boolean> {
   try {
     const testDb = createDatabase({ url: DATABASE_URL });
     await testDb.execute(sql`SELECT 1`);
-    await closeDatabase();
     return true;
   } catch {
     return false;
+  } finally {
+    // Always release the probe pool, even if execute() throws, so a failed
+    // probe never leaks connections into the rest of the suite.
+    await closeDatabase();
   }
 }
 
@@ -67,6 +70,18 @@ if (!dbAvailable) {
 
 let db: PostgresJsDatabase | null = null;
 let service: DrizzleSearchService;
+
+/**
+ * Narrow `db` to non-null. It is assigned in beforeAll and the suite is
+ * skipped when no DB is available, so this never throws in practice — but a
+ * clear error beats an unsafe `db?` destructure (which yields a cryptic
+ * "undefined is not iterable") or a `db!` non-null assertion (which the
+ * repo's biome config bans as `noNonNullAssertion`).
+ */
+function requireDb(): PostgresJsDatabase {
+  if (!db) throw new Error("db not initialized — beforeAll did not run");
+  return db;
+}
 
 /** Build a record.created/updated/deleted event mirroring the real CRUD emitter shape. */
 function makeEvent(type: string, overrides: Partial<EventRecord> = {}): EventRecord {
@@ -201,7 +216,7 @@ describe.skipIf(!dbAvailable)("DrizzleSearchService (integration)", () => {
     expect(hits[0]?.recordId).toBe("v1");
 
     // Exactly one row survives — the unique index + ON CONFLICT held.
-    const [{ count }] = (await db?.execute(
+    const [{ count }] = (await requireDb().execute(
       sql.raw(`SELECT COUNT(*)::int AS count FROM ${TABLE}`),
     )) as Array<{ count: number }>;
     expect(count).toBe(1);
@@ -277,7 +292,7 @@ describe.skipIf(!dbAvailable)("DrizzleSearchService (integration)", () => {
   it("stores a missing tenantId as the empty-string sentinel", async () => {
     await service.upsertDocument({ entity: ENTITY, recordId: "r1", content: "sentinel check" });
 
-    const rows = (await db?.execute(
+    const rows = (await requireDb().execute(
       sql.raw(`SELECT tenant_id FROM ${TABLE} WHERE record_id = 'r1'`),
     )) as Array<{ tenant_id: string }>;
     expect(rows).toHaveLength(1);
