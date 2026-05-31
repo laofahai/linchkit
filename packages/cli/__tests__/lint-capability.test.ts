@@ -78,7 +78,9 @@ describe("lint-capability command", () => {
     try {
       parsed = JSON.parse(stdout);
     } catch {
-      throw new Error(`JSON.parse failed (exitCode=${proc.exitCode}). stdout: ${stdout.slice(0, 200)}`);
+      throw new Error(
+        `JSON.parse failed (exitCode=${proc.exitCode}). stdout: ${stdout.slice(0, 200)}`,
+      );
     }
     expect(parsed.ok).toBe(true);
     expect(parsed.issues).toHaveLength(0);
@@ -103,7 +105,9 @@ describe("lint-capability command", () => {
     try {
       parsed = JSON.parse(stdout);
     } catch {
-      throw new Error(`JSON.parse failed (exitCode=${proc.exitCode}). stdout: ${stdout.slice(0, 200)}`);
+      throw new Error(
+        `JSON.parse failed (exitCode=${proc.exitCode}). stdout: ${stdout.slice(0, 200)}`,
+      );
     }
     expect(parsed.ok).toBe(false);
     expect(parsed.issues.some((i: { check: string }) => i.check === "metadata")).toBe(true);
