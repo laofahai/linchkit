@@ -209,10 +209,10 @@ describe.skipIf(!redisAvailable)("RedisCacheProvider (integration, real Redis)",
     expect(pttl).toBeGreaterThan(0);
     expect(pttl).toBeLessThanOrEqual(300);
 
-    // After the TTL elapses the real key is gone.
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    const afterExpiry = await raw.get(redisKey);
-    expect(afterExpiry).toBeNull();
+    // After the TTL elapses the real key is gone. Poll (don't hardcode a
+    // sleep) so a slow CI runner can't make this flaky.
+    const expired = await waitForAsync(async () => (await raw.get(redisKey)) === null);
+    expect(expired).toBe(true);
   });
 
   test("delete removes the real key and broadcasts invalidate-key over real Pub/Sub", async () => {
@@ -261,17 +261,22 @@ describe.skipIf(!redisAvailable)("RedisCacheProvider (integration, real Redis)",
 
   test("an invalidation broadcast on one provider reaches another via real Pub/Sub", async () => {
     // Two independent provider instances sharing the same real Redis + channel.
-    const producer = new RedisCacheProvider({
-      client: makeRawClient(),
-      namespace: NAMESPACE,
-      invalidationChannel: CHANNEL,
-    });
-    const consumer = new RedisCacheProvider({
-      client: makeRawClient(),
-      namespace: NAMESPACE,
-      invalidationChannel: CHANNEL,
-    });
+    // Declared up-front and created inside the try so a constructor failure
+    // can't leak the other instance, and the finally never closes an
+    // uninitialised one.
+    let producer: RedisCacheProvider | undefined;
+    let consumer: RedisCacheProvider | undefined;
     try {
+      producer = new RedisCacheProvider({
+        client: makeRawClient(),
+        namespace: NAMESPACE,
+        invalidationChannel: CHANNEL,
+      });
+      consumer = new RedisCacheProvider({
+        client: makeRawClient(),
+        namespace: NAMESPACE,
+        invalidationChannel: CHANNEL,
+      });
       const sharedKey = "cross-instance";
 
       // Producer writes; consumer hydrates the same key into its own mirror.
@@ -290,8 +295,10 @@ describe.skipIf(!redisAvailable)("RedisCacheProvider (integration, real Redis)",
       await waitFor(() => consumer.get(sharedKey) === undefined);
       expect(consumer.get(sharedKey)).toBeUndefined();
     } finally {
-      await producer.close();
-      await consumer.close();
+      // Guarded: a constructor failure must not become a masking TypeError
+      // from closing an uninitialised instance.
+      if (producer) await producer.close();
+      if (consumer) await consumer.close();
     }
   });
 });
