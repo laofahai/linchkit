@@ -104,7 +104,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await client.close();
+  // Guard: if beforeAll failed before `client` was created, don't mask the
+  // real setup error with a TypeError from close() on undefined.
+  if (client) await client.close();
 });
 
 describe("MCP client <-> server e2e (real protocol round-trip)", () => {
