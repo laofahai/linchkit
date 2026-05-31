@@ -158,7 +158,7 @@
           },
           {
             "type": "command",
-            "if": "Bash(bun test)",
+            "if": "Bash(bun run test)",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-quality-gate.sh tests_passed",
             "timeout": 5
           },

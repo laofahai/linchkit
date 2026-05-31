@@ -16,7 +16,7 @@ description: "Full capability development workflow from discovery to quality gat
    - `linch validate`
    - `bun run check`
    - `bun run typecheck`
-   - `bun test`
+   - `bun run test` (the batched runner; a bare `bun test` crashes mid-run and skips all addons tests)
 
 ## MCP Tools
 
