@@ -50,8 +50,12 @@
 set -uo pipefail
 
 # Strip ANSI escapes so summary/`(fail)` detection is reliable in CI logs.
+# Inject a literal ESC via printf — `\x1b` is a GNU-sed extension unsupported by
+# BSD sed (the default on macOS), so this stays portable across both.
 strip_ansi() {
-  sed -E 's/\x1b\[[0-9;]*[mGKHJ]//g'
+  local esc
+  esc="$(printf '\033')"
+  sed -E "s/${esc}\[[0-9;]*[mGKHJ]//g"
 }
 
 # Files known to trigger the Bun mid-run segfault. Each is run in isolation and
@@ -82,13 +86,16 @@ run_batch() {
   local quarantine_single="${quarantine_single:-0}"
 
   echo "::group::bun test — ${label}"
-  local out rc
-  out="$(bun test "$@" 2>&1)"
-  rc=$?
-  printf '%s\n' "$out"
-
-  local clean
-  clean="$(printf '%s' "$out" | strip_ansi)"
+  # Stream output live (tee) instead of buffering it in a variable, so a
+  # long/E2E batch never looks hung and CI shows progress in real time. Capture
+  # Bun's own exit status via PIPESTATUS[0] (NOT the pipeline's, which pipefail
+  # would skew toward tee).
+  local tmp rc clean
+  tmp="$(mktemp)"
+  bun test "$@" 2>&1 | tee "$tmp"
+  rc="${PIPESTATUS[0]}"
+  clean="$(strip_ansi <"$tmp")"
+  rm -f "$tmp"
 
   # A real test failure is fatal regardless of exit code.
   if grep -qE '^\(fail\)' <<<"$clean"; then

@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: these jobs only check out code and run lint/typecheck/tests.
+# No write access to contents, PRs, issues, deployments, etc.
+permissions:
+  contents: read
+
 jobs:
   quality:
     name: Code Quality
