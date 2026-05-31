@@ -46,6 +46,7 @@ import { buildBatchMutationField } from "./build-batch-mutation";
 import { buildOnchangeMutationFields } from "./build-onchange-mutations";
 import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 import { buildEventsGraphQLExtension } from "./events";
+import { buildFieldMetaList, getFieldMetaType } from "./field-meta";
 import { safeParseJSON } from "./json-arg";
 import {
   generateActionInputType,
@@ -603,6 +604,19 @@ export function buildGraphQLSchema(
             });
           }
         : () => ({ items: [], total: 0, pageInfo: { limit: 20, offset: 0, hasMore: false } }),
+    };
+
+    // ── Query: static field-lock metadata (Spec 63 §6) ────
+    // Pure schema metadata: per-field `immutable` + effective `lockWhen`
+    // (per-field `lockWhen`, else entity `lockAllWhen` when covered). No live
+    // record is read here — clients use this to pre-compute lock state.
+    // Computed once per entity (the definition is static) and shared across
+    // requests; no dataProvider dependency, so it works even in mock mode.
+    const fieldMetaList = buildFieldMetaList(entity);
+    queryFields[`${camelName}FieldMeta`] = {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(getFieldMetaType()))),
+      description: `Static field-lock metadata for ${entity.label ?? entityName} (Spec 63 §6)`,
+      resolve: () => fieldMetaList,
     };
 
     // Internal schemas are read-only — skip mutation generation

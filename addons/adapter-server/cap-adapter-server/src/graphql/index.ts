@@ -9,6 +9,13 @@ export type {
 } from "./build-schema";
 export { buildGraphQLSchema, generateCrudActions } from "./build-schema";
 export { buildSubscriptionFields, buildTopic, createEventBusPubSub } from "./build-subscriptions";
+export type { FieldMeta, FieldMetaLockSource, LockConditionMeta } from "./field-meta";
+export {
+  buildFieldMetaList,
+  clearFieldMetaTypeCache,
+  getFieldMetaType,
+  toLockConditionMeta,
+} from "./field-meta";
 export type { RelationResolverContext } from "./schema-to-graphql";
 export {
   buildOverlayInputFields,
