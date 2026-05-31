@@ -4,18 +4,26 @@
 #
 # WHY THIS EXISTS
 # ---------------
-# A single root `bun test` does NOT run the whole suite. Bun 1.2.18 hits a
-# runtime crash (panic 0x4A) MID-RUN, deterministically, while executing
-# `packages/cli/__tests__/lint-capability.test.ts`. Run order puts `packages/`
-# first and `addons/` last, so the crash lands BEFORE `addons/` is ever
-# reached: in CI, 0 of the 177 addons test files ran. The old CI guard masked
-# the non-zero exit as success whenever a `(pass)` line was present and no
-# `(fail)` line was — which is exactly how a TRUNCATED run snuck through green.
+# A single root `bun test` does NOT run the whole suite reliably. Bun 1.2.18
+# hit a runtime crash (panic 0x4A) MID-RUN, deterministically, while executing
+# `packages/cli/__tests__/lint-capability.test.ts`. That crash was fixed by
+# restructuring the test to spawn a subprocess instead of calling
+# lintCapability() in-process (see issue #434). The file is no longer
+# quarantined. The batched runner is kept because:
+#   - it verifies each batch actually COMPLETED (no silent truncation),
+#   - it produces cleaner CI log groups, and
+#   - the quarantine mechanism remains available if a new crash file appears.
 #
-# This runner instead executes the suite as a set of smaller batches, each of
-# which is verified to actually COMPLETE (print its "Ran N tests across M
-# files" summary). The known crash file is QUARANTINED and run in isolation
-# with an explicit, loudly-logged allowance — never a blanket pass.
+# Previously: Run order puts `packages/` first and `addons/` last, so the crash
+# landed BEFORE `addons/` was ever reached: in CI, 0 of the 177 addons test
+# files ran. The old CI guard masked the non-zero exit as success whenever a
+# `(pass)` line was present and no `(fail)` line was — which is exactly how a
+# TRUNCATED run snuck through green.
+#
+# This runner executes the suite as a set of smaller batches, each of which is
+# verified to actually COMPLETE (print its "Ran N tests across M files"
+# summary). Any quarantined file would be run in isolation with an explicit,
+# loudly-logged allowance — never a blanket pass.
 #
 # HONEST GATE CONTRACT
 # --------------------
@@ -62,9 +70,7 @@ strip_ansi() {
 # allowed to crash WITHOUT a completion summary, with a loud warning. This is a
 # narrow, explicit, audited allowance — NOT a blanket pass. Keep this list
 # minimal; re-test and remove entries whenever the Bun runtime is upgraded.
-QUARANTINE=(
-  "packages/cli/__tests__/lint-capability.test.ts"
-)
+QUARANTINE=()
 
 is_quarantined() {
   local needle="$1" q
@@ -138,9 +144,9 @@ run_batch "packages/starters" ./packages/starters/
 run_batch "e2e"               ./e2e/
 run_batch "addons"            ./addons/
 
-# packages/cli is split: the crash file is quarantined and the rest run as one
-# batch of explicit file paths. The file list is DISCOVERED at runtime so newly
-# added cli tests are covered automatically (no hardcoded list to drift).
+# packages/cli: discover all test files at runtime so newly added tests are
+# covered automatically (no hardcoded list to drift). Quarantined files are
+# excluded here and run separately below.
 CLI_REST=()
 while IFS= read -r f; do
   rel="${f#./}"
@@ -152,9 +158,9 @@ done < <(find ./packages/cli \( -name '*.test.ts' -o -name '*.test.tsx' \) \
            -not -path '*/node_modules/*' | sort)
 
 if [ "${#CLI_REST[@]}" -gt 0 ]; then
-  run_batch "packages/cli (minus quarantine)" "${CLI_REST[@]}"
+  run_batch "packages/cli" "${CLI_REST[@]}"
 else
-  echo "::error::No non-quarantined packages/cli test files discovered — coverage gap."
+  echo "::error::No packages/cli test files discovered — coverage gap."
   OVERALL_RC=1
 fi
 

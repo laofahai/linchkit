@@ -38,7 +38,7 @@ describe("lint-capability command", () => {
     expect(args?.json?.type).toBe("boolean");
   });
 
-  test("runs the checker (JSON) and reports ok for a clean capability", () => {
+  test("CLI subprocess exits zero and reports ok for a clean capability", async () => {
     const root = makeCapDir();
     writeFile(
       root,
@@ -51,26 +51,34 @@ describe("lint-capability command", () => {
         label: "CLI Clean",
       }),
     );
+    // package.json with peerDependencies is required by the core-version check (Spec 21 §10.1).
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cli-clean",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { coreVersion: "^0.2.0" },
+      }),
+    );
     writeFile(root, "src/index.ts", `import { defineEntity } from "@linchkit/core";\nexport {};\n`);
     writeFile(root, "src/x.test.ts", `import { test } from "bun:test";\ntest("x", () => {});\n`);
 
-    const logs: string[] = [];
-    const origLog = console.log;
-    console.log = (...a: unknown[]) => logs.push(a.map(String).join(" "));
-    try {
-      // run() prints JSON and does NOT call process.exit for a clean cap.
-      // citty's run signature accepts a context object; we only need args here.
-      // biome-ignore lint/suspicious/noExplicitAny: invoking citty handler directly in test
-      (lintCapabilityCommand.run as any)({ args: { dir: root, json: true } });
-    } finally {
-      console.log = origLog;
-    }
+    const cliEntry = join(import.meta.dir, "../src/index.ts");
+    const proc = Bun.spawn(["bun", "run", cliEntry, "lint-capability", root, "--json"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await proc.exited;
+    const stdout = await new Response(proc.stdout).text();
 
-    const parsed = JSON.parse(logs.join("\n"));
+    expect(proc.exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
     expect(parsed.ok).toBe(true);
     expect(parsed.issues).toHaveLength(0);
     expect(parsed.dir).toBe(root);
-  });
+  }, 15_000);
 
   test("CLI subprocess exits non-zero on a failing capability", async () => {
     const root = makeCapDir();
