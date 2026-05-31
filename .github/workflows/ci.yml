@@ -29,6 +29,22 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 15
+      # Redis for the Redis-gated cache integration suite. Without it the
+      # `describe.skipIf(!redisAvailable)` suite SKIPS in CI — i.e. the real
+      # ioredis GET/SET/DEL/EXPIRE/SUBSCRIBE/PUBLISH path never runs. Mirrors
+      # the `redis-test` service in docker-compose.yml (image/port) so local
+      # and CI behave identically; the test connects to localhost:6380 via
+      # REDIS_TEST_URL below. The host port is 6380 (not 6379) to avoid
+      # clashing with a developer's local Redis, mirroring postgres's 5434.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v5
 
@@ -52,6 +68,10 @@ jobs:
           # run. Matches the `postgres` service above and the hardcoded default
           # the test files fall back to.
           DATABASE_TEST_URL: postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test
+          # Flips the Redis-gated `describe.skipIf(!redisAvailable)` cache suite
+          # from skip to run. Matches the `redis` service above and the
+          # hardcoded default the test file falls back to.
+          REDIS_TEST_URL: redis://localhost:6380
         run: |
           # Bun 1.2.18 occasionally segfaults during process teardown
           # (panic 0x4A at exit) even when every test passes. The crash can land
