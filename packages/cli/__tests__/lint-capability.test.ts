@@ -68,10 +68,10 @@ describe("lint-capability command", () => {
     const cliEntry = join(import.meta.dir, "../src/index.ts");
     const proc = Bun.spawn(["bun", "run", cliEntry, "lint-capability", root, "--json"], {
       stdout: "pipe",
-      stderr: "pipe",
+      stderr: "ignore",
     });
-    await proc.exited;
     const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
 
     expect(proc.exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
@@ -88,10 +88,10 @@ describe("lint-capability command", () => {
     const cliEntry = join(import.meta.dir, "../src/index.ts");
     const proc = Bun.spawn(["bun", "run", cliEntry, "lint-capability", root, "--json"], {
       stdout: "pipe",
-      stderr: "pipe",
+      stderr: "ignore",
     });
-    await proc.exited;
     const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
 
     expect(proc.exitCode).toBe(1);
     const parsed = JSON.parse(stdout);
