@@ -27,6 +27,7 @@ import type {
 import type { WatcherRegistry } from "@linchkit/core/server";
 import { MutationEngine } from "./mutation-engine";
 import { ScheduleEngine } from "./schedule-engine";
+import type { WatcherStateStore } from "./watcher-state-store";
 
 // ── Action executor interface (shared with watcher effects) ──
 
@@ -85,6 +86,15 @@ export interface WatcherEngine extends Watcher {
 
   /** Get a scheduled watcher's next-due time (for testing/debugging). */
   getNextScheduledRun(watcherName: string): Date | null | undefined;
+
+  /**
+   * Hydrate the in-memory debounce cache from the configured persistent
+   * {@link WatcherStateStore}. Called automatically by {@link Watcher.start},
+   * but exposed so a freshly constructed engine (e.g. simulating a process
+   * restart in tests, or a startup path that does not call `start()`) can
+   * restore debounce state explicitly. No-op when no store is configured.
+   */
+  hydrate(): Promise<void>;
 }
 
 // ── Options ───────────────────────────────────────────────
@@ -114,6 +124,15 @@ export interface WatcherEngineOptions {
   /** Optional override for the watcher's stable id (default: "automation.watcher_engine"). */
   id?: string;
   logger?: Logger;
+  /**
+   * Optional durable backing store for debounce state (Spec 45 §4). When
+   * provided, the engine keeps its in-memory `Map` as a hot cache but writes
+   * every mutation through to the store and re-hydrates the cache from it on
+   * {@link WatcherEngine.hydrate} / {@link Watcher.start} — making debounce
+   * state restart-safe. When omitted, the engine is a pure in-memory `Map`
+   * (historical behavior, unchanged).
+   */
+  stateStore?: WatcherStateStore;
 }
 
 // ── Duration parsing ──────────────────────────────────────
@@ -175,6 +194,14 @@ class WatcherEngineImpl implements WatcherEngine {
   /** In-memory debounce state — maps `${watcherName}:${groupKey}` → state entry */
   private stateMap = new Map<string, WatcherStateEntry>();
 
+  /**
+   * Optional durable backing store. When set, `stateMap` acts as a synchronous
+   * hot cache and every mutation is mirrored to the store (write-through);
+   * {@link hydrate} reloads the cache from it. When undefined the engine is a
+   * pure in-memory `Map` (historical behavior).
+   */
+  private stateStore?: WatcherStateStore;
+
   /** Cron scheduling subsystem (next-due tracking + tick evaluation). */
   private scheduleEngine: ScheduleEngine;
 
@@ -190,6 +217,7 @@ class WatcherEngineImpl implements WatcherEngine {
     this.stalenessIntervalMs = options.stalenessIntervalMs ?? 60_000;
     this.scheduleIntervalMs = options.scheduleIntervalMs ?? 60_000;
     this.clock = options.clock ?? (() => new Date());
+    this.stateStore = options.stateStore;
     this.logger = options.logger ?? {
       info: () => {},
       warn: console.warn,
@@ -231,10 +259,28 @@ class WatcherEngineImpl implements WatcherEngine {
     });
   }
 
-  start(): void {
+  start(): void | Promise<void> {
     if (this.started) return;
     this.started = true;
 
+    // Fast path — no persistent store: start synchronously so behavior is
+    // byte-for-byte identical to the historical in-memory-only engine (callers
+    // that emit immediately after `start()` without awaiting still work).
+    if (!this.stateStore) {
+      this.startSubsystems();
+      return;
+    }
+
+    // Store configured: restore debounce state BEFORE any evaluation path runs,
+    // so a restarted engine does not re-fire already-fired watchers. Returns a
+    // promise the caller can await; subsystems start only after hydration.
+    return this.hydrate().then(() => {
+      this.startSubsystems();
+    });
+  }
+
+  /** Bind event subscriptions and start the polling/schedule subsystems. */
+  private startSubsystems(): void {
     // Subscribe to mutation events for reactive evaluation
     if (this.eventBus) {
       this.bindMutationEvents();
@@ -296,6 +342,7 @@ class WatcherEngineImpl implements WatcherEngine {
   resetState(watcherName: string, groupKey?: string): void {
     if (groupKey !== undefined) {
       this.stateMap.delete(`${watcherName}:${groupKey}`);
+      this.mirror(() => this.stateStore?.delete(watcherName, groupKey));
     } else {
       // Remove all entries for this watcher
       for (const key of Array.from(this.stateMap.keys())) {
@@ -303,11 +350,35 @@ class WatcherEngineImpl implements WatcherEngine {
           this.stateMap.delete(key);
         }
       }
+      this.mirror(() => this.stateStore?.clearForWatcher(watcherName));
     }
   }
 
   getNextScheduledRun(watcherName: string): Date | null | undefined {
     return this.scheduleEngine.getNextScheduledRun(watcherName);
+  }
+
+  async hydrate(): Promise<void> {
+    if (!this.stateStore) return;
+
+    try {
+      const entries = await this.stateStore.load();
+      for (const entry of entries) {
+        this.stateMap.set(`${entry.watcherName}:${entry.groupKey}`, {
+          ...entry,
+          // Normalize timestamps that may arrive as strings from some backends.
+          lastFiredAt: entry.lastFiredAt === null ? null : new Date(entry.lastFiredAt),
+        });
+      }
+    } catch (err) {
+      // A hydration failure must not crash startup — log and continue with an
+      // empty cache (degrades to in-memory-only debounce, never re-throws).
+      this.logger.error?.(
+        `[WatcherEngine] Failed to hydrate debounce state from store: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   runScheduleTick(): Promise<WatcherEvaluationResult[]> {
@@ -417,12 +488,14 @@ class WatcherEngineImpl implements WatcherEngine {
 
   private updateState(watcherName: string, groupKey: string, conditionMet: boolean): void {
     const stateKey = `${watcherName}:${groupKey}`;
-    this.stateMap.set(stateKey, {
+    const entry: WatcherStateEntry = {
       watcherName,
       groupKey,
       lastFiredAt: this.clock(),
       conditionMet,
-    });
+    };
+    this.stateMap.set(stateKey, entry);
+    this.mirror(() => this.stateStore?.set(watcherName, groupKey, { ...entry }));
   }
 
   /**
@@ -434,6 +507,29 @@ class WatcherEngineImpl implements WatcherEngine {
     const existing = this.stateMap.get(`${watcherName}:${groupKey}`);
     if (existing?.conditionMet) {
       existing.conditionMet = false;
+      this.mirror(() => this.stateStore?.set(watcherName, groupKey, { ...existing }));
+    }
+  }
+
+  /**
+   * Mirror a debounce-state mutation to the persistent store as a fire-and-forget
+   * write-through. The in-memory `Map` is the synchronous source of truth for
+   * evaluation; the store is a durable mirror. A store write failure is logged
+   * but never propagated into the (synchronous) evaluation path — at worst the
+   * persisted state lags the cache until the next successful write or restart.
+   * No-op when no store is configured.
+   */
+  private mirror(write: () => Promise<void> | undefined): void {
+    if (!this.stateStore) return;
+    const result = write();
+    if (result) {
+      result.catch((err: unknown) => {
+        this.logger.error?.(
+          `[WatcherEngine] Failed to persist debounce state: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
     }
   }
 }
