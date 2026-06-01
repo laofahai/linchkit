@@ -26,6 +26,7 @@ import type {
 } from "@linchkit/core";
 import { type ConditionContext, evaluateCondition } from "@linchkit/core";
 import type { WatcherRegistry } from "@linchkit/core/server";
+import { ScheduleTracker } from "./watcher-schedule";
 
 // ── Action executor interface (shared with watcher effects) ──
 
@@ -70,6 +71,20 @@ export interface WatcherEngine extends Watcher {
 
   /** Reset debounce state for a watcher (for testing) */
   resetState(watcherName: string, groupKey?: string): void;
+
+  /**
+   * Evaluate all `schedule` watchers whose cron occurrence is due at the
+   * current clock time, firing each that passes its optional count condition.
+   *
+   * In production this is invoked on an internal interval started by
+   * {@link Watcher.start}. Tests can call it directly after advancing the
+   * injected clock to drive the scheduler deterministically without timers.
+   * Returns one result per evaluated (due) occurrence.
+   */
+  runScheduleTick(): Promise<WatcherEvaluationResult[]>;
+
+  /** Get a scheduled watcher's next-due time (for testing/debugging). */
+  getNextScheduledRun(watcherName: string): Date | null | undefined;
 }
 
 // ── Options ───────────────────────────────────────────────
@@ -84,6 +99,18 @@ export interface WatcherEngineOptions {
   dataQuerier?: WatcherDataQuerier;
   /** Staleness check interval in ms (default: 60_000 = 1 minute) */
   stalenessIntervalMs?: number;
+  /**
+   * Schedule (cron) tick interval in ms (default: 60_000 = 1 minute).
+   * The scheduler re-checks due crons on each tick; cron resolution finer than
+   * this interval is not meaningful. Tests bypass the timer via
+   * {@link WatcherEngine.runScheduleTick}.
+   */
+  scheduleIntervalMs?: number;
+  /**
+   * Injectable clock — returns the current time. Defaults to `() => new Date()`.
+   * Drives the schedule trigger so tests can advance time deterministically.
+   */
+  clock?: () => Date;
   /** Optional override for the watcher's stable id (default: "automation.watcher_engine"). */
   id?: string;
   logger?: Logger;
@@ -139,6 +166,8 @@ class WatcherEngineImpl implements WatcherEngine {
   private dataQuerier?: WatcherDataQuerier;
   private logger: Logger;
   private stalenessIntervalMs: number;
+  private scheduleIntervalMs: number;
+  private clock: () => Date;
 
   private unsubscribers: Array<() => void> = [];
   private intervals: Array<ReturnType<typeof setInterval>> = [];
@@ -147,6 +176,9 @@ class WatcherEngineImpl implements WatcherEngine {
   /** In-memory debounce state — maps `${watcherName}:${groupKey}` → state entry */
   private stateMap = new Map<string, WatcherStateEntry>();
 
+  /** Tracks next-due times for `schedule` watchers (in-memory) */
+  private scheduleTracker = new ScheduleTracker();
+
   constructor(options: WatcherEngineOptions) {
     this.id = options.id ?? "automation.watcher_engine";
     this.registry = options.registry;
@@ -154,6 +186,8 @@ class WatcherEngineImpl implements WatcherEngine {
     this.actionExecutor = options.actionExecutor;
     this.dataQuerier = options.dataQuerier;
     this.stalenessIntervalMs = options.stalenessIntervalMs ?? 60_000;
+    this.scheduleIntervalMs = options.scheduleIntervalMs ?? 60_000;
+    this.clock = options.clock ?? (() => new Date());
     this.logger = options.logger ?? {
       info: () => {},
       warn: console.warn,
@@ -174,6 +208,9 @@ class WatcherEngineImpl implements WatcherEngine {
     // Start staleness polling
     this.startStalenessPoller();
 
+    // Start cron scheduler
+    this.startScheduler();
+
     const watcherCount = this.registry.getEnabled().length;
     this.logger.info?.(`[WatcherEngine] Started with ${watcherCount} enabled watcher(s)`);
   }
@@ -188,6 +225,8 @@ class WatcherEngineImpl implements WatcherEngine {
       clearInterval(interval);
     }
     this.intervals = [];
+
+    this.scheduleTracker.clear();
 
     this.started = false;
     this.logger.info?.("[WatcherEngine] Stopped");
@@ -234,6 +273,36 @@ class WatcherEngineImpl implements WatcherEngine {
         }
       }
     }
+  }
+
+  getNextScheduledRun(watcherName: string): Date | null | undefined {
+    return this.scheduleTracker.get(watcherName)?.nextDue;
+  }
+
+  async runScheduleTick(): Promise<WatcherEvaluationResult[]> {
+    const now = this.clock();
+    const dueWatcherNames = this.scheduleTracker.collectDue(now);
+    const results: WatcherEvaluationResult[] = [];
+
+    for (const watcherName of dueWatcherNames) {
+      // Re-check enabled status on every occurrence — a watcher may have been
+      // disabled or removed since the schedule was registered.
+      const watcher = this.registry.get(watcherName);
+      if (!watcher?.enabled || watcher.trigger.type !== "schedule") {
+        results.push({ watcherName, fired: false, reason: "watcher_unavailable" });
+        continue;
+      }
+
+      try {
+        results.push(await this.evaluateScheduleWatcher(watcher));
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        this.logger.error?.(`[WatcherEngine] Schedule tick error for "${watcherName}": ${error}`);
+        results.push({ watcherName, fired: false, error });
+      }
+    }
+
+    return results;
   }
 
   // ── Private: event binding ──────────────────────────────
@@ -294,6 +363,111 @@ class WatcherEngineImpl implements WatcherEngine {
     }, this.stalenessIntervalMs);
 
     this.intervals.push(interval);
+  }
+
+  // ── Private: cron scheduler ─────────────────────────────
+
+  private startScheduler(): void {
+    const scheduleWatchers = this.registry
+      .getEnabled()
+      .filter((w) => w.trigger.type === "schedule");
+
+    if (scheduleWatchers.length === 0) return;
+
+    // Seed the next-due time for each schedule watcher from the current clock.
+    const now = this.clock();
+    let registered = 0;
+    for (const watcher of scheduleWatchers) {
+      const trigger = watcher.trigger;
+      if (trigger.type !== "schedule") continue;
+
+      const state = this.scheduleTracker.register({
+        watcherName: watcher.name,
+        cron: trigger.cron,
+        // Interpret cron expressions in UTC for deterministic, region-stable
+        // server-side scheduling (independent of the host's local timezone).
+        timezone: "UTC",
+        from: now,
+      });
+
+      if (state) {
+        registered += 1;
+      } else {
+        this.logger.warn?.(
+          `[WatcherEngine] Invalid cron "${trigger.cron}" for schedule watcher "${watcher.name}"`,
+        );
+      }
+    }
+
+    // All cron expressions failed to register — nothing to poll.
+    if (registered === 0) return;
+
+    const interval = setInterval(() => {
+      void this.runScheduleTick();
+    }, this.scheduleIntervalMs);
+
+    this.intervals.push(interval);
+  }
+
+  /**
+   * Evaluate one due occurrence of a schedule watcher. When the trigger carries
+   * a `condition.count`, the matching record count is compared against it and
+   * the effect only fires if the comparison holds. Without a condition, the
+   * effect fires on each due tick (Spec 45 §2.4).
+   */
+  private async evaluateScheduleWatcher(
+    watcher: WatcherDefinition,
+  ): Promise<WatcherEvaluationResult> {
+    const trigger = watcher.trigger;
+    if (trigger.type !== "schedule") {
+      return { watcherName: watcher.name, fired: false, reason: "wrong_trigger_type" };
+    }
+
+    const ctx: WatcherContext = { watcherName: watcher.name };
+
+    // Optional count condition: evaluate the matching-record count.
+    const countCondition = trigger.condition?.count;
+    if (countCondition) {
+      if (!this.dataQuerier) {
+        return {
+          watcherName: watcher.name,
+          fired: false,
+          reason: "no_data_querier_for_count_condition",
+        };
+      }
+
+      const records = await this.dataQuerier.queryRecords(watcher.watch.entity);
+      const watchFilter = watcher.watch.filter;
+      const matching = watchFilter
+        ? records.filter((r) =>
+            evaluateCondition(watchFilter, {
+              target: r,
+              context: {},
+              actor: { type: "system", id: "watcher", groups: [] },
+            }),
+          )
+        : records;
+
+      const count = matching.length;
+      if (!evaluateComparison(count, countCondition)) {
+        return { watcherName: watcher.name, fired: false, reason: "count_condition_not_met" };
+      }
+
+      ctx.records = matching;
+      ctx.count = count;
+      ctx.value = count;
+    }
+
+    // Schedule watchers fire per due occurrence; cron itself is the debounce.
+    const groupKey = "schedule";
+    if (!this.shouldFire(watcher, groupKey, true)) {
+      return { watcherName: watcher.name, fired: false, reason: "debounced" };
+    }
+
+    await this.fireEffect(watcher, ctx);
+    this.updateState(watcher.name, groupKey, true);
+
+    return { watcherName: watcher.name, fired: true };
   }
 
   // ── Private: evaluate a single watcher ──────────────────
@@ -661,7 +835,9 @@ class WatcherEngineImpl implements WatcherEngine {
         const cooldownMs = parseDuration(cooldownStr);
         if (cooldownMs === null) return true;
 
-        const elapsed = Date.now() - state.lastFiredAt.getTime();
+        // Use the injectable clock so cooldown is deterministic in tests and
+        // consistent with schedule evaluation.
+        const elapsed = this.clock().getTime() - state.lastFiredAt.getTime();
         return elapsed >= cooldownMs;
       }
 
@@ -675,7 +851,7 @@ class WatcherEngineImpl implements WatcherEngine {
     this.stateMap.set(stateKey, {
       watcherName,
       groupKey,
-      lastFiredAt: new Date(),
+      lastFiredAt: this.clock(),
       conditionMet,
     });
   }
