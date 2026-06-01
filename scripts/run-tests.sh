@@ -62,9 +62,12 @@ strip_ansi() {
 # allowed to crash WITHOUT a completion summary, with a loud warning. This is a
 # narrow, explicit, audited allowance — NOT a blanket pass. Keep this list
 # minimal; re-test and remove entries whenever the Bun runtime is upgraded.
-QUARANTINE=(
-  "packages/cli/__tests__/lint-capability.test.ts"
-)
+#
+# packages/cli/__tests__/lint-capability.test.ts was removed from quarantine in
+# fix/lint-cap-quarantine-434 (issue #434): the in-process lintCapability() call
+# that triggered the panic was replaced with a Bun.spawn subprocess call, so the
+# crash-inducing allocation no longer happens in the parent test process.
+QUARANTINE=()
 
 is_quarantined() {
   local needle="$1" q
