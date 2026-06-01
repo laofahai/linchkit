@@ -143,16 +143,26 @@ class DefaultInterceptorRegistry implements InterceptorRegistry {
     let current: unknown = value;
     for (const reg of list) {
       // FAIL-CLOSED (security). field-lock-check is an ENFORCEMENT boundary:
-      // a buggy policy capability must NEVER silently WEAKEN it. If a handler
-      // throws OR returns null/undefined, we do NOT propagate the throw and
-      // do NOT drop the value — we keep this handler's INPUT (the stricter,
-      // pre-handler set) and continue the chain. Logged for visibility.
+      // a buggy or hostile policy capability must NEVER silently WEAKEN it.
+      // Handlers transform by RETURNING a value and must treat the argument as
+      // immutable. We hand each handler a defensive shallow clone of array
+      // values, so a handler that mutates its argument in place and THEN
+      // throws / returns null/undefined cannot strip violations out from under
+      // us — on any failure the authoritative `current` is left exactly as it
+      // was. A non-array return where an array was expected is likewise treated
+      // as a failure, so an invalid handler cannot corrupt the engine's
+      // downstream view of the value. Failures are logged for visibility.
+      const handlerInput = Array.isArray(current) ? [...current] : current;
       try {
         const handler = reg.handler as Interceptor<unknown, unknown>;
-        const next = await handler(current, context);
-        if (next === null || next === undefined) {
+        const next = await handler(handlerInput, context);
+        if (
+          next === null ||
+          next === undefined ||
+          (Array.isArray(current) && !Array.isArray(next))
+        ) {
           this.logger?.error(
-            `Interceptor "${reg.capability}" at point "${point}" returned ${String(next)}; keeping pre-handler value (fail-closed)`,
+            `Interceptor "${reg.capability}" at point "${point}" returned an invalid value (${next === null ? "null" : typeof next}); keeping pre-handler value (fail-closed)`,
             { capability: reg.capability, point },
           );
           continue;

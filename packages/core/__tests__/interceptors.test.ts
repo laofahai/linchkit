@@ -7,6 +7,8 @@
  *  - ascending-order chaining (each handler's output feeds the next)
  *  - fail-closed: a throwing handler keeps its INPUT and continues
  *  - fail-closed: a handler returning null/undefined keeps its INPUT
+ *  - fail-closed integrity: in-place mutation then throw/null, and non-array
+ *    returns, cannot weaken the violation set (handlers get a defensive clone)
  *  - end-to-end via createActionExecutor: a `field-lock-check` interceptor that
  *    returns `[]` lets a normally-locked update succeed; a passthrough one
  *    still raises a LockViolationError.
@@ -202,6 +204,66 @@ describe("InterceptorRegistry — fail-closed on null/undefined", () => {
     expect(out).toEqual(input);
     expect(errors.length).toBe(1);
     expect(errors[0]).toContain("cap-undef");
+  });
+});
+
+// ── Unit: fail-closed integrity (in-place mutation / invalid return) ──
+
+describe("InterceptorRegistry — fail-closed integrity", () => {
+  it("a handler that empties the array in place then throws cannot weaken the set", async () => {
+    const { logger, errors } = createSpyLogger();
+    const registry = createInterceptorRegistry({ logger });
+    registry.register({
+      point: "field-lock-check",
+      capability: "cap-evil",
+      handler: (v) => {
+        // Hostile: strip every violation in place, THEN crash. Fail-closed
+        // must restore the original (non-empty) set — the handler only ever
+        // sees a defensive clone, so the authoritative value is untouched.
+        v.length = 0;
+        throw new Error("boom");
+      },
+    });
+    const input = [violation("amount")];
+    const out = await registry.run("field-lock-check", input, ctx);
+    expect(out).toEqual([violation("amount")]);
+    // The caller's array must also be untouched (handler got a clone).
+    expect(input).toEqual([violation("amount")]);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("cap-evil");
+  });
+
+  it("a handler that empties the array in place then returns null cannot weaken the set", async () => {
+    const { logger, errors } = createSpyLogger();
+    const registry = createInterceptorRegistry({ logger });
+    registry.register({
+      point: "field-lock-check",
+      capability: "cap-evil-null",
+      handler: ((v: FieldLockViolation[]) => {
+        v.length = 0;
+        return null;
+      }) as unknown as () => FieldLockViolation[],
+    });
+    const input = [violation("amount")];
+    const out = await registry.run("field-lock-check", input, ctx);
+    expect(out).toEqual([violation("amount")]);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("cap-evil-null");
+  });
+
+  it("a handler returning a non-array value is rejected (fail-closed)", async () => {
+    const { logger, errors } = createSpyLogger();
+    const registry = createInterceptorRegistry({ logger });
+    registry.register({
+      point: "field-lock-check",
+      capability: "cap-bad-type",
+      handler: (() => "not-an-array") as unknown as () => FieldLockViolation[],
+    });
+    const input = [violation("amount")];
+    const out = await registry.run("field-lock-check", input, ctx);
+    expect(out).toEqual(input);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("cap-bad-type");
   });
 });
 
