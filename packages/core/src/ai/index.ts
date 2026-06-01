@@ -217,6 +217,31 @@ export type {
   RecordInsight,
 } from "./record-analyzer";
 export { analyzeRecord, buildAnalysisPrompt, parseAnalysisResponse } from "./record-analyzer";
+// Schema Intent Resolver (Spec 52 "说→有" first slice — NL → add_rule ProposalDraft)
+export type { ParsedRuleShape, ParsedSchemaIntent } from "./schema-intent-prompt";
+export {
+  buildSchemaIntentSystemPrompt,
+  parseSchemaIntentResponse,
+} from "./schema-intent-prompt";
+export type {
+  ResolveSchemaIntentDeps,
+  ResolveSchemaIntentInput,
+  SchemaIntentMessages,
+} from "./schema-intent-resolver";
+export {
+  resolveSchemaIntent,
+  SCHEMA_INTENT_MESSAGES,
+  SCHEMA_INTENT_MIN_CONFIDENCE,
+} from "./schema-intent-resolver";
+export type {
+  SchemaIntentClarification,
+  SchemaIntentEntity,
+  SchemaIntentNoMatch,
+  SchemaIntentOntology,
+  SchemaIntentOutcome,
+  SchemaIntentProposalDraft,
+  SchemaIntentResolverOptions,
+} from "./schema-intent-types";
 // Usage Meter (Spec 36 M2+)
 export type {
   AggregateUsageParams,
