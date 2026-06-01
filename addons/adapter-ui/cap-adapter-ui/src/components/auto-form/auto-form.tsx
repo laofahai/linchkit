@@ -150,10 +150,14 @@ export function AutoForm({
   // indicator. `immutable` only locks on edit; `lockWhen`/`lockAllWhen` lock
   // when their condition matches the current record's status.
   const lockFieldNames = useMemo(() => Object.keys(schema.fields), [schema.fields]);
-  const lockRecord = useMemo(
-    () => ({ ...formData, status: recordStatus ?? (formData.status as string | undefined) }),
-    [formData, recordStatus],
-  );
+  // Single source of truth for the record status used by both lock EVALUATION
+  // (below) and lock DISPLAY (the badge in renderField). Prefer the explicit
+  // `recordStatus` prop, falling back to the live form value.
+  const resolvedStatus = recordStatus ?? (formData.status as string | undefined);
+  // NOTE: This memoization assumes Phase-1 lock conditions read ONLY `status`
+  // (matchesLockCondition). Revisit if/when Phase-2 `domain`-based conditions
+  // that inspect other record fields land — they'd need those fields in deps.
+  const lockRecord = useMemo(() => ({ status: resolvedStatus }), [resolvedStatus]);
   const fieldLockState = useFieldLockState({
     entity: schema,
     fieldNames: lockFieldNames,
@@ -845,13 +849,12 @@ export function AutoForm({
     // Lock indicator: only when the field is locked by an entity lock RULE
     // (not by view/node readonly or view-mode), so the badge means "rule-locked".
     const lockInfo = fieldLockState[node.field];
+    // Derive the displayed status from the SAME `resolvedStatus` used for lock
+    // evaluation, so a field can never be evaluated locked under one status
+    // while the tooltip shows a different one.
     const lock =
       lockInfo?.locked && !isViewMode
-        ? {
-            reason: lockInfo.reason ?? "locked",
-            status:
-              typeof formData.status === "string" ? formData.status : (recordStatus ?? undefined),
-          }
+        ? { reason: lockInfo.reason ?? "locked", status: resolvedStatus }
         : undefined;
 
     const hasCondition = !!(
