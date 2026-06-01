@@ -63,11 +63,15 @@ strip_ansi() {
 # narrow, explicit, audited allowance — NOT a blanket pass. Keep this list
 # minimal; re-test and remove entries whenever the Bun runtime is upgraded.
 QUARANTINE=(
-  "packages/cli/__tests__/lint-capability.test.ts"
+  # lint-capability.test.ts was quarantined here because test 2 called
+  # lintCapabilityCommand.run() in-process, triggering a Bun GC/teardown defect
+  # (panic 0x4A). Fixed in #434: test 2 now uses Bun.spawn subprocess isolation,
+  # matching the pattern already used by test 3. Entry removed.
 )
 
 is_quarantined() {
   local needle="$1" q
+  [ ${#QUARANTINE[@]} -eq 0 ] && return 1
   for q in "${QUARANTINE[@]}"; do
     [ "$needle" = "$q" ] && return 0
   done
@@ -159,13 +163,15 @@ else
 fi
 
 # Quarantined files, each run in isolation with an explicit logged allowance.
-for q in "${QUARANTINE[@]}"; do
-  if [ -f "$q" ]; then
-    quarantine_single=1 run_batch "QUARANTINE ${q}" "./${q}"
-  else
-    echo "::warning::Quarantined path '${q}' no longer exists — remove it from QUARANTINE."
-  fi
-done
+if [ ${#QUARANTINE[@]} -gt 0 ]; then
+  for q in "${QUARANTINE[@]}"; do
+    if [ -f "$q" ]; then
+      quarantine_single=1 run_batch "QUARANTINE ${q}" "./${q}"
+    else
+      echo "::warning::Quarantined path '${q}' no longer exists — remove it from QUARANTINE."
+    fi
+  done
+fi
 
 if [ "$OVERALL_RC" -eq 0 ]; then
   echo "All test batches completed (or were explicitly quarantined). PASS."
