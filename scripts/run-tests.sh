@@ -63,12 +63,15 @@ strip_ansi() {
 # narrow, explicit, audited allowance — NOT a blanket pass. Keep this list
 # minimal; re-test and remove entries whenever the Bun runtime is upgraded.
 QUARANTINE=(
-  "packages/cli/__tests__/lint-capability.test.ts"
+  # lint-capability.test.ts was quarantined here because test 2 called
+  # lintCapabilityCommand.run() in-process, triggering a Bun GC/teardown defect
+  # (panic 0x4A). Fixed in #434: test 2 now uses Bun.spawn subprocess isolation,
+  # matching the pattern already used by test 3. Entry removed.
 )
 
 is_quarantined() {
   local needle="$1" q
-  for q in "${QUARANTINE[@]}"; do
+  for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do
     [ "$needle" = "$q" ] && return 0
   done
   return 1
@@ -159,7 +162,7 @@ else
 fi
 
 # Quarantined files, each run in isolation with an explicit logged allowance.
-for q in "${QUARANTINE[@]}"; do
+for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do
   if [ -f "$q" ]; then
     quarantine_single=1 run_batch "QUARANTINE ${q}" "./${q}"
   else
