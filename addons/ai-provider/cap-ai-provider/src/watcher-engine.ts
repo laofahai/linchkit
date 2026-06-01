@@ -24,8 +24,9 @@ import type {
   WatcherEvaluationResult,
   WatcherStateEntry,
 } from "@linchkit/core";
-import { type ConditionContext, evaluateCondition } from "@linchkit/core";
 import type { WatcherRegistry } from "@linchkit/core/server";
+import { MutationEngine } from "./mutation-engine";
+import { ScheduleEngine } from "./schedule-engine";
 
 // ── Action executor interface (shared with watcher effects) ──
 
@@ -70,6 +71,20 @@ export interface WatcherEngine extends Watcher {
 
   /** Reset debounce state for a watcher (for testing) */
   resetState(watcherName: string, groupKey?: string): void;
+
+  /**
+   * Evaluate all `schedule` watchers whose cron occurrence is due at the
+   * current clock time, firing each that passes its optional count condition.
+   *
+   * In production this is invoked on an internal interval started by
+   * {@link Watcher.start}. Tests can call it directly after advancing the
+   * injected clock to drive the scheduler deterministically without timers.
+   * Returns one result per evaluated (due) occurrence.
+   */
+  runScheduleTick(): Promise<WatcherEvaluationResult[]>;
+
+  /** Get a scheduled watcher's next-due time (for testing/debugging). */
+  getNextScheduledRun(watcherName: string): Date | null | undefined;
 }
 
 // ── Options ───────────────────────────────────────────────
@@ -84,6 +99,18 @@ export interface WatcherEngineOptions {
   dataQuerier?: WatcherDataQuerier;
   /** Staleness check interval in ms (default: 60_000 = 1 minute) */
   stalenessIntervalMs?: number;
+  /**
+   * Schedule (cron) tick interval in ms (default: 60_000 = 1 minute).
+   * The scheduler re-checks due crons on each tick; cron resolution finer than
+   * this interval is not meaningful. Tests bypass the timer via
+   * {@link WatcherEngine.runScheduleTick}.
+   */
+  scheduleIntervalMs?: number;
+  /**
+   * Injectable clock — returns the current time. Defaults to `() => new Date()`.
+   * Drives the schedule trigger so tests can advance time deterministically.
+   */
+  clock?: () => Date;
   /** Optional override for the watcher's stable id (default: "automation.watcher_engine"). */
   id?: string;
   logger?: Logger;
@@ -139,13 +166,20 @@ class WatcherEngineImpl implements WatcherEngine {
   private dataQuerier?: WatcherDataQuerier;
   private logger: Logger;
   private stalenessIntervalMs: number;
+  private scheduleIntervalMs: number;
+  private clock: () => Date;
 
   private unsubscribers: Array<() => void> = [];
-  private intervals: Array<ReturnType<typeof setInterval>> = [];
   private started = false;
 
   /** In-memory debounce state — maps `${watcherName}:${groupKey}` → state entry */
   private stateMap = new Map<string, WatcherStateEntry>();
+
+  /** Cron scheduling subsystem (next-due tracking + tick evaluation). */
+  private scheduleEngine: ScheduleEngine;
+
+  /** Reactive (threshold/set_change) + staleness evaluation subsystem. */
+  private mutationEngine: MutationEngine;
 
   constructor(options: WatcherEngineOptions) {
     this.id = options.id ?? "automation.watcher_engine";
@@ -154,12 +188,47 @@ class WatcherEngineImpl implements WatcherEngine {
     this.actionExecutor = options.actionExecutor;
     this.dataQuerier = options.dataQuerier;
     this.stalenessIntervalMs = options.stalenessIntervalMs ?? 60_000;
+    this.scheduleIntervalMs = options.scheduleIntervalMs ?? 60_000;
+    this.clock = options.clock ?? (() => new Date());
     this.logger = options.logger ?? {
       info: () => {},
       warn: console.warn,
       error: console.error,
       debug: () => {},
     };
+
+    // Delegate cron scheduling to a dedicated subsystem. Debounce + effect
+    // concerns are passed back as bound callbacks so the engine retains sole
+    // ownership of the shared debounce state map.
+    this.scheduleEngine = new ScheduleEngine({
+      registry: this.registry,
+      dataQuerier: this.dataQuerier,
+      logger: this.logger,
+      clock: this.clock,
+      scheduleIntervalMs: this.scheduleIntervalMs,
+      evaluateComparison,
+      shouldFire: (watcher, groupKey, conditionMet) =>
+        this.shouldFire(watcher, groupKey, conditionMet),
+      fireEffect: (watcher, ctx) => this.fireEffect(watcher, ctx),
+      updateState: (watcherName, groupKey, conditionMet) =>
+        this.updateState(watcherName, groupKey, conditionMet),
+    });
+
+    // Reactive + staleness evaluation, sharing the same debounce collaborators.
+    this.mutationEngine = new MutationEngine({
+      registry: this.registry,
+      dataQuerier: this.dataQuerier,
+      logger: this.logger,
+      stalenessIntervalMs: this.stalenessIntervalMs,
+      evaluateComparison,
+      parseDuration,
+      shouldFire: (watcher, groupKey, conditionMet) =>
+        this.shouldFire(watcher, groupKey, conditionMet),
+      fireEffect: (watcher, ctx) => this.fireEffect(watcher, ctx),
+      updateState: (watcherName, groupKey, conditionMet) =>
+        this.updateState(watcherName, groupKey, conditionMet),
+      resetConditionMet: (watcherName, groupKey) => this.resetConditionMet(watcherName, groupKey),
+    });
   }
 
   start(): void {
@@ -172,7 +241,10 @@ class WatcherEngineImpl implements WatcherEngine {
     }
 
     // Start staleness polling
-    this.startStalenessPoller();
+    this.mutationEngine.start();
+
+    // Start cron scheduler
+    this.scheduleEngine.start();
 
     const watcherCount = this.registry.getEnabled().length;
     this.logger.info?.(`[WatcherEngine] Started with ${watcherCount} enabled watcher(s)`);
@@ -184,10 +256,8 @@ class WatcherEngineImpl implements WatcherEngine {
     }
     this.unsubscribers = [];
 
-    for (const interval of this.intervals) {
-      clearInterval(interval);
-    }
-    this.intervals = [];
+    this.mutationEngine.stop();
+    this.scheduleEngine.stop();
 
     this.started = false;
     this.logger.info?.("[WatcherEngine] Stopped");
@@ -203,7 +273,7 @@ class WatcherEngineImpl implements WatcherEngine {
 
     for (const watcher of watchers) {
       try {
-        const result = await this.evaluateWatcher(watcher, record, oldRecord);
+        const result = await this.mutationEngine.evaluate(watcher, record, oldRecord);
         results.push(result);
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
@@ -236,6 +306,14 @@ class WatcherEngineImpl implements WatcherEngine {
     }
   }
 
+  getNextScheduledRun(watcherName: string): Date | null | undefined {
+    return this.scheduleEngine.getNextScheduledRun(watcherName);
+  }
+
+  runScheduleTick(): Promise<WatcherEvaluationResult[]> {
+    return this.scheduleEngine.runTick();
+  }
+
   // ── Private: event binding ──────────────────────────────
 
   private bindMutationEvents(): void {
@@ -259,333 +337,6 @@ class WatcherEngineImpl implements WatcherEngine {
         await this.evaluateAfterMutation(entityName, record, oldRecord);
       });
       this.unsubscribers.push(unsub);
-    }
-  }
-
-  // ── Private: staleness polling ──────────────────────────
-
-  private startStalenessPoller(): void {
-    const stalenessWatchers = this.registry
-      .getEnabled()
-      .filter((w) => w.trigger.type === "staleness");
-
-    if (stalenessWatchers.length === 0) return;
-    if (!this.dataQuerier) {
-      this.logger.warn?.(
-        "[WatcherEngine] Staleness watchers registered but no dataQuerier provided",
-      );
-      return;
-    }
-
-    const interval = setInterval(async () => {
-      for (const watcher of stalenessWatchers) {
-        // Re-check enabled status
-        const current = this.registry.get(watcher.name);
-        if (!current?.enabled) continue;
-
-        try {
-          await this.evaluateStalenessWatcher(current);
-        } catch (err) {
-          this.logger.error?.(
-            `[WatcherEngine] Staleness check error for "${watcher.name}": ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
-    }, this.stalenessIntervalMs);
-
-    this.intervals.push(interval);
-  }
-
-  // ── Private: evaluate a single watcher ──────────────────
-
-  private async evaluateWatcher(
-    watcher: WatcherDefinition,
-    record: Record<string, unknown>,
-    oldRecord?: Record<string, unknown>,
-  ): Promise<WatcherEvaluationResult> {
-    const trigger = watcher.trigger;
-
-    // For set_change watchers, the filter is evaluated internally
-    // (old vs new against filter). For other types, apply filter as a pre-check.
-    if (trigger.type !== "set_change" && watcher.watch.filter) {
-      const ctx: ConditionContext = {
-        target: record,
-        context: {},
-        actor: { type: "system", id: "watcher", groups: [] },
-      };
-      if (!evaluateCondition(watcher.watch.filter, ctx)) {
-        return { watcherName: watcher.name, fired: false, reason: "filter_not_matched" };
-      }
-    }
-
-    switch (trigger.type) {
-      case "threshold":
-        return this.evaluateThresholdWatcher(watcher, record, oldRecord);
-
-      case "set_change":
-        return this.evaluateSetChangeWatcher(watcher, record, oldRecord);
-
-      default:
-        // staleness and schedule are handled by polling, not post-mutation
-        return {
-          watcherName: watcher.name,
-          fired: false,
-          reason: "trigger_type_not_reactive",
-        };
-    }
-  }
-
-  // ── Threshold evaluation ────────────────────────────────
-
-  private async evaluateThresholdWatcher(
-    watcher: WatcherDefinition,
-    record: Record<string, unknown>,
-    _oldRecord?: Record<string, unknown>,
-  ): Promise<WatcherEvaluationResult> {
-    const trigger = watcher.trigger;
-    if (trigger.type !== "threshold") {
-      return { watcherName: watcher.name, fired: false, reason: "wrong_trigger_type" };
-    }
-
-    // Determine the value to compare
-    let currentValue: number;
-
-    if (watcher.watch.aggregate) {
-      // Aggregate watchers need a data querier to compute aggregates
-      if (!this.dataQuerier) {
-        return {
-          watcherName: watcher.name,
-          fired: false,
-          reason: "no_data_querier_for_aggregate",
-        };
-      }
-
-      const records = await this.dataQuerier.queryRecords(watcher.watch.entity);
-      // Apply filter in-memory if present
-      const watchFilter = watcher.watch.filter;
-      const filtered = watchFilter
-        ? records.filter((r) => {
-            const ctx: ConditionContext = {
-              target: r,
-              context: {},
-              actor: { type: "system", id: "watcher", groups: [] },
-            };
-            return evaluateCondition(watchFilter, ctx);
-          })
-        : records;
-
-      currentValue = this.computeAggregate(filtered, watcher.watch.aggregate);
-    } else {
-      // Single-record: read the field value directly
-      const fieldName = trigger.field;
-      if (!fieldName) {
-        return {
-          watcherName: watcher.name,
-          fired: false,
-          reason: "no_field_specified",
-        };
-      }
-      const rawValue = record[fieldName];
-      if (typeof rawValue !== "number") {
-        return {
-          watcherName: watcher.name,
-          fired: false,
-          reason: "field_not_numeric",
-        };
-      }
-      currentValue = rawValue;
-    }
-
-    const conditionMet = evaluateComparison(currentValue, trigger.condition);
-    const groupKey = this.getGroupKey(watcher, record);
-
-    // Debounce check
-    if (!this.shouldFire(watcher, groupKey, conditionMet)) {
-      return { watcherName: watcher.name, fired: false, reason: "debounced" };
-    }
-
-    // Fire the effect
-    const ctx: WatcherContext = {
-      record,
-      value: currentValue,
-      watcherName: watcher.name,
-    };
-
-    await this.fireEffect(watcher, ctx);
-
-    // Update state
-    this.updateState(watcher.name, groupKey, conditionMet);
-
-    return { watcherName: watcher.name, fired: true };
-  }
-
-  // ── Set-change evaluation ───────────────────────────────
-
-  private async evaluateSetChangeWatcher(
-    watcher: WatcherDefinition,
-    record: Record<string, unknown>,
-    oldRecord?: Record<string, unknown>,
-  ): Promise<WatcherEvaluationResult> {
-    const trigger = watcher.trigger;
-    if (trigger.type !== "set_change") {
-      return { watcherName: watcher.name, fired: false, reason: "wrong_trigger_type" };
-    }
-
-    const filter = watcher.watch.filter;
-    if (!filter) {
-      return {
-        watcherName: watcher.name,
-        fired: false,
-        reason: "set_change_requires_filter",
-      };
-    }
-
-    const newMatchesFilter = evaluateCondition(filter, {
-      target: record,
-      context: {},
-      actor: { type: "system", id: "watcher", groups: [] },
-    });
-
-    const oldMatchesFilter = oldRecord
-      ? evaluateCondition(filter, {
-          target: oldRecord,
-          context: {},
-          actor: { type: "system", id: "watcher", groups: [] },
-        })
-      : false;
-
-    let shouldTrigger = false;
-
-    switch (trigger.on) {
-      case "added":
-        // Record entered the set (was not in set, now is)
-        shouldTrigger = !oldMatchesFilter && newMatchesFilter;
-        break;
-      case "removed":
-        // Record left the set (was in set, now is not)
-        shouldTrigger = oldMatchesFilter && !newMatchesFilter;
-        break;
-      case "modified":
-        // Record was in set and still is, but data changed
-        shouldTrigger = oldMatchesFilter && newMatchesFilter && oldRecord !== undefined;
-        break;
-    }
-
-    if (!shouldTrigger) {
-      return { watcherName: watcher.name, fired: false, reason: "set_change_not_detected" };
-    }
-
-    const groupKey = this.getGroupKey(watcher, record);
-
-    if (!this.shouldFire(watcher, groupKey, true)) {
-      return { watcherName: watcher.name, fired: false, reason: "debounced" };
-    }
-
-    const ctx: WatcherContext = {
-      record,
-      watcherName: watcher.name,
-    };
-
-    await this.fireEffect(watcher, ctx);
-    this.updateState(watcher.name, groupKey, true);
-
-    return { watcherName: watcher.name, fired: true };
-  }
-
-  // ── Staleness evaluation ────────────────────────────────
-
-  private async evaluateStalenessWatcher(watcher: WatcherDefinition): Promise<void> {
-    const trigger = watcher.trigger;
-    if (trigger.type !== "staleness" || !this.dataQuerier) return;
-
-    const thresholdMs = parseDuration(trigger.threshold);
-    if (thresholdMs === null) {
-      this.logger.warn?.(
-        `[WatcherEngine] Cannot parse staleness threshold "${trigger.threshold}" for watcher "${watcher.name}"`,
-      );
-      return;
-    }
-
-    const records = await this.dataQuerier.queryRecords(watcher.watch.entity);
-
-    // Apply filter
-    const watchFilter2 = watcher.watch.filter;
-    const filtered = watchFilter2
-      ? records.filter((r) => {
-          const ctx: ConditionContext = {
-            target: r,
-            context: {},
-            actor: { type: "system", id: "watcher", groups: [] },
-          };
-          return evaluateCondition(watchFilter2, ctx);
-        })
-      : records;
-
-    const now = Date.now();
-
-    for (const record of filtered) {
-      const fieldValue = record[trigger.field];
-      if (!fieldValue) continue;
-
-      const timestamp =
-        fieldValue instanceof Date
-          ? fieldValue.getTime()
-          : new Date(fieldValue as string).getTime();
-
-      if (Number.isNaN(timestamp)) continue;
-
-      const age = now - timestamp;
-      const isStale = age > thresholdMs;
-
-      const groupKey = String(record.id ?? JSON.stringify(record));
-
-      if (!isStale) {
-        // Condition no longer met — update state so it can fire again
-        const stateKey = `${watcher.name}:${groupKey}`;
-        const existing = this.stateMap.get(stateKey);
-        if (existing?.conditionMet) {
-          existing.conditionMet = false;
-        }
-        continue;
-      }
-
-      if (!this.shouldFire(watcher, groupKey, true)) {
-        continue;
-      }
-
-      const ctx: WatcherContext = {
-        record,
-        watcherName: watcher.name,
-      };
-
-      await this.fireEffect(watcher, ctx);
-      this.updateState(watcher.name, groupKey, true);
-    }
-  }
-
-  // ── Aggregate computation ───────────────────────────────
-
-  private computeAggregate(
-    records: Array<Record<string, unknown>>,
-    config: { field: string; op: string; groupBy?: string },
-  ): number {
-    const values = records
-      .map((r) => r[config.field])
-      .filter((v): v is number => typeof v === "number");
-
-    switch (config.op) {
-      case "sum":
-        return values.reduce((acc, v) => acc + v, 0);
-      case "count":
-        return values.length;
-      case "avg":
-        return values.length > 0 ? values.reduce((acc, v) => acc + v, 0) / values.length : 0;
-      case "min":
-        return values.length > 0 ? Math.min(...values) : 0;
-      case "max":
-        return values.length > 0 ? Math.max(...values) : 0;
-      default:
-        return 0;
     }
   }
 
@@ -615,14 +366,6 @@ class WatcherEngineImpl implements WatcherEngine {
   }
 
   // ── Debounce logic ──────────────────────────────────────
-
-  private getGroupKey(watcher: WatcherDefinition, record: Record<string, unknown>): string {
-    if (watcher.watch.aggregate?.groupBy) {
-      return String(record[watcher.watch.aggregate.groupBy] ?? "default");
-    }
-    // Use record ID as group key for per-record watchers
-    return String(record.id ?? "default");
-  }
 
   /**
    * Check whether the watcher should fire based on debounce strategy.
@@ -661,7 +404,9 @@ class WatcherEngineImpl implements WatcherEngine {
         const cooldownMs = parseDuration(cooldownStr);
         if (cooldownMs === null) return true;
 
-        const elapsed = Date.now() - state.lastFiredAt.getTime();
+        // Use the injectable clock so cooldown is deterministic in tests and
+        // consistent with schedule evaluation.
+        const elapsed = this.clock().getTime() - state.lastFiredAt.getTime();
         return elapsed >= cooldownMs;
       }
 
@@ -675,9 +420,21 @@ class WatcherEngineImpl implements WatcherEngine {
     this.stateMap.set(stateKey, {
       watcherName,
       groupKey,
-      lastFiredAt: new Date(),
+      lastFiredAt: this.clock(),
       conditionMet,
     });
+  }
+
+  /**
+   * Clear the `conditionMet` flag for a group (used by staleness evaluation when
+   * a record is no longer stale) so a `once_until_reset` watcher can fire again
+   * once the condition re-occurs. No-op when no state exists for the group.
+   */
+  private resetConditionMet(watcherName: string, groupKey: string): void {
+    const existing = this.stateMap.get(`${watcherName}:${groupKey}`);
+    if (existing?.conditionMet) {
+      existing.conditionMet = false;
+    }
   }
 }
 
