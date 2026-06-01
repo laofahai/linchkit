@@ -45,7 +45,7 @@ import type { FieldDefinition, LockCondition } from "../types/entity";
  * An explicit per-field `lockWhen` declared on a system field still applies
  * (deliberate authorial intent overrides the auto-exemption).
  */
-const SYSTEM_FIELD_NAMES = new Set([
+export const SYSTEM_FIELD_NAMES = new Set([
   "id",
   "tenant_id",
   "created_at",

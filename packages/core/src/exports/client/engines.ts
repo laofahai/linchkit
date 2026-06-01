@@ -38,6 +38,17 @@ export {
   evaluateCondition,
   resolveField,
 } from "../../engine/condition-evaluator";
+// Field-lock semantics (Spec 63) — pure, browser-safe (engine/field-lock-checker
+// imports only types). The runtime engine consumes these directly; exposing them
+// here lets the auto-form UI reuse the authoritative matcher instead of mirroring it.
+export {
+  checkFieldLocks,
+  type FieldLockCheckArgs,
+  type FieldLockViolation,
+  type FieldLockViolationType,
+  matchesLockCondition,
+  SYSTEM_FIELD_NAMES,
+} from "../../engine/field-lock-checker";
 export type {
   GeneratorOutcomeType,
   GeneratorPriorityAggregator,

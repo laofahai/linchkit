@@ -32,6 +32,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useEntityOnchange } from "../../hooks/use-entity-onchange";
+import { useFieldLockState } from "../../hooks/use-field-lock-state";
 import { buildRelationFieldMap } from "../../lib/entity-form-utils";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { isMaskedValue } from "../../lib/masking";
@@ -142,6 +143,23 @@ export function AutoForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const isViewMode = mode === "view";
+
+  // ── Field-lock state (Spec 63 §5.1) ──
+  // Compute which entity fields are locked for the CURRENT record + mode.
+  // Locked fields render readonly (folded into `isFieldReadonly`) with a lock
+  // indicator. `immutable` only locks on edit; `lockWhen`/`lockAllWhen` lock
+  // when their condition matches the current record's status.
+  const lockFieldNames = useMemo(() => Object.keys(schema.fields), [schema.fields]);
+  const lockRecord = useMemo(
+    () => ({ ...formData, status: recordStatus ?? (formData.status as string | undefined) }),
+    [formData, recordStatus],
+  );
+  const fieldLockState = useFieldLockState({
+    entity: schema,
+    fieldNames: lockFieldNames,
+    record: lockRecord,
+    mode,
+  });
 
   // ── Entity onchange (Spec 64) ──
   // Server-driven interactive form computation. Fires after a debounced field
@@ -778,7 +796,10 @@ export function AutoForm({
     const vf = view.fields.find((f) => f.field === fieldName);
     if (vf?.readonly) return true;
     if (fieldDef.type === "state") return true;
-    if (mode === "edit" && fieldDef.immutable) return true;
+    // Spec 63 §5.1 — computed readonly from entity lock rules (immutable on
+    // edit, lockWhen/lockAllWhen by current state). Supersedes the previous
+    // inline `immutable` check, which this hook also covers.
+    if (fieldLockState[fieldName]?.locked) return true;
     return false;
   }
 
@@ -821,6 +842,17 @@ export function AutoForm({
     const required = !!fieldDef.required && !isViewMode;
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
     const suggestion = aiSuggestions?.[node.field];
+    // Lock indicator: only when the field is locked by an entity lock RULE
+    // (not by view/node readonly or view-mode), so the badge means "rule-locked".
+    const lockInfo = fieldLockState[node.field];
+    const lock =
+      lockInfo?.locked && !isViewMode
+        ? {
+            reason: lockInfo.reason ?? "locked",
+            status:
+              typeof formData.status === "string" ? formData.status : (recordStatus ?? undefined),
+          }
+        : undefined;
 
     const hasCondition = !!(
       node.visibleWhen ?? view.fields.find((f) => f.field === node.field)?.visibleWhen
@@ -843,6 +875,7 @@ export function AutoForm({
         isDirty={dirtyFields.has(node.field)}
         onChange={(val) => handleChange(node.field, val)}
         onBlur={() => handleBlur(node.field)}
+        lock={lock}
       />
     );
 
