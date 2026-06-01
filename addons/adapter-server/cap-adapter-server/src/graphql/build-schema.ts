@@ -610,9 +610,16 @@ export function buildGraphQLSchema(
     // Pure schema metadata: per-field `immutable` + effective `lockWhen`
     // (per-field `lockWhen`, else entity `lockAllWhen` when covered). No live
     // record is read here — clients use this to pre-compute lock state.
-    // Computed once per entity (the definition is static) and shared across
-    // requests; no dataProvider dependency, so it works even in mock mode.
-    const fieldMetaList = buildFieldMetaList(entity);
+    // Active overlay fields are passed so the introspected field set matches
+    // the entity's GraphQL object/input types (which include overlay fields);
+    // overlays carry no lock vocabulary, so they surface as unlocked — see
+    // `buildFieldMetaList`. Computed once per entity at build time and shared
+    // across requests; no dataProvider dependency, so it works in mock mode.
+    const fieldMetaOverlays = overlayRegistry?.overlaysFor(entityName);
+    const fieldMetaList = buildFieldMetaList(
+      entity,
+      fieldMetaOverlays?.length ? fieldMetaOverlays : undefined,
+    );
     queryFields[`${camelName}FieldMeta`] = {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(getFieldMetaType()))),
       description: `Static field-lock metadata for ${entity.label ?? entityName} (Spec 63 §6)`,

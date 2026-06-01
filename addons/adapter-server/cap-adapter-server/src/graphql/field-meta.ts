@@ -20,7 +20,7 @@
  * metadata with the same model the engine uses.
  */
 
-import type { EntityDefinition, LockCondition } from "@linchkit/core";
+import type { EntityDefinition, FieldOverlayRecord, LockCondition } from "@linchkit/core";
 import {
   GraphQLBoolean,
   GraphQLList,
@@ -109,9 +109,20 @@ export function toLockConditionMeta(condition: LockCondition): LockConditionMeta
     stateIn = [spec];
   } else if (Array.isArray(spec)) {
     stateIn = [...spec];
-  } else if (spec && typeof spec === "object") {
+  } else if (spec && typeof spec === "object" && "not" in spec) {
+    // Defensive: a malformed `{ not }` clause (e.g. `{ not: undefined }` or an
+    // empty `state` object) must not crash introspection. The `LockCondition`
+    // type guarantees `not` is a string | string[], but runtime data can drift
+    // from the static type, so we narrow before spreading and fall back to an
+    // empty `stateNotIn` for any shape we cannot interpret.
     const excluded = spec.not;
-    stateNotIn = typeof excluded === "string" ? [excluded] : [...excluded];
+    if (typeof excluded === "string") {
+      stateNotIn = [excluded];
+    } else if (Array.isArray(excluded)) {
+      stateNotIn = [...excluded];
+    } else {
+      stateNotIn = [];
+    }
   }
 
   return {
@@ -151,9 +162,25 @@ function resolveLockCondition(
  * entity. System fields are not included — they are framework-managed and
  * never user-writable, so their lock state is not actionable for clients.
  *
- * Pure function of the {@link EntityDefinition}: no live record is consulted.
+ * Pure function of the {@link EntityDefinition} (plus any active overlay
+ * records): no live record is consulted.
+ *
+ * Runtime overlay fields (Spec — `_extensions` JSONB) are surfaced for
+ * completeness so the introspected field set matches the entity's GraphQL
+ * object/input types, which DO include overlay fields. Overlays in this
+ * runtime are purely additive: {@link import("@linchkit/core").OverlayFieldConfig}
+ * carries only validation/i18n config (label, required, min/max, enumValues),
+ * NOT the field-lock vocabulary (`immutable`, `readonly`, `lockWhen`). An
+ * overlay therefore cannot lock a field, so each overlay field is reported as
+ * `immutable: false`, `lockWhen: null`, `lockSource: "none"`. The entity-level
+ * `lockAllWhen` is NOT applied to overlay fields: they live in `_extensions`,
+ * are never code-declared, and the Phase-1 engine only evaluates `lockAllWhen`
+ * over the resolved code-defined field set.
  */
-export function buildFieldMetaList(entity: EntityDefinition): FieldMeta[] {
+export function buildFieldMetaList(
+  entity: EntityDefinition,
+  overlays?: FieldOverlayRecord[],
+): FieldMeta[] {
   const metas: FieldMeta[] = [];
 
   for (const [fieldName, field] of Object.entries(entity.fields)) {
@@ -166,6 +193,23 @@ export function buildFieldMetaList(entity: EntityDefinition): FieldMeta[] {
       lockWhen: condition ? toLockConditionMeta(condition) : null,
       lockSource: source,
     });
+  }
+
+  if (overlays?.length) {
+    const codeFields = entity.fields;
+    for (const overlay of overlays) {
+      // Skip overlays that collide with a code-defined or system field — the
+      // type generator skips these too, so they are not part of the surface.
+      if (overlay.fieldName in codeFields || SYSTEM_FIELD_NAMES.has(overlay.fieldName)) {
+        continue;
+      }
+      metas.push({
+        name: overlay.fieldName,
+        immutable: false,
+        lockWhen: null,
+        lockSource: "none",
+      });
+    }
   }
 
   return metas;

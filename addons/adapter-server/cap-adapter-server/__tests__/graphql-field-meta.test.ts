@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { EntityDefinition } from "@linchkit/core";
+import type { EntityDefinition, FieldOverlayRecord, LockCondition } from "@linchkit/core";
 import { GraphQLNonNull, type GraphQLObjectType, graphql, printType } from "graphql";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import {
@@ -74,6 +74,30 @@ describe("toLockConditionMeta", () => {
     expect(JSON.parse(meta.domain ?? "null")).toEqual([["amount", ">", 100]]);
     expect(JSON.parse(meta.raw)).toEqual({ domain: [["amount", ">", 100]] });
   });
+
+  test("malformed { not: undefined } does not throw → empty stateNotIn", () => {
+    // A LockCondition whose `not` clause is undefined (empty/malformed `state`
+    // object) must not crash introspection. The static type forbids this, so
+    // we cast to exercise the runtime-drift guard.
+    const condition = { state: { not: undefined } } as unknown as LockCondition;
+    let meta: ReturnType<typeof toLockConditionMeta> | undefined;
+    expect(() => {
+      meta = toLockConditionMeta(condition);
+    }).not.toThrow();
+    expect(meta?.stateNotIn).toEqual([]);
+    expect(meta?.stateIn).toBeNull();
+  });
+
+  test("empty state object {} does not throw → null lists", () => {
+    // An empty `state` object has no `not` key at all → neither list applies.
+    const condition = { state: {} } as unknown as LockCondition;
+    let meta: ReturnType<typeof toLockConditionMeta> | undefined;
+    expect(() => {
+      meta = toLockConditionMeta(condition);
+    }).not.toThrow();
+    expect(meta?.stateNotIn).toBeNull();
+    expect(meta?.stateIn).toBeNull();
+  });
 });
 
 // ── Pure builder: buildFieldMetaList ──────────────────────────────
@@ -129,6 +153,50 @@ describe("buildFieldMetaList", () => {
     expect(plain?.immutable).toBe(false);
     expect(plain?.lockWhen).toBeNull();
     expect(plain?.lockSource).toBe("none");
+  });
+
+  test("active overlay fields are surfaced as unlocked, collisions skipped", () => {
+    const overlays: FieldOverlayRecord[] = [
+      {
+        id: "ov1",
+        entityName: "purchase_order",
+        fieldName: "color",
+        fieldType: "string",
+        config: { label: { en: "Color" } },
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        // Collides with a code-defined field → must be skipped (mirrors the
+        // type generator which also skips colliding overlays).
+        id: "ov2",
+        entityName: "purchase_order",
+        fieldName: "amount",
+        fieldType: "number",
+        config: {},
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const withOverlays = buildFieldMetaList(orderSchema, overlays);
+    const overlayMap = new Map(withOverlays.map((m) => [m.name, m]));
+
+    // The new overlay field appears, reported as fully unlocked.
+    const color = overlayMap.get("color");
+    expect(color).toBeDefined();
+    expect(color?.immutable).toBe(false);
+    expect(color?.lockWhen).toBeNull();
+    expect(color?.lockSource).toBe("none");
+
+    // The colliding overlay does NOT add a duplicate; "amount" keeps its
+    // code-declared per-field lock.
+    expect(withOverlays.filter((m) => m.name === "amount")).toHaveLength(1);
+    expect(overlayMap.get("amount")?.lockSource).toBe("field");
+
+    // Code-defined fields are unaffected in count; only "color" is added.
+    expect(withOverlays.length).toBe(list.length + 1);
   });
 });
 
