@@ -33,6 +33,7 @@ import {
   LockPreflightError,
   LockViolationError,
 } from "./field-lock-checker";
+import type { InterceptorRegistry } from "./interceptors";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
 
@@ -239,6 +240,15 @@ export interface ActionExecutorOptions {
    * can omit this; production wiring (Runtime) always supplies it.
    */
   entityRegistry?: EntityRegistry;
+  /**
+   * Interceptor registry for value-returning core extension points (Spec 63
+   * Phase 3). Currently wires the `field-lock-check` point: a policy
+   * capability can transform the field-lock violation set (shadow / bypass /
+   * tolerance) before the engine throws. When omitted — or when no
+   * `field-lock-check` interceptor is registered — the lock check behaves
+   * byte-for-byte as Phase 1 (the registry's `run` is an identity).
+   */
+  interceptorRegistry?: InterceptorRegistry;
 }
 
 /**
@@ -306,6 +316,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     eventBus,
     capabilityNames = new Set<string>(),
     entityRegistry,
+    interceptorRegistry,
   } = options;
 
   /** Silent noop logger — used when no logger is injected */
@@ -1081,13 +1092,25 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
               }
               const writesToCheck: Record<string, unknown> = { ...data };
               delete writesToCheck.id;
-              const violations = checkFieldLocks({
+              let violations = checkFieldLocks({
                 fields: targetFields,
                 lockAllWhen: targetLockAllWhen,
                 lockAllowFields: targetLockAllowFields,
                 existingRecord: current,
                 input: writesToCheck,
               });
+              // Spec 63 Phase 3: let a policy capability transform the
+              // violation set (shadow / bypass / tolerance). Identity when
+              // no interceptor is registered.
+              if (interceptorRegistry?.has("field-lock-check")) {
+                violations = await interceptorRegistry.run("field-lock-check", violations, {
+                  entity,
+                  actor,
+                  record: current,
+                  input: writesToCheck,
+                  tenantId: execOptions?.tenantId,
+                });
+              }
               if (violations.length > 0) {
                 throw new LockViolationError(violations, entity);
               }
@@ -1402,13 +1425,25 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 }
                 const writesToCheck: Record<string, unknown> = { ...updates };
                 delete writesToCheck.id;
-                const violations = checkFieldLocks({
+                let violations = checkFieldLocks({
                   fields: resolvedFields,
                   lockAllWhen,
                   lockAllowFields,
                   existingRecord: txCurrent,
                   input: writesToCheck,
                 });
+                // Spec 63 Phase 3: let a policy capability transform the
+                // violation set (shadow / bypass / tolerance). Identity when
+                // no interceptor is registered.
+                if (interceptorRegistry?.has("field-lock-check")) {
+                  violations = await interceptorRegistry.run("field-lock-check", violations, {
+                    entity: action.entity,
+                    actor,
+                    record: txCurrent,
+                    input: writesToCheck,
+                    tenantId: execOptions?.tenantId,
+                  });
+                }
                 if (violations.length > 0) {
                   throw new LockViolationError(violations, action.entity);
                 }

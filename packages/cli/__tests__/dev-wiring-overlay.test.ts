@@ -72,6 +72,7 @@ function buildInput(opts: { dataProvider?: InMemoryStore } = {}) {
     links: [],
     rules: [],
     middlewares: [],
+    interceptors: [],
     capabilities: [],
     sensors: [],
     dbInstance: undefined,

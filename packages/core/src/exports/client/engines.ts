@@ -57,6 +57,16 @@ export type {
   GeneratorWeightRecord,
   OutcomeObservation,
 } from "../../engine/generator-priority-aggregator";
+// Interceptor type surface (Spec 63 Phase 3) — pure types, browser-safe.
+// The runtime `createInterceptorRegistry` lives in ../server/engines.ts.
+export type {
+  FieldLockCheckContext,
+  Interceptor,
+  InterceptorCatalog,
+  InterceptorPoint,
+  InterceptorRegistration,
+  InterceptorRegistry,
+} from "../../engine/interceptors";
 export {
   canAutoApproveOverlayChange,
   canAutoApproveOverlayProposal,
