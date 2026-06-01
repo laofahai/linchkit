@@ -237,6 +237,8 @@ describe.skipIf(!dbAvailable)("DrizzleWatcherStateStore (integration)", () => {
     const r1 = await engineA.evaluateAfterMutation("inventory", { id: "item-1", quantity: 5 });
     expect(r1[0]?.fired).toBe(true);
     expect(executorA.calls).toHaveLength(1);
+    // Write-through is serialized / fire-and-forget → await it has drained to PG.
+    await engineA.whenPersisted();
     engineA.stop();
 
     // The fired state was persisted to PG.

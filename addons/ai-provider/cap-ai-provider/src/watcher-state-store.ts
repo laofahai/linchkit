@@ -66,12 +66,22 @@ export class InMemoryWatcherStateStore implements WatcherStateStore {
   async load(): Promise<WatcherStateEntry[]> {
     // Return defensive copies so callers can mutate freely without disturbing
     // the stored entries (mirrors the Drizzle store, which always materializes
-    // fresh objects from rows).
-    return Array.from(this.entries.values(), (e) => ({ ...e }));
+    // fresh objects from rows). The `lastFiredAt` Date is deep-cloned too — a
+    // shallow `{ ...e }` would share the Date reference, so a caller mutating it
+    // would corrupt internal state (and vice-versa).
+    return Array.from(this.entries.values(), (e) => ({
+      ...e,
+      lastFiredAt: e.lastFiredAt ? new Date(e.lastFiredAt) : e.lastFiredAt,
+    }));
   }
 
   async set(watcherName: string, groupKey: string, entry: WatcherStateEntry): Promise<void> {
-    this.entries.set(this.key(watcherName, groupKey), { ...entry });
+    // Deep-clone the `lastFiredAt` Date as well so the stored entry never shares
+    // a mutable Date reference with the caller's object.
+    this.entries.set(this.key(watcherName, groupKey), {
+      ...entry,
+      lastFiredAt: entry.lastFiredAt ? new Date(entry.lastFiredAt) : entry.lastFiredAt,
+    });
   }
 
   async delete(watcherName: string, groupKey: string): Promise<void> {

@@ -13,7 +13,12 @@
  */
 
 import { afterEach, describe, expect, it } from "bun:test";
-import { defineWatcher, type WatcherStateEntry } from "@linchkit/core";
+import {
+  defineWatcher,
+  type EventBusLike,
+  type EventRecord,
+  type WatcherStateEntry,
+} from "@linchkit/core";
 import { createWatcherRegistry, type WatcherRegistry } from "@linchkit/core/server";
 import {
   createWatcherEngine,
@@ -157,6 +162,36 @@ describe("InMemoryWatcherStateStore", () => {
     const second = await store.load();
     expect(second[0]?.conditionMet).toBe(true);
   });
+
+  it("clones the lastFiredAt Date on set + load (no shared Date reference)", async () => {
+    const store = new InMemoryWatcherStateStore();
+    const original = new Date("2026-01-01T00:00:00Z");
+
+    // ── set path: the store must NOT share the caller's Date instance. ──
+    await store.set("w1", "g", {
+      watcherName: "w1",
+      groupKey: "g",
+      lastFiredAt: original,
+      conditionMet: true,
+    });
+    // Mutate the caller's Date after handing it off.
+    original.setFullYear(1999);
+
+    const afterSetMutation = await store.load();
+    expect(afterSetMutation[0]?.lastFiredAt?.getTime()).toBe(
+      new Date("2026-01-01T00:00:00Z").getTime(),
+    );
+
+    // ── load path: each returned Date must be a distinct instance. ──
+    const first = await store.load();
+    const second = await store.load();
+    expect(first[0]?.lastFiredAt).not.toBe(second[0]?.lastFiredAt);
+
+    // Mutating a returned Date must not corrupt the stored state.
+    first[0]?.lastFiredAt?.setFullYear(1999);
+    const reread = await store.load();
+    expect(reread[0]?.lastFiredAt?.getTime()).toBe(new Date("2026-01-01T00:00:00Z").getTime());
+  });
 });
 
 // ── Write-through + restart simulation ────────────────────
@@ -184,7 +219,9 @@ describe("WatcherEngine — persistent debounce state (restart safety)", () => {
     const r = await engineA.evaluateAfterMutation("inventory", { id: "item-1", quantity: 5 });
     expect(r[0]?.fired).toBe(true);
 
-    // The mutation was mirrored to the store.
+    // The mutation was mirrored to the store (write-through is serialized /
+    // fire-and-forget → await it has drained before asserting durable state).
+    await engineA.whenPersisted();
     const persisted = await store.load();
     expect(persisted).toHaveLength(1);
     expect(persisted[0]?.watcherName).toBe("low-stock-persisted");
@@ -270,10 +307,13 @@ describe("WatcherEngine — persistent debounce state (restart safety)", () => {
       stateStore: store,
     });
     await engineA.evaluateAfterMutation("inventory", { id: "item-1", quantity: 5 });
+    // Write-through is serialized/fire-and-forget → await it has drained.
+    await engineA.whenPersisted();
     expect(await store.load()).toHaveLength(1);
 
     // Reset clears the cache AND the store (write-through).
     engineA.resetState("low-stock-persisted", "item-1");
+    await engineA.whenPersisted();
     expect(await store.load()).toHaveLength(0);
 
     // Restarted engine hydrates an empty store → watcher fires fresh.
@@ -364,5 +404,142 @@ describe("WatcherEngine — persistent debounce state (restart safety)", () => {
     // debounce state must already be in the cache.
     await engineB.start();
     expect(engineB.getState("low-stock-persisted", "item-1")?.conditionMet).toBe(true);
+  });
+
+  it("does NOT start subsystems when stop() races an in-flight hydration", async () => {
+    const sharedRegistry = createWatcherRegistry();
+    sharedRegistry.register(lowStockOnceUntilReset());
+
+    // A store whose load() resolves only when we release the deferred — letting
+    // us interleave a stop() while start()'s hydration is still in flight.
+    let releaseLoad: (() => void) | undefined;
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    const deferredStore: WatcherStateStore = {
+      async load() {
+        await loadGate;
+        return [];
+      },
+      async set() {},
+      async delete() {},
+      async clearForWatcher() {},
+    };
+
+    // An event bus that records every subscription so we can prove subsystems
+    // never bound after the racing stop().
+    const subscribed: string[] = [];
+    const eventBus: EventBusLike = {
+      subscribe(eventType: string, _handler: (event: EventRecord) => Promise<void>) {
+        subscribed.push(eventType);
+        return () => {};
+      },
+    };
+
+    const executor = createMockActionExecutor();
+    engineA = createWatcherEngine({
+      registry: sharedRegistry,
+      eventBus,
+      actionExecutor: executor,
+      stateStore: deferredStore,
+    });
+
+    // Begin start() (awaits hydration) but do NOT await it yet.
+    const startPromise = engineA.start();
+    // Stop while hydration is still blocked on the deferred load.
+    engineA.stop();
+    // Now release hydration and let start() finish.
+    releaseLoad?.();
+    await startPromise;
+
+    // Subsystems must NOT have bound any subscriptions after the racing stop().
+    expect(subscribed).toHaveLength(0);
+  });
+
+  it("hydrate REPLACES the cache — a stale key absent from the store is dropped", async () => {
+    const sharedRegistry = createWatcherRegistry();
+    sharedRegistry.register(lowStockOnceUntilReset());
+    store = new InMemoryWatcherStateStore();
+
+    // The store initially holds both item-1 and a soon-to-be-stale key.
+    await store.set("low-stock-persisted", "item-1", {
+      watcherName: "low-stock-persisted",
+      groupKey: "item-1",
+      lastFiredAt: new Date(),
+      conditionMet: true,
+    });
+    await store.set("low-stock-persisted", "stale-item", {
+      watcherName: "low-stock-persisted",
+      groupKey: "stale-item",
+      lastFiredAt: new Date(),
+      conditionMet: true,
+    });
+
+    const executor = createMockActionExecutor();
+    engineA = createWatcherEngine({
+      registry: sharedRegistry,
+      actionExecutor: executor,
+      stateStore: store,
+    });
+
+    // First hydrate loads BOTH keys into the cache.
+    await engineA.hydrate();
+    expect(engineA.getState("low-stock-persisted", "stale-item")).toBeDefined();
+
+    // Delete the stale key from the store so it is absent on the NEXT hydrate,
+    // while it still lingers in the cache (the bug Finding 3 fixes — a merge
+    // would let the stale key keep suppressing the watcher).
+    await store.delete("low-stock-persisted", "stale-item");
+
+    // Re-hydrate (simulates a reused engine / stop()→start()) — it must REPLACE
+    // (clear then load), so the stale key is gone and only item-1 survives.
+    await engineA.hydrate();
+    expect(engineA.getState("low-stock-persisted", "stale-item")).toBeUndefined();
+    expect(engineA.getState("low-stock-persisted", "item-1")?.conditionMet).toBe(true);
+  });
+
+  it("serializes mirrored writes in submission order (slow set then fast delete ends deleted)", async () => {
+    // A store stub that records apply order and makes set() slow + delete() fast.
+    // Without serialization the fast delete would land before the slow set,
+    // leaving the store in a (wrongly) resurrected state.
+    const applied: Array<{ op: "set" | "delete"; key: string }> = [];
+    const orderingStore: WatcherStateStore = {
+      async load() {
+        return [];
+      },
+      async set(watcherName, groupKey) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        applied.push({ op: "set", key: `${watcherName}:${groupKey}` });
+      },
+      async delete(watcherName, groupKey) {
+        applied.push({ op: "delete", key: `${watcherName}:${groupKey}` });
+      },
+      async clearForWatcher(watcherName) {
+        applied.push({ op: "delete", key: `${watcherName}:*` });
+      },
+    };
+
+    const sharedRegistry = createWatcherRegistry();
+    sharedRegistry.register(lowStockOnceUntilReset());
+    const executor = createMockActionExecutor();
+    engineA = createWatcherEngine({
+      registry: sharedRegistry,
+      actionExecutor: executor,
+      stateStore: orderingStore,
+    });
+
+    // Enqueue a slow set (via evaluation → updateState → mirror set) immediately
+    // followed by a fast delete (via resetState → mirror delete) for the SAME key.
+    await engineA.evaluateAfterMutation("inventory", { id: "item-1", quantity: 5 });
+    engineA.resetState("low-stock-persisted", "item-1");
+
+    // Wait for the serialized write chain to drain.
+    await engineA.whenPersisted();
+
+    // Writes must have applied in submission order: set THEN delete — so the
+    // store ends in the deleted state. Without serialization the fast delete
+    // would land before the slow set, leaving the store wrongly resurrected.
+    expect(applied.map((a) => a.op)).toEqual(["set", "delete"]);
+    expect(applied[applied.length - 1]?.op).toBe("delete");
   });
 });
