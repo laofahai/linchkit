@@ -90,6 +90,10 @@ export class ScheduleTracker {
    * Advance every tracked schedule up to `now` and return the watcher names
    * that became due, in chronological order, one entry per crossed occurrence.
    *
+   * Due occurrences are collected with their fire time across ALL watchers, then
+   * sorted ascending by that time, so effect ordering reflects when each
+   * occurrence was due rather than the (arbitrary) watcher registration order.
+   *
    * If the clock jumps past several occurrences between ticks (e.g. the process
    * was asleep, or a test fast-forwards the injected clock), each missed
    * occurrence is emitted once — never coalesced and never skipped — so the
@@ -97,7 +101,7 @@ export class ScheduleTracker {
    * loops on pathologically large jumps.
    */
   collectDue(now: Date, maxOccurrencesPerWatcher = 1000): string[] {
-    const due: string[] = [];
+    const due: Array<{ watcherName: string; dueAt: Date }> = [];
 
     for (const state of this.states.values()) {
       let guard = 0;
@@ -106,7 +110,7 @@ export class ScheduleTracker {
         state.nextDue.getTime() <= now.getTime() &&
         guard < maxOccurrencesPerWatcher
       ) {
-        due.push(state.watcherName);
+        due.push({ watcherName: state.watcherName, dueAt: state.nextDue });
         // Advance strictly past the consumed occurrence so the same tick is
         // never reported twice. croner's nextRun is exclusive of `prev`.
         state.nextDue = state.cron.nextRun(state.nextDue);
@@ -114,6 +118,7 @@ export class ScheduleTracker {
       }
     }
 
-    return due;
+    due.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
+    return due.map(({ watcherName }) => watcherName);
   }
 }
