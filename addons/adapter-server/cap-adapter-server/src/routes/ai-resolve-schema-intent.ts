@@ -69,8 +69,11 @@ const resolveSchemaIntentRequestSchema = z
  * the action's `entity` is the capability name). When no `permissionRegistry`
  * is wired in (typical dev runs) we pass everything through — same permissive
  * default as `ai-resolve-intent.ts`.
+ *
+ * Exported for unit testing the permission gate in isolation (both
+ * `listEntities` and `describeEntity` must enforce it).
  */
-function buildSchemaIntentOntology(opts: {
+export function buildSchemaIntentOntology(opts: {
   base: OntologyRegistry;
   permissionRegistry?: PermissionRegistry;
   actor: Actor;
@@ -102,6 +105,13 @@ function buildSchemaIntentOntology(opts: {
   return {
     listEntities: () => visibleEntities(),
     describeEntity: (entityName: string): SchemaIntentEntity | undefined => {
+      // Enforce the SAME permission gate the visible-entity list uses. Without
+      // this, calling describeEntity() directly with an entity the actor cannot
+      // act on would leak its full description (least-privilege violation) —
+      // listEntities() filters, but describeEntity() must too.
+      if (permissionRegistry && allowedActions(entityName).length === 0) {
+        return undefined;
+      }
       const descriptor = base.describe(entityName);
       if (!descriptor) return undefined;
       const fields: SchemaIntentEntity["fields"] = [];
@@ -261,6 +271,16 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
         success: false as const,
         error: { code: "AI.RESOLVE_SCHEMA_INTENT.FAILED", message },
       };
+    } finally {
+      // This slice STOPS at draft and returns it inline to the client — the
+      // draft is never persisted server-side for later approval here. Freeing
+      // the engine after each request prevents the in-memory map from growing
+      // unbounded across requests. toResponse() (below) reads the proposal
+      // object by reference, which survives this clear (we only drop the map
+      // entry, not the object); building the response first keeps the draft in
+      // the payload. Clearing also reinforces the "never applies" invariant —
+      // there is no server-side handle left to graduate.
+      proposalEngine.clear();
     }
 
     return toResponse(outcome);

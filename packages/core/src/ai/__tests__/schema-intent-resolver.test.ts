@@ -174,6 +174,165 @@ describe("resolveSchemaIntent — add_rule proposal draft", () => {
     expect(outcome.proposal.reasoning).toBe("Block purchase requests over 10000");
   });
 
+  it("preserves literal values in the utterance (PII redaction disabled)", async () => {
+    // The sanitizer must NOT redact a literal email the user dictates — it
+    // belongs in the drafted rule's value, not as [REDACTED_EMAIL].
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "purchase_request",
+        rule: {
+          name: "flag_known_requester",
+          label: "Flag known requester",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "department", operator: "eq", value: "ops@acme.com" },
+          effect: { type: "warn", message: "Known requester ops@acme.com" },
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "Warn when the department contact is ops@acme.com" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    // The email reaches the AI verbatim (not redacted to a placeholder).
+    const sentUserMessage = calls[0]?.messages.find((m) => m.role === "user")?.content ?? "";
+    expect(sentUserMessage).toContain("ops@acme.com");
+    expect(sentUserMessage).not.toContain("[REDACTED");
+    // And it survives into the drafted rule value.
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.condition).toEqual({ field: "department", operator: "eq", value: "ops@acme.com" });
+  });
+
+  it("coerces a numeric-string condition value to a real number", async () => {
+    // The AI sometimes returns a string for a numeric field; the resolver must
+    // coerce it so rule evaluation sees a real number, not "10000".
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "purchase_request",
+        rule: {
+          name: "block_overlimit_amount",
+          label: "Block over-limit amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: "10000" },
+          effect: { type: "block", message: "too big" },
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "Block over 10000" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    const condition = def.condition as { value: unknown };
+    expect(condition.value).toBe(10000);
+    expect(typeof condition.value).toBe("number");
+  });
+
+  it("rejects an uncoercible numeric condition value as invalid_rule", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "purchase_request",
+        rule: {
+          name: "block_weird_amount",
+          label: "Block weird amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: "not-a-number" },
+          effect: { type: "block", message: "no" },
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "Block over not-a-number" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_rule");
+    expect(engine.size).toBe(0);
+  });
+
+  it("coerces a boolean-string condition value to a real boolean", async () => {
+    const engine = new ProposalEngine();
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["task"],
+      describeEntity: () => ({
+        name: "task",
+        label: "Task",
+        fields: [{ name: "is_urgent", type: "boolean", required: false }],
+        actionNames: ["create_task"],
+      }),
+    };
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "task",
+        rule: {
+          name: "warn_urgent",
+          label: "Warn urgent",
+          trigger: { action: "create_task" },
+          condition: { field: "is_urgent", operator: "eq", value: "true" },
+          effect: { type: "warn", message: "urgent" },
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "warn when urgent" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    const condition = def.condition as { value: unknown };
+    expect(condition.value).toBe(true);
+    expect(typeof condition.value).toBe("boolean");
+  });
+
+  it("normalizes a non-snake_case rule name instead of rejecting it", async () => {
+    // LLMs emit camelCase / spaced names; normalize rather than reject.
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "purchase_request",
+        rule: {
+          name: "My Cool Rule",
+          label: "My Cool Rule",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 5 },
+          effect: { type: "block", message: "no" },
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "block over 5" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.ruleName).toBe("my_cool_rule");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.name).toBe("my_cool_rule");
+  });
+
   it("validates an enrich effect and drops unknown setFields", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(

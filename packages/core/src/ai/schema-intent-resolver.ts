@@ -38,24 +38,15 @@
  */
 
 import type { AIMessage, AIService } from "../types/ai";
-import type {
-  ComparisonOperator,
-  DeclarativeCondition,
-  RuleDefinition,
-  RuleEffect,
-  RuleTrigger,
-  SimpleCondition,
-} from "../types/rule";
 import { sanitizePrompt } from "./prompt-sanitizer";
 import type { ProposalEngine } from "./proposal-engine";
 // System prompt + response parser live in a sibling module (mirrors the
 // intent-resolver.ts / intent-prompt.ts split) so this file stays focused on
-// reconciliation + the governed Proposal mint.
-import {
-  buildSchemaIntentSystemPrompt,
-  type ParsedRuleShape,
-  parseSchemaIntentResponse,
-} from "./schema-intent-prompt";
+// the pipeline + the governed Proposal mint.
+import { buildSchemaIntentSystemPrompt, parseSchemaIntentResponse } from "./schema-intent-prompt";
+// Rule reconciliation + validation lives in a sibling module so this file
+// stays under the 500-line ceiling and focuses on the pipeline.
+import { buildRuleDefinition } from "./schema-intent-rule-builder";
 import type {
   SchemaIntentEntity,
   SchemaIntentOntology,
@@ -67,38 +58,6 @@ import type {
 
 /** Confidence floor below which we ask a clarifying question instead of drafting. */
 export const SCHEMA_INTENT_MIN_CONFIDENCE = 0.4;
-
-// ── Allowlists (structural validation) ───────────────────────
-
-/** Comparison operators accepted in a proposed rule condition. */
-const ALLOWED_OPERATORS: ReadonlySet<ComparisonOperator> = new Set<ComparisonOperator>([
-  "eq",
-  "neq",
-  "gt",
-  "gte",
-  "lt",
-  "lte",
-  "in",
-  "not_in",
-  "is_null",
-  "not_null",
-  "contains",
-  "notContains",
-  "between",
-  "notBetween",
-  "startsWith",
-  "endsWith",
-  "includesAll",
-  "excludesAny",
-]);
-
-/** Effect types accepted for a drafted rule. */
-const ALLOWED_EFFECT_TYPES: ReadonlySet<RuleEffect["type"]> = new Set<RuleEffect["type"]>([
-  "block",
-  "warn",
-  "require_approval",
-  "enrich",
-]);
 
 // ── User-facing messages (centralized for future i18n) ───────
 
@@ -170,7 +129,12 @@ export async function resolveSchemaIntent(
   }
   let utterance = trimmed;
   if (sanitize) {
-    const result = sanitizePrompt(trimmed);
+    // Run prompt-injection detection ONLY. PII redaction is intentionally
+    // disabled: the user is dictating a rule whose literal values (an amount
+    // threshold, a status string, even an email/phone) must survive verbatim
+    // so they reach the drafted rule. Redacting them to `[REDACTED_*]` would
+    // silently corrupt the rule. Prompt-injection is the security concern here.
+    const result = sanitizePrompt(trimmed, { enablePII: false });
     if (result.blocked) {
       return noMatch(
         "blocked_by_sanitizer",
@@ -298,189 +262,7 @@ function buildEntityCatalog(ontology: SchemaIntentOntology): SchemaIntentEntity[
   return catalog;
 }
 
-// ── Rule reconciliation + validation ─────────────────────────
-
-type BuildRuleResult = { ok: true; rule: RuleDefinition } | { ok: false; reason: string };
-
-/**
- * Validate the AI-proposed rule against a strict structural allowlist and the
- * target entity's field set, then return a typed `RuleDefinition`. Only
- * validated, structured values reach the Proposal — raw user text is never
- * passed through as code.
- */
-function buildRuleDefinition(
-  rule: ParsedRuleShape | undefined,
-  entity: SchemaIntentEntity,
-): BuildRuleResult {
-  if (!rule) return { ok: false, reason: "missing rule body" };
-
-  const name = asNonEmptyString(rule.name);
-  if (!name || !isSnakeCaseName(name)) {
-    return { ok: false, reason: "rule name must be a non-empty snake_case identifier" };
-  }
-
-  const label = asNonEmptyString(rule.label) ?? name;
-  const description = asNonEmptyString(rule.description);
-  const priority =
-    typeof rule.priority === "number" && Number.isFinite(rule.priority)
-      ? Math.trunc(rule.priority)
-      : undefined;
-
-  const trigger = buildTrigger(rule.trigger, entity);
-  if (!trigger.ok) return { ok: false, reason: trigger.reason };
-
-  const condition = buildCondition(rule.condition, entity);
-  if (!condition.ok) return { ok: false, reason: condition.reason };
-
-  const effect = buildEffect(rule.effect, entity);
-  if (!effect.ok) return { ok: false, reason: effect.reason };
-
-  const def: RuleDefinition = {
-    name,
-    label,
-    ...(description ? { description } : {}),
-    ...(priority !== undefined ? { priority } : {}),
-    trigger: trigger.value,
-    condition: condition.value,
-    effect: effect.value,
-  };
-  return { ok: true, rule: def };
-}
-
-type TriggerResult = { ok: true; value: RuleTrigger } | { ok: false; reason: string };
-
-function buildTrigger(raw: unknown, entity: SchemaIntentEntity): TriggerResult {
-  if (!raw || typeof raw !== "object") {
-    return { ok: false, reason: "trigger must be an object with an action" };
-  }
-  const rec = raw as Record<string, unknown>;
-  const action = asNonEmptyString(rec.action);
-  if (!action) {
-    return { ok: false, reason: "trigger.action must be a non-empty string" };
-  }
-  // Allow either a known action on the entity or the canonical create_<entity>.
-  const isKnownAction = entity.actionNames.includes(action);
-  const isCanonicalCreate = action === `create_${entity.name}`;
-  if (!isKnownAction && !isCanonicalCreate) {
-    return {
-      ok: false,
-      reason: `trigger.action "${action}" is not an action of entity "${entity.name}"`,
-    };
-  }
-  return { ok: true, value: { action } };
-}
-
-type ConditionResult = { ok: true; value: DeclarativeCondition } | { ok: false; reason: string };
-
-function buildCondition(raw: unknown, entity: SchemaIntentEntity): ConditionResult {
-  if (!raw || typeof raw !== "object") {
-    return { ok: false, reason: "condition must be an object" };
-  }
-  const rec = raw as Record<string, unknown>;
-  const field = asNonEmptyString(rec.field);
-  if (!field) {
-    return { ok: false, reason: "condition.field must be a non-empty string" };
-  }
-  if (!entity.fields.some((f) => f.name === field)) {
-    return {
-      ok: false,
-      reason: `condition.field "${field}" is not a field of entity "${entity.name}"`,
-    };
-  }
-  const operator = rec.operator;
-  if (typeof operator !== "string" || !ALLOWED_OPERATORS.has(operator as ComparisonOperator)) {
-    return { ok: false, reason: `condition.operator "${String(operator)}" is not allowed` };
-  }
-  const op = operator as ComparisonOperator;
-  // is_null / not_null take no value; everything else requires one.
-  const valueless = op === "is_null" || op === "not_null";
-  const condition: SimpleCondition = { field, operator: op };
-  if (!valueless) {
-    if (rec.value === undefined) {
-      return { ok: false, reason: `condition.value is required for operator "${op}"` };
-    }
-    condition.value = rec.value;
-  }
-  return { ok: true, value: condition };
-}
-
-type EffectResult = { ok: true; value: RuleEffect } | { ok: false; reason: string };
-
-function buildEffect(raw: unknown, entity: SchemaIntentEntity): EffectResult {
-  if (!raw || typeof raw !== "object") {
-    return { ok: false, reason: "effect must be an object with a type" };
-  }
-  const rec = raw as Record<string, unknown>;
-  const type = rec.type;
-  if (typeof type !== "string" || !ALLOWED_EFFECT_TYPES.has(type as RuleEffect["type"])) {
-    return { ok: false, reason: `effect.type "${String(type)}" is not allowed` };
-  }
-
-  switch (type as RuleEffect["type"]) {
-    case "block": {
-      const message = asNonEmptyString(rec.message);
-      if (!message) return { ok: false, reason: "block effect requires a message" };
-      return { ok: true, value: { type: "block", message } };
-    }
-    case "warn": {
-      const message = asNonEmptyString(rec.message);
-      if (!message) return { ok: false, reason: "warn effect requires a message" };
-      return { ok: true, value: { type: "warn", message } };
-    }
-    case "require_approval": {
-      const level = asNonEmptyString(rec.level);
-      if (!level) return { ok: false, reason: "require_approval effect requires a level" };
-      const message = asNonEmptyString(rec.message);
-      return {
-        ok: true,
-        value: { type: "require_approval", level, ...(message ? { message } : {}) },
-      };
-    }
-    case "enrich": {
-      const setFields = buildEnrichSetFields(rec.setFields, entity);
-      if (!setFields.ok) return setFields;
-      return { ok: true, value: { type: "enrich", setFields: setFields.value } };
-    }
-    // `execute_action` is intentionally NOT accepted in this slice — drafting
-    // a rule that triggers another action widens the blast radius beyond
-    // "add a guard/validation" and needs its own review path.
-    default:
-      return { ok: false, reason: `effect.type "${type}" is not supported in this slice` };
-  }
-}
-
-type EnrichResult = { ok: true; value: Record<string, unknown> } | { ok: false; reason: string };
-
-function buildEnrichSetFields(raw: unknown, entity: SchemaIntentEntity): EnrichResult {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { ok: false, reason: "enrich effect requires a setFields object" };
-  }
-  const known = new Set(entity.fields.map((f) => f.name));
-  const cleaned: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    // Drop fields that do not exist on the entity (hallucination defense).
-    if (!known.has(key)) continue;
-    if (value === undefined) continue;
-    cleaned[key] = value;
-  }
-  if (Object.keys(cleaned).length === 0) {
-    return { ok: false, reason: "enrich effect setFields referenced no known fields" };
-  }
-  return { ok: true, value: cleaned };
-}
-
 // ── Small helpers ────────────────────────────────────────────
-
-function asNonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-/** snake_case identifier: lowercase letters/digits/underscores, starts with a letter. */
-function isSnakeCaseName(value: string): boolean {
-  return /^[a-z][a-z0-9_]*$/.test(value);
-}
 
 function clampConfidence(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) return 0;
