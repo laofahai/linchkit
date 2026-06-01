@@ -91,3 +91,11 @@ export {
   type WatcherEngine,
   type WatcherEngineOptions,
 } from "./watcher-engine";
+
+// Watcher debounce-state persistence (Spec 45 §4 — restart-safe debounce)
+export {
+  InMemoryWatcherStateStore,
+  type WatcherStateStore,
+} from "./watcher-state-store";
+export { DrizzleWatcherStateStore } from "./watcher-state-store-drizzle";
+export { watcherStateTable } from "./watcher-state-table";

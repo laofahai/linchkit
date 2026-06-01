@@ -211,6 +211,9 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
+| 2026-06-01 | Spec 45 progress: `schedule` trigger implemented (croner, PR #439) + `_linchkit.watcher_state` debounce persistence (`WatcherStateStore` InMemory default + Drizzle PG backend) — restart-safe `once_until_reset`. Status stays Partial: the watcher admin UI `EntityDefinition` (§7.1) is still deferred. |
+| 2026-06-01 | Spec 63 Phase 2 shipped: GraphQL field-lock introspection (PR #437) + auto-form field-lock UI reusing core's `matchesLockCondition` (PR #441). Status stays Partial — Phase 3 `cap-lock` needs a returning-value hook/slot extension mechanism (design decision) before it can be built. |
+| 2026-06-01 | Spec 56 Step 2c complete: removed the dead 0-byte `automation-engine`/`automation-registry` stubs from core (PR #436); the Detector/Watcher implementations already live in cap-ai-provider. |
 | 2026-05-19 | Spec 69 Phase 2 closed: Phase 2b hands-on BAML spike (PR #356) measured zero strict-pass improvement + zero parser rescues → REJECT (#357). All 3 candidates rejected; keep in-house Vercel AI SDK + Zod pipeline. §10.5 + §11 + baml-evaluation.md §6 updated with measured cells. |
 | 2026-05-19 | Spec 69 Phase 2a (tool decision documentation review): rejected `@mastra/evals` + Promptfoo on structural grounds; BAML proceeds to Phase 2b hands-on spike; added research docs `docs/research/baml-evaluation.md` + `docs/research/promptfoo-evaluation.md`; §10 sub-sections renumbered. |
 | 2026-05-18 | Added Spec 69 (AI Evaluation Framework — Draft); companion research doc `docs/research/mastra-evaluation.md`; Stats updated: Draft 7→8, Total 71→72 |
