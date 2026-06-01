@@ -71,7 +71,7 @@ QUARANTINE=()
 
 is_quarantined() {
   local needle="$1" q
-  for q in "${QUARANTINE[@]}"; do
+  for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do
     [ "$needle" = "$q" ] && return 0
   done
   return 1
@@ -162,7 +162,7 @@ else
 fi
 
 # Quarantined files, each run in isolation with an explicit logged allowance.
-for q in "${QUARANTINE[@]}"; do
+for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do
   if [ -f "$q" ]; then
     quarantine_single=1 run_batch "QUARANTINE ${q}" "./${q}"
   else

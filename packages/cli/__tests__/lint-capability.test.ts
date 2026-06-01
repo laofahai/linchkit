@@ -73,7 +73,7 @@ describe("lint-capability command", () => {
     const cliEntry = join(import.meta.dir, "../src/index.ts");
     const proc = Bun.spawn(["bun", "run", cliEntry, "lint-capability", root, "--json"], {
       stdout: "pipe",
-      stderr: "pipe",
+      stderr: "inherit",
     });
     await proc.exited;
     const stdout = await new Response(proc.stdout).text();
@@ -93,7 +93,7 @@ describe("lint-capability command", () => {
     const cliEntry = join(import.meta.dir, "../src/index.ts");
     const proc = Bun.spawn(["bun", "run", cliEntry, "lint-capability", root, "--json"], {
       stdout: "pipe",
-      stderr: "pipe",
+      stderr: "inherit",
     });
     await proc.exited;
     const stdout = await new Response(proc.stdout).text();
