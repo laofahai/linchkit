@@ -75,8 +75,8 @@ describe("lint-capability command", () => {
       stdout: "pipe",
       stderr: "inherit",
     });
-    await proc.exited;
     const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
 
     expect(proc.exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
@@ -95,8 +95,8 @@ describe("lint-capability command", () => {
       stdout: "pipe",
       stderr: "inherit",
     });
-    await proc.exited;
     const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
 
     expect(proc.exitCode).toBe(1);
     const parsed = JSON.parse(stdout);

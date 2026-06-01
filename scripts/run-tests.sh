@@ -71,7 +71,8 @@ QUARANTINE=(
 
 is_quarantined() {
   local needle="$1" q
-  for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do
+  [ ${#QUARANTINE[@]} -eq 0 ] && return 1
+  for q in "${QUARANTINE[@]}"; do
     [ "$needle" = "$q" ] && return 0
   done
   return 1
@@ -162,13 +163,15 @@ else
 fi
 
 # Quarantined files, each run in isolation with an explicit logged allowance.
-for q in ${QUARANTINE[@]+"${QUARANTINE[@]}"}; do
-  if [ -f "$q" ]; then
-    quarantine_single=1 run_batch "QUARANTINE ${q}" "./${q}"
-  else
-    echo "::warning::Quarantined path '${q}' no longer exists — remove it from QUARANTINE."
-  fi
-done
+if [ ${#QUARANTINE[@]} -gt 0 ]; then
+  for q in "${QUARANTINE[@]}"; do
+    if [ -f "$q" ]; then
+      quarantine_single=1 run_batch "QUARANTINE ${q}" "./${q}"
+    else
+      echo "::warning::Quarantined path '${q}' no longer exists — remove it from QUARANTINE."
+    fi
+  done
+fi
 
 if [ "$OVERALL_RC" -eq 0 ]; then
   echo "All test batches completed (or were explicitly quarantined). PASS."
