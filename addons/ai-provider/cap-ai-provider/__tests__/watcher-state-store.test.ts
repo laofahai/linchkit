@@ -20,7 +20,7 @@ import {
   type WatcherActionExecutor,
   type WatcherEngine,
 } from "../src/watcher-engine";
-import { InMemoryWatcherStateStore } from "../src/watcher-state-store";
+import { InMemoryWatcherStateStore, type WatcherStateStore } from "../src/watcher-state-store";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -288,6 +288,56 @@ describe("WatcherEngine — persistent debounce state (restart safety)", () => {
     const r = await engineB.evaluateAfterMutation("inventory", { id: "item-1", quantity: 4 });
     expect(r[0]?.fired).toBe(true);
     expect(executorB.calls).toHaveLength(1);
+  });
+
+  it("evaluation still completes when the store throws SYNCHRONOUSLY on write", async () => {
+    const sharedRegistry = createWatcherRegistry();
+    sharedRegistry.register(lowStockOnceUntilReset());
+
+    // A store whose write-through methods throw synchronously (not async
+    // rejections). The engine's `mirror()` must swallow these so a faulty store
+    // never disrupts the synchronous watcher-evaluation path.
+    const errors: string[] = [];
+    const throwingStore: WatcherStateStore = {
+      async load() {
+        return [];
+      },
+      set() {
+        throw new Error("sync set boom");
+      },
+      delete() {
+        throw new Error("sync delete boom");
+      },
+      clearForWatcher() {
+        throw new Error("sync clear boom");
+      },
+    };
+
+    const executor = createMockActionExecutor();
+    engineA = createWatcherEngine({
+      registry: sharedRegistry,
+      actionExecutor: executor,
+      stateStore: throwingStore,
+      logger: {
+        info: () => {},
+        warn: () => {},
+        error: (msg: string) => errors.push(msg),
+        debug: () => {},
+      },
+    });
+
+    // Evaluation must complete normally and the effect must still fire, even
+    // though the synchronous store write threw.
+    const r = await engineA.evaluateAfterMutation("inventory", { id: "item-1", quantity: 5 });
+    expect(r[0]?.fired).toBe(true);
+    expect(executor.calls).toHaveLength(1);
+
+    // resetState (which mirrors a delete) must also not throw.
+    expect(() => engineA?.resetState("low-stock-persisted", "item-1")).not.toThrow();
+    expect(() => engineA?.resetState("low-stock-persisted")).not.toThrow();
+
+    // The synchronous failures were logged, not propagated.
+    expect(errors.some((m) => m.includes("Failed to persist debounce state"))).toBe(true);
   });
 
   it("start() awaits hydration before evaluation when a store is configured", async () => {

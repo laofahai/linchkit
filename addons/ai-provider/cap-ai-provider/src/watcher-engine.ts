@@ -366,8 +366,11 @@ class WatcherEngineImpl implements WatcherEngine {
       for (const entry of entries) {
         this.stateMap.set(`${entry.watcherName}:${entry.groupKey}`, {
           ...entry,
-          // Normalize timestamps that may arrive as strings from some backends.
-          lastFiredAt: entry.lastFiredAt === null ? null : new Date(entry.lastFiredAt),
+          // Normalize timestamps that may arrive as strings/numbers from some
+          // backends. Use a truthiness check so a store that returns `undefined`
+          // (not just `null`) does not yield `new Date(undefined)` = Invalid Date.
+          // A `Date` value passes through `new Date(date)` unchanged.
+          lastFiredAt: entry.lastFiredAt ? new Date(entry.lastFiredAt) : null,
         });
       }
     } catch (err) {
@@ -514,22 +517,31 @@ class WatcherEngineImpl implements WatcherEngine {
   /**
    * Mirror a debounce-state mutation to the persistent store as a fire-and-forget
    * write-through. The in-memory `Map` is the synchronous source of truth for
-   * evaluation; the store is a durable mirror. A store write failure is logged
-   * but never propagated into the (synchronous) evaluation path — at worst the
+   * evaluation; the store is a durable mirror. A store write failure — whether a
+   * SYNCHRONOUS throw from `write()` or an async promise rejection — is logged but
+   * never propagated into the (synchronous) evaluation path. At worst the
    * persisted state lags the cache until the next successful write or restart.
    * No-op when no store is configured.
    */
-  private mirror(write: () => Promise<void> | undefined): void {
+  private mirror(write: () => Promise<unknown> | undefined): void {
     if (!this.stateStore) return;
-    const result = write();
-    if (result) {
-      result.catch((err: unknown) => {
-        this.logger.error?.(
-          `[WatcherEngine] Failed to persist debounce state: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      });
+    try {
+      const result = write();
+      if (result) {
+        result.catch((err: unknown) => {
+          this.logger.error?.(
+            `[WatcherEngine] Failed to persist debounce state: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        });
+      }
+    } catch (err: unknown) {
+      this.logger.error?.(
+        `[WatcherEngine] Failed to persist debounce state: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 }
