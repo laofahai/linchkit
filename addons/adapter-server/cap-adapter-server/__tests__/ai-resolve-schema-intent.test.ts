@@ -276,6 +276,9 @@ describe("POST /api/ai/resolve-schema-intent — governed persistence", () => {
     expect(changes[0]?.operation).toBe("create");
     expect(changes[0]?.name).toBe("block_overlimit_amount");
 
+    // Audit trail: the persisted proposal records WHO requested the resolution.
+    expect(String((found as { description?: string }).description ?? "")).toContain("Requested by");
+
     // And directly fetchable by id, still in draft.
     const byId = await getProposalById(PORT, proposalId);
     expect(byId.status).toBe(200);

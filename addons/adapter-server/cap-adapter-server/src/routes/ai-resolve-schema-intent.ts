@@ -243,11 +243,14 @@ function persistGovernedRuleDraft(opts: {
   targetEntity: string;
   explanation: string;
   reasoning: string;
+  /** The actor who requested the resolution — recorded for the audit trail. */
+  actor: Actor;
 }): ProposalDefinition | undefined {
-  const { engine, draft, ruleName, targetEntity, explanation, reasoning } = opts;
+  const { engine, draft, ruleName, targetEntity, explanation, reasoning, actor } = opts;
 
   // The validated rule definition is the resolver draft's diff definition.
-  const definition = draft.diff.definition;
+  // Optional-chain `diff` defensively against runtime drift in the draft shape.
+  const definition = draft.diff?.definition;
   if (!definition || typeof definition !== "object") return undefined;
   const ruleDefinition = definition as RuleDefinition;
 
@@ -262,8 +265,10 @@ function persistGovernedRuleDraft(opts: {
   return engine.createProposal({
     title: explanation,
     // Preserve the original utterance as the proposal description's reasoning
-    // trail without ever interpolating it into a privileged context.
-    description: reasoning,
+    // trail, plus the requesting actor for the audit trail (governance: record
+    // WHO initiated the AI resolution). The utterance is never interpolated into
+    // a privileged context — this string is display/audit metadata only.
+    description: `${reasoning}\n\n(Requested by ${actor.type}:${actor.id})`,
     // The change originates from an AI resolution acting on the user's behalf.
     author: { type: "ai", id: "schema-intent-resolver", name: "Schema Intent Resolver" },
     // The rule attaches to its target entity — used as the governed
@@ -398,6 +403,7 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
         targetEntity: outcome.targetEntity,
         explanation: outcome.explanation,
         reasoning: parsed.data.prompt,
+        actor,
       });
     }
 
