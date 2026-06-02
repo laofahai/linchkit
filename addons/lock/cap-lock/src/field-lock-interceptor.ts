@@ -143,7 +143,7 @@ export function createFieldLockInterceptor(
     //    the spec example references as `context.actor.groups`. Use it directly.
     if (
       policy.bypassGroups.length > 0 &&
-      context.actor.groups.some((group) => policy.bypassGroups.includes(group))
+      context.actor.groups?.some((group) => policy.bypassGroups.includes(group))
     ) {
       audit("bypass");
       return [];

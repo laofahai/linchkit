@@ -30,7 +30,7 @@ describe("cap-lock capability metadata", () => {
     expect(capLock.name).toBe("cap-lock");
     expect(capLock.type).toBe("standard");
     expect(capLock.category).toBe("system");
-    expect(capLock.version).toBe("0.0.1");
+    expect(capLock.version).toBe("1.0.0");
     expect(capLock.coreVersion).toBe("^0.2.0");
   });
 

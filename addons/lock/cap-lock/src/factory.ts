@@ -58,7 +58,7 @@ export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
       "Advanced field-lock policy: shadow mode, bypass groups, tolerance period, and audit trail over core field-lock enforcement",
     type: "standard",
     category: "system",
-    version: "0.0.1",
+    version: "1.0.0",
     coreVersion: "^0.2.0",
 
     configSchema: capLockConfig.schema,
