@@ -114,27 +114,37 @@ async function postSchemaIntent(
   return { status: res.status, json: await res.json() };
 }
 
+/** Shape of `GET /api/proposals` (list) JSON — declared once, used for the cast + return type. */
+interface ProposalsListJson {
+  success: boolean;
+  data: { items: Array<Record<string, unknown>>; total: number };
+}
+/** Shape of `GET /api/proposals/:id` (single) JSON. */
+interface ProposalByIdJson {
+  success: boolean;
+  data?: Record<string, unknown>;
+}
+
 async function getProposals(
   port: number,
   capability?: string,
-): Promise<{
-  status: number;
-  json: { success: boolean; data: { items: Array<Record<string, unknown>>; total: number } };
-}> {
+): Promise<{ status: number; json: ProposalsListJson }> {
   // The governed engine is a process-global singleton with no public reset, so
   // tests scope their assertions to the capability they create rather than the
   // engine total — robust against accumulation across scenarios.
   const qs = capability ? `?capability=${encodeURIComponent(capability)}` : "";
   const res = await fetch(`http://localhost:${port}/api/proposals${qs}`);
-  return { status: res.status, json: (await res.json()) as never };
+  // `res.json()` is typed `Promise<unknown>`; assert the documented API shape
+  // (not `as never`, which would erase all type checking on the response).
+  return { status: res.status, json: (await res.json()) as ProposalsListJson };
 }
 
 async function getProposalById(
   port: number,
   id: string,
-): Promise<{ status: number; json: { success: boolean; data?: Record<string, unknown> } }> {
+): Promise<{ status: number; json: ProposalByIdJson }> {
   const res = await fetch(`http://localhost:${port}/api/proposals/${id}`);
-  return { status: res.status, json: (await res.json()) as never };
+  return { status: res.status, json: (await res.json()) as ProposalByIdJson };
 }
 
 // ── Scenario 1+2: Happy path + never applies ─────────────────
