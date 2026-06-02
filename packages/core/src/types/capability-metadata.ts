@@ -44,6 +44,13 @@ const extensionManifestSchema = z.object({
   ruleEffects: z.array(z.string()).optional(),
   /** Hook identifiers */
   hooks: z.array(z.string()).optional(),
+  /**
+   * Interceptor point names this capability attaches to via
+   * `extensions.interceptors` — the value-returning extension seam (Spec 63
+   * §4.2, e.g. "field-lock-check"). Distinct from `hooks`: an interceptor
+   * transforms and returns a value rather than reacting to an event.
+   */
+  interceptors: z.array(z.string()).optional(),
   /** Middleware slot names */
   middlewares: z.array(z.string()).optional(),
   /** CLI command names */
