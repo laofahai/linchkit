@@ -61,8 +61,12 @@ export interface FieldLockInterceptorOptions {
    * exactly like `logger`; when omitted, no event is emitted. The host maps the
    * event to a notification / execution-log entry, keeping cap-lock free of any
    * notification or event-bus dependency.
+   *
+   * May be sync or async (notification dispatch / event-bus publish typically
+   * returns a `Promise`). Both a synchronous throw AND an async rejection are
+   * isolated by the interceptor so a faulty sink can never break the write path.
    */
-  emitEvent?: (event: LockOverrideEvent) => void;
+  emitEvent?: (event: LockOverrideEvent) => void | Promise<void>;
 }
 
 /**
@@ -149,10 +153,21 @@ export function createFieldLockInterceptor(
       // Spec 63 §4.2 Notification: emit a structured override event 1:1 with the
       // audit log. The host wires the sink (EventHandler / execution log); cap-lock
       // stays dependency-free. A faulty sink must never turn an allowed write into
-      // a throw, so the emit is fully isolated.
+      // a throw, so the emit is fully isolated — for BOTH a synchronous throw and
+      // an async rejection (the sink is likely a Promise-returning dispatch).
       if (emitEvent) {
         try {
-          emitEvent(buildLockOverrideEvent({ reason, context, violations: audited }));
+          const result = emitEvent(
+            buildLockOverrideEvent({ reason, context, violations: audited }),
+          );
+          if (result instanceof Promise) {
+            // Swallow async rejection so it never becomes an unhandled rejection.
+            result.catch((err: unknown) => {
+              logger?.warn("cap-lock emitEvent sink rejected; event dropped", {
+                error: String(err),
+              });
+            });
+          }
         } catch (err) {
           logger?.warn("cap-lock emitEvent sink threw; event dropped", { error: String(err) });
         }

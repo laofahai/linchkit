@@ -501,6 +501,43 @@ describe("cap-lock field-lock-check interceptor", () => {
       expect(logger.calls.find((c) => c.level === "warn")).toBeDefined();
     });
 
+    it("async sink rejects → suppression returns, rejection is isolated (no unhandled rejection)", async () => {
+      const logger = createFakeLogger();
+      const handler = createFieldLockInterceptor({
+        policy: resolveCapLockPolicy({ shadowMode: true }),
+        logger,
+        now: () => Date.parse("2026-01-01T00:01:00Z"),
+        // A Promise-returning sink that rejects — the common async-dispatch case.
+        emitEvent: () => Promise.reject(new Error("async boom")),
+      });
+
+      // The handler's own promise must resolve to the suppression result and must
+      // NOT reject — the async rejection is caught inside the interceptor.
+      const result = await handler(makeViolations(), makeContext());
+      expect(result).toEqual([]);
+
+      // Let the queued .catch microtask run, then assert it was logged at warn.
+      await Promise.resolve();
+      expect(logger.calls.find((c) => c.level === "warn")).toBeDefined();
+    });
+
+    it("async sink resolves → event still emitted, no error", async () => {
+      const events: LockOverrideEvent[] = [];
+      const handler = createFieldLockInterceptor({
+        policy: resolveCapLockPolicy({ shadowMode: true }),
+        now: () => Date.parse("2026-01-01T00:01:00Z"),
+        emitEvent: (e) => {
+          events.push(e);
+          return Promise.resolve();
+        },
+      });
+
+      const result = await handler(makeViolations(), makeContext());
+      expect(result).toEqual([]);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.reason).toBe("shadow");
+    });
+
     it("recordId: string id surfaces; non-string/absent id is omitted", async () => {
       // String id → surfaced.
       const withId = buildEventHandler({ config: { shadowMode: true } });

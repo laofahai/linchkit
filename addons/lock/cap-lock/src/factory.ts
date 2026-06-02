@@ -38,8 +38,9 @@ export interface CapLockOptions {
    * Optional sink for `lock.override` events (Spec 63 §4.2 Notification). Wired
    * the same way as `logger`. When omitted, no events are emitted. cap-lock takes
    * no notification/event-bus dependency — the host decides where the event goes.
+   * May be sync or async; the interceptor isolates both throws and rejections.
    */
-  emitEvent?: (event: LockOverrideEvent) => void;
+  emitEvent?: (event: LockOverrideEvent) => void | Promise<void>;
 }
 
 export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
