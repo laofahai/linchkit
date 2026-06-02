@@ -366,23 +366,59 @@ describe("CacheManager event-driven invalidation", () => {
     expect(manager.get("t2-data")).toBe("v2"); // different tenant, unaffected
   });
 
-  it("invalidates permission caches on permission-related actions", async () => {
+  // Permission caches are invalidated by writes to the PERMISSION ENTITIES
+  // (the rows authorization is derived from), NOT by matching action-name
+  // prefixes. The previous test used a fictional `assign_role_to_user` action
+  // that does not exist in cap-permission — it matched a drifted prefix while
+  // the REAL actions (assign_user/revoke_user → permission_assignment;
+  // create_group/update_permissions → permission_group) did not, so a revoked
+  // user stayed authorized until TTL (fail-open). These cases use the real
+  // production signals.
+  it("flushes perm cache when a user's group membership changes (assign/revoke_user)", async () => {
+    const { bus } = createEventBus();
+    const manager = new CacheManager({ eventBus: bus });
+
+    // assign_user creates a permission_assignment row...
+    manager.set("perm1", "allowed", { tags: ["perm:t1"] });
+    await bus.emit(
+      makeEvent("record.created", { entity: "permission_assignment", tenantId: "t1" }),
+    );
+    expect(manager.get("perm1")).toBeUndefined();
+
+    // ...and revoke_user deletes one — the case the old prefix list missed.
+    manager.set("perm2", "allowed", { tags: ["perm:t1"] });
+    await bus.emit(
+      makeEvent("record.deleted", { entity: "permission_assignment", tenantId: "t1" }),
+    );
+    expect(manager.get("perm2")).toBeUndefined();
+  });
+
+  it("flushes perm cache when a group's grants change (create_group/update_permissions)", async () => {
     const { bus } = createEventBus();
     const manager = new CacheManager({ eventBus: bus });
 
     manager.set("perm1", "allowed", { tags: ["perm:t1"] });
     manager.set("other", "value", { tags: ["entity:t1:products"] });
 
-    await bus.emit(
-      makeEvent("record.updated", {
-        entity: "roles",
-        tenantId: "t1",
-        action: "assign_role_to_user",
-      }),
-    );
+    await bus.emit(makeEvent("record.updated", { entity: "permission_group", tenantId: "t1" }));
 
     expect(manager.get("perm1")).toBeUndefined();
-    expect(manager.get("other")).toBe("value"); // different schema tag, unaffected
+    expect(manager.get("other")).toBe("value"); // different tag, unaffected
+  });
+
+  it("does NOT flush perm cache for a non-permission entity write", async () => {
+    const { bus } = createEventBus();
+    const manager = new CacheManager({ eventBus: bus });
+
+    manager.set("perm1", "allowed", { tags: ["perm:t1"] });
+
+    // A plain business write (even one named like a role action) must not flush
+    // perm — invalidation is entity-based, not action-name-based.
+    await bus.emit(
+      makeEvent("record.updated", { entity: "orders", tenantId: "t1", action: "assign_role" }),
+    );
+
+    expect(manager.get("perm1")).toBe("allowed");
   });
 
   it("ignores non-write events", async () => {

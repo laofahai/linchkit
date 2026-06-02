@@ -35,8 +35,9 @@ export interface CapPermissionOptions {
   /**
    * Optional cache manager for caching permission decisions.
    * Cache key: perm:{tenantId}:{userId}:{command}:{schema}, 10min TTL.
-   * Invalidated automatically when permission-related actions execute
-   * (assign_role, revoke_role, update_permission) via CacheManager event handling.
+   * Invalidated automatically whenever a write touches a permission entity
+   * (`permission_assignment` via assign_user/revoke_user, `permission_group`
+   * via create_group/update_permissions) — see CacheManager.PERMISSION_ENTITIES.
    */
   cacheManager?: CacheManager;
 

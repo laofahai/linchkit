@@ -56,13 +56,23 @@ export interface NamespacedCache {
 /** Runtime events emitted by Action Engine after successful writes */
 const WRITE_EVENT_TYPES = new Set(["record.created", "record.updated", "record.deleted"]);
 
-/** Permission-related action names whose success should flush permission caches */
-const PERMISSION_ACTION_PREFIXES = [
-  "assign_role",
-  "revoke_role",
-  "update_role",
-  "update_permission",
-];
+/**
+ * Entity names whose writes change authorization → flush permission caches.
+ *
+ * Permission decisions are DERIVED from rows in these entities, so any
+ * create/update/delete on them must invalidate the `perm:` cache:
+ *  - `permission_assignment` — a user's group membership (assign_user / revoke_user)
+ *  - `permission_group`       — a group's grants (create_group / update_permissions)
+ *
+ * Keying on the entity (stable schema) rather than action-name prefixes is
+ * deliberate: a prior prefix list (`assign_role`/`revoke_role`/…) had DRIFTED
+ * from the real cap-permission action names (`assign_user`/`revoke_user`/
+ * `create_group`/`update_permissions`), so `revoke_user` never matched and a
+ * revoked user stayed authorized until the cache TTL expired (fail-open). Entity
+ * names don't drift on action renames. If permission state ever moves to other
+ * entities, add them here.
+ */
+const PERMISSION_ENTITIES = new Set(["permission_assignment", "permission_group"]);
 
 // ── CacheManager ──────────────────────────────────────────
 
@@ -255,7 +265,7 @@ export class CacheManager {
   handleEvent(event: EventRecord): void {
     if (!WRITE_EVENT_TYPES.has(event.type)) return;
 
-    const { entity, tenantId, action } = event;
+    const { entity, tenantId } = event;
 
     // Invalidate query caches for the affected entity
     if (entity) {
@@ -264,8 +274,10 @@ export class CacheManager {
       this.logger?.debug?.(`Cache invalidated ${count} entries for tag "${tag}" on ${event.type}`);
     }
 
-    // Invalidate permission caches if the action is permission-related
-    if (action && PERMISSION_ACTION_PREFIXES.some((p) => action.startsWith(p))) {
+    // Invalidate permission caches when a write touches a permission entity
+    // (group membership or a group's grants). Entity-based so it can't drift
+    // from cap-permission's action names (see PERMISSION_ENTITIES).
+    if (entity && PERMISSION_ENTITIES.has(entity)) {
       const permTag = tenantId ? `perm:${tenantId}` : "perm";
       const count = this.invalidateByTag(permTag);
       this.logger?.debug?.(`Cache invalidated ${count} permission entries for tag "${permTag}"`);
