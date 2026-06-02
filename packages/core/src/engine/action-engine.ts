@@ -16,7 +16,7 @@ import { getCurrentTrace } from "../observability/trace-context";
 import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
-import type { FieldDefinition } from "../types/entity";
+import type { FieldDefinition, LockCondition } from "../types/entity";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { ExecutionMeta } from "../types/execution-meta";
 import {
@@ -33,6 +33,7 @@ import {
   LockPreflightError,
   LockViolationError,
 } from "./field-lock-checker";
+import type { InterceptorRegistry } from "./interceptors";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
 
@@ -239,6 +240,15 @@ export interface ActionExecutorOptions {
    * can omit this; production wiring (Runtime) always supplies it.
    */
   entityRegistry?: EntityRegistry;
+  /**
+   * Interceptor registry for value-returning core extension points (Spec 63
+   * Phase 3). Currently wires the `field-lock-check` point: a policy
+   * capability can transform the field-lock violation set (shadow / bypass /
+   * tolerance) before the engine throws. When omitted — or when no
+   * `field-lock-check` interceptor is registered — the lock check behaves
+   * byte-for-byte as Phase 1 (the registry's `run` is an identity).
+   */
+  interceptorRegistry?: InterceptorRegistry;
 }
 
 /**
@@ -279,6 +289,60 @@ function fillMissingSystemKeys(
 }
 
 /**
+ * Run the field-lock check and thread the resulting violations through the
+ * `field-lock-check` interceptor point (Spec 63 Phase 3), returning the
+ * (possibly transformed) violation set.
+ *
+ * Both update paths — the `ctx.update()` handler wrapper and the declarative
+ * `setFields` / `stateTransition` path — share this exact sequence; extracting
+ * it keeps them byte-for-byte identical. The interceptor step is an identity
+ * when no `field-lock-check` interceptor is registered, so behavior is
+ * unchanged from Phase 1 in that case.
+ */
+async function checkAndRunFieldLockInterceptor(opts: {
+  entity: string;
+  fields: Record<string, FieldDefinition>;
+  lockAllWhen: LockCondition | undefined;
+  lockAllowFields: string[] | undefined;
+  existingRecord: Record<string, unknown>;
+  writesToCheck: Record<string, unknown>;
+  actor: Actor;
+  tenantId?: string;
+  interceptorRegistry?: InterceptorRegistry;
+}): Promise<FieldLockViolation[]> {
+  const {
+    entity,
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    writesToCheck,
+    actor,
+    tenantId,
+    interceptorRegistry,
+  } = opts;
+  let violations = checkFieldLocks({
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    input: writesToCheck,
+  });
+  // Spec 63 Phase 3: let a policy capability transform the violation set
+  // (shadow / bypass / tolerance). Identity when no interceptor is registered.
+  if (interceptorRegistry?.has("field-lock-check")) {
+    violations = await interceptorRegistry.run("field-lock-check", violations, {
+      entity,
+      actor,
+      record: existingRecord,
+      input: writesToCheck,
+      tenantId,
+    });
+  }
+  return violations;
+}
+
+/**
  * Create an ActionExecutor instance.
  *
  * The executor follows the simplified M0b execution flow:
@@ -306,6 +370,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     eventBus,
     capabilityNames = new Set<string>(),
     entityRegistry,
+    interceptorRegistry,
   } = options;
 
   /** Silent noop logger — used when no logger is injected */
@@ -1081,12 +1146,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
               }
               const writesToCheck: Record<string, unknown> = { ...data };
               delete writesToCheck.id;
-              const violations = checkFieldLocks({
+              const violations = await checkAndRunFieldLockInterceptor({
+                entity,
                 fields: targetFields,
                 lockAllWhen: targetLockAllWhen,
                 lockAllowFields: targetLockAllowFields,
                 existingRecord: current,
-                input: writesToCheck,
+                writesToCheck,
+                actor,
+                tenantId: execOptions?.tenantId,
+                interceptorRegistry,
               });
               if (violations.length > 0) {
                 throw new LockViolationError(violations, entity);
@@ -1402,12 +1471,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 }
                 const writesToCheck: Record<string, unknown> = { ...updates };
                 delete writesToCheck.id;
-                const violations = checkFieldLocks({
+                const violations = await checkAndRunFieldLockInterceptor({
+                  entity: action.entity,
                   fields: resolvedFields,
                   lockAllWhen,
                   lockAllowFields,
                   existingRecord: txCurrent,
-                  input: writesToCheck,
+                  writesToCheck,
+                  actor,
+                  tenantId: execOptions?.tenantId,
+                  interceptorRegistry,
                 });
                 if (violations.length > 0) {
                   throw new LockViolationError(violations, action.entity);

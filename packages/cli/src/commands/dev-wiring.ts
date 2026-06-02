@@ -18,6 +18,7 @@ import type {
   CapabilityDefinition,
   DataProvider,
   EntityDefinition,
+  InterceptorRegistration,
   LinchKitConfig,
   MiddlewareRegistration,
   RelationDefinition,
@@ -76,6 +77,7 @@ import {
   type OverlayRegistry,
   type PermissionRegistry,
 } from "@linchkit/core/server";
+import { buildInterceptorRegistry } from "./startup/build-interceptor-registry";
 
 // ── Input types ─────────────────────────────────────────────
 
@@ -99,6 +101,8 @@ export interface WireDevEnginesInput {
   links: RelationDefinition[];
   rules: RuleDefinition[];
   middlewares: MiddlewareRegistration[];
+  /** Interceptors collected from cap.extensions.interceptors (Spec 63 Phase 3) */
+  interceptors: InterceptorRegistration[];
   capabilities: CapabilityDefinition[];
 
   /** Sensors collected from cap.extensions.sensors (Spec 55 §3.3) */
@@ -137,6 +141,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     links,
     rules,
     middlewares,
+    interceptors,
     capabilities,
     sensors,
     dbInstance,
@@ -223,6 +228,12 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   // Build capability name set for ctx.hasCapability() weak dependency checks
   const capabilityNames = new Set(capabilities.map((c) => c.name));
 
+  // Interceptor registry — value-returning extension points (Spec 63 Phase 3).
+  // Built in a focused helper so the Action Engine can thread the field-lock
+  // violation set through policy capabilities. When no interceptors are
+  // registered, the engine's lock check behaves identically to Phase 1.
+  const interceptorRegistry = buildInterceptorRegistry(interceptors);
+
   const executor = createActionExecutor({
     dataProvider: overlayAwareDataProvider,
     transactionManager,
@@ -231,6 +242,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     eventBus,
     capabilityNames,
     entityRegistry,
+    interceptorRegistry,
   });
   for (const action of actionRegistry.getAll()) {
     executor.registry.register(action);

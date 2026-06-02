@@ -300,6 +300,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "createFlowRegistry",
   "createFlowStepContext",
   "createGeneratorPriorityAggregator",
+  "createInterceptorRegistry",
   "createInterfaceRegistry",
   "createMigrationCoordinator",
   "createNoopAIService",

@@ -53,6 +53,16 @@ export {
   type GeneratorWeightRecord,
   type OutcomeObservation,
 } from "../../engine/generator-priority-aggregator";
+// Interceptors — value-returning capability → core extension points (Spec 63 Phase 3).
+export {
+  createInterceptorRegistry,
+  type FieldLockCheckContext,
+  type Interceptor,
+  type InterceptorCatalog,
+  type InterceptorPoint,
+  type InterceptorRegistration,
+  type InterceptorRegistry,
+} from "../../engine/interceptors";
 export {
   createOnchangeEvaluator,
   DEFAULT_COMPUTE_TIMEOUT_MS,
@@ -125,7 +135,6 @@ export {
   type RollbackInsightEmitterOptions,
   rollbackInsightId,
 } from "../../engine/rollback-insight-emitter";
-
 export {
   collectRules,
   evaluateConditions,
