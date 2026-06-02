@@ -38,6 +38,8 @@ export {
   DEFAULT_ONCHANGE_DEBOUNCE_MS,
   useEntityOnchange,
 } from "./hooks/use-entity-onchange";
+// Field-lock bypass (Spec 63 §5.2)
+export { useFieldLockBypass } from "./hooks/use-field-lock-bypass";
 export type { FieldLockStateMap, UseFieldLockStateArgs } from "./hooks/use-field-lock-state";
 // Field-lock state (Spec 63 §5.1)
 export { useFieldLockState } from "./hooks/use-field-lock-state";

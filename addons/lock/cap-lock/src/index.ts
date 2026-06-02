@@ -6,6 +6,9 @@
  * interceptor. With default config it is a no-op over core (fail-closed).
  */
 
+// Shared actor-level bypass predicate (used by interceptor + GraphQL extension)
+export type { ActorBypassReason, ActorBypassResult } from "./bypass";
+export { evaluateActorBypass } from "./bypass";
 // Capability definition (static, default config)
 export { capLock } from "./capability";
 // Config schema + policy resolver
@@ -20,3 +23,6 @@ export type {
   LockSuppressionReason,
 } from "./field-lock-interceptor";
 export { createFieldLockInterceptor } from "./field-lock-interceptor";
+// GraphQL extension (read-side IoC counterpart to the interceptor)
+export type { LockGraphQLExtension, LockGraphQLExtensionOptions } from "./graphql";
+export { buildLockGraphQLExtension } from "./graphql";

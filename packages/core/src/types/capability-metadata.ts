@@ -51,6 +51,14 @@ const extensionManifestSchema = z.object({
    * transforms and returns a value rather than reacting to an event.
    */
   interceptors: z.array(z.string()).optional(),
+  /**
+   * GraphQL query/mutation field names this capability contributes via
+   * `extensions.graphqlExtensions` — the read-side IoC seam merged into the
+   * root schema by adapter-server (Spec 63 §5.2, e.g. "fieldLockBypass").
+   * Declarative-only manifest mirror of the runtime extension, exactly like
+   * `interceptors` above.
+   */
+  graphqlExtensions: z.array(z.string()).optional(),
   /** Middleware slot names */
   middlewares: z.array(z.string()).optional(),
   /** CLI command names */

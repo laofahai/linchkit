@@ -97,6 +97,15 @@
       "hasErrors": "Please fix the errors below before submitting",
       "uniqueHint": "Must be unique — validated on save"
     },
+    "lock": {
+      "immutable": "This field cannot be changed after creation",
+      "locked": "This field is locked in the current state",
+      "lockedInState": "Locked because the record is in state \"{{status}}\"",
+      "ariaLabel": "Locked field",
+      "canOverride": "Locked — you may override. Click to unlock.",
+      "unlocked": "Unlocked — you may edit this field",
+      "toggleAriaLabel": "Toggle field lock"
+    },
     "overlayFields": "Custom Fields"
   },
   "list": {

@@ -13,6 +13,7 @@ import type { CapabilityDefinition, InterceptorRegistration, Logger } from "@lin
 import { defineCapability } from "@linchkit/core";
 import { type CapLockPolicy, capLockConfig, resolveCapLockPolicy } from "./config";
 import { createFieldLockInterceptor } from "./field-lock-interceptor";
+import { buildLockGraphQLExtension } from "./graphql";
 
 export interface CapLockOptions {
   /**
@@ -64,7 +65,16 @@ export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
     configSchema: capLockConfig.schema,
     config: policy,
 
-    extensions: { interceptors },
+    extensions: {
+      interceptors,
+      // Read-side IoC counterpart to the interceptor: a single `fieldLockBypass`
+      // query the auto-form uses to render an unlock affordance for
+      // bypass-eligible actors. Core's `GraphQLExtensionRegistration` only
+      // carries `queryFields`/`mutationFields` (no `types`); the
+      // `FieldLockBypass` object type is reachable from the field's return type,
+      // so graphql-js registers it automatically.
+      graphqlExtensions: { queryFields: buildLockGraphQLExtension({ policy }).queryFields },
+    },
 
     systemPermissions: ["database.read"],
   });

@@ -13,6 +13,9 @@
   "scripts": {
     "test": "bun test"
   },
+  "dependencies": {
+    "graphql": "^16.13.1"
+  },
   "peerDependencies": {
     "@linchkit/core": "^0.2.0"
   },

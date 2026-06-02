@@ -339,6 +339,9 @@
     "addons/lock/cap-lock": {
       "name": "@linchkit/cap-lock",
       "version": "1.0.0",
+      "dependencies": {
+        "graphql": "^16.13.1",
+      },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
