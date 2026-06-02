@@ -208,7 +208,10 @@ export function buildFieldMetaList(
       // `lockMode` governs the CONDITIONAL lock only; `immutable` is always hard
       // and a field with no lock reports "hard" (a non-null string keeps the
       // GraphQL field simple; it is only actionable alongside a lock condition).
-      lockMode: field.lockMode === "soft" ? "soft" : "hard",
+      // Gate "soft" on an actual, non-immutable conditional lock so the metadata
+      // matches runtime behavior (an immutable or unlocked field is never soft) —
+      // mirrors adapter-ui's field-lock-state.ts.
+      lockMode: !immutable && condition && field.lockMode === "soft" ? "soft" : "hard",
     });
   }
 

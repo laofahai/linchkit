@@ -61,21 +61,24 @@ interface FieldLockBadgeProps {
  */
 export function resolveLockTooltip(
   t: TFunction,
-  reason: FieldLockReason,
-  status?: string,
-  opts?: { soft?: boolean; unlocked?: boolean },
+  opts: {
+    reason: FieldLockReason;
+    status?: string;
+    soft?: boolean;
+    unlocked?: boolean;
+  },
 ): string {
   // Soft lock, not yet unlocked → prompt the user that editing needs confirmation.
-  if (opts?.soft && !opts.unlocked) {
+  if (opts.soft && !opts.unlocked) {
     return t("form.lock.softLocked", "Locked — editing requires confirmation. Click to confirm.");
   }
-  if (reason === "immutable") {
+  if (opts.reason === "immutable") {
     return t("form.lock.immutable", "This field cannot be changed after creation");
   }
-  if (status) {
+  if (opts.status) {
     return t("form.lock.lockedInState", {
       defaultValue: 'Locked because the record is in state "{{status}}"',
-      status,
+      status: opts.status,
     });
   }
   return t("form.lock.locked", "This field is locked in the current state");
@@ -112,7 +115,7 @@ export function FieldLockBadge({
     const tooltip = unlocked
       ? t("form.lock.unlocked", "Unlocked — you may edit this field")
       : soft
-        ? resolveLockTooltip(t, reason, status, { soft: true, unlocked: false })
+        ? resolveLockTooltip(t, { reason, status, soft: true, unlocked: false })
         : t("form.lock.canOverride", "Locked — you may override. Click to unlock.");
     const Icon = unlocked ? LockOpen : Lock;
 
@@ -172,7 +175,7 @@ export function FieldLockBadge({
   }
 
   // Static (non-bypass, non-soft) badge — preserved byte-for-byte from the original.
-  const tooltip = resolveLockTooltip(t, reason, status);
+  const tooltip = resolveLockTooltip(t, { reason, status });
 
   return (
     <TooltipProvider delayDuration={300}>

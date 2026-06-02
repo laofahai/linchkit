@@ -171,6 +171,30 @@ describe("buildFieldMetaList", () => {
     expect(discount?.lockMode).toBe("soft");
   });
 
+  // Spec 63 §4.2 — `lockMode` governs the CONDITIONAL lock only. A stray
+  // `lockMode: "soft"` on an immutable field, or on a field with no active lock,
+  // must NOT introspect as soft (immutable is always hard; an unlocked field has
+  // no soft semantics) — keeps GraphQL metadata aligned with runtime behavior and
+  // with adapter-ui's field-lock-state.ts.
+  test("lockMode: soft is ignored on immutable or unlocked fields", () => {
+    const guarded: EntityDefinition = {
+      name: "guarded",
+      label: "Guarded",
+      fields: {
+        // immutable + soft declared → still hard (immutable wins, no conditional lock)
+        frozen: { type: "string", immutable: true, lockMode: "soft" },
+        // soft declared but NO lockWhen and no entity lockAllWhen → unlocked → hard
+        loose: { type: "string", lockMode: "soft" },
+        // soft + an actual conditional lock → genuinely soft
+        editable: { type: "number", lockWhen: { state: "posted" }, lockMode: "soft" },
+      },
+    };
+    const byField = new Map(buildFieldMetaList(guarded).map((m) => [m.name, m]));
+    expect(byField.get("frozen")?.lockMode).toBe("hard");
+    expect(byField.get("loose")?.lockMode).toBe("hard");
+    expect(byField.get("editable")?.lockMode).toBe("soft");
+  });
+
   test("active overlay fields are surfaced as unlocked, collisions skipped", () => {
     const overlays: FieldOverlayRecord[] = [
       {
