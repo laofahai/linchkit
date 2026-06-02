@@ -34,7 +34,7 @@ const ctx: FieldLockCheckContext = {
 };
 
 function violation(field: string): FieldLockViolation {
-  return { field, type: "immutable", message: `Field "${field}" is immutable` };
+  return { field, type: "immutable", mode: "hard", message: `Field "${field}" is immutable` };
 }
 
 /** Logger spy that records every error call. */

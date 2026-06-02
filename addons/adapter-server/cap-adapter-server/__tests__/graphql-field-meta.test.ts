@@ -18,6 +18,7 @@ import {
 //  - title:    no per-field lock → covered by entity-level lockAllWhen
 //  - notes:    in lockAllowFields → exempt from lockAllWhen
 //  - plain:    no lock at all (exempt from lockAllWhen)
+//  - discount: per-field lockWhen with lockMode: "soft" (Spec 63 §4.2)
 const orderSchema: EntityDefinition = {
   name: "purchase_order",
   label: "Purchase Order",
@@ -31,6 +32,7 @@ const orderSchema: EntityDefinition = {
     title: { type: "string", label: "Title" },
     notes: { type: "text", label: "Notes" },
     plain: { type: "string", label: "Plain" },
+    discount: { type: "number", lockWhen: { state: "posted" }, lockMode: "soft" },
   },
 };
 
@@ -108,7 +110,7 @@ describe("buildFieldMetaList", () => {
 
   test("emits one meta per user-defined field", () => {
     expect(list.map((m) => m.name).sort()).toEqual(
-      ["amount", "code", "legacy", "notes", "plain", "supplier", "title"].sort(),
+      ["amount", "code", "discount", "legacy", "notes", "plain", "supplier", "title"].sort(),
     );
   });
 
@@ -155,6 +157,20 @@ describe("buildFieldMetaList", () => {
     expect(plain?.lockSource).toBe("none");
   });
 
+  test("lockMode defaults to hard for immutable, conditional, and unlocked fields", () => {
+    // immutable, per-field hard lock, and a plain unlocked field all → "hard".
+    expect(byName.get("code")?.lockMode).toBe("hard");
+    expect(byName.get("amount")?.lockMode).toBe("hard");
+    expect(byName.get("plain")?.lockMode).toBe("hard");
+  });
+
+  test("lockMode: soft is surfaced for a soft conditional lock (Spec 63 §4.2)", () => {
+    const discount = byName.get("discount");
+    expect(discount?.lockSource).toBe("field");
+    expect(discount?.lockWhen?.stateIn).toEqual(["posted"]);
+    expect(discount?.lockMode).toBe("soft");
+  });
+
   test("active overlay fields are surfaced as unlocked, collisions skipped", () => {
     const overlays: FieldOverlayRecord[] = [
       {
@@ -189,6 +205,8 @@ describe("buildFieldMetaList", () => {
     expect(color?.immutable).toBe(false);
     expect(color?.lockWhen).toBeNull();
     expect(color?.lockSource).toBe("none");
+    // Overlays cannot lock a field → conditional lock mode is the default "hard".
+    expect(color?.lockMode).toBe("hard");
 
     // The colliding overlay does NOT add a duplicate; "amount" keeps its
     // code-declared per-field lock.
@@ -209,6 +227,8 @@ describe("FieldMeta GraphQL type", () => {
     expect(fields.name.type).toBeInstanceOf(GraphQLNonNull);
     expect(fields.immutable.type).toBeInstanceOf(GraphQLNonNull);
     expect(fields.lockSource.type).toBeInstanceOf(GraphQLNonNull);
+    // lockMode is a non-null string ("hard" | "soft")
+    expect(fields.lockMode.type).toBeInstanceOf(GraphQLNonNull);
     // lockWhen is nullable (no NonNull wrapper) — fields without a lock are null
     expect(fields.lockWhen.type).not.toBeInstanceOf(GraphQLNonNull);
     // sanity: printable without throwing
@@ -240,6 +260,7 @@ describe("buildGraphQLSchema exposes <entity>FieldMeta", () => {
             name
             immutable
             lockSource
+            lockMode
             lockWhen {
               stateIn
               stateNotIn
@@ -256,6 +277,7 @@ describe("buildGraphQLSchema exposes <entity>FieldMeta", () => {
       name: string;
       immutable: boolean;
       lockSource: string;
+      lockMode: string;
       lockWhen: {
         stateIn: string[] | null;
         stateNotIn: string[] | null;
@@ -268,6 +290,11 @@ describe("buildGraphQLSchema exposes <entity>FieldMeta", () => {
     // immutable
     expect(byName.get("code")?.immutable).toBe(true);
     expect(byName.get("code")?.lockWhen).toBeNull();
+    expect(byName.get("code")?.lockMode).toBe("hard");
+
+    // soft conditional lock surfaces lockMode: "soft"
+    expect(byName.get("discount")?.lockSource).toBe("field");
+    expect(byName.get("discount")?.lockMode).toBe("soft");
 
     // per-field positive lockWhen
     expect(byName.get("amount")?.lockSource).toBe("field");

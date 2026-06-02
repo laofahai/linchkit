@@ -44,6 +44,7 @@ export {
 export {
   checkFieldLocks,
   type FieldLockCheckArgs,
+  type FieldLockMode,
   type FieldLockViolation,
   type FieldLockViolationType,
   matchesLockCondition,

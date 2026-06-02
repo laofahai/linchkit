@@ -799,6 +799,15 @@ export function AutoForm({
     }
   }
 
+  /**
+   * Whether a locked field can be unlocked from the form. True when the actor
+   * may bypass locks (Spec 63 §5.2) OR the lock is SOFT (advisory — anyone may
+   * unlock it via the two-step confirmation, Spec 63 §4.2).
+   */
+  function canUnlock(fieldName: string): boolean {
+    return fieldLockState[fieldName]?.mode === "soft" || canBypass;
+  }
+
   function isFieldReadonly(
     fieldName: string,
     fieldDef: FieldDefinition,
@@ -813,9 +822,10 @@ export function AutoForm({
     // edit, lockWhen/lockAllWhen by current state). Supersedes the previous
     // inline `immutable` check, which this hook also covers.
     if (fieldLockState[fieldName]?.locked) {
-      // Spec 63 §5.2 — a bypass-eligible actor who has explicitly unlocked the
-      // field may edit it; otherwise the lock stands.
-      if (canBypass && isUnlocked(fieldName)) return false;
+      // Spec 63 §5.2 / §4.2 — an actor who may unlock the field (bypass-eligible,
+      // or a SOFT lock anyone may confirm) and has explicitly unlocked it may
+      // edit it; otherwise the lock stands.
+      if (canUnlock(fieldName) && isUnlocked(fieldName)) return false;
       return true;
     }
     return false;
@@ -869,12 +879,17 @@ export function AutoForm({
     // Spec 63 §5.2 — when the actor may bypass, the badge becomes an unlock
     // toggle. `lock` is still passed even after a field is unlocked (readonly
     // cleared) so the open-lock toggle stays visible to re-lock the field.
+    // Spec 63 §4.2 — a soft (advisory) lock is unlockable by ANY actor via the
+    // badge's two-step confirmation, so the badge renders its toggle when
+    // `canBypass || soft`.
+    const soft = lockInfo?.mode === "soft";
     const lock =
       lockInfo?.locked && !isViewMode
         ? {
             reason: lockInfo.reason ?? "locked",
             status: resolvedStatus,
             canBypass,
+            soft,
             unlocked: isUnlocked(node.field),
             onToggle: () => toggleUnlock(node.field),
           }

@@ -22,7 +22,7 @@ function makeContext(): FieldLockCheckContext {
 }
 
 function makeViolations(): FieldLockViolation[] {
-  return [{ field: "amount", type: "locked", message: 'Field "amount" is locked' }];
+  return [{ field: "amount", type: "locked", mode: "hard", message: 'Field "amount" is locked' }];
 }
 
 describe("cap-lock capability metadata", () => {

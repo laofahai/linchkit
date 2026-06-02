@@ -38,6 +38,12 @@ export interface FieldLockState {
   locked: boolean;
   /** Which rule locked it (only set when `locked` is true). */
   reason?: FieldLockReason;
+  /**
+   * Enforcement mode of the lock (only set when `locked`). `"hard"` blocks the
+   * write; `"soft"` is advisory — the UI requires a two-step confirmation
+   * before accepting the change (Spec 63 §4.2). `immutable` is always `"hard"`.
+   */
+  mode?: "hard" | "soft";
   /** For `locked` reason: the condition that matched (for tooltip detail). */
   condition?: LockCondition;
 }
@@ -77,7 +83,8 @@ export function computeFieldLockState(args: ComputeFieldLockStateArgs): FieldLoc
   //    that the engine would refuse to change.
   const isImmutable = fieldDef.immutable === true || fieldDef.readonly === true;
   if (isEditMode && isImmutable) {
-    return { locked: true, reason: "immutable" };
+    // `immutable` is always hard — `lockMode` only governs conditional locks.
+    return { locked: true, reason: "immutable", mode: "hard" };
   }
 
   // 2. Conditional lock. Per-field `lockWhen` wins; otherwise fall back to
@@ -89,7 +96,13 @@ export function computeFieldLockState(args: ComputeFieldLockStateArgs): FieldLoc
     (lockAllowFields?.includes(fieldName) || isSystemField ? undefined : lockAllWhen);
 
   if (lockCondition && matchesLockCondition(record, lockCondition)) {
-    return { locked: true, reason: "locked", condition: lockCondition };
+    // Conditional lock honors the field's `lockMode` (Spec 63 §4.2, default hard).
+    return {
+      locked: true,
+      reason: "locked",
+      mode: fieldDef.lockMode === "soft" ? "soft" : "hard",
+      condition: lockCondition,
+    };
   }
 
   return UNLOCKED;

@@ -47,6 +47,21 @@ describe("resolveLockTooltip", () => {
       'Locked because the record is in state "submitted"',
     );
   });
+
+  // Spec 63 §4.2 SOFT_LOCK — a soft-locked, not-yet-confirmed field gets the
+  // "editing requires confirmation" message regardless of reason/status.
+  test("soft lock not yet unlocked → softLocked confirmation prompt", () => {
+    expect(resolveLockTooltip(t, "locked", "submitted", { soft: true, unlocked: false })).toBe(
+      "Locked — editing requires confirmation. Click to confirm.",
+    );
+  });
+
+  test("soft lock already unlocked → falls through to the normal reason message", () => {
+    // Once unlocked, the soft prompt no longer applies; the standard mapping wins.
+    expect(resolveLockTooltip(t, "locked", "submitted", { soft: true, unlocked: true })).toBe(
+      'Locked because the record is in state "submitted"',
+    );
+  });
 });
 
 // ── fetchCanBypass (hook data layer) ─────────────────────────
