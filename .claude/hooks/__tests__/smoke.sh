@@ -292,6 +292,36 @@ check "post-commit keeps cross_model_review" "wf_has cross_model_review"
 wf_reset
 
 echo
+echo "== pre-bun-guard.sh =="
+# Feed fixture JSON to the bun-guard via stdin and assert the exit code.
+# 0 = allowed, 2 = blocked. Fixtures live INSIDE this file so the active guard
+# on the developer's own shell never inspects (and blocks) the trigger tokens.
+bun_guard_rc() {
+  # $1 = command string. Echoes the guard's exit code.
+  local rc
+  make_input "$1" | bash "$HOOKS/pre-bun-guard.sh" >/dev/null 2>&1 && rc=0 || rc=$?
+  printf '%s' "$rc"
+}
+
+# SHOULD BLOCK (exit 2) — real unquoted node/npm/npx invocations.
+check "npm install → blocked"            "[ \"\$(bun_guard_rc 'npm install')\" = 2 ]"
+check "npx create-foo → blocked"         "[ \"\$(bun_guard_rc 'npx create-foo')\" = 2 ]"
+check "node server.ts → blocked"         "[ \"\$(bun_guard_rc 'node server.ts')\" = 2 ]"
+check "x && npm i → blocked"             "[ \"\$(bun_guard_rc 'x && npm i')\" = 2 ]"
+check "a; node b → blocked"              "[ \"\$(bun_guard_rc 'a; node b')\" = 2 ]"
+check "echo hi | npx cowsay → blocked"   "[ \"\$(bun_guard_rc 'echo hi | npx cowsay')\" = 2 ]"
+check "\$(npx z) → blocked"               "[ \"\$(bun_guard_rc '\$(npx z)')\" = 2 ]"
+
+# SHOULD ALLOW (exit 0) — bun usage, mirror URL, branch names, and the
+# two false-positive bugs this fix targets (tokens inside quoted literals).
+check "bun drizzle-kit → allowed"        "[ \"\$(bun_guard_rc 'bun ./node_modules/.bin/drizzle-kit push')\" = 0 ]"
+check "npmmirror URL → allowed"          "[ \"\$(bun_guard_rc 'curl https://registry.npmmirror.com/foo')\" = 0 ]"
+check "branch w/ node in name → allowed" "[ \"\$(bun_guard_rc 'git checkout feat/some-node-feature')\" = 0 ]"
+check "quoted grep pattern → allowed (BUG)"   "[ \"\$(bun_guard_rc 'grep -nE \"checkout -b|npx foo\" file')\" = 0 ]"
+check "quoted commit msg → allowed (BUG)"     "[ \"\$(bun_guard_rc 'git commit -m \"refactor; node bootstrap\"')\" = 0 ]"
+check "bun run check → allowed"          "[ \"\$(bun_guard_rc 'bun run check')\" = 0 ]"
+
+echo
 echo "== summary =="
 echo "pass: $pass"
 echo "fail: $fail"
