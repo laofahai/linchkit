@@ -25,7 +25,7 @@ import {
 } from "@linchkit/ui-kit/components";
 import type { TFunction } from "i18next";
 import { Lock, LockOpen } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { FieldLockReason } from "../lib/field-lock-state";
 import { ConfirmDialog } from "./confirm-dialog";
@@ -96,6 +96,13 @@ export function FieldLockBadge({
 }: FieldLockBadgeProps) {
   const { t } = useTranslation();
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // If the field is unlocked externally (e.g. an AI suggestion or a future
+  // "unlock all" action) while a stale confirm dialog state lingers, clear it —
+  // otherwise a later re-lock would auto-reopen the dialog without a click.
+  useEffect(() => {
+    if (unlocked) setConfirmOpen(false);
+  }, [unlocked]);
 
   // Interactive unlock toggle — bypass-eligible actor OR a soft (advisory) lock.
   if (canBypass || soft) {
