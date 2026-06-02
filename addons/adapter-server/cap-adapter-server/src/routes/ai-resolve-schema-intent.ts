@@ -32,6 +32,9 @@ import type {
   FieldDefinition,
   OntologyRegistry,
   PermissionRegistry,
+  ProposalChange,
+  ProposalDefinition,
+  RuleDefinition,
 } from "@linchkit/core";
 import type {
   Proposal,
@@ -40,9 +43,13 @@ import type {
   SchemaIntentOutcome,
 } from "@linchkit/core/ai";
 import { ProposalEngine, resolveSchemaIntent } from "@linchkit/core/ai";
-import { checkActionPermission } from "@linchkit/core/server";
+import {
+  checkActionPermission,
+  type ProposalEngine as GovernedProposalEngine,
+} from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import { z } from "zod";
+import { getSharedProposalEngine } from "../proposal-api";
 import type { ServerOptions } from "../server";
 import { resolveActor, serviceUnavailable } from "./shared";
 
@@ -148,6 +155,19 @@ export interface ResolveSchemaIntentResponse {
   outcome: SchemaIntentOutcome["kind"];
   /** Present only for `proposal_draft`. Always a `draft`-status Proposal. */
   proposal?: Proposal;
+  /**
+   * Present only for `proposal_draft`. The id of the GOVERNED Proposal that was
+   * persisted into the shared engine `/api/proposals` serves — so a client can
+   * fetch (`GET /api/proposals/:id`), approve, or reject the draft through the
+   * existing review flow. Always references a `draft`-status governed Proposal;
+   * this route never submits, approves, or applies it.
+   */
+  proposalId?: string;
+  /**
+   * Present only for `proposal_draft`. The governed Proposal's lifecycle status
+   * at persist time — always `"draft"` (never auto-submitted / approved here).
+   */
+  proposalStatus?: string;
   ruleName?: string;
   targetEntity?: string;
   confidence?: number;
@@ -160,12 +180,23 @@ export interface ResolveSchemaIntentResponse {
   message?: string;
 }
 
-function toResponse(outcome: SchemaIntentOutcome): ResolveSchemaIntentResponse {
+/**
+ * Build the wire response. For the `proposal_draft` path the route persists the
+ * draft into the shared governed engine FIRST and passes the resulting governed
+ * Proposal in `governed` so its id/status reach the client; the other paths
+ * persist nothing (no governed Proposal is created).
+ */
+function toResponse(
+  outcome: SchemaIntentOutcome,
+  governed?: ProposalDefinition,
+): ResolveSchemaIntentResponse {
   switch (outcome.kind) {
     case "proposal_draft":
       return {
         outcome: "proposal_draft",
         proposal: outcome.proposal,
+        proposalId: governed?.id,
+        proposalStatus: governed?.status,
         ruleName: outcome.ruleName,
         targetEntity: outcome.targetEntity,
         confidence: outcome.confidence,
@@ -186,6 +217,70 @@ function toResponse(outcome: SchemaIntentOutcome): ResolveSchemaIntentResponse {
   }
 }
 
+// ── Translate the resolver draft → governed Proposal ─────────
+
+/**
+ * Persist a resolver-produced `add_rule` draft into the shared GOVERNED engine
+ * (`packages/core/src/engine/proposal-engine.ts`) — the same instance
+ * `/api/proposals` reads from — so the NL draft surfaces in the review pipeline.
+ *
+ * The resolver runs ALL of its security validation first (prompt-injection
+ * sanitize → entity allowlist → strict structural rule allowlist). By the time
+ * we reach here the draft carries only a validated, typed `RuleDefinition`; we
+ * translate that into a single governed `ProposalChange`
+ * (`{ target: "rule", operation: "create", name, definition }`) and create the
+ * proposal in `draft` status. It is NEVER submitted, approved, or applied here —
+ * graduation is a separate, human-gated path.
+ *
+ * Returns `undefined` when the draft does not carry a usable rule definition
+ * (defensive — the resolver only emits `proposal_draft` with a built rule, but
+ * we never want a malformed change to reach the engine).
+ */
+function persistGovernedRuleDraft(opts: {
+  engine: GovernedProposalEngine;
+  draft: Proposal;
+  ruleName: string;
+  targetEntity: string;
+  explanation: string;
+  reasoning: string;
+  /** The actor who requested the resolution — recorded for the audit trail. */
+  actor: Actor;
+}): ProposalDefinition | undefined {
+  const { engine, draft, ruleName, targetEntity, explanation, reasoning, actor } = opts;
+
+  // The validated rule definition is the resolver draft's diff definition.
+  // Optional-chain `diff` defensively against runtime drift in the draft shape.
+  const definition = draft.diff?.definition;
+  if (!definition || typeof definition !== "object") return undefined;
+  const ruleDefinition = definition as RuleDefinition;
+
+  const change: ProposalChange = {
+    target: "rule",
+    operation: "create",
+    name: ruleName,
+    definition: ruleDefinition,
+    diff: explanation,
+  };
+
+  return engine.createProposal({
+    title: explanation,
+    // Preserve the original utterance as the proposal description's reasoning
+    // trail, plus the requesting actor for the audit trail (governance: record
+    // WHO initiated the AI resolution). The utterance is never interpolated into
+    // a privileged context — this string is display/audit metadata only.
+    description: `${reasoning}\n\n(Requested by ${actor.type}:${actor.id})`,
+    // The change originates from an AI resolution acting on the user's behalf.
+    author: { type: "ai", id: "schema-intent-resolver", name: "Schema Intent Resolver" },
+    // The rule attaches to its target entity — used as the governed
+    // capability/grouping key, mirroring the PatternDetector path in
+    // proposal-api.ts (capability = entity name).
+    capability: targetEntity,
+    // A new business rule is an additive, minor change.
+    changeType: "minor",
+    changes: [change],
+  });
+}
+
 // ── Route ───────────────────────────────────────────────────
 
 /**
@@ -198,12 +293,22 @@ function toResponse(outcome: SchemaIntentOutcome): ResolveSchemaIntentResponse {
  *         only fires on a programmer error).
  *   200 — every resolved outcome (proposal_draft / clarification / no_match).
  *
- * A route-owned `ProposalEngine` mints the draft. Drafts in this slice stop at
- * `draft` and are not graduated here, so a per-route engine is sufficient and
- * keeps the server wiring untouched.
+ * The resolver mints a lightweight in-memory draft through a route-owned engine
+ * (Engine A) AFTER running its full security validation. On the `proposal_draft`
+ * path the route then TRANSLATES that validated draft into the shared GOVERNED
+ * engine (Engine B — the one `/api/proposals` serves) so the NL draft enters the
+ * human review pipeline. The governed draft lands in `draft` status and is never
+ * submitted, approved, or applied here. `clarification` / `no_match` persist
+ * nothing.
  */
 export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOptions): void {
-  const proposalEngine = new ProposalEngine();
+  // Engine A — the resolver's lightweight draft sink. Drafts here are
+  // throwaway: every successful resolution is TRANSLATED into the shared
+  // governed engine (Engine B) below, then this engine is cleared so its
+  // in-memory map never grows unbounded across requests.
+  const draftEngine = new ProposalEngine();
+  // Engine B — the single GOVERNED Proposal engine `/api/proposals` serves.
+  const governedEngine = getSharedProposalEngine();
 
   app.post("/api/ai/resolve-schema-intent", async ({ body, request, set }) => {
     const parsed = resolveSchemaIntentRequestSchema.safeParse(body);
@@ -259,7 +364,8 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
         {
           provider: aiService,
           ontology,
-          proposalEngine,
+          // The resolver mints its draft + runs ALL security validation here.
+          proposalEngine: draftEngine,
         },
       );
     } catch (err) {
@@ -272,17 +378,35 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
         error: { code: "AI.RESOLVE_SCHEMA_INTENT.FAILED", message },
       };
     } finally {
-      // This slice STOPS at draft and returns it inline to the client — the
-      // draft is never persisted server-side for later approval here. Freeing
-      // the engine after each request prevents the in-memory map from growing
-      // unbounded across requests. toResponse() (below) reads the proposal
-      // object by reference, which survives this clear (we only drop the map
-      // entry, not the object); building the response first keeps the draft in
-      // the payload. Clearing also reinforces the "never applies" invariant —
-      // there is no server-side handle left to graduate.
-      proposalEngine.clear();
+      // The draft engine is throwaway — its entry has already been translated
+      // into the governed engine below (or, for non-`proposal_draft` outcomes,
+      // nothing was minted). Clearing keeps its in-memory map bounded across
+      // requests. The resolver's returned proposal object survives the clear
+      // (we only drop the map entry, not the object), so translation below can
+      // still read it by reference.
+      // NOTE: this clear runs BEFORE the persist below (finally fires on normal
+      // completion of the try); the translation reads `outcome.proposal` by
+      // reference, which is unaffected.
+      draftEngine.clear();
     }
 
-    return toResponse(outcome);
+    // ── Persist the GOVERNED draft (only for a real proposed rule) ──
+    // `clarification` / `no_match` are NOT governed changes — nothing is
+    // persisted for them. Only a validated `add_rule` draft becomes a governed
+    // Proposal in the shared engine `/api/proposals` reads from.
+    let governed: ProposalDefinition | undefined;
+    if (outcome.kind === "proposal_draft") {
+      governed = persistGovernedRuleDraft({
+        engine: governedEngine,
+        draft: outcome.proposal,
+        ruleName: outcome.ruleName,
+        targetEntity: outcome.targetEntity,
+        explanation: outcome.explanation,
+        reasoning: parsed.data.prompt,
+        actor,
+      });
+    }
+
+    return toResponse(outcome, governed);
   });
 }
