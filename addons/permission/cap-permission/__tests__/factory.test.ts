@@ -1,6 +1,21 @@
 import { describe, expect, it } from "bun:test";
-import { PermissionRegistry } from "@linchkit/core/server";
+import type { EventRecord } from "@linchkit/core";
+import { CacheManager, PermissionRegistry } from "@linchkit/core/server";
 import { createCapPermission } from "../src/factory";
+
+/** Minimal write EventRecord for driving CacheManager.handleEvent in tests. */
+function writeEvent(overrides: Partial<EventRecord>): EventRecord {
+  return {
+    id: "evt-test",
+    type: "record.deleted",
+    category: "runtime",
+    timestamp: new Date(),
+    actor: { type: "system", id: "test" },
+    executionId: "exec-test",
+    payload: {},
+    ...overrides,
+  };
+}
 
 describe("createCapPermission", () => {
   describe("without options", () => {
@@ -90,6 +105,45 @@ describe("createCapPermission", () => {
       expect(def.extensions?.middlewares).toHaveLength(1);
       expect(def.extensions?.middlewares?.[0]?.slot).toBe("permission");
       expect(def.extensions?.middlewares?.[0]?.priority).toBe(50);
+    });
+  });
+
+  // The permission domain owns the knowledge of which entity writes flush the
+  // permission-decision cache; createCapPermission registers that rule on the
+  // shared CacheManager (core stays domain-agnostic).
+  describe("with cacheManager (perm-cache invalidation wiring)", () => {
+    it("flushes perm:{tenant} when a permission_assignment write occurs (assign/revoke_user)", () => {
+      const cacheManager = new CacheManager();
+      createCapPermission({ cacheManager });
+
+      cacheManager.set("decision", "allowed", { tags: ["perm:t1"] });
+      // revoke_user deletes a permission_assignment row — the fail-open case.
+      cacheManager.handleEvent(
+        writeEvent({ type: "record.deleted", entity: "permission_assignment", tenantId: "t1" }),
+      );
+      expect(cacheManager.get("decision")).toBeUndefined();
+    });
+
+    it("flushes on permission_group writes but ignores unrelated entities", () => {
+      const cacheManager = new CacheManager();
+      createCapPermission({ cacheManager });
+
+      cacheManager.set("d1", "allowed", { tags: ["perm:t1"] });
+      cacheManager.handleEvent(
+        writeEvent({ type: "record.updated", entity: "permission_group", tenantId: "t1" }),
+      );
+      expect(cacheManager.get("d1")).toBeUndefined();
+
+      cacheManager.set("d2", "allowed", { tags: ["perm:t1"] });
+      cacheManager.handleEvent(
+        writeEvent({ type: "record.updated", entity: "orders", tenantId: "t1" }),
+      );
+      expect(cacheManager.get("d2")).toBe("allowed");
+    });
+
+    it("does not register a rule (no-op) when no cacheManager is provided", () => {
+      // Smoke: constructing without a cacheManager must not throw.
+      expect(() => createCapPermission()).not.toThrow();
     });
   });
 });
