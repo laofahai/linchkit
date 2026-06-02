@@ -618,6 +618,18 @@
         "deployed_at": "Deployed At",
         "rejection_reason": "Rejection Reason"
       }
+    },
+    "watcher_state": {
+      "_label": "Watcher State",
+      "_labelPlural": "Watcher States",
+      "fields": {
+        "watcher_name": "Watcher",
+        "group_key": "Group Key",
+        "last_fired_at": "Last Fired At",
+        "condition_met": "Condition Met",
+        "tenant_id": "Tenant",
+        "updated_at": "Updated At"
+      }
     }
   },
   "flows": {

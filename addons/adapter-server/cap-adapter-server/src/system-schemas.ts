@@ -11,6 +11,11 @@
  */
 
 import type { EntityDefinition, ViewDefinition } from "@linchkit/core";
+import { watcherStateListView, watcherStateSchema } from "./system-schemas-watcher";
+
+// Re-export the watcher-state definitions (kept in a sibling module to keep this
+// file under the ~500-line guideline) so consumers can import everything here.
+export { watcherStateListView, watcherStateSchema } from "./system-schemas-watcher";
 
 /** Shorthand to build enum options from plain string values */
 const opts = (...values: string[]) => values.map((value) => ({ value }));
@@ -577,6 +582,7 @@ export const INTERNAL_SCHEMA_NAMES = new Set([
   "flow",
   "state_machine",
   "proposal",
+  "watcher_state",
 ]);
 
 // ── Aggregated exports ────────────────────────────────────
@@ -588,6 +594,7 @@ export const systemSchemas: EntityDefinition[] = [
   flowSchema,
   stateMachineSchema,
   proposalSchema,
+  watcherStateSchema,
 ];
 
 export const systemViews: ViewDefinition[] = [
@@ -597,4 +604,5 @@ export const systemViews: ViewDefinition[] = [
   flowListView,
   stateMachineListView,
   proposalListView,
+  watcherStateListView,
 ];
