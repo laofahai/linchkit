@@ -84,7 +84,15 @@ export function FieldLockBadge({
           <TooltipTrigger asChild>
             <button
               type="button"
-              onClick={onToggle}
+              // The badge renders inside the field's <Label> (an HTML <label>),
+              // so a bare click would bubble up and trigger the label's default
+              // behavior (focusing / activating the associated input). Prevent
+              // and stop it so the toggle only flips the unlock state.
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggle?.();
+              }}
               className={`inline-flex items-center ${className ?? ""}`}
               aria-label={t("form.lock.toggleAriaLabel", "Toggle field lock")}
               aria-pressed={unlocked === true}

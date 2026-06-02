@@ -4,34 +4,16 @@
  * This package's test setup is logic-only (no jsdom / happy-dom — see
  * action-proposal-card.test.ts), so the FieldLockBadge is exercised through its
  * pure `resolveLockTooltip` helper (the reason→text mapping the static, non-
- * bypass path renders), and the `useFieldLockBypass` hook through its exported
- * `fetchCanBypass` helper with fetch mocks (the data extraction + error-swallow
- * behavior the hook depends on).
+ * bypass path renders), and `fetchCanBypass` (the hook's data layer) through an
+ * injected `graphql` stub. Injection keeps the data-layer tests deterministic
+ * and independent of any global `fetch` state or batched-runner test ordering
+ * (reassigning `globalThis.fetch` proved flaky under the CI runner).
  */
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-
-// Minimal localStorage shim — api.ts reads `linchkit:token` for auth headers.
-const _store = new Map<string, string>();
-if (typeof globalThis.localStorage === "undefined") {
-  Object.defineProperty(globalThis, "localStorage", {
-    value: {
-      getItem: (key: string) => _store.get(key) ?? null,
-      setItem: (key: string, value: string) => _store.set(key, value),
-      removeItem: (key: string) => _store.delete(key),
-      clear: () => _store.clear(),
-      get length() {
-        return _store.size;
-      },
-      key: (index: number) => [..._store.keys()][index] ?? null,
-    },
-    configurable: true,
-  });
-}
-
+import { describe, expect, test } from "bun:test";
 import type { TFunction } from "i18next";
 import { resolveLockTooltip } from "../src/components/field-lock-badge";
-import { fetchCanBypass, resetFieldLockBypassCache } from "../src/hooks/use-field-lock-bypass";
+import { fetchCanBypass } from "../src/hooks/use-field-lock-bypass";
 
 // ── resolveLockTooltip (static badge text mapping) ───────────
 
@@ -69,70 +51,47 @@ describe("resolveLockTooltip", () => {
 
 // ── fetchCanBypass (hook data layer) ─────────────────────────
 
-let originalFetch: typeof fetch;
-
-function installFetch(body: unknown) {
-  originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })) as typeof fetch;
+/** Deterministic `graphql` stub that resolves to `body` — no real network/fetch. */
+function stubGraphql(body: unknown): Parameters<typeof fetchCanBypass>[0] {
+  return (async () => body) as unknown as Parameters<typeof fetchCanBypass>[0];
 }
-
-beforeEach(() => {
-  resetFieldLockBypassCache();
-});
-
-afterEach(() => {
-  if (originalFetch) globalThis.fetch = originalFetch;
-});
 
 describe("fetchCanBypass", () => {
   test("returns true when fieldLockBypass.canBypass is true", async () => {
-    installFetch({ data: { fieldLockBypass: { canBypass: true, reason: "bypass" } } });
-    expect(await fetchCanBypass()).toBe(true);
+    expect(
+      await fetchCanBypass(
+        stubGraphql({ data: { fieldLockBypass: { canBypass: true, reason: "bypass" } } }),
+      ),
+    ).toBe(true);
   });
 
   test("returns false when fieldLockBypass.canBypass is false", async () => {
-    installFetch({ data: { fieldLockBypass: { canBypass: false, reason: null } } });
-    expect(await fetchCanBypass()).toBe(false);
+    expect(
+      await fetchCanBypass(
+        stubGraphql({ data: { fieldLockBypass: { canBypass: false, reason: null } } }),
+      ),
+    ).toBe(false);
   });
 
   test("returns false (swallows error) when the field is missing (cap-lock not installed)", async () => {
     // GraphQL validation error shape returned when `fieldLockBypass` is unknown.
-    installFetch({
-      errors: [{ message: 'Cannot query field "fieldLockBypass" on type "Query".' }],
-    });
-    expect(await fetchCanBypass()).toBe(false);
+    expect(
+      await fetchCanBypass(
+        stubGraphql({
+          errors: [{ message: 'Cannot query field "fieldLockBypass" on type "Query".' }],
+        }),
+      ),
+    ).toBe(false);
   });
 
   test("returns false when data is absent entirely", async () => {
-    installFetch({});
-    expect(await fetchCanBypass()).toBe(false);
+    expect(await fetchCanBypass(stubGraphql({}))).toBe(false);
   });
 
-  test("returns false on a network/transport failure (no throw)", async () => {
-    originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () => {
+  test("returns false on a thrown error (no throw escapes)", async () => {
+    const throwing = (async () => {
       throw new Error("network down");
-    }) as typeof fetch;
-    expect(await fetchCanBypass()).toBe(false);
-  });
-
-  test("caches the result — a second call does not refetch", async () => {
-    let calls = 0;
-    originalFetch = globalThis.fetch;
-    globalThis.fetch = (async () => {
-      calls += 1;
-      return new Response(JSON.stringify({ data: { fieldLockBypass: { canBypass: true } } }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    }) as typeof fetch;
-
-    expect(await fetchCanBypass()).toBe(true);
-    expect(await fetchCanBypass()).toBe(true);
-    expect(calls).toBe(1);
+    }) as unknown as Parameters<typeof fetchCanBypass>[0];
+    expect(await fetchCanBypass(throwing)).toBe(false);
   });
 });

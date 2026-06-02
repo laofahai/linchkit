@@ -32,7 +32,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useEntityOnchange } from "../../hooks/use-entity-onchange";
-import { useFieldLockBypass } from "../../hooks/use-field-lock-bypass";
+import { useFieldUnlock } from "../../hooks/use-field-lock-bypass";
 import { useFieldLockState } from "../../hooks/use-field-lock-state";
 import { buildRelationFieldMap } from "../../lib/entity-form-utils";
 import { evaluateVisibility } from "../../lib/field-visibility";
@@ -166,24 +166,13 @@ export function AutoForm({
     mode,
   });
 
-  // ── Field-lock bypass (Spec 63 §5.2) ──
+  // ── Field-lock bypass / unlock (Spec 63 §5.2) ──
   // Whether the CURRENT actor may override field locks (decided by cap-lock's
-  // policy via the `fieldLockBypass` query; false when cap-lock is absent). A
-  // bypass-eligible actor can click a locked field's badge to unlock it for
-  // editing; `unlockedFields` tracks which fields they have opted to unlock.
-  const { canBypass } = useFieldLockBypass();
-  const [unlockedFields, setUnlockedFields] = useState<Set<string>>(() => new Set());
-  const toggleFieldUnlock = useCallback((fieldName: string) => {
-    setUnlockedFields((prev) => {
-      const next = new Set(prev);
-      if (next.has(fieldName)) {
-        next.delete(fieldName);
-      } else {
-        next.add(fieldName);
-      }
-      return next;
-    });
-  }, []);
+  // policy via the `fieldLockBypass` query; false when cap-lock is absent) and
+  // which fields they have opted to unlock for editing. A bypass-eligible actor
+  // can click a locked field's badge to unlock it. The state + derivation live
+  // in `useFieldUnlock` so this large component stays lean.
+  const { canBypass, isUnlocked, toggleUnlock } = useFieldUnlock();
 
   // ── Entity onchange (Spec 64) ──
   // Server-driven interactive form computation. Fires after a debounced field
@@ -826,7 +815,7 @@ export function AutoForm({
     if (fieldLockState[fieldName]?.locked) {
       // Spec 63 §5.2 — a bypass-eligible actor who has explicitly unlocked the
       // field may edit it; otherwise the lock stands.
-      if (canBypass && unlockedFields.has(fieldName)) return false;
+      if (canBypass && isUnlocked(fieldName)) return false;
       return true;
     }
     return false;
@@ -886,8 +875,8 @@ export function AutoForm({
             reason: lockInfo.reason ?? "locked",
             status: resolvedStatus,
             canBypass,
-            unlocked: unlockedFields.has(node.field),
-            onToggle: () => toggleFieldUnlock(node.field),
+            unlocked: isUnlocked(node.field),
+            onToggle: () => toggleUnlock(node.field),
           }
         : undefined;
 
