@@ -35,9 +35,10 @@ export interface CapPermissionOptions {
   /**
    * Optional cache manager for caching permission decisions.
    * Cache key: perm:{tenantId}:{userId}:{command}:{schema}, 10min TTL.
-   * Invalidated automatically whenever a write touches a permission entity
-   * (`permission_assignment` via assign_user/revoke_user, `permission_group`
-   * via create_group/update_permissions) — see CacheManager.PERMISSION_ENTITIES.
+   * When provided, this factory registers an entity-based invalidation rule on it
+   * (see createCapPermission) so a write to `permission_assignment` (assign_user/
+   * revoke_user) or `permission_group` (create_group/update_permissions) flushes
+   * the `perm:{tenant}` cache. Core's CacheManager holds no permission knowledge.
    */
   cacheManager?: CacheManager;
 
@@ -47,6 +48,20 @@ export interface CapPermissionOptions {
 
 export function createCapPermission(options?: CapPermissionOptions): CapabilityDefinition {
   const cfg = options?.config;
+
+  // Register the permission-decision cache invalidation rule with the shared
+  // CacheManager. The permission DOMAIN owns this knowledge (which entity writes
+  // flush the `perm:` cache) — core's CacheManager stays domain-agnostic. A write
+  // to a membership row (assign_user/revoke_user) or a group's grants
+  // (create_group/update_permissions) flushes `perm:{tenant}`, so a revoked user
+  // is no longer authorized from cache. Entity names come from the schema defs
+  // (single source), so they can't drift from the registered entities.
+  if (options?.cacheManager) {
+    options.cacheManager.registerEntityInvalidation({
+      entities: [permissionAssignmentSchema.name, permissionGroupSchema.name],
+      tagFor: (tenantId) => (tenantId ? `perm:${tenantId}` : "perm"),
+    });
+  }
 
   // When an explicit registry is provided, wire middleware immediately.
   // Otherwise, dev.ts will wire the middleware using the auto-discovered

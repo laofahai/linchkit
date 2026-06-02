@@ -366,17 +366,21 @@ describe("CacheManager event-driven invalidation", () => {
     expect(manager.get("t2-data")).toBe("v2"); // different tenant, unaffected
   });
 
-  // Permission caches are invalidated by writes to the PERMISSION ENTITIES
-  // (the rows authorization is derived from), NOT by matching action-name
-  // prefixes. The previous test used a fictional `assign_role_to_user` action
-  // that does not exist in cap-permission — it matched a drifted prefix while
-  // the REAL actions (assign_user/revoke_user → permission_assignment;
-  // create_group/update_permissions → permission_group) did not, so a revoked
-  // user stayed authorized until TTL (fail-open). These cases use the real
-  // production signals.
+  // Derived caches are invalidated via capability-REGISTERED entity rules — core
+  // holds no domain entity names. cap-permission registers
+  // `[permission_assignment, permission_group] → perm:{tenant}`; these tests
+  // register the same rule and drive it with the REAL production events. (The
+  // previous test used a fictional `assign_role_to_user` action that matched a
+  // drifted action-name prefix while the real actions did not, so a revoked user
+  // stayed authorized until TTL — fail-open. The rule is now entity-based.)
+  const permRule = {
+    entities: ["permission_assignment", "permission_group"],
+    tagFor: (tenantId?: string) => (tenantId ? `perm:${tenantId}` : "perm"),
+  };
+
   it("flushes perm cache when a user's group membership changes (assign/revoke_user)", async () => {
     const { bus } = createEventBus();
-    const manager = new CacheManager({ eventBus: bus });
+    const manager = new CacheManager({ eventBus: bus, entityInvalidationRules: [permRule] });
 
     // assign_user creates a permission_assignment row...
     manager.set("perm1", "allowed", { tags: ["perm:t1"] });
@@ -395,7 +399,7 @@ describe("CacheManager event-driven invalidation", () => {
 
   it("flushes perm cache when a group's grants change (create_group/update_permissions)", async () => {
     const { bus } = createEventBus();
-    const manager = new CacheManager({ eventBus: bus });
+    const manager = new CacheManager({ eventBus: bus, entityInvalidationRules: [permRule] });
 
     manager.set("perm1", "allowed", { tags: ["perm:t1"] });
     manager.set("other", "value", { tags: ["entity:t1:products"] });
@@ -408,7 +412,7 @@ describe("CacheManager event-driven invalidation", () => {
 
   it("does NOT flush perm cache for a non-permission entity write", async () => {
     const { bus } = createEventBus();
-    const manager = new CacheManager({ eventBus: bus });
+    const manager = new CacheManager({ eventBus: bus, entityInvalidationRules: [permRule] });
 
     manager.set("perm1", "allowed", { tags: ["perm:t1"] });
 
@@ -419,6 +423,18 @@ describe("CacheManager event-driven invalidation", () => {
     );
 
     expect(manager.get("perm1")).toBe("allowed");
+  });
+
+  it("registerEntityInvalidation adds a rule at runtime (not just via constructor)", async () => {
+    const { bus } = createEventBus();
+    const manager = new CacheManager({ eventBus: bus });
+    manager.registerEntityInvalidation(permRule);
+
+    manager.set("perm1", "allowed", { tags: ["perm:t1"] });
+    await bus.emit(
+      makeEvent("record.deleted", { entity: "permission_assignment", tenantId: "t1" }),
+    );
+    expect(manager.get("perm1")).toBeUndefined();
   });
 
   it("ignores non-write events", async () => {
