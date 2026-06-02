@@ -319,6 +319,9 @@ check "npmmirror URL → allowed"          "[ \"\$(bun_guard_rc 'curl https://re
 check "branch w/ node in name → allowed" "[ \"\$(bun_guard_rc 'git checkout feat/some-node-feature')\" = 0 ]"
 check "quoted grep pattern → allowed (BUG)"   "[ \"\$(bun_guard_rc 'grep -nE \"checkout -b|npx foo\" file')\" = 0 ]"
 check "quoted commit msg → allowed (BUG)"     "[ \"\$(bun_guard_rc 'git commit -m \"refactor; node bootstrap\"')\" = 0 ]"
+check "multi-line quoted commit msg → allowed" "[ \"\$(bun_guard_rc 'git commit -m \"
+node bootstrap\"')\" = 0 ]"
+check "backtick cmd substitution → blocked"   "[ \"\$(bun_guard_rc 'echo \`node -v\`')\" = 2 ]"
 check "bun run check → allowed"          "[ \"\$(bun_guard_rc 'bun run check')\" = 0 ]"
 
 echo
