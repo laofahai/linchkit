@@ -16,7 +16,7 @@ import { getCurrentTrace } from "../observability/trace-context";
 import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
-import type { FieldDefinition } from "../types/entity";
+import type { FieldDefinition, LockCondition } from "../types/entity";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { ExecutionMeta } from "../types/execution-meta";
 import {
@@ -286,6 +286,60 @@ function fillMissingSystemKeys(
   }
   if (Object.keys(missing).length === 0) return meta;
   return extendExecutionMeta(meta, {}, missing);
+}
+
+/**
+ * Run the field-lock check and thread the resulting violations through the
+ * `field-lock-check` interceptor point (Spec 63 Phase 3), returning the
+ * (possibly transformed) violation set.
+ *
+ * Both update paths — the `ctx.update()` handler wrapper and the declarative
+ * `setFields` / `stateTransition` path — share this exact sequence; extracting
+ * it keeps them byte-for-byte identical. The interceptor step is an identity
+ * when no `field-lock-check` interceptor is registered, so behavior is
+ * unchanged from Phase 1 in that case.
+ */
+async function checkAndRunFieldLockInterceptor(opts: {
+  entity: string;
+  fields: Record<string, FieldDefinition>;
+  lockAllWhen: LockCondition | undefined;
+  lockAllowFields: string[] | undefined;
+  existingRecord: Record<string, unknown>;
+  writesToCheck: Record<string, unknown>;
+  actor: Actor;
+  tenantId?: string;
+  interceptorRegistry?: InterceptorRegistry;
+}): Promise<FieldLockViolation[]> {
+  const {
+    entity,
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    writesToCheck,
+    actor,
+    tenantId,
+    interceptorRegistry,
+  } = opts;
+  let violations = checkFieldLocks({
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    input: writesToCheck,
+  });
+  // Spec 63 Phase 3: let a policy capability transform the violation set
+  // (shadow / bypass / tolerance). Identity when no interceptor is registered.
+  if (interceptorRegistry?.has("field-lock-check")) {
+    violations = await interceptorRegistry.run("field-lock-check", violations, {
+      entity,
+      actor,
+      record: existingRecord,
+      input: writesToCheck,
+      tenantId,
+    });
+  }
+  return violations;
 }
 
 /**
@@ -1092,25 +1146,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
               }
               const writesToCheck: Record<string, unknown> = { ...data };
               delete writesToCheck.id;
-              let violations = checkFieldLocks({
+              const violations = await checkAndRunFieldLockInterceptor({
+                entity,
                 fields: targetFields,
                 lockAllWhen: targetLockAllWhen,
                 lockAllowFields: targetLockAllowFields,
                 existingRecord: current,
-                input: writesToCheck,
+                writesToCheck,
+                actor,
+                tenantId: execOptions?.tenantId,
+                interceptorRegistry,
               });
-              // Spec 63 Phase 3: let a policy capability transform the
-              // violation set (shadow / bypass / tolerance). Identity when
-              // no interceptor is registered.
-              if (interceptorRegistry?.has("field-lock-check")) {
-                violations = await interceptorRegistry.run("field-lock-check", violations, {
-                  entity,
-                  actor,
-                  record: current,
-                  input: writesToCheck,
-                  tenantId: execOptions?.tenantId,
-                });
-              }
               if (violations.length > 0) {
                 throw new LockViolationError(violations, entity);
               }
@@ -1425,25 +1471,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 }
                 const writesToCheck: Record<string, unknown> = { ...updates };
                 delete writesToCheck.id;
-                let violations = checkFieldLocks({
+                const violations = await checkAndRunFieldLockInterceptor({
+                  entity: action.entity,
                   fields: resolvedFields,
                   lockAllWhen,
                   lockAllowFields,
                   existingRecord: txCurrent,
-                  input: writesToCheck,
+                  writesToCheck,
+                  actor,
+                  tenantId: execOptions?.tenantId,
+                  interceptorRegistry,
                 });
-                // Spec 63 Phase 3: let a policy capability transform the
-                // violation set (shadow / bypass / tolerance). Identity when
-                // no interceptor is registered.
-                if (interceptorRegistry?.has("field-lock-check")) {
-                  violations = await interceptorRegistry.run("field-lock-check", violations, {
-                    entity: action.entity,
-                    actor,
-                    record: txCurrent,
-                    input: writesToCheck,
-                    tenantId: execOptions?.tenantId,
-                  });
-                }
                 if (violations.length > 0) {
                   throw new LockViolationError(violations, action.entity);
                 }

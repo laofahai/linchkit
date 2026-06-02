@@ -70,7 +70,7 @@ export interface InterceptorRegistration<P extends InterceptorPoint = Intercepto
   /** Which extension point this interceptor attaches to. */
   point: P;
   /** Owning capability name (for diagnostics / fail-closed logging). */
-  capability: string;
+  capability?: string;
   /** Ascending execution order within the point. Defaults to 100. */
   order?: number;
   /** The transform function — typed by {@link InterceptorCatalog}[P]. */
@@ -97,6 +97,30 @@ export interface InterceptorRegistry {
 
 /** Default execution order when a registration omits `order`. */
 const DEFAULT_ORDER = 100;
+
+/**
+ * Produce a defensive clone of an interceptor's input value before handing it
+ * to a handler. Handlers transform by RETURNING a value and must treat the
+ * argument as immutable; cloning enforces that contract so a handler cannot
+ * reach back into the authoritative value and mutate it in place.
+ *
+ * For `field-lock-check` the value is a `FieldLockViolation[]` — an ENFORCEMENT
+ * set — so we deep-clone BOTH the array container AND each element. A shallow
+ * `[...value]` would still share the individual violation OBJECTS, letting a
+ * buggy or hostile handler do `violations[0].field = "allowed"` and then throw
+ * (so the fail-closed path keeps the pre-handler value) while having silently
+ * corrupted that pre-handler value — weakening the boundary. Cloning the
+ * elements closes that hole.
+ */
+function cloneInterceptorInput<P extends InterceptorPoint>(
+  point: P,
+  value: Parameters<InterceptorCatalog[P]>[0],
+): Parameters<InterceptorCatalog[P]>[0] {
+  if (point === "field-lock-check" && Array.isArray(value)) {
+    return value.map((violation) => ({ ...violation })) as Parameters<InterceptorCatalog[P]>[0];
+  }
+  return value;
+}
 
 /**
  * Default {@link InterceptorRegistry} implementation. A class keeps the
@@ -145,14 +169,19 @@ class DefaultInterceptorRegistry implements InterceptorRegistry {
       // FAIL-CLOSED (security). field-lock-check is an ENFORCEMENT boundary:
       // a buggy or hostile policy capability must NEVER silently WEAKEN it.
       // Handlers transform by RETURNING a value and must treat the argument as
-      // immutable. We hand each handler a defensive shallow clone of array
-      // values, so a handler that mutates its argument in place and THEN
-      // throws / returns null/undefined cannot strip violations out from under
-      // us — on any failure the authoritative `current` is left exactly as it
-      // was. A non-array return where an array was expected is likewise treated
-      // as a failure, so an invalid handler cannot corrupt the engine's
-      // downstream view of the value. Failures are logged for visibility.
-      const handlerInput = Array.isArray(current) ? [...current] : current;
+      // immutable. We hand each handler a defensive DEEP clone (array container
+      // AND its elements — see `cloneInterceptorInput`), so a handler that
+      // mutates its argument in place and THEN throws / returns null/undefined
+      // cannot strip violations out from under us — on any failure the
+      // authoritative `current` is left exactly as it was. A non-array return
+      // where an array was expected is likewise treated as a failure, so an
+      // invalid handler cannot corrupt the engine's downstream view of the
+      // value. Failures are logged for visibility.
+      const capabilityName = reg.capability || "unknown";
+      const handlerInput = cloneInterceptorInput(
+        point,
+        current as Parameters<InterceptorCatalog[P]>[0],
+      );
       try {
         const handler = reg.handler as Interceptor<unknown, unknown>;
         const next = await handler(handlerInput, context);
@@ -162,17 +191,17 @@ class DefaultInterceptorRegistry implements InterceptorRegistry {
           (Array.isArray(current) && !Array.isArray(next))
         ) {
           this.logger?.error(
-            `Interceptor "${reg.capability}" at point "${point}" returned an invalid value (${next === null ? "null" : typeof next}); keeping pre-handler value (fail-closed)`,
-            { capability: reg.capability, point },
+            `Interceptor "${capabilityName}" at point "${point}" returned an invalid value (${next === null ? "null" : typeof next}); keeping pre-handler value (fail-closed)`,
+            { capability: capabilityName, point },
           );
           continue;
         }
         current = next;
       } catch (err) {
         this.logger?.error(
-          `Interceptor "${reg.capability}" at point "${point}" threw; keeping pre-handler value (fail-closed)`,
+          `Interceptor "${capabilityName}" at point "${point}" threw; keeping pre-handler value (fail-closed)`,
           {
-            capability: reg.capability,
+            capability: capabilityName,
             point,
             error: err instanceof Error ? err.message : String(err),
           },

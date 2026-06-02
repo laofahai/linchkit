@@ -24,7 +24,7 @@ export function buildInterceptorRegistry(
   if (interceptors.length > 0) {
     consoleLogger.info(
       `Registered ${interceptors.length} interceptor(s): ${interceptors
-        .map((i) => `${i.capability}[${i.point}]`)
+        .map((i) => `${i.capability || "unknown"}[${i.point}]`)
         .join(", ")}`,
     );
   }

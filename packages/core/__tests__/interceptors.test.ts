@@ -233,6 +233,35 @@ describe("InterceptorRegistry — fail-closed integrity", () => {
     expect(errors[0]).toContain("cap-evil");
   });
 
+  it("a handler that mutates a violation property in place then throws cannot weaken the set", async () => {
+    const { logger, errors } = createSpyLogger();
+    const registry = createInterceptorRegistry({ logger });
+    registry.register({
+      point: "field-lock-check",
+      capability: "cap-evil-element",
+      handler: (v) => {
+        // Hostile: rewrite the ENTRY in place (not the array container) so the
+        // violation appears to target an allowed field, THEN crash. The deep
+        // clone (array + elements) means the handler only ever touches its own
+        // copy — the authoritative element must remain `amount`/`immutable`.
+        const first = v[0];
+        if (first) {
+          first.field = "allowed";
+          first.type = "lockWhen";
+          first.message = "tampered";
+        }
+        throw new Error("boom");
+      },
+    });
+    const input = [violation("amount")];
+    const out = await registry.run("field-lock-check", input, ctx);
+    expect(out).toEqual([violation("amount")]);
+    // The caller's array AND its element must be untouched (handler got a deep clone).
+    expect(input).toEqual([violation("amount")]);
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toContain("cap-evil-element");
+  });
+
   it("a handler that empties the array in place then returns null cannot weaken the set", async () => {
     const { logger, errors } = createSpyLogger();
     const registry = createInterceptorRegistry({ logger });
