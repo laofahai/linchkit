@@ -20,7 +20,12 @@
  * metadata with the same model the engine uses.
  */
 
-import type { EntityDefinition, FieldOverlayRecord, LockCondition } from "@linchkit/core";
+import type {
+  EntityDefinition,
+  FieldLockMode,
+  FieldOverlayRecord,
+  LockCondition,
+} from "@linchkit/core";
 import {
   GraphQLBoolean,
   GraphQLList,
@@ -91,6 +96,14 @@ export interface FieldMeta {
   immutable: boolean;
   lockWhen: LockConditionMeta | null;
   lockSource: FieldMetaLockSource;
+  /**
+   * Enforcement mode of this field's CONDITIONAL lock (Spec 63 §4.2 SOFT_LOCK):
+   * `"hard"` (default — a matching lock blocks the write) or `"soft"` (advisory:
+   * cap-lock allows+audits and the UI requires a two-step confirmation). Always
+   * `"hard"` for `immutable` and for fields with no lock; only actionable
+   * alongside a `lockWhen`/`lockAllWhen`.
+   */
+  lockMode: FieldLockMode;
 }
 
 export type FieldMetaLockSource = "none" | "field" | "entity";
@@ -192,6 +205,13 @@ export function buildFieldMetaList(
       immutable,
       lockWhen: condition ? toLockConditionMeta(condition) : null,
       lockSource: source,
+      // `lockMode` governs the CONDITIONAL lock only; `immutable` is always hard
+      // and a field with no lock reports "hard" (a non-null string keeps the
+      // GraphQL field simple; it is only actionable alongside a lock condition).
+      // Gate "soft" on an actual, non-immutable conditional lock so the metadata
+      // matches runtime behavior (an immutable or unlocked field is never soft) —
+      // mirrors adapter-ui's field-lock-state.ts.
+      lockMode: !immutable && condition && field.lockMode === "soft" ? "soft" : "hard",
     });
   }
 
@@ -208,6 +228,9 @@ export function buildFieldMetaList(
         immutable: false,
         lockWhen: null,
         lockSource: "none",
+        // Overlays cannot lock a field (no lock vocabulary), so the conditional
+        // lock mode is always the default "hard".
+        lockMode: "hard",
       });
     }
   }
@@ -289,6 +312,13 @@ export function getFieldMetaType(): GraphQLObjectType {
       lockSource: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'Where `lockWhen` originates: "field", "entity", or "none".',
+      },
+      lockMode: {
+        type: new GraphQLNonNull(GraphQLString),
+        description:
+          'Conditional-lock enforcement mode (Spec 63 §4.2): "hard" (a matching ' +
+          'lock blocks the write) or "soft" (advisory — cap-lock allows+audits, the ' +
+          'UI requires a two-step confirmation). Always "hard" for immutable / unlocked fields.',
       },
     },
   });

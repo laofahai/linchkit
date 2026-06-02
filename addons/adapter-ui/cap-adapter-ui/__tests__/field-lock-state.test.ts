@@ -89,7 +89,7 @@ describe("computeFieldLockState — immutable", () => {
       record: { status: "draft" },
       isEditMode: true,
     });
-    expect(state).toEqual({ locked: true, reason: "immutable" });
+    expect(state).toEqual({ locked: true, reason: "immutable", mode: "hard" });
   });
 
   test("immutable field is NOT locked on create (initial assignment allowed)", () => {
@@ -109,7 +109,7 @@ describe("computeFieldLockState — immutable", () => {
       record: {},
       isEditMode: true,
     });
-    expect(state).toEqual({ locked: true, reason: "immutable" });
+    expect(state).toEqual({ locked: true, reason: "immutable", mode: "hard" });
   });
 });
 
@@ -239,6 +239,67 @@ describe("computeFieldLockState — precedence", () => {
       isEditMode: true,
     });
     expect(state.reason).toBe("immutable");
+  });
+});
+
+// ── Lock mode (Spec 63 §4.2 SOFT_LOCK) ──
+
+describe("computeFieldLockState — mode (Spec 63 §4.2)", () => {
+  test("conditional lock defaults to mode=hard when lockMode is unset", () => {
+    const state = computeFieldLockState({
+      fieldName: "amount",
+      fieldDef: { type: "number", lockWhen: { state: "submitted" } },
+      record: { status: "submitted" },
+      isEditMode: true,
+    });
+    expect(state.locked).toBe(true);
+    expect(state.mode).toBe("hard");
+  });
+
+  test("conditional lock with lockMode=soft yields mode=soft", () => {
+    const state = computeFieldLockState({
+      fieldName: "amount",
+      fieldDef: { type: "number", lockWhen: { state: "submitted" }, lockMode: "soft" },
+      record: { status: "submitted" },
+      isEditMode: true,
+    });
+    expect(state.locked).toBe(true);
+    expect(state.reason).toBe("locked");
+    expect(state.mode).toBe("soft");
+  });
+
+  test("entity-level lockAllWhen on a soft field still yields mode=soft", () => {
+    const state = computeFieldLockState({
+      fieldName: "title",
+      fieldDef: { type: "string", lockMode: "soft" },
+      record: { status: "posted" },
+      isEditMode: true,
+      lockAllWhen: { state: "posted" },
+    });
+    expect(state.locked).toBe(true);
+    expect(state.mode).toBe("soft");
+  });
+
+  test("immutable stays mode=hard even with lockMode=soft (immutable is never soft)", () => {
+    const state = computeFieldLockState({
+      fieldName: "code",
+      fieldDef: { type: "string", immutable: true, lockMode: "soft" },
+      record: { status: "draft" },
+      isEditMode: true,
+    });
+    expect(state.reason).toBe("immutable");
+    expect(state.mode).toBe("hard");
+  });
+
+  test("unlocked field has no mode", () => {
+    const state = computeFieldLockState({
+      fieldName: "amount",
+      fieldDef: { type: "number", lockWhen: { state: "submitted" }, lockMode: "soft" },
+      record: { status: "draft" },
+      isEditMode: true,
+    });
+    expect(state.locked).toBe(false);
+    expect(state.mode).toBeUndefined();
   });
 });
 

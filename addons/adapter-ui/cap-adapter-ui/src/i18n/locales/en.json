@@ -104,7 +104,12 @@
       "ariaLabel": "Locked field",
       "canOverride": "Locked — you may override. Click to unlock.",
       "unlocked": "Unlocked — you may edit this field",
-      "toggleAriaLabel": "Toggle field lock"
+      "toggleAriaLabel": "Toggle field lock",
+      "softLocked": "Locked — editing requires confirmation. Click to confirm.",
+      "confirmTitle": "Confirm editing a locked field",
+      "confirmBody": "This field is locked in the current state. Are you sure you want to edit it?",
+      "confirmOk": "Yes, edit",
+      "confirmCancel": "Cancel"
     },
     "overlayFields": "Custom Fields"
   },

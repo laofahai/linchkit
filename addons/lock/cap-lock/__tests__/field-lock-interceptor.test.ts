@@ -41,13 +41,29 @@ function makeActor(groups: string[] = []): Actor {
 
 function makeViolations(): FieldLockViolation[] {
   return [
-    { field: "amount", type: "locked", message: 'Field "amount" is locked in state "submitted"' },
+    {
+      field: "amount",
+      type: "locked",
+      mode: "hard",
+      message: 'Field "amount" is locked in state "submitted"',
+    },
     {
       field: "code",
       type: "immutable",
+      mode: "hard",
       message: 'Field "code" is immutable and cannot be modified',
     },
   ];
+}
+
+/** A single soft (advisory) conditional-lock violation. */
+function softViolation(field = "amount"): FieldLockViolation {
+  return { field, type: "locked", mode: "soft", message: `Field "${field}" is locked` };
+}
+
+/** A single hard conditional-lock violation. */
+function hardViolation(field = "supplier"): FieldLockViolation {
+  return { field, type: "locked", mode: "hard", message: `Field "${field}" is locked` };
 }
 
 function makeContext(overrides?: Partial<FieldLockCheckContext>): FieldLockCheckContext {
@@ -282,6 +298,75 @@ describe("cap-lock field-lock-check interceptor", () => {
       // Must not throw despite no logger.
       const result = await handler(makeViolations(), makeContext());
       expect(result).toEqual([]);
+    });
+  });
+
+  // ── Soft locks (Spec 63 §4.2 SOFT_LOCK) ───────────────────────────
+  describe("soft locks", () => {
+    it("soft-only violation → suppressed (advisory allow) and audited as 'soft'", async () => {
+      const { handler, logger } = buildHandler({ config: {} });
+      const ctx = makeContext({ actor: makeActor([]) });
+
+      const result = await handler([softViolation("amount")], ctx);
+
+      expect(result).toEqual([]);
+      const log = logger.calls.find((c) => c.context?.reason === "soft");
+      expect(log).toBeDefined();
+      expect(log?.level).toBe("info");
+      expect(log?.context).toMatchObject({
+        capability: "lock",
+        reason: "soft",
+        fields: ["amount"],
+      });
+    });
+
+    it("mixed soft + hard → only hard returned, soft subset audited", async () => {
+      const { handler, logger } = buildHandler({ config: {} });
+      const ctx = makeContext({ actor: makeActor([]) });
+      const input = [softViolation("amount"), hardViolation("supplier")];
+
+      const result = await handler(input, ctx);
+
+      // Hard violation still blocks; soft is dropped.
+      expect(result).toEqual([hardViolation("supplier")]);
+      const log = logger.calls.find((c) => c.context?.reason === "soft");
+      expect(log).toBeDefined();
+      // Only the soft field is reported in the soft audit entry.
+      expect(log?.context).toMatchObject({ fields: ["amount"], violationCount: 1 });
+    });
+
+    it("soft is NOT actor-gated → any actor proceeds without a bypass group", async () => {
+      const { handler } = buildHandler({ config: { bypassGroups: ["admin"] } });
+      // Actor has no groups, so an actor-level bypass would NOT apply — yet a
+      // soft lock is still allowed-with-audit (the UI confirmation is the gate).
+      const ctx = makeContext({ actor: makeActor(["staff"]) });
+
+      const result = await handler([softViolation("amount")], ctx);
+
+      expect(result).toEqual([]);
+    });
+
+    it("soft + shadowMode → all suppressed, audited as 'shadow' (shadow wins, no 'soft' log)", async () => {
+      const { handler, logger } = buildHandler({ config: { shadowMode: true } });
+      const ctx = makeContext({ actor: makeActor([]) });
+
+      const result = await handler([softViolation("amount"), hardViolation("supplier")], ctx);
+
+      expect(result).toEqual([]);
+      expect(logger.calls.find((c) => c.context?.reason === "shadow")).toBeDefined();
+      // Shadow short-circuits before the soft partition — no separate soft log.
+      expect(logger.calls.find((c) => c.context?.reason === "soft")).toBeUndefined();
+    });
+
+    it("soft + bypass group → all suppressed, audited as 'bypass' (bypass wins, no 'soft' log)", async () => {
+      const { handler, logger } = buildHandler({ config: { bypassGroups: ["admin"] } });
+      const ctx = makeContext({ actor: makeActor(["admin"]) });
+
+      const result = await handler([softViolation("amount"), hardViolation("supplier")], ctx);
+
+      expect(result).toEqual([]);
+      expect(logger.calls.find((c) => c.context?.reason === "bypass")).toBeDefined();
+      expect(logger.calls.find((c) => c.context?.reason === "soft")).toBeUndefined();
     });
   });
 });

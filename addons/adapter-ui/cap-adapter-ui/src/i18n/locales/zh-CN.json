@@ -104,7 +104,12 @@
       "ariaLabel": "已锁定字段",
       "canOverride": "已锁定 — 你有权限覆盖，点击解锁",
       "unlocked": "已解锁 — 可编辑此字段",
-      "toggleAriaLabel": "切换字段锁定"
+      "toggleAriaLabel": "切换字段锁定",
+      "softLocked": "已锁定 — 编辑需确认，点击确认",
+      "confirmTitle": "确认编辑锁定字段",
+      "confirmBody": "该字段在当前状态下已锁定。确定要编辑它吗？",
+      "confirmOk": "确定编辑",
+      "confirmCancel": "取消"
     },
     "overlayFields": "自定义字段"
   },

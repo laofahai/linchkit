@@ -35,17 +35,36 @@ const t = ((key: string, options?: string | Record<string, unknown>): string => 
 
 describe("resolveLockTooltip", () => {
   test("immutable reason → immutable message", () => {
-    expect(resolveLockTooltip(t, "immutable")).toBe("This field cannot be changed after creation");
+    expect(resolveLockTooltip(t, { reason: "immutable" })).toBe(
+      "This field cannot be changed after creation",
+    );
   });
 
   test("locked reason without status → generic locked message", () => {
-    expect(resolveLockTooltip(t, "locked")).toBe("This field is locked in the current state");
+    expect(resolveLockTooltip(t, { reason: "locked" })).toBe(
+      "This field is locked in the current state",
+    );
   });
 
   test("locked reason with status → state-specific message", () => {
-    expect(resolveLockTooltip(t, "locked", "submitted")).toBe(
+    expect(resolveLockTooltip(t, { reason: "locked", status: "submitted" })).toBe(
       'Locked because the record is in state "submitted"',
     );
+  });
+
+  // Spec 63 §4.2 SOFT_LOCK — a soft-locked, not-yet-confirmed field gets the
+  // "editing requires confirmation" message regardless of reason/status.
+  test("soft lock not yet unlocked → softLocked confirmation prompt", () => {
+    expect(
+      resolveLockTooltip(t, { reason: "locked", status: "submitted", soft: true, unlocked: false }),
+    ).toBe("Locked — editing requires confirmation. Click to confirm.");
+  });
+
+  test("soft lock already unlocked → falls through to the normal reason message", () => {
+    // Once unlocked, the soft prompt no longer applies; the standard mapping wins.
+    expect(
+      resolveLockTooltip(t, { reason: "locked", status: "submitted", soft: true, unlocked: true }),
+    ).toBe('Locked because the record is in state "submitted"');
   });
 });
 

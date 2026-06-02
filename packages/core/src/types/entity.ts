@@ -101,6 +101,16 @@ export interface BaseFieldDefinition extends FieldConstraints {
    * field.
    */
   lockWhen?: LockCondition;
+  /**
+   * Lock enforcement mode for this field's CONDITIONAL lock (`lockWhen`, or the
+   * entity-level `lockAllWhen` covering it). Spec 63 §4.2 SOFT_LOCK.
+   *  - "hard" (default) — a matching lock blocks the write (validation.field.locked).
+   *  - "soft" — ADVISORY: cap-lock allows the write with an audit entry, and the
+   *    UI requires an explicit two-step confirmation before accepting the change.
+   *    Without cap-lock installed, soft falls back to hard (core still emits the
+   *    violation — fail-safe). Does NOT affect `immutable` (always hard).
+   */
+  lockMode?: "hard" | "soft";
   /** Data masking configuration. When set, field values are masked based on strategy unless actor has unmask permission. */
   masking?: MaskingConfig;
   /** Whether this field stores translatable content (i18n). When true, values are stored as JSONB { locale: value }. */
@@ -371,6 +381,8 @@ export interface EntityExtension {
 export type FieldOverrideProps = Partial<FieldConstraints> & {
   readonly?: boolean;
   lockWhen?: LockCondition;
+  /** Lock enforcement mode for the conditional lock — `"hard"` (default) or `"soft"` (Spec 63 §4.2). */
+  lockMode?: "hard" | "soft";
 };
 
 export interface EntityOverride {

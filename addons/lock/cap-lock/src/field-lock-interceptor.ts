@@ -23,7 +23,12 @@
  *  1. Shadow mode      — `shadowMode: true`.
  *  2. Bypass groups    — actor belongs to ANY `bypassGroups` entry.
  *  3. Tolerance period — `toleranceMs > 0` AND record age < toleranceMs.
- *  4. Otherwise        — return violations UNCHANGED (block, fail-closed).
+ *  4. Soft locks       — `violation.mode === "soft"`: advisory, the soft
+ *                        violations are audited and dropped; any hard violations
+ *                        still block (return the hard subset). NOT actor-gated —
+ *                        the UI two-step confirmation is the deliberateness gate.
+ *  5. Otherwise        — block (fail-closed): return the (hard) violations
+ *                        UNCHANGED so core re-throws.
  */
 
 import type { FieldLockCheckContext, FieldLockViolation, Logger } from "@linchkit/core";
@@ -31,7 +36,7 @@ import { evaluateActorBypass } from "./bypass";
 import type { CapLockPolicy } from "./config";
 
 /** Reason an audited suppression occurred — surfaced in the audit log. */
-export type LockSuppressionReason = "shadow" | "bypass" | "tolerance";
+export type LockSuppressionReason = "shadow" | "bypass" | "tolerance" | "soft";
 
 /** Options for {@link createFieldLockInterceptor}. */
 export interface FieldLockInterceptorOptions {
@@ -124,10 +129,13 @@ export function createFieldLockInterceptor(
       return violations;
     }
 
-    const audit = (reason: LockSuppressionReason): void => {
+    const audit = (
+      reason: LockSuppressionReason,
+      audited: readonly FieldLockViolation[] = violations,
+    ): void => {
       logger?.info(
-        `cap-lock suppressed ${violations.length} field-lock violation(s) (${reason})`,
-        buildAuditContext({ reason, context, violations }),
+        `cap-lock suppressed ${audited.length} field-lock violation(s) (${reason})`,
+        buildAuditContext({ reason, context, violations: audited }),
       );
     };
 
@@ -163,8 +171,24 @@ export function createFieldLockInterceptor(
       }
     }
 
-    // 4. No policy matched — BLOCK. Return the violations UNCHANGED so core
-    //    re-throws with the full per-field detail (fail-closed default).
-    return violations;
+    // 4. Soft locks (Spec 63 §4.2 SOFT_LOCK). A soft violation is ADVISORY:
+    //    cap-lock allows the write but records an audit entry. The deliberateness
+    //    gate is the UI's two-step confirmation, NOT an actor capability, so this
+    //    branch is deliberately NOT routed through `evaluateActorBypass` — any
+    //    actor may proceed past a soft lock. Hard violations in the same set still
+    //    block, so we partition and return only the hard subset.
+    const soft = violations.filter((v) => v.mode === "soft");
+    // No soft locks: this is the fail-closed default — return the violations
+    // UNCHANGED (same reference) so cap-lock with no matching knob is a pure
+    // no-op over core, which re-throws with the full per-field detail.
+    if (soft.length === 0) {
+      return violations;
+    }
+
+    audit("soft", soft);
+
+    // 5. Soft violations are dropped (advisory allow); any HARD violations in
+    //    the same set still block. Returns `[]` for the soft-only allow.
+    return violations.filter((v) => v.mode !== "soft");
   };
 }

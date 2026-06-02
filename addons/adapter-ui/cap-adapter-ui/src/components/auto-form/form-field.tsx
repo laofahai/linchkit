@@ -46,6 +46,8 @@ export interface FormFieldRowProps {
     reason: FieldLockReason;
     status?: string;
     canBypass?: boolean;
+    /** Spec 63 §4.2 — the conditional lock is advisory; unlocking needs confirmation. */
+    soft?: boolean;
     unlocked?: boolean;
     onToggle?: () => void;
   };
@@ -134,6 +136,7 @@ export function FormFieldRow({
               reason={lock.reason}
               status={lock.status}
               canBypass={lock.canBypass}
+              soft={lock.soft}
               unlocked={lock.unlocked}
               onToggle={lock.onToggle}
             />
