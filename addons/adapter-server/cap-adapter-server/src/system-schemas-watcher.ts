@@ -66,9 +66,9 @@ export const watcherStateListView: ViewDefinition = {
   type: "list",
   label: "t:entities.watcher_state._labelPlural",
   fields: [
-    { field: "watcher_name", sortable: true },
+    { field: "watcher_name", sortable: true, filterable: true },
     { field: "group_key", sortable: true, filterable: true },
-    { field: "condition_met", sortable: true, width: 100 },
+    { field: "condition_met", sortable: true, filterable: true, width: 100 },
     { field: "last_fired_at", sortable: true, width: 160 },
     { field: "updated_at", sortable: true, width: 160 },
   ],

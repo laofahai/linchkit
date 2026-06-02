@@ -271,7 +271,10 @@ const TABLE_MAP = {
 type DbBackedSchema = keyof typeof TABLE_MAP;
 
 function isDbBackedSchema(schema: string): schema is DbBackedSchema {
-  return schema in TABLE_MAP;
+  // hasOwnProperty (not the `in` operator) so a schema name colliding with an
+  // Object.prototype member ("constructor", "toString", …) can't be mistaken
+  // for a DB-backed table — hardens the DB-read path against prototype keys.
+  return Object.hasOwn(TABLE_MAP, schema);
 }
 
 /** Column name mapping: schema field name → DB column name */
