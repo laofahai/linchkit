@@ -618,6 +618,18 @@
         "deployed_at": "部署时间",
         "rejection_reason": "拒绝原因"
       }
+    },
+    "watcher_state": {
+      "_label": "监视器状态",
+      "_labelPlural": "监视器状态",
+      "fields": {
+        "watcher_name": "监视器",
+        "group_key": "分组键",
+        "last_fired_at": "上次触发时间",
+        "condition_met": "条件已满足",
+        "tenant_id": "租户",
+        "updated_at": "更新时间"
+      }
     }
   },
   "flows": {

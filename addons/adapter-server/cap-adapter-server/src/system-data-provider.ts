@@ -2,7 +2,8 @@
  * System Data Provider
  *
  * Handles data queries for internal/system entities that are backed by either:
- * - System tables in the `_linchkit` PostgreSQL schema (execution_log, approval)
+ * - System tables in the `_linchkit` PostgreSQL schema (execution_log, approval,
+ *   watcher_state)
  * - In-memory registries (rule, flow, state_machine)
  * - REST/proposal store (proposal)
  *
@@ -10,6 +11,7 @@
  * queries for internal entities, delegating all others to the inner provider.
  */
 
+import { watcherStateTable } from "@linchkit/cap-ai-provider";
 import type {
   DataProvider,
   DataQueryOptions,
@@ -262,7 +264,15 @@ function executionEntryToRecord(e: ExecutionLogEntry): Record<string, unknown> {
 const TABLE_MAP = {
   execution_log: executionsTable,
   approval: approvalsTable,
+  watcher_state: watcherStateTable,
 } as const;
+
+/** System entities whose data is backed by a `_linchkit` DB table. */
+type DbBackedSchema = keyof typeof TABLE_MAP;
+
+function isDbBackedSchema(schema: string): schema is DbBackedSchema {
+  return schema in TABLE_MAP;
+}
 
 /** Column name mapping: schema field name → DB column name */
 const COLUMN_ALIAS: Record<string, Record<string, string>> = {
@@ -302,6 +312,14 @@ const COLUMN_ALIAS: Record<string, Record<string, string>> = {
     created_at: "createdAt",
     updated_at: "updatedAt",
     tenant_id: "tenantId",
+  },
+  watcher_state: {
+    watcher_name: "watcherName",
+    group_key: "groupKey",
+    last_fired_at: "lastFiredAt",
+    condition_met: "conditionMet",
+    tenant_id: "tenantId",
+    updated_at: "updatedAt",
   },
 };
 
@@ -354,7 +372,7 @@ export class SystemDataProvider implements DataProvider {
   ): Promise<Record<string, unknown>> {
     if (!this.isInternal(schema)) return this.inner.get(schema, id, options);
 
-    if (schema === "execution_log" || schema === "approval") {
+    if (isDbBackedSchema(schema)) {
       // Fallback to ExecutionLogger when DB is not available
       if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
         const entry = await this.sources.executionLogger.getById(id);
@@ -385,7 +403,7 @@ export class SystemDataProvider implements DataProvider {
   ): Promise<Array<Record<string, unknown>>> {
     if (!this.isInternal(schema)) return this.inner.query(schema, filter, options);
 
-    if (schema === "execution_log" || schema === "approval") {
+    if (isDbBackedSchema(schema)) {
       // Fallback to ExecutionLogger when DB is not available
       if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
         return this.executionLoggerQuery(filter);
@@ -407,7 +425,7 @@ export class SystemDataProvider implements DataProvider {
   ): Promise<number> {
     if (!this.isInternal(schema)) return this.inner.count(schema, filter, options);
 
-    if (schema === "execution_log" || schema === "approval") {
+    if (isDbBackedSchema(schema)) {
       // Fallback to ExecutionLogger when DB is not available
       if (!this.sources.db && schema === "execution_log" && this.sources.executionLogger) {
         return this.executionLoggerCount(filter ?? {});
@@ -503,17 +521,20 @@ export class SystemDataProvider implements DataProvider {
 
   // ── DB query implementations ─────────────────────────
 
-  private async dbGet(
-    schema: "execution_log" | "approval",
-    id: string,
-  ): Promise<Record<string, unknown>> {
+  private async dbGet(schema: DbBackedSchema, id: string): Promise<Record<string, unknown>> {
     const db = this.sources.db;
     if (!db) throw new Error("Database not available for system table query");
 
     const table = TABLE_MAP[schema];
     const columns = getTableColumns(table) as Record<string, PgColumn>;
-    // biome-ignore lint/style/noNonNullAssertion: id column always exists in system tables
-    const idCol = columns.id!;
+    const idCol = columns.id;
+    // Tables with a composite primary key (e.g. watcher_state's
+    // `(watcher_name, group_key)`) have no single `id` column, so get-by-id
+    // does not apply. List/count are the primary needs for those entities;
+    // degrade with a clear error instead of crashing.
+    if (!idCol) {
+      throw new Error(`Get-by-id is not supported for "${schema}" (no single id column)`);
+    }
     const rows = await db.select().from(table).where(eq(idCol, id)).limit(1);
     if (rows.length === 0) {
       throw new Error(`${schema} "${id}" not found`);
@@ -523,7 +544,7 @@ export class SystemDataProvider implements DataProvider {
   }
 
   private async dbQuery(
-    schema: "execution_log" | "approval",
+    schema: DbBackedSchema,
     filter: FilterObject,
     _options?: DataQueryOptions,
   ): Promise<Array<Record<string, unknown>>> {
@@ -580,7 +601,7 @@ export class SystemDataProvider implements DataProvider {
   }
 
   private async dbCount(
-    schema: "execution_log" | "approval",
+    schema: DbBackedSchema,
     filter: FilterObject,
     _options?: DataQueryOptions,
   ): Promise<number> {
