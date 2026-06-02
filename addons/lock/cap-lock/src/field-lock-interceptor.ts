@@ -34,6 +34,7 @@
 import type { FieldLockCheckContext, FieldLockViolation, Logger } from "@linchkit/core";
 import { evaluateActorBypass } from "./bypass";
 import type { CapLockPolicy } from "./config";
+import { buildLockOverrideEvent, type LockOverrideEvent } from "./events";
 
 /** Reason an audited suppression occurred — surfaced in the audit log. */
 export type LockSuppressionReason = "shadow" | "bypass" | "tolerance" | "soft";
@@ -54,6 +55,14 @@ export interface FieldLockInterceptorOptions {
    * fine; the seam exists purely so tests can pin "now".
    */
   now?: () => number;
+  /**
+   * Fire-and-forget sink for "locked field force-modified" events (Spec 63 §4.2
+   * Notification). Called once per suppression, 1:1 with the audit log. Injected
+   * exactly like `logger`; when omitted, no event is emitted. The host maps the
+   * event to a notification / execution-log entry, keeping cap-lock free of any
+   * notification or event-bus dependency.
+   */
+  emitEvent?: (event: LockOverrideEvent) => void;
 }
 
 /**
@@ -116,7 +125,7 @@ export function createFieldLockInterceptor(
   violations: FieldLockViolation[],
   context: FieldLockCheckContext,
 ) => Promise<FieldLockViolation[]> {
-  const { policy, logger } = options;
+  const { policy, logger, emitEvent } = options;
   const now = options.now ?? Date.now;
 
   return async (
@@ -137,6 +146,17 @@ export function createFieldLockInterceptor(
         `cap-lock suppressed ${audited.length} field-lock violation(s) (${reason})`,
         buildAuditContext({ reason, context, violations: audited }),
       );
+      // Spec 63 §4.2 Notification: emit a structured override event 1:1 with the
+      // audit log. The host wires the sink (EventHandler / execution log); cap-lock
+      // stays dependency-free. A faulty sink must never turn an allowed write into
+      // a throw, so the emit is fully isolated.
+      if (emitEvent) {
+        try {
+          emitEvent(buildLockOverrideEvent({ reason, context, violations: audited }));
+        } catch (err) {
+          logger?.warn("cap-lock emitEvent sink threw; event dropped", { error: String(err) });
+        }
+      }
     };
 
     // 1 & 2. Actor-level escape hatches — shadow mode, then bypass groups.

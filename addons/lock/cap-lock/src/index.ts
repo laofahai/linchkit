@@ -14,6 +14,9 @@ export { capLock } from "./capability";
 // Config schema + policy resolver
 export type { CapLockPolicy } from "./config";
 export { capLockConfig, resolveCapLockPolicy } from "./config";
+// Override notification event (Spec 63 §4.2) — dependency-free emit seam
+export type { LockOverrideEvent } from "./events";
+export { buildLockOverrideEvent, LOCK_OVERRIDE_EVENT } from "./events";
 // Factory (custom config + logger + clock injection)
 export type { CapLockOptions } from "./factory";
 export { createCapLock } from "./factory";

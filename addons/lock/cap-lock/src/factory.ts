@@ -12,6 +12,7 @@
 import type { CapabilityDefinition, InterceptorRegistration, Logger } from "@linchkit/core";
 import { defineCapability } from "@linchkit/core";
 import { type CapLockPolicy, capLockConfig, resolveCapLockPolicy } from "./config";
+import type { LockOverrideEvent } from "./events";
 import { createFieldLockInterceptor } from "./field-lock-interceptor";
 import { buildLockGraphQLExtension } from "./graphql";
 
@@ -33,6 +34,12 @@ export interface CapLockOptions {
    * evaluation. Defaults to `Date.now` inside the interceptor.
    */
   now?: () => number;
+  /**
+   * Optional sink for `lock.override` events (Spec 63 §4.2 Notification). Wired
+   * the same way as `logger`. When omitted, no events are emitted. cap-lock takes
+   * no notification/event-bus dependency — the host decides where the event goes.
+   */
+  emitEvent?: (event: LockOverrideEvent) => void;
 }
 
 export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
@@ -42,6 +49,7 @@ export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
     policy,
     logger: options?.logger,
     now: options?.now,
+    emitEvent: options?.emitEvent,
   });
 
   const interceptors: InterceptorRegistration[] = [
@@ -56,7 +64,7 @@ export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
     name: "cap-lock",
     label: "Field Lock Policy",
     description:
-      "Advanced field-lock policy: shadow mode, bypass groups, tolerance period, and audit trail over core field-lock enforcement",
+      "Advanced field-lock policy: shadow mode, bypass groups, tolerance period, audit trail, and override notifications over core field-lock enforcement",
     type: "standard",
     category: "system",
     version: "1.0.0",

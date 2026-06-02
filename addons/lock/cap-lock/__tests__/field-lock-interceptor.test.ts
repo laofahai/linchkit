@@ -10,6 +10,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { Actor, FieldLockCheckContext, FieldLockViolation, Logger } from "@linchkit/core";
 import { resolveCapLockPolicy } from "../src/config";
+import type { LockOverrideEvent } from "../src/events";
 import {
   createFieldLockInterceptor,
   type FieldLockInterceptorOptions,
@@ -367,6 +368,160 @@ describe("cap-lock field-lock-check interceptor", () => {
       expect(result).toEqual([]);
       expect(logger.calls.find((c) => c.context?.reason === "bypass")).toBeDefined();
       expect(logger.calls.find((c) => c.context?.reason === "soft")).toBeUndefined();
+    });
+  });
+
+  // ── Override notification event (Spec 63 §4.2 Notification) ────────
+  describe("lock.override event emission", () => {
+    /** Build a handler with an event-capture sink (1:1 with the audit log). */
+    function buildEventHandler(
+      partial: Partial<FieldLockInterceptorOptions> & {
+        config?: Parameters<typeof resolveCapLockPolicy>[0];
+      },
+    ) {
+      const events: LockOverrideEvent[] = [];
+      const handler = createFieldLockInterceptor({
+        policy: resolveCapLockPolicy(partial.config),
+        now: partial.now ?? (() => Date.parse("2026-01-01T00:01:00Z")),
+        emitEvent: (e) => events.push(e),
+      });
+      return { handler, events };
+    }
+
+    it("bypass → emits one event with reason 'bypass' and the suppressed fields", async () => {
+      const { handler, events } = buildEventHandler({ config: { bypassGroups: ["admin"] } });
+      const ctx = makeContext({ actor: makeActor(["staff", "admin"]) });
+
+      await handler(makeViolations(), ctx);
+
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({
+        type: "lock.override",
+        reason: "bypass",
+        entity: "purchase_request",
+        recordId: "r1",
+        actorId: "user-1",
+        actorType: "human",
+        tenantId: "t1",
+        fields: ["amount", "code"],
+      });
+    });
+
+    it("shadow → emits one event with reason 'shadow' and all violation fields", async () => {
+      const { handler, events } = buildEventHandler({ config: { shadowMode: true } });
+
+      await handler(makeViolations(), makeContext());
+
+      expect(events).toHaveLength(1);
+      expect(events[0]?.reason).toBe("shadow");
+      expect(events[0]?.fields).toEqual(["amount", "code"]);
+    });
+
+    it("tolerance → emits one event with reason 'tolerance'", async () => {
+      const { handler, events } = buildEventHandler({
+        config: { toleranceMs: 5 * 60 * 1000 },
+        now: () => Date.parse("2026-01-01T00:01:00Z"),
+      });
+      const ctx = makeContext({
+        record: { id: "r1", status: "submitted", created_at: "2026-01-01T00:00:00Z" },
+      });
+
+      await handler(makeViolations(), ctx);
+
+      expect(events).toHaveLength(1);
+      expect(events[0]?.reason).toBe("tolerance");
+    });
+
+    it("soft (mixed) → emits one event with reason 'soft' and ONLY the soft fields", async () => {
+      const { handler, events } = buildEventHandler({ config: {} });
+      const ctx = makeContext({ actor: makeActor([]) });
+
+      const result = await handler([softViolation("amount"), hardViolation("supplier")], ctx);
+
+      // Hard violation still blocks; soft is dropped.
+      expect(result).toEqual([hardViolation("supplier")]);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.reason).toBe("soft");
+      // Mirrors `audit("soft", soft)` — only the soft subset's fields.
+      expect(events[0]?.fields).toEqual(["amount"]);
+    });
+
+    it("fail-closed default (no knob, no soft) → no event AND original violations by reference", async () => {
+      const { handler, events } = buildEventHandler({
+        config: { shadowMode: false, bypassGroups: ["admin"], toleranceMs: 1000 },
+        now: () => Date.parse("2026-01-01T01:00:00Z"),
+      });
+      const ctx = makeContext({ actor: makeActor(["staff"]) });
+      const input = makeViolations();
+
+      const result = await handler(input, ctx);
+
+      expect(events).toHaveLength(0);
+      expect(result).toBe(input); // unchanged reference (fail-closed)
+    });
+
+    it("empty violation set → no event emitted", async () => {
+      const { handler, events } = buildEventHandler({ config: { shadowMode: true } });
+
+      await handler([], makeContext());
+
+      expect(events).toHaveLength(0);
+    });
+
+    it("no emitEvent injected → byte-identical suppression behavior, no throw", async () => {
+      const logger = createFakeLogger();
+      const handler = createFieldLockInterceptor({
+        policy: resolveCapLockPolicy({ shadowMode: true }),
+        logger,
+        now: () => Date.parse("2026-01-01T00:01:00Z"),
+      });
+
+      const result = await handler(makeViolations(), makeContext());
+
+      expect(result).toEqual([]);
+      expect(logger.calls.find((c) => c.context?.reason === "shadow")).toBeDefined();
+    });
+
+    it("sink throws → suppression result is still returned (error does not propagate)", async () => {
+      const logger = createFakeLogger();
+      const handler = createFieldLockInterceptor({
+        policy: resolveCapLockPolicy({ shadowMode: true }),
+        logger,
+        now: () => Date.parse("2026-01-01T00:01:00Z"),
+        emitEvent: () => {
+          throw new Error("boom");
+        },
+      });
+
+      const result = await handler(makeViolations(), makeContext());
+
+      // Allowed write must NOT be turned into a throw; result is the suppression.
+      expect(result).toEqual([]);
+      // The faulty sink is noted at warn level.
+      expect(logger.calls.find((c) => c.level === "warn")).toBeDefined();
+    });
+
+    it("recordId: string id surfaces; non-string/absent id is omitted", async () => {
+      // String id → surfaced.
+      const withId = buildEventHandler({ config: { shadowMode: true } });
+      await withId.handler(
+        makeViolations(),
+        makeContext({ record: { id: "rec-42", status: "submitted" } }),
+      );
+      expect(withId.events[0]?.recordId).toBe("rec-42");
+
+      // No id on the record → omitted (undefined).
+      const noId = buildEventHandler({ config: { shadowMode: true } });
+      await noId.handler(makeViolations(), makeContext({ record: { status: "submitted" } }));
+      expect(noId.events[0]?.recordId).toBeUndefined();
+
+      // Non-string id (number) → omitted (undefined), no coercion.
+      const numId = buildEventHandler({ config: { shadowMode: true } });
+      await numId.handler(
+        makeViolations(),
+        makeContext({ record: { id: 7, status: "submitted" } }),
+      );
+      expect(numId.events[0]?.recordId).toBeUndefined();
     });
   });
 });
