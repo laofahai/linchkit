@@ -1,0 +1,14 @@
+{
+  "name": "@linchkit/cap-lock",
+  "version": "1.0.0",
+  "type": "standard",
+  "category": "system",
+  "label": "Field Lock Policy",
+  "description": "Advanced field-lock policy: shadow mode, bypass groups, tolerance period, and audit trail over core field-lock enforcement (Spec 63 Phase 3)",
+  "extensions": {
+    "interceptors": ["field-lock-check"]
+  },
+  "linchkit": {
+    "coreVersion": "^0.2.0"
+  }
+}

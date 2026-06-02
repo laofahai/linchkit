@@ -336,6 +336,17 @@
         "react-i18next": "^14",
       },
     },
+    "addons/lock/cap-lock": {
+      "name": "@linchkit/cap-lock",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+      },
+    },
     "addons/migration/cap-migration": {
       "name": "@linchkit/cap-migration",
       "version": "1.0.0",
@@ -898,6 +909,8 @@
     "@linchkit/cap-keyboard-shortcuts": ["@linchkit/cap-keyboard-shortcuts@workspace:addons/keyboard-shortcuts/cap-keyboard-shortcuts"],
 
     "@linchkit/cap-life-demo": ["@linchkit/cap-life-demo@workspace:addons/demo/cap-life-demo"],
+
+    "@linchkit/cap-lock": ["@linchkit/cap-lock@workspace:addons/lock/cap-lock"],
 
     "@linchkit/cap-mcp-ui": ["@linchkit/cap-mcp-ui@workspace:addons/adapter-mcp/cap-mcp-ui"],
 
