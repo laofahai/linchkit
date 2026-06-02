@@ -50,6 +50,7 @@
       "Write(**)",
       "Edit(**)"
     ],
+    "ask": ["Bash(git branch -D *)"],
     "deny": [
       "Bash(git reset *)",
       "Bash(git clean *)",
@@ -59,8 +60,6 @@
       "Bash(git push --force*)",
       "Bash(git push * --force*)",
       "Bash(git rebase *)",
-      "Bash(git branch -D *)",
-      "Bash(git branch -d *)",
       "Bash(npx *)",
       "Bash(npm *)",
       "Bash(node *)",
@@ -89,28 +88,9 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git checkout -b *)",
-            "command": "echo 'BLOCKED: Use git worktree add instead of git checkout -b.' >&2; exit 2",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-bun-guard.sh",
             "timeout": 5,
-            "statusMessage": "Checking branch safety..."
-          },
-          {
-            "type": "command",
-            "if": "Bash(npx *)",
-            "command": "echo 'BLOCKED: Use bunx instead of npx.' >&2; exit 2",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "if": "Bash(npm *)",
-            "command": "echo 'BLOCKED: Use bun instead of npm.' >&2; exit 2",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "if": "Bash(node *)",
-            "command": "echo 'BLOCKED: Use bun instead of node.' >&2; exit 2",
-            "timeout": 5
+            "statusMessage": "Checking runtime (bun-only)..."
           },
           {
             "type": "command",
@@ -158,7 +138,7 @@
           },
           {
             "type": "command",
-            "if": "Bash(bun run test)",
+            "if": "Bash(bun test)",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-quality-gate.sh tests_passed",
             "timeout": 5
           },
