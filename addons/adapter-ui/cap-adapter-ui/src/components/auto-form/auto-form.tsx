@@ -883,15 +883,21 @@ export function AutoForm({
     // badge's two-step confirmation, so the badge renders its toggle when
     // `canBypass || soft`.
     const soft = lockInfo?.mode === "soft";
+    // The badge may only offer an unlock toggle when the lock is the ONLY reason
+    // the field is readonly. If another source still wins (view/node `readonly`
+    // or a `state`-typed field — the non-lock branches of isFieldReadonly), a
+    // confirmed unlock would flip the badge to "unlocked" while the input stays
+    // readonly — a broken soft-lock UX. In that case fall back to a static badge.
+    const unlockableByBadge = !node.readonly && !viewField?.readonly && fieldDef.type !== "state";
     const lock =
       lockInfo?.locked && !isViewMode
         ? {
             reason: lockInfo.reason ?? "locked",
             status: resolvedStatus,
-            canBypass,
-            soft,
-            unlocked: isUnlocked(node.field),
-            onToggle: () => toggleUnlock(node.field),
+            canBypass: unlockableByBadge && canBypass,
+            soft: unlockableByBadge && soft,
+            unlocked: unlockableByBadge && isUnlocked(node.field),
+            onToggle: unlockableByBadge ? () => toggleUnlock(node.field) : undefined,
           }
         : undefined;
 
