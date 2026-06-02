@@ -27,6 +27,7 @@
  */
 
 import type { FieldLockCheckContext, FieldLockViolation, Logger } from "@linchkit/core";
+import { evaluateActorBypass } from "./bypass";
 import type { CapLockPolicy } from "./config";
 
 /** Reason an audited suppression occurred — surfaced in the audit log. */
@@ -130,22 +131,17 @@ export function createFieldLockInterceptor(
       );
     };
 
-    // 1. Shadow mode — observe without blocking. Log every violation, allow.
-    if (policy.shadowMode) {
-      audit("shadow");
-      return [];
-    }
-
-    // 2. Bypass groups — the actor's groups/roles override locks.
-    //    The core `Actor.groups: string[]` field carries the actor's
+    // 1 & 2. Actor-level escape hatches — shadow mode, then bypass groups.
+    //    Delegated to the SHARED `evaluateActorBypass` predicate so the runtime
+    //    enforcement decision can never drift from the read-side
+    //    `fieldLockBypass` GraphQL hint (which calls the same function). The
+    //    returned `reason` ("shadow" | "bypass") flows straight into the audit
+    //    log. The core `Actor.groups: string[]` field carries the actor's
     //    group/role memberships (set by the auth/permission slots — see
-    //    cap-permission's `actor.groups` usage), which is exactly the concept
-    //    the spec example references as `context.actor.groups`. Use it directly.
-    if (
-      policy.bypassGroups.length > 0 &&
-      context.actor.groups?.some((group) => policy.bypassGroups.includes(group))
-    ) {
-      audit("bypass");
+    //    cap-permission's `actor.groups` usage), which the predicate inspects.
+    const actorBypass = evaluateActorBypass(context.actor, policy);
+    if (actorBypass.canBypass && actorBypass.reason !== null) {
+      audit(actorBypass.reason);
       return [];
     }
 

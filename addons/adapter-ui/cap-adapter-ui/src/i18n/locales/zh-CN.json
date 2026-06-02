@@ -97,6 +97,15 @@
       "hasErrors": "请先修正以下错误再提交",
       "uniqueHint": "必须唯一 — 保存时验证"
     },
+    "lock": {
+      "immutable": "此字段创建后不可更改",
+      "locked": "此字段在当前状态下已锁定",
+      "lockedInState": "因记录处于状态“{{status}}”而锁定",
+      "ariaLabel": "已锁定字段",
+      "canOverride": "已锁定 — 你有权限覆盖，点击解锁",
+      "unlocked": "已解锁 — 可编辑此字段",
+      "toggleAriaLabel": "切换字段锁定"
+    },
     "overlayFields": "自定义字段"
   },
   "list": {

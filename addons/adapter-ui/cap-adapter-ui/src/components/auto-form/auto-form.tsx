@@ -32,6 +32,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useEntityOnchange } from "../../hooks/use-entity-onchange";
+import { useFieldUnlock } from "../../hooks/use-field-lock-bypass";
 import { useFieldLockState } from "../../hooks/use-field-lock-state";
 import { buildRelationFieldMap } from "../../lib/entity-form-utils";
 import { evaluateVisibility } from "../../lib/field-visibility";
@@ -164,6 +165,14 @@ export function AutoForm({
     record: lockRecord,
     mode,
   });
+
+  // ── Field-lock bypass / unlock (Spec 63 §5.2) ──
+  // Whether the CURRENT actor may override field locks (decided by cap-lock's
+  // policy via the `fieldLockBypass` query; false when cap-lock is absent) and
+  // which fields they have opted to unlock for editing. A bypass-eligible actor
+  // can click a locked field's badge to unlock it. The state + derivation live
+  // in `useFieldUnlock` so this large component stays lean.
+  const { canBypass, isUnlocked, toggleUnlock } = useFieldUnlock();
 
   // ── Entity onchange (Spec 64) ──
   // Server-driven interactive form computation. Fires after a debounced field
@@ -803,7 +812,12 @@ export function AutoForm({
     // Spec 63 §5.1 — computed readonly from entity lock rules (immutable on
     // edit, lockWhen/lockAllWhen by current state). Supersedes the previous
     // inline `immutable` check, which this hook also covers.
-    if (fieldLockState[fieldName]?.locked) return true;
+    if (fieldLockState[fieldName]?.locked) {
+      // Spec 63 §5.2 — a bypass-eligible actor who has explicitly unlocked the
+      // field may edit it; otherwise the lock stands.
+      if (canBypass && isUnlocked(fieldName)) return false;
+      return true;
+    }
     return false;
   }
 
@@ -852,9 +866,18 @@ export function AutoForm({
     // Derive the displayed status from the SAME `resolvedStatus` used for lock
     // evaluation, so a field can never be evaluated locked under one status
     // while the tooltip shows a different one.
+    // Spec 63 §5.2 — when the actor may bypass, the badge becomes an unlock
+    // toggle. `lock` is still passed even after a field is unlocked (readonly
+    // cleared) so the open-lock toggle stays visible to re-lock the field.
     const lock =
       lockInfo?.locked && !isViewMode
-        ? { reason: lockInfo.reason ?? "locked", status: resolvedStatus }
+        ? {
+            reason: lockInfo.reason ?? "locked",
+            status: resolvedStatus,
+            canBypass,
+            unlocked: isUnlocked(node.field),
+            onToggle: () => toggleUnlock(node.field),
+          }
         : undefined;
 
     const hasCondition = !!(
