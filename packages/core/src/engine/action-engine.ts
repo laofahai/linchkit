@@ -398,6 +398,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     rules,
   } = options;
 
+  // Per-action cache of collected+priority-sorted rules. `rules` is fixed for
+  // the executor's lifetime, so collectRules() output is stable per action name
+  // — cache it to avoid re-filtering and re-sorting on every execution.
+  const applicableRulesCache = new Map<string, RuleDefinition[]>();
+
   /** Silent noop logger — used when no logger is injected */
   const noopFn = () => {};
   const noopLogger: Logger = { debug: noopFn, info: noopFn, warn: noopFn, error: noopFn };
@@ -828,7 +833,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     let effectiveInput: Record<string, unknown> = inputValidation.value ?? input;
     const ruleWarnings: string[] = [];
     if (rules && rules.length > 0) {
-      const applicableRules = collectRules(actionName, rules);
+      let applicableRules = applicableRulesCache.get(actionName);
+      if (applicableRules === undefined) {
+        applicableRules = collectRules(actionName, rules);
+        applicableRulesCache.set(actionName, applicableRules);
+      }
       if (applicableRules.length > 0) {
         const ruleOutput = await evaluateRules(
           applicableRules,
@@ -847,7 +856,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             entity: action.entity,
             actor,
             input,
-            status: "failed",
+            // Policy/authorization-style block (consistent with exposure,
+            // field-lock, and state-transition blocks) — not an execution failure.
+            status: "blocked",
             error: { message: reason },
             meta: metaSnapshot,
             startedAt,
