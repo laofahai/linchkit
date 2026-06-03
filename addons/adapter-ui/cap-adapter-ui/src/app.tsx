@@ -20,6 +20,7 @@ const queryClient = new QueryClient({
 import "./i18n"; // Initialize i18n before rendering
 import "./lib/builtin-panels"; // Register built-in record panels
 import { resolveCapabilityPageComponent } from "./capability-page-registry";
+import { ErrorBoundary } from "./components/error-boundary";
 import { AuthProvider } from "./hooks/use-auth";
 import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
@@ -117,7 +118,13 @@ function getLayoutRoute(layout: PageLayout) {
 function createCapabilityPageRoute(page: PageRegistration, authEnabled: boolean) {
   const parentRoute = getLayoutRoute(page.layout);
   const ResolvedComponent = resolveCapabilityPageComponent(page);
-  const component = () => <ResolvedComponent {...(page.props ?? {})} />;
+  // Per-page boundary at the dynamic-render seam: a broken capability page
+  // shows the fallback instead of crashing the surrounding shell.
+  const component = () => (
+    <ErrorBoundary>
+      <ResolvedComponent {...(page.props ?? {})} />
+    </ErrorBoundary>
+  );
 
   return createRoute({
     getParentRoute: () => parentRoute,
@@ -285,10 +292,12 @@ export function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

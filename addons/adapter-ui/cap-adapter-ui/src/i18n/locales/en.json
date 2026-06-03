@@ -274,7 +274,9 @@
     "dataLoadFailed": "Failed to load records.",
     "recordNotFound": "Record \"{{id}}\" not found.",
     "recordLoadFailed": "Failed to load record.",
-    "failedToLoadData": "Failed to load data"
+    "failedToLoadData": "Failed to load data",
+    "boundaryTitle": "Something went wrong",
+    "boundaryDescription": "An unexpected error occurred while rendering this view."
   },
   "theme": {
     "light": "Light",
