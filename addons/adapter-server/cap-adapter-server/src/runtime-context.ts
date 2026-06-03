@@ -19,6 +19,7 @@ import type {
   ExecutionLogger,
   InterfaceDefinition,
   MiddlewareRegistration,
+  RuleDefinition,
   StateDefinition,
   TransactionManager,
   ViewDefinition,
@@ -55,6 +56,8 @@ export interface RuntimeContextOptions {
   actions?: ActionDefinition[];
   states?: StateDefinition[];
   views?: ViewDefinition[];
+  /** Business rules (defineRule) — evaluated by the action executor (Spec 23 §1.1). */
+  rules?: RuleDefinition[];
   middlewares?: MiddlewareRegistration[];
   /** Interface definitions — registered before schemas so field injection/validation works */
   interfaces?: InterfaceDefinition[];
@@ -127,6 +130,8 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     // Strict type/constraint input validation in production + staging; dev/test
     // stay lenient (toy inputs). Sourced from the canonical environment policy.
     strictValidation: detectEnvironment().features.strictValidation,
+    // Business rules evaluated during action execution (Spec 23 §1.1).
+    rules: options?.rules,
   });
 
   // Register actions
