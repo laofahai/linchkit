@@ -439,6 +439,70 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
     expect(captured.created).toMatchObject({ amount: 42 });
   });
 
+  it("execute_action cycle terminates (recursion-depth guarded)", async () => {
+    // A rule whose execute_action re-runs the SAME action would loop forever if
+    // the post-commit invocation didn't count against the depth guard (codex P2).
+    const selfRule: RuleDefinition = {
+      name: "loop_self",
+      label: "Self-executing rule",
+      trigger: { action: "submit_request" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "execute_action", action: "submit_request" },
+    };
+    const executor = build([selfRule]);
+    // Completing at all (no stack overflow / hang) proves the cycle is bounded.
+    const result = await executor.execute("submit_request", { amount: 1 }, actor);
+    expect(result.success).toBe(true);
+    expect(captured.created).not.toBeNull();
+  });
+
+  it("nested: a child's trigger_flow bubbles to the parent's post-commit (fires once)", async () => {
+    // A transactional parent calls a child via ctx.execute; the child has a
+    // trigger_flow rule. The child's side effect must bubble to the parent and
+    // fire on the parent's commit — not be silently dropped (codex P2).
+    const flowCap: FlowCapture = { started: null };
+    const childRule: RuleDefinition = {
+      name: "child_flow",
+      label: "Child flow",
+      trigger: { action: "child_act" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "trigger_flow", flow: "child_flow" },
+    };
+    const txManager = {
+      runInTransaction: async <T>(fn: (p: DataProvider) => Promise<T>) =>
+        fn(makeDataProvider(captured)),
+    };
+    const executor = createActionExecutor({
+      dataProvider: makeDataProvider(captured),
+      transactionManager: txManager,
+      rules: [childRule],
+      flowEngine: makeFlowStarter(flowCap),
+    });
+    executor.registry.register({
+      name: "child_act",
+      entity: "request",
+      label: "Child",
+      policy: { mode: "sync", transaction: true },
+      exposure: "all",
+      handler: async () => ({ ok: true }),
+    });
+    executor.registry.register({
+      name: "parent_act",
+      entity: "request",
+      label: "Parent",
+      policy: { mode: "sync", transaction: true },
+      exposure: "all",
+      handler: async (ctx) => {
+        await ctx.execute("child_act", { amount: 5 });
+        return { ok: true };
+      },
+    });
+    const result = await executor.execute("parent_act", { amount: 5 }, actor);
+
+    expect(result.success).toBe(true);
+    expect(flowCap.started?.flow).toBe("child_flow");
+  });
+
   it("post-commit effects do NOT run when the action is blocked", async () => {
     const flowCap: FlowCapture = { started: null };
     const rules: RuleDefinition[] = [

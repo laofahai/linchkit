@@ -137,6 +137,14 @@ export interface ExecuteOptions {
   /** Internal: parent's pending events array for shared transaction */
   _parentPendingEvents?: PendingEvent[];
   /**
+   * Internal: parent's pending post-commit rule side-effect arrays for a shared
+   * transaction. A nested action inside a parent tx bubbles its collected
+   * `execute_action` / `trigger_flow` effects here so they run when the PARENT
+   * commits, instead of firing before the (not-yet-committed) parent write.
+   */
+  _parentPendingRuleActions?: ExecuteActionEffect[];
+  _parentPendingRuleFlows?: TriggerFlowEffect[];
+  /**
    * Execution metadata propagated through the execution chain (Spec 65).
    *
    * Accepts either a pre-built `ExecutionMeta` (how the CommandLayer and the
@@ -1489,6 +1497,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           _depth: currentDepth + 1,
           _txDataProvider: childTxDataProvider,
           _parentPendingEvents: childParentPendingEvents,
+          // Bubble the child's post-commit rule side effects up to this parent
+          // (shared tx) so they fire on the parent's commit, not before it.
+          _parentPendingRuleActions: inTransaction ? pendingRuleActions : undefined,
+          _parentPendingRuleFlows: inTransaction ? pendingRuleFlows : undefined,
           meta: childMeta,
         });
         childExecutionIds.push(childResult.executionId);
@@ -1883,11 +1895,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
 
       // Post-commit rule side effects (Spec 23 §1.1 / Spec 26 §2.2 — eventual
-      // consistency). Run only at the root / non-transactional level (same guard
-      // as the event flush): a nested action inside a parent transaction must
-      // not fire side effects before the parent commits. Best-effort — a failure
-      // here never fails the already-committed action.
-      if (
+      // consistency). A nested action inside a parent transaction bubbles its
+      // effects up so they fire on the PARENT's commit (mirrors event flush);
+      // the root / non-transactional level runs them — including any bubbled up
+      // from children. Best-effort — a failure here never fails the
+      // already-committed action.
+      const bubbleRuleActions = execOptions?._parentPendingRuleActions;
+      const bubbleRuleFlows = execOptions?._parentPendingRuleFlows;
+      if (bubbleRuleActions && bubbleRuleFlows) {
+        bubbleRuleActions.push(...pendingRuleActions);
+        bubbleRuleFlows.push(...pendingRuleFlows);
+      } else if (
         !execOptions?._txDataProvider &&
         (pendingRuleActions.length > 0 || pendingRuleFlows.length > 0)
       ) {
@@ -1896,6 +1914,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             await execute(act.action, act.params ?? effectiveInput, actor, {
               tenantId: execOptions?.tenantId,
               meta: resolvedMeta,
+              // Count against the recursion-depth guard so an execute_action
+              // cycle (a rule re-executing its own action) cannot loop forever.
+              _depth: currentDepth + 1,
             });
           } catch (err) {
             logger.warn(
