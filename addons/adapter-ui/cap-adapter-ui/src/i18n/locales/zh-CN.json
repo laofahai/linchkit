@@ -274,7 +274,9 @@
     "dataLoadFailed": "加载数据失败。",
     "recordNotFound": "未找到记录「{{id}}」。",
     "recordLoadFailed": "加载记录失败。",
-    "failedToLoadData": "数据加载失败"
+    "failedToLoadData": "数据加载失败",
+    "boundaryTitle": "出错了",
+    "boundaryDescription": "渲染此视图时发生意外错误。"
   },
   "theme": {
     "light": "浅色",
