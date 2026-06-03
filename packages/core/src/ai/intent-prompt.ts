@@ -250,7 +250,12 @@ export function parseAiResponse(raw: string): AiResponse | null {
   return result.data;
 }
 
-function extractJsonCandidate(raw: string): string | null {
+/**
+ * Extract a JSON-object candidate substring from a raw AI response: strips a
+ * Markdown code fence, fast-paths a bare object, else falls back to the
+ * string-aware balanced extractor. Shared by the schema-intent parser.
+ */
+export function extractJsonCandidate(raw: string): string | null {
   const trimmed = raw.trim();
   if (trimmed.length === 0) return null;
 

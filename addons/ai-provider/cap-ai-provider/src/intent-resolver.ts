@@ -21,8 +21,13 @@
  */
 
 import type { ActionDefinition, AIService, AITraceContext } from "@linchkit/core";
+// Shared string-aware balanced JSON-object extractor — single source of truth in
+// core (re-exported below so this module's public surface + tests are unchanged).
+import { extractFirstJsonObject } from "@linchkit/core/ai";
 import { z } from "zod";
 import { type ActionCatalogEntry, buildIntentSystemPrompt } from "./intent-prompt";
+
+export { extractFirstJsonObject };
 
 // ── Public types ─────────────────────────────────────────────
 
@@ -362,71 +367,6 @@ function extractJsonCandidate(raw: string): string | null {
   const end = trimmed.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
   return trimmed.slice(start, end + 1);
-}
-
-/**
- * Walk `text` once and return the first balanced top-level JSON object as
- * a substring (inclusive of the outer braces), or `null` if no balanced
- * object exists.
- *
- * Tracks brace depth while ignoring `{` / `}` that appear inside string
- * literals. Honors `\\` and `\"` escapes inside strings so an escaped quote
- * does not accidentally close the string scanner.
- *
- * Intentionally simple — no JSON5, no regex backtracking. The output is
- * still passed to `JSON.parse`, which is the source of truth for structural
- * validity.
- */
-export function extractFirstJsonObject(text: string): string | null {
-  const start = text.indexOf("{");
-  if (start === -1) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escapeNext = false;
-
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-
-    if (inString) {
-      if (escapeNext) {
-        // Previous char was a backslash — consume this char literally,
-        // even if it is a quote.
-        escapeNext = false;
-        continue;
-      }
-      if (ch === "\\") {
-        escapeNext = true;
-        continue;
-      }
-      if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-    if (ch === "{") {
-      depth++;
-      continue;
-    }
-    if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        return text.slice(start, i + 1);
-      }
-      if (depth < 0) {
-        // Unbalanced — bail out rather than return a malformed slice.
-        return null;
-      }
-    }
-  }
-
-  // Reached end of input without closing the outer object.
-  return null;
 }
 
 interface ReconciledInput {

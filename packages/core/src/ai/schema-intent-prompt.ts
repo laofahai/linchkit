@@ -19,7 +19,7 @@
 
 // Reuse the intent resolver's tolerant JSON extractor — same parser, no
 // second implementation to keep in sync.
-import { extractFirstJsonObject } from "./intent-prompt";
+import { extractJsonCandidate } from "./intent-prompt";
 import type { SchemaIntentEntity } from "./schema-intent-types";
 
 // ── System prompt builder ────────────────────────────────────
@@ -188,13 +188,4 @@ function inferKind(rec: Record<string, unknown>): ParsedSchemaIntent["kind"] | n
   if (rec.rule && typeof rec.rule === "object") return "add_rule";
   if (typeof rec.question === "string" && rec.question.trim().length > 0) return "clarification";
   return "no_match";
-}
-
-function extractJsonCandidate(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return null;
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
-  return extractFirstJsonObject(trimmed);
 }
