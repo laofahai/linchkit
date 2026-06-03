@@ -19,21 +19,25 @@ import type { RuleDefinition } from "../src/types/rule";
 
 const actor: Actor = { type: "human", id: "user-1", groups: ["staff"] };
 
-/** Captures the last create() write so tests can assert enrich reached the write path. */
+/** Captures writes so tests can assert enrich reached the handler + write paths. */
 interface Captured {
   created: Record<string, unknown> | null;
+  updated: { id: string; data: Record<string, unknown> } | null;
   handlerInput: Record<string, unknown> | null;
 }
 
 function makeDataProvider(captured: Captured): DataProvider {
   return {
-    get: async () => ({}),
+    get: async (_entity, id) => ({ id }),
     query: async () => [],
     create: async (_entity, data) => {
       captured.created = data;
       return { id: "req_1", ...data };
     },
-    update: async (_entity, id, data) => ({ id, ...data }),
+    update: async (_entity, id, data) => {
+      captured.updated = { id, data };
+      return { id, ...data };
+    },
     delete: async () => {},
     count: async () => 0,
   };
@@ -55,6 +59,18 @@ function makeAction(captured: Captured): ActionDefinition {
   };
 }
 
+/** Declarative UPDATE action (no handler) — writes setFields resolved from input. */
+function makeDeclarativeUpdateAction(): ActionDefinition {
+  return {
+    name: "tag_request",
+    entity: "request",
+    label: "Tag Request",
+    policy: { mode: "sync", transaction: false },
+    exposure: "all",
+    setFields: { region: "$input.region" },
+  };
+}
+
 function blockRule(): RuleDefinition {
   return {
     name: "block_overlimit",
@@ -69,7 +85,7 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
   let captured: Captured;
 
   beforeEach(() => {
-    captured = { created: null, handlerInput: null };
+    captured = { created: null, updated: null, handlerInput: null };
   });
 
   function build(rules: RuleDefinition[] | undefined) {
@@ -78,6 +94,7 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
       rules,
     });
     executor.registry.register(makeAction(captured));
+    executor.registry.register(makeDeclarativeUpdateAction());
     return executor;
   }
 
@@ -114,6 +131,26 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
     expect(result.success).toBe(true);
     expect(captured.handlerInput).toMatchObject({ amount: 10, region: "emea", priority: 3 });
     expect(captured.created).toMatchObject({ region: "emea", priority: 3 });
+  });
+
+  it("enrich: reaches DECLARATIVE writes too ($input.* resolves rule-enriched fields)", async () => {
+    // Regression (codex review): the no-handler declarative path read raw
+    // `input`, so `setFields: { region: "$input.region" }` resolved to the
+    // pre-enrichment value and the rule effect was silently dropped.
+    const enrich: RuleDefinition = {
+      name: "stamp_region_decl",
+      label: "Stamp region (declarative)",
+      trigger: { action: "tag_request" },
+      condition: { field: "target.id", operator: "not_null" },
+      effect: { type: "enrich", setFields: { region: "emea" } },
+    };
+    const executor = build([enrich]);
+    // Caller supplies only the record id — `region` comes from the rule.
+    const result = await executor.execute("tag_request", { id: "req_1" }, actor);
+
+    expect(result.success).toBe(true);
+    expect(captured.updated).not.toBeNull();
+    expect(captured.updated?.data).toMatchObject({ region: "emea" });
   });
 
   it("warn: warning messages surface on the result, action still succeeds", async () => {

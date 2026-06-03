@@ -1527,15 +1527,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (action.handler) {
           resultData = await action.handler(ctx);
         } else {
-          // Declarative action — no handler needed
-          const recordIdLocal = input.id as string | undefined;
+          // Declarative action — no handler needed. Use `effectiveInput` (the
+          // validated + rule-enriched payload) so `enrich` effects and strict
+          // sanitization apply to declarative writes exactly as they do on the
+          // handler path (ctx.input). Reading raw `input` here would silently
+          // drop rule-enriched fields and `$input.*` references to them.
+          const recordIdLocal = effectiveInput.id as string | undefined;
 
           if (recordIdLocal) {
             const updates: Record<string, unknown> = {};
 
             if (action.setFields) {
               for (const [key, value] of Object.entries(action.setFields)) {
-                updates[key] = resolveFieldExpression(value, input, actor);
+                updates[key] = resolveFieldExpression(value, effectiveInput, actor);
               }
             }
 
