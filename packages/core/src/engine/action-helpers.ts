@@ -165,7 +165,11 @@ export function validateInput(
       fields: action.input,
     };
 
-    const result = generateZodSchema(entityShape).safeParse(input);
+    // `includeSystemFields` keeps server-managed identifiers (id, tenant_id, …)
+    // that the executor reads from input (e.g. the update record id) — they are
+    // validated as optional and NOT stripped — while genuinely undeclared keys
+    // are removed from the parsed payload.
+    const result = generateZodSchema(entityShape, { includeSystemFields: true }).safeParse(input);
     if (!result.success) {
       const errors = result.error.issues.map((issue) => ({
         field: issue.path.length > 0 ? issue.path.join(".") : "(root)",
@@ -173,6 +177,11 @@ export function validateInput(
       }));
       return { valid: false, errors };
     }
+    // Return the sanitized (allowlisted) payload so the executor forwards only
+    // declared + system keys to handlers — undeclared keys never reach the write
+    // path. `z.object` strips unknown keys by default, so `result.data` is the
+    // input minus anything not in the schema.
+    return { valid: true, value: result.data };
   }
 
   return { valid: true };

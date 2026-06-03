@@ -1103,7 +1103,12 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // the meta snapshot. `resolvedMeta` and `metaSnapshot` are in scope here.
 
     const ctx: ActionContext = {
-      input,
+      // In strict mode, forward the sanitized (allowlisted) payload so undeclared
+      // keys stripped by validation never reach handlers / the write path. Falls
+      // back to the original input on the lenient path (dev/test). System fields
+      // are retained by the validator, so update/lock logic that reads `input.id`
+      // is unaffected.
+      input: inputValidation.value ?? input,
       actor,
       tenantId: execOptions?.tenantId,
       logger,

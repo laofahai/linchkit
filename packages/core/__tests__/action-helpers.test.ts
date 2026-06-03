@@ -262,10 +262,11 @@ describe("validateInput", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("strict=true: leniency pin — does NOT reject unknown extra keys", () => {
+    it("strict=true: does NOT reject unknown extra keys, but STRIPS them from value", () => {
       // generateZodSchema uses z.object, which STRIPS unknown keys by default.
       // A client (or an upstream layer) sending extra fields must not be
-      // rejected — this pins that the lenient-equivalent behaviour holds.
+      // rejected (lenient-equivalent), AND the sanitized `value` must omit the
+      // undeclared key so it never reaches handlers / the write path.
       const action = makeAction({
         input: { amount: { type: "number", required: true } },
       });
@@ -275,6 +276,35 @@ describe("validateInput", () => {
         { strict: true },
       );
       expect(result.valid).toBe(true);
+      // Allowlist: declared field kept, undeclared key removed.
+      expect(result.value).toBeDefined();
+      expect(result.value?.amount).toBe(100);
+      expect(result.value && "surprise" in result.value).toBe(false);
+      // System field retained (server-managed identifiers must survive so the
+      // executor's update/lock logic that reads input.id still works).
+      expect(result.value?._version).toBe(3);
+    });
+
+    it("strict=true: retains the system `id` field in the sanitized value", () => {
+      // The executor reads input.id (action-engine.ts) for update / field-lock;
+      // includeSystemFields must keep it in `value` even though it is not part of
+      // the action's declared input fields.
+      const action = makeAction({
+        input: { amount: { type: "number", required: true } },
+      });
+      const result = validateInput(action, { id: "rec-1", amount: 5 }, { strict: true });
+      expect(result.valid).toBe(true);
+      expect(result.value?.id).toBe("rec-1");
+    });
+
+    it("strict=false: does NOT sanitize (value is unset, lenient path)", () => {
+      const action = makeAction({
+        input: { amount: { type: "number", required: true } },
+      });
+      const result = validateInput(action, { amount: 1, surprise: "kept" }, { strict: false });
+      expect(result.valid).toBe(true);
+      // Lenient path returns no sanitized value → executor uses original input.
+      expect(result.value).toBeUndefined();
     });
 
     it("strict=true: leniency pin — optional fields accept null / absent", () => {

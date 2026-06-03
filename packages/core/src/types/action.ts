@@ -91,6 +91,14 @@ export interface ActionValidation {
 export interface ValidationResult {
   valid: boolean;
   errors?: Array<{ field: string; message: string }>;
+  /**
+   * Sanitized input payload. Set by {@link validateInput} on STRICT success: the
+   * Zod-parsed object with undeclared keys stripped (server-managed system fields
+   * are retained). The executor forwards this to handlers so undeclared keys
+   * never reach the write path. Unset on the lenient path (callers fall back to
+   * the original input).
+   */
+  value?: Record<string, unknown>;
 }
 
 // ── ActionContext ────────────────────────────────────
