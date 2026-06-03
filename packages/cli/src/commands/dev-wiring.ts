@@ -243,6 +243,8 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     capabilityNames,
     entityRegistry,
     interceptorRegistry,
+    // Strict input validation follows the detected environment (prod/staging).
+    strictValidation: environment.features.strictValidation,
   });
   for (const action of actionRegistry.getAll()) {
     executor.registry.register(action);

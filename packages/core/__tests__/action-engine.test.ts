@@ -326,6 +326,54 @@ describe("ActionExecutor", () => {
     expect((result.data as Record<string, unknown>).error).toBe("Input validation failed");
   });
 
+  it("strictValidation off (default): accepts a wrong-typed input (no regression)", async () => {
+    // Without strict validation, the engine only checks required presence — the
+    // historical lenient behaviour — so a non-numeric `amount` still executes.
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider });
+    executor.registry.register(simpleAction);
+
+    const result = await executor.execute(
+      "create_order",
+      { title: "Toy Order", amount: "not-a-number" },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it("strictValidation on: rejects a wrong-typed input end-to-end", async () => {
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider, strictValidation: true });
+    executor.registry.register(simpleAction);
+
+    const result = await executor.execute(
+      "create_order",
+      { title: "Bad Order", amount: "not-a-number" },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).error).toBe("Input validation failed");
+    const details = (result.data as Record<string, unknown>).details as Array<{ field: string }>;
+    expect(details.some((d) => d.field === "amount")).toBe(true);
+  });
+
+  it("strictValidation on: a valid production-shaped write succeeds", async () => {
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider, strictValidation: true });
+    executor.registry.register(simpleAction);
+
+    const result = await executor.execute(
+      "create_order",
+      { title: "Good Order", amount: 1299.99 },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(true);
+    expect((result.data as Record<string, unknown>).title).toBe("Good Order");
+  });
+
   it("runs validate.required pre-validation", async () => {
     const dataProvider = createMemoryDataProvider();
     const executor = createActionExecutor({ dataProvider });

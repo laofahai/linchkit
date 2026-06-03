@@ -159,6 +159,142 @@ describe("validateInput", () => {
     const result = validateInput(action, { amount: null });
     expect(result.valid).toBe(false);
   });
+
+  // ── strict mode (type-aware Zod validation) ──────────────
+
+  describe("strict mode", () => {
+    it("strict=false (default): a wrong-typed value the old code accepted still passes", () => {
+      const action = makeAction({
+        input: {
+          amount: { type: "number", required: true },
+          note: { type: "string", required: false },
+        },
+      });
+      // "not-a-number" is the exact bug the audit flagged — the lenient path
+      // only checks presence, so this MUST still pass with strict off (no
+      // regression for dev/test toy inputs).
+      const lenient = validateInput(action, { amount: "not-a-number", note: 42 });
+      expect(lenient.valid).toBe(true);
+
+      // Explicit strict=false behaves identically to the default.
+      const explicit = validateInput(action, { amount: "not-a-number" }, { strict: false });
+      expect(explicit.valid).toBe(true);
+    });
+
+    it("strict=true: rejects a missing required field", () => {
+      const action = makeAction({
+        input: { amount: { type: "number", required: true } },
+      });
+      const result = validateInput(action, {}, { strict: true });
+      expect(result.valid).toBe(false);
+      // The lenient required-presence check fires first and short-circuits.
+      expect(result.errors?.some((e) => e.field === "amount")).toBe(true);
+    });
+
+    it("strict=true: rejects a non-numeric string for a number field", () => {
+      const action = makeAction({
+        input: { amount: { type: "number", required: true } },
+      });
+      const result = validateInput(action, { amount: "not-a-number" }, { strict: true });
+      expect(result.valid).toBe(false);
+      expect(result.errors?.some((e) => e.field === "amount")).toBe(true);
+    });
+
+    it("strict=true: rejects a bad enum value", () => {
+      const action = makeAction({
+        input: {
+          status: {
+            type: "enum",
+            required: true,
+            options: [{ value: "draft" }, { value: "submitted" }],
+          },
+        },
+      });
+      const result = validateInput(action, { status: "shipped" }, { strict: true });
+      expect(result.valid).toBe(false);
+      expect(result.errors?.some((e) => e.field === "status")).toBe(true);
+    });
+
+    it("strict=true: rejects a wrong primitive type (string for boolean)", () => {
+      const action = makeAction({
+        input: { active: { type: "boolean", required: true } },
+      });
+      const result = validateInput(action, { active: "yes" }, { strict: true });
+      expect(result.valid).toBe(false);
+      expect(result.errors?.some((e) => e.field === "active")).toBe(true);
+    });
+
+    it("strict=true: ACCEPTS realistic production-shaped wire input", () => {
+      // This is the key safety test: every value below is exactly what a real
+      // HTTP/GraphQL client sends (numbers stay numbers, dates are ISO STRINGS,
+      // json is an arbitrary object, enums are their value strings). Strict
+      // validation must NEVER reject any of these.
+      const action = makeAction({
+        input: {
+          amount: { type: "number", required: true },
+          title: { type: "string", required: true },
+          active: { type: "boolean", required: false },
+          // date/datetime fields cross JSON as ISO strings, never Date objects.
+          due_date: { type: "date", required: false },
+          created_at: { type: "datetime", required: false },
+          // json fields accept any shape (generator maps to z.unknown()).
+          metadata: { type: "json", required: false },
+          status: {
+            type: "enum",
+            required: false,
+            options: [{ value: "draft" }, { value: "submitted" }],
+          },
+        },
+      });
+      const result = validateInput(
+        action,
+        {
+          amount: 1299.99,
+          title: "Quarterly purchase",
+          active: true,
+          due_date: "2026-06-30",
+          created_at: "2026-06-03T12:34:56.000Z",
+          metadata: { vendor: "acme", tags: ["a", "b"], nested: { ok: 1 } },
+          status: "submitted",
+        },
+        { strict: true },
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    it("strict=true: leniency pin — does NOT reject unknown extra keys", () => {
+      // generateZodSchema uses z.object, which STRIPS unknown keys by default.
+      // A client (or an upstream layer) sending extra fields must not be
+      // rejected — this pins that the lenient-equivalent behaviour holds.
+      const action = makeAction({
+        input: { amount: { type: "number", required: true } },
+      });
+      const result = validateInput(
+        action,
+        { amount: 100, surprise: "extra", _version: 3 },
+        { strict: true },
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    it("strict=true: leniency pin — optional fields accept null / absent", () => {
+      // generateZodSchema marks non-required fields nullable().optional(), so a
+      // null or omitted optional value must pass (matches the lenient path).
+      const action = makeAction({
+        input: {
+          amount: { type: "number", required: true },
+          note: { type: "string", required: false },
+        },
+      });
+      expect(validateInput(action, { amount: 1, note: null }, { strict: true }).valid).toBe(true);
+      expect(validateInput(action, { amount: 1 }, { strict: true }).valid).toBe(true);
+    });
+
+    it("strict=true: no-op when the action declares no input", () => {
+      const action = makeAction({ input: undefined });
+      expect(validateInput(action, { anything: "goes" }, { strict: true }).valid).toBe(true);
+    });
+  });
 });
 
 // ── runPreValidation ──────────────────────────────────────

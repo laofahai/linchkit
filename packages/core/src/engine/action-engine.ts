@@ -249,6 +249,16 @@ export interface ActionExecutorOptions {
    * byte-for-byte as Phase 1 (the registry's `run` is an identity).
    */
   interceptorRegistry?: InterceptorRegistry;
+  /**
+   * When true (production/staging), action input is validated against a Zod
+   * schema generated from the action's `input` field definitions — types +
+   * constraints, not just required-presence. Defaults to false (dev/test stay
+   * lenient with toy inputs). The generated schema mirrors the on-the-wire
+   * shape (ISO strings for dates, arbitrary objects for `json`, unknown keys
+   * stripped), so it never rejects a value a real HTTP/GraphQL client could
+   * legitimately send.
+   */
+  strictValidation?: boolean;
 }
 
 /**
@@ -371,6 +381,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     capabilityNames = new Set<string>(),
     entityRegistry,
     interceptorRegistry,
+    strictValidation = false,
   } = options;
 
   /** Silent noop logger — used when no logger is injected */
@@ -756,7 +767,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Step 4: Input validation.
-    const inputValidation = validateInput(action, input);
+    const inputValidation = validateInput(action, input, { strict: strictValidation });
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];
       await logExecution({
