@@ -957,7 +957,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // degrades to input-only — the rule simply can't see record state.
         let ruleTarget: Record<string, unknown> = effectiveInput;
         const ruleRecordId = effectiveInput.id;
-        if (typeof ruleRecordId === "string" && ruleRecordId.length > 0) {
+        if (action.entity && typeof ruleRecordId === "string" && ruleRecordId.length > 0) {
           // Read through the parent's transactional provider when this is a
           // nested action inside an open transaction, so the rule sees the
           // parent's uncommitted writes (Spec 26 §1.1); otherwise the

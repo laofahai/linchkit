@@ -74,7 +74,6 @@ export {
   executeOverlayProposal,
 } from "../../engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "../../engine/permission-engine";
-
 export type {
   EffectVerificationPayload,
   EffectVerificationRecord,
@@ -104,7 +103,6 @@ export type {
   RollbackInsightEmitter,
   RollbackInsightEmitterOptions,
 } from "../../engine/rollback-insight-emitter";
-
 export type {
   RuleEvalInput,
   RuleEvalOptions,
@@ -112,3 +110,4 @@ export type {
 } from "../../engine/rule-engine";
 export type { StateMachine } from "../../engine/state-machine";
 export type { ValidationContext } from "../../engine/validation-engine";
+export type { ApprovalStore } from "../../types/approval";

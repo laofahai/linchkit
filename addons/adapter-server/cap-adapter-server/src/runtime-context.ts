@@ -13,6 +13,7 @@ import type {
   ActionExecutor,
   AIService,
   ApprovalEngine,
+  ApprovalStore,
   CommandLayer,
   DataProvider,
   EntityDefinition,
@@ -69,6 +70,12 @@ export interface RuntimeContextOptions {
   views?: ViewDefinition[];
   /** Business rules (defineRule) — evaluated by the action executor (Spec 23 §1.1). */
   rules?: RuleDefinition[];
+  /**
+   * Approval store backing `require_approval` rule effects. Defaults to an
+   * in-memory store (lost on restart); inject a `DrizzleApprovalStore` for
+   * persistent approvals in production.
+   */
+  approvalStore?: ApprovalStore;
   middlewares?: MiddlewareRegistration[];
   /** Interface definitions — registered before schemas so field injection/validation works */
   interfaces?: InterfaceDefinition[];
@@ -154,9 +161,9 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
 
   // Approval store — shared between the CommandLayer's approval verifier and
   // the approval engine so re-execution on approve is recognized as authorized.
-  // In-memory by default (persistence via DrizzleApprovalStore is a boot-path
-  // follow-up).
-  const approvalStore = new InMemoryApprovalStore();
+  // Defaults to in-memory; the boot path can inject a DrizzleApprovalStore for
+  // persistent approvals.
+  const approvalStore = options?.approvalStore ?? new InMemoryApprovalStore();
 
   // Build command layer. The TM is plumbed through so `executeBatch` can run
   // `all_or_nothing` without per-call wiring; without one, batch callers must
