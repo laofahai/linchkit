@@ -193,20 +193,24 @@ export function createPermissionMiddleware(
       const hiddenFields = new Set<string>();
 
       for (const group of groups) {
-        const capPerms = group.permissions[capabilityName];
-        if (!capPerms) continue;
+        // Consult BOTH the legacy `permissions[capability][entity]` and the
+        // canonical `grant[entity]` field declarations.
+        const fieldSources = [
+          group.permissions?.[capabilityName]?.[action.entity]?.fields,
+          group.grant?.[action.entity]?.fields,
+        ];
 
-        const schemaPerms = capPerms[action.entity];
-        if (!schemaPerms?.fields) continue;
-
-        if (schemaPerms.fields.visible) {
-          for (const f of schemaPerms.fields.visible) {
-            visibleFields.add(f);
+        for (const fields of fieldSources) {
+          if (!fields) continue;
+          if (fields.visible) {
+            for (const f of fields.visible) {
+              visibleFields.add(f);
+            }
           }
-        }
-        if (schemaPerms.fields.hidden) {
-          for (const f of schemaPerms.fields.hidden) {
-            hiddenFields.add(f);
+          if (fields.hidden) {
+            for (const f of fields.hidden) {
+              hiddenFields.add(f);
+            }
           }
         }
       }

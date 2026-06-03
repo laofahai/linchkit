@@ -14,87 +14,38 @@
 
 import type {
   DataAccessCondition,
+  GrantMap,
   PermissionConstraints,
+  PermissionGroupDefinition,
   PermissionValue,
   SchemaPermissions,
 } from "@linchkit/core";
 
 // ── Re-exports (kept thin so callers can `import type` from one place) ──
+//
+// The canonical `PermissionGroupDefinition` and `GrantMap` now live in
+// `@linchkit/core` (the engine and registry consume them, and a capability's
+// `extensions.permissionGroups` is typed by them). cap-permission re-exports
+// the core types so authoring (`definePermissionGroup` / `permissionGroup`) and
+// runtime evaluation share ONE shape — no drift between the two layers.
 
-export type { DataAccessCondition, PermissionConstraints, PermissionValue, SchemaPermissions };
-
-// ── Grant access primitives ─────────────────────────────────
+export type {
+  DataAccessCondition,
+  GrantMap,
+  PermissionConstraints,
+  PermissionGroupDefinition,
+  PermissionValue,
+  SchemaPermissions,
+};
 
 /**
  * Per-entity grant: action permissions, row-level data access, and field-level
- * visibility. Mirrors `SchemaPermissions` from core but is keyed directly by
- * entity name (no capability-name nesting — capability is resolved from the
- * action registry at evaluation time).
+ * visibility. Structurally identical to core's `SchemaPermissions` (entity-keyed
+ * within a `GrantMap`, no capability nesting — capability is resolved from the
+ * action registry at evaluation time). Kept as a named alias for ergonomic
+ * authoring imports.
  */
-export interface EntityGrant {
-  /** Action-level: which actions can be executed on this entity */
-  actions?: Record<string, PermissionValue>;
-
-  /** Row-level access: 'all' | 'none' | condition-based */
-  data?: {
-    read?: "all" | "none" | { condition: DataAccessCondition };
-    write?: "all" | "none" | { condition: DataAccessCondition };
-  };
-
-  /** Field-level visibility/masking */
-  fields?: {
-    visible?: string[];
-    hidden?: string[];
-    unmask?: string[];
-  };
-}
-
-/** Map of entity name → grant. Replaces legacy `permissions[capability][entity]`. */
-export type GrantMap = Record<string, EntityGrant>;
-
-// ── Permission group definition ─────────────────────────────
-
-/**
- * Phase 1 PermissionGroupDefinition.
- *
- * - `grant` is the canonical, JSONB-friendly access map (spec 10 §2.1)
- * - `category` drives admin-UI grouping (spec 10 §2.1)
- * - `implies` enables inheritance, resolved recursively (spec 10 §2.1 + §7.1)
- * - `permissions` is kept optional for backward compatibility while existing
- *   `@linchkit/core` engines still read the legacy 3-level structure
- */
-export interface PermissionGroupDefinition {
-  /** Unique identifier (snake_case, e.g. `purchase_manager`) */
-  name: string;
-
-  /** Human-readable label shown in admin UI */
-  label?: string;
-
-  /** Long-form description (markdown allowed) */
-  description?: string;
-
-  /** UI grouping bucket — typically a capability name */
-  category?: string;
-
-  /** Names of permission groups this one inherits from */
-  implies?: string[];
-
-  /** Canonical access map (entity → grant) */
-  grant?: GrantMap;
-
-  /**
-   * Legacy 3-level permissions structure: `permissions[capability][entity]`.
-   * Retained for compatibility with `@linchkit/core` PermissionRegistry.
-   * Removal is tracked outside Phase 1.
-   */
-  permissions?: Record<string, Record<string, SchemaPermissions>>;
-
-  /** Shorthand for the special system_admin level (spec 10 §7.4) */
-  systemLevel?: "admin";
-
-  /** Optional actor constraints (rate limits, approval requirements) */
-  constraints?: PermissionConstraints;
-}
+export type EntityGrant = SchemaPermissions;
 
 // ── Object-style entry ──────────────────────────────────────
 

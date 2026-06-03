@@ -124,27 +124,42 @@ export function canUnmask(
   entityName: string,
   fieldName: string,
 ): boolean {
-  // system_admin always sees raw data
-  if (actor.groups.includes("system_admin")) {
-    const hasSystemAdmin = groups.some((g) => g.name === "system_admin");
-    if (hasSystemAdmin) return true;
+  // A system-admin group (by `systemLevel` or the legacy `system_admin` name)
+  // that the actor is a DIRECT member of always sees raw data. `groups` may be
+  // the full registered set, so admin is scoped to direct membership here
+  // (conservative default-deny floor for masking).
+  if (groups.some((g) => isAdminGroup(g) && actor.groups.includes(g.name))) {
+    return true;
   }
 
   for (const group of groups) {
+    // Scope to the actor's direct group membership (groups may be the registered
+    // set, not the actor's resolved set).
     if (!actor.groups.includes(group.name)) continue;
 
-    const capPerms = group.permissions[capabilityName];
-    if (!capPerms) continue;
-
-    const schemaPerms = capPerms[entityName];
-    if (!schemaPerms?.fields?.unmask) continue;
-
-    if (schemaPerms.fields.unmask.includes(fieldName)) {
-      return true;
+    // Consult BOTH `permissions[capability][entity]` and the canonical
+    // `grant[entity]` source for unmask grants.
+    const candidates: Array<string[] | undefined> = [
+      group.permissions?.[capabilityName]?.[entityName]?.fields?.unmask,
+      group.grant?.[entityName]?.fields?.unmask,
+    ];
+    for (const unmask of candidates) {
+      if (unmask?.includes(fieldName)) {
+        return true;
+      }
     }
   }
 
   return false;
+}
+
+/**
+ * Whether a group confers system-admin bypass — `systemLevel: "admin"` or the
+ * legacy `system_admin` name. Mirrors the engine's admin predicate so masking
+ * and authorization stay consistent.
+ */
+function isAdminGroup(group: PermissionGroupDefinition): boolean {
+  return group.systemLevel === "admin" || group.name === "system_admin";
 }
 
 /** Options for maskRecord */

@@ -15,6 +15,7 @@ import type {
   DataAccessCondition,
   PermissionCheckResult,
   PermissionGroupDefinition,
+  SchemaPermissions,
 } from "../types/permission";
 
 // ── System admin group name (always allowed) ─────────────
@@ -47,17 +48,92 @@ export class PermissionRegistry {
     return Array.from(this.groups.values());
   }
 
-  /** Get all groups an actor belongs to. */
+  /**
+   * Resolve the full set of effective permission groups for an actor.
+   *
+   * Starts from `actor.groups` and transitively follows each group's `implies`
+   * inheritance (spec 10 §2.1 + §7.1). The traversal is:
+   *  - Deduped — every group appears at most once in the result.
+   *  - Deterministic — direct memberships are visited in `actor.groups` order,
+   *    then each group's `implies` in declaration order (depth-first).
+   *  - Cycle-safe — a `visited` set terminates cycles (`a implies b implies a`);
+   *    the back-edge is silently ignored rather than throwing.
+   *  - Fail-safe — an unknown group name (direct or implied) is skipped, never
+   *    fabricated, so it can neither throw nor grant anything.
+   */
   resolveActorPermissions(actor: Actor): PermissionGroupDefinition[] {
     const result: PermissionGroupDefinition[] = [];
-    for (const groupName of actor.groups) {
-      const group = this.groups.get(groupName);
-      if (group) {
-        result.push(group);
+    const visited = new Set<string>();
+
+    const visit = (groupName: string): void => {
+      // Cycle / duplicate guard: a name is processed at most once.
+      if (visited.has(groupName)) {
+        return;
       }
+      visited.add(groupName);
+
+      const group = this.groups.get(groupName);
+      if (!group) {
+        // Unknown group name → ignore (fail-safe: no throw, no grant).
+        return;
+      }
+      result.push(group);
+
+      // Follow inheritance edges depth-first, in declaration order.
+      const implied = group.implies;
+      if (implied) {
+        for (const impliedName of implied) {
+          if (typeof impliedName === "string" && impliedName.length > 0) {
+            visit(impliedName);
+          }
+        }
+      }
+    };
+
+    for (const groupName of actor.groups) {
+      visit(groupName);
     }
+
     return result;
   }
+}
+
+// ── Group permission lookup (reads `permissions` AND `grant`) ──
+
+/**
+ * Resolve the {@link SchemaPermissions} a group declares for a given
+ * capability + entity, consulting BOTH sources:
+ *  1. Legacy `permissions[capability][entity]` (3-level, capability-scoped).
+ *  2. Canonical `grant[entity]` (capability-agnostic — applies to the entity
+ *     regardless of which capability owns it).
+ *
+ * Returned in lookup precedence order (legacy first, then grant). Callers merge
+ * the yielded entries under the engine's explicit-deny-wins contract, so the
+ * relative order does not change the outcome (an explicit `false` from either
+ * source still wins). Yields nothing when neither source mentions the entity.
+ */
+function* groupSchemaPermissions(
+  group: PermissionGroupDefinition,
+  capabilityName: string,
+  entityName: string,
+): Generator<SchemaPermissions> {
+  const legacy = group.permissions?.[capabilityName]?.[entityName];
+  if (legacy) {
+    yield legacy;
+  }
+  const granted = group.grant?.[entityName];
+  if (granted) {
+    yield granted;
+  }
+}
+
+/**
+ * Whether a group confers system-admin bypass. True when either:
+ *  - its declared `systemLevel` is `"admin"` (canonical, name-independent), or
+ *  - its name is the legacy {@link SYSTEM_ADMIN_GROUP} sentinel (back-compat).
+ */
+function isAdminGroup(group: PermissionGroupDefinition): boolean {
+  return group.systemLevel === "admin" || group.name === SYSTEM_ADMIN_GROUP;
 }
 
 // ── Action permission check ──────────────────────────────
@@ -69,7 +145,20 @@ export class PermissionRegistry {
  * - If ANY group explicitly sets `false` → denied
  * - If ANY group explicitly sets `true` (and none deny) → allowed
  * - If no group mentions it → denied (default deny)
- * - system_admin group → always allowed
+ * - A system-admin group → always allowed
+ *
+ * Groups are the actor's `implies`-expanded set (see `resolveActorPermissions`),
+ * and BOTH the legacy `permissions[capability][entity]` and the canonical
+ * `grant[entity]` sources are consulted for the action (see
+ * `groupSchemaPermissions`). The explicit-deny-wins floor holds across the whole
+ * expanded set and both sources.
+ *
+ * Admin bypass semantics: a group with `systemLevel: "admin"` (or the legacy
+ * `"system_admin"` name) grants the bypass. It is evaluated over the RESOLVED
+ * set, so a group that `implies` an admin group inherits the bypass too —
+ * consistent with `implies` meaning "inherit everything from that group". The
+ * resolved set only ever contains registered groups, preserving the original
+ * "admin must be registered" invariant.
  */
 export function checkActionPermission(
   registry: PermissionRegistry,
@@ -87,11 +176,12 @@ export function checkActionPermission(
     };
   }
 
-  // system_admin shortcut: only if group is actually registered in registry
-  if (actor.groups.includes(SYSTEM_ADMIN_GROUP) && registry.get(SYSTEM_ADMIN_GROUP) !== undefined) {
+  // system-admin shortcut: any resolved group conferring admin → always allowed.
+  const adminGroup = groups.find(isAdminGroup);
+  if (adminGroup) {
     return {
       allowed: true,
-      decidedBy: SYSTEM_ADMIN_GROUP,
+      decidedBy: adminGroup.name,
     };
   }
 
@@ -99,25 +189,31 @@ export function checkActionPermission(
   let allowedBy: string | undefined;
 
   for (const group of groups) {
-    const schemaPerms = group.permissions[capabilityName];
-    if (!schemaPerms) continue;
+    // Consult BOTH `permissions[capability][entity]` and `grant[entity]`.
+    // We scan every entity the group mentions for this action; the explicit-deny
+    // short-circuit makes intra-group ordering irrelevant.
+    const entities = new Set<string>([
+      ...Object.keys(group.permissions?.[capabilityName] ?? {}),
+      ...Object.keys(group.grant ?? {}),
+    ]);
 
-    // Check all schemas in this capability for the action
-    for (const [, perms] of Object.entries(schemaPerms)) {
-      const actionPerm = perms.actions?.[actionName];
+    for (const entity of entities) {
+      for (const perms of groupSchemaPermissions(group, capabilityName, entity)) {
+        const actionPerm = perms.actions?.[actionName];
 
-      if (actionPerm === false) {
-        // Explicit deny wins immediately
-        return {
-          allowed: false,
-          reason: `Explicitly denied by group "${group.name}"`,
-          decidedBy: group.name,
-        };
-      }
+        if (actionPerm === false) {
+          // Explicit deny wins immediately
+          return {
+            allowed: false,
+            reason: `Explicitly denied by group "${group.name}"`,
+            decidedBy: group.name,
+          };
+        }
 
-      if (actionPerm === true) {
-        hasExplicitAllow = true;
-        allowedBy = group.name;
+        if (actionPerm === true) {
+          hasExplicitAllow = true;
+          allowedBy = group.name;
+        }
       }
     }
   }
@@ -160,8 +256,8 @@ export function resolveDataAccess(
     return "none";
   }
 
-  // system_admin shortcut: only if group is actually registered in registry
-  if (actor.groups.includes(SYSTEM_ADMIN_GROUP) && registry.get(SYSTEM_ADMIN_GROUP) !== undefined) {
+  // system-admin shortcut: any resolved group conferring admin → full access.
+  if (groups.some(isAdminGroup)) {
     return "all";
   }
 
@@ -170,26 +266,25 @@ export function resolveDataAccess(
   let hasAnyMatch = false;
 
   for (const group of groups) {
-    const capPerms = group.permissions[capabilityName];
-    if (!capPerms) continue;
+    // Consult BOTH `permissions[capability][entity]` and `grant[entity]`.
+    for (const schemaPerms of groupSchemaPermissions(group, capabilityName, entityName)) {
+      if (!schemaPerms.data) continue;
 
-    const schemaPerms = capPerms[entityName];
-    if (!schemaPerms?.data) continue;
+      const access = schemaPerms.data[operation];
+      if (access === undefined) continue;
 
-    const access = schemaPerms.data[operation];
-    if (access === undefined) continue;
+      hasAnyMatch = true;
 
-    hasAnyMatch = true;
+      if (access === "none") {
+        // Explicit deny wins immediately
+        return "none";
+      }
 
-    if (access === "none") {
-      // Explicit deny wins immediately
-      return "none";
-    }
-
-    if (access === "all") {
-      hasAll = true;
-    } else if (access.condition) {
-      conditions.push(access.condition);
+      if (access === "all") {
+        hasAll = true;
+      } else if (access.condition) {
+        conditions.push(access.condition);
+      }
     }
   }
 
