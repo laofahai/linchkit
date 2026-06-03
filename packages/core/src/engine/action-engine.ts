@@ -958,8 +958,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         let ruleTarget: Record<string, unknown> = effectiveInput;
         const ruleRecordId = effectiveInput.id;
         if (typeof ruleRecordId === "string" && ruleRecordId.length > 0) {
+          // Read through the parent's transactional provider when this is a
+          // nested action inside an open transaction, so the rule sees the
+          // parent's uncommitted writes (Spec 26 §1.1); otherwise the
+          // tenant-scoped baseProvider. A read failure degrades to input-only.
+          const ruleReadProvider = parentTxProvider ?? baseProvider;
           try {
-            const existing = await baseProvider.get(action.entity, ruleRecordId, queryOptions);
+            const existing = await ruleReadProvider.get(action.entity, ruleRecordId, queryOptions);
             if (existing) ruleTarget = { ...existing, ...effectiveInput };
           } catch {
             // Not readable — fall back to input-only evaluation.
@@ -1034,8 +1039,9 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             entity: action.entity,
             actor,
             input,
-            // Suspended pending approval — a policy decision, not a failure.
-            status: "blocked",
+            // Suspended pending approval — distinct from a hard block/failure so
+            // execution-log consumers can surface it as awaiting sign-off.
+            status: "pending_approval",
             error: { message: `Pending approval (${pending.level})` },
             meta: metaSnapshot,
             startedAt,

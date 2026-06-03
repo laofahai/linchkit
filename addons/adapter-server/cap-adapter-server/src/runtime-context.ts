@@ -28,6 +28,7 @@ import type {
 import {
   createActionExecutor,
   createApprovalEngine,
+  createApprovalVerifier,
   createCommandLayer,
   createInterfaceRegistry,
   createNoopAIService,
@@ -151,13 +152,21 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     }
   }
 
+  // Approval store — shared between the CommandLayer's approval verifier and
+  // the approval engine so re-execution on approve is recognized as authorized.
+  // In-memory by default (persistence via DrizzleApprovalStore is a boot-path
+  // follow-up).
+  const approvalStore = new InMemoryApprovalStore();
+
   // Build command layer. The TM is plumbed through so `executeBatch` can run
   // `all_or_nothing` without per-call wiring; without one, batch callers must
   // use `strategy: "partial"` (the engine returns BATCH_TX_MANAGER_REQUIRED
-  // otherwise).
+  // otherwise). `verifyApproval` lets ApprovalEngine.approve() replay an action
+  // through the pipeline (skipping auth/exposure/permission) via its approvalId.
   const commandLayer = createCommandLayer({
     executor,
     transactionManager: options?.transactionManager,
+    verifyApproval: createApprovalVerifier(approvalStore),
   });
   if (options?.middlewares) {
     for (const mw of options.middlewares) {
@@ -165,13 +174,12 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     }
   }
 
-  // Approval engine for `require_approval` rule effects (Spec 23 §1.1). Built
-  // with an in-memory store (persistence via DrizzleApprovalStore is a boot-path
-  // follow-up). Re-execution on approve routes through the CommandLayer. Wired
-  // both ways: the engine re-executes via the executor, and the executor
-  // suspends actions into the engine when a rule requires approval.
+  // Approval engine for `require_approval` rule effects (Spec 23 §1.1).
+  // Re-execution on approve routes through the CommandLayer. Wired both ways:
+  // the engine re-executes via the executor, and the executor suspends actions
+  // into the engine when a rule requires approval.
   const approvalEngine = createApprovalEngine({
-    store: new InMemoryApprovalStore(),
+    store: approvalStore,
     eventBus: options?.eventBus,
     commandLayer,
   });
