@@ -84,15 +84,15 @@ function makeNotifyAction(captured: Captured): ActionDefinition {
   };
 }
 
-/** Captures trigger_flow startFlow calls. */
+/** Captures trigger_flow startFlow calls (an array so tests can assert count + order). */
 interface FlowCapture {
-  started: { flow: string; input: Record<string, unknown> } | null;
+  started: Array<{ flow: string; input: Record<string, unknown> }>;
 }
 
 function makeFlowStarter(cap: FlowCapture): ActionFlowStarter {
   return {
     startFlow: async (flow, input) => {
-      cap.started = { flow, input };
+      cap.started.push({ flow, input });
       return { id: "flow_1" };
     },
   };
@@ -390,7 +390,7 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
   });
 
   it("trigger_flow: starts the flow post-commit via the flow engine", async () => {
-    const flowCap: FlowCapture = { started: null };
+    const flowCap: FlowCapture = { started: [] };
     const rule: RuleDefinition = {
       name: "kickoff_flow",
       label: "Kick off fulfilment flow",
@@ -403,13 +403,14 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
 
     expect(result.success).toBe(true);
     expect(captured.created).toMatchObject({ amount: 42 }); // write happened first
-    expect(flowCap.started?.flow).toBe("fulfilment");
+    expect(flowCap.started).toHaveLength(1);
+    expect(flowCap.started[0]?.flow).toBe("fulfilment");
     // Defaults the flow input to the (enriched) action input.
-    expect(flowCap.started?.input).toMatchObject({ amount: 42 });
+    expect(flowCap.started[0]?.input).toMatchObject({ amount: 42 });
   });
 
   it("trigger_flow: explicit effect.input overrides the action input", async () => {
-    const flowCap: FlowCapture = { started: null };
+    const flowCap: FlowCapture = { started: [] };
     const rule: RuleDefinition = {
       name: "kickoff_flow_custom",
       label: "Kick off with custom input",
@@ -420,8 +421,8 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
     const executor = build([rule], undefined, makeFlowStarter(flowCap));
     await executor.execute("submit_request", { amount: 42 }, actor);
 
-    expect(flowCap.started?.flow).toBe("audit");
-    expect(flowCap.started?.input).toEqual({ reason: "high_value" });
+    expect(flowCap.started[0]?.flow).toBe("audit");
+    expect(flowCap.started[0]?.input).toEqual({ reason: "high_value" });
   });
 
   it("trigger_flow: with no flow engine wired, the action still succeeds (skip + log)", async () => {
@@ -460,7 +461,7 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
     // A transactional parent calls a child via ctx.execute; the child has a
     // trigger_flow rule. The child's side effect must bubble to the parent and
     // fire on the parent's commit — not be silently dropped (codex P2).
-    const flowCap: FlowCapture = { started: null };
+    const flowCap: FlowCapture = { started: [] };
     const childRule: RuleDefinition = {
       name: "child_flow",
       label: "Child flow",
@@ -494,17 +495,22 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
       exposure: "all",
       handler: async (ctx) => {
         await ctx.execute("child_act", { amount: 5 });
+        // The child's trigger_flow must NOT have fired yet — it bubbles up and
+        // fires only when THIS (parent) execution commits.
+        expect(flowCap.started).toHaveLength(0);
         return { ok: true };
       },
     });
     const result = await executor.execute("parent_act", { amount: 5 }, actor);
 
     expect(result.success).toBe(true);
-    expect(flowCap.started?.flow).toBe("child_flow");
+    // Fired exactly once, on the parent's post-commit.
+    expect(flowCap.started).toHaveLength(1);
+    expect(flowCap.started[0]?.flow).toBe("child_flow");
   });
 
   it("post-commit effects do NOT run when the action is blocked", async () => {
-    const flowCap: FlowCapture = { started: null };
+    const flowCap: FlowCapture = { started: [] };
     const rules: RuleDefinition[] = [
       blockRule(),
       {
@@ -520,6 +526,6 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
 
     expect(result.success).toBe(false); // blocked
     expect(captured.created).toBeNull(); // no write
-    expect(flowCap.started).toBeNull(); // and no post-commit side effect
+    expect(flowCap.started).toHaveLength(0); // and no post-commit side effect
   });
 });

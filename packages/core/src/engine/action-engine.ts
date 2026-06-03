@@ -1914,13 +1914,25 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       ) {
         for (const act of pendingRuleActions) {
           try {
-            await execute(act.action, act.params ?? effectiveInput, actor, {
+            // Stamp provenance like ctx.execute: `_source_action` (caller) +
+            // `_depth` in meta, plus `_depth` as an ExecuteOptions field so the
+            // recursion-depth guard bounds an execute_action cycle.
+            const childMeta = extendExecutionMeta(
+              resolvedMeta,
+              {},
+              { _depth: currentDepth + 1, _source_action: actionName },
+            );
+            const result = await execute(act.action, act.params ?? effectiveInput, actor, {
               tenantId: execOptions?.tenantId,
-              meta: resolvedMeta,
-              // Count against the recursion-depth guard so an execute_action
-              // cycle (a rule re-executing its own action) cannot loop forever.
+              meta: childMeta,
               _depth: currentDepth + 1,
             });
+            if (!result.success) {
+              const data = result.data as { error?: unknown } | undefined;
+              logger.warn(
+                `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" did not succeed: ${typeof data?.error === "string" ? data.error : "unknown error"}`,
+              );
+            }
           } catch (err) {
             logger.warn(
               `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
