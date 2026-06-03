@@ -29,6 +29,7 @@ import {
   createInterfaceRegistry,
   createNoopAIService,
   createStateMachine,
+  detectEnvironment,
   EntityRegistry,
   InMemoryExecutionLogger,
   InMemoryStore,
@@ -123,6 +124,9 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     capabilityNames: options?.capabilityNames,
     entityRegistry,
     transactionManager: options?.transactionManager,
+    // Strict type/constraint input validation in production + staging; dev/test
+    // stay lenient (toy inputs). Sourced from the canonical environment policy.
+    strictValidation: detectEnvironment().features.strictValidation,
   });
 
   // Register actions

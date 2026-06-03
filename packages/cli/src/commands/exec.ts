@@ -197,6 +197,8 @@ async function bootstrapCommandLayer(): Promise<{
       capabilityNames,
       entityRegistry,
       logger: consoleLogger,
+      // Strict input validation follows the detected environment (prod/staging).
+      strictValidation: environment.features.strictValidation,
     });
     for (const action of actionRegistry.getAll()) {
       executor.registry.register(action);

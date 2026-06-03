@@ -326,6 +326,115 @@ describe("ActionExecutor", () => {
     expect((result.data as Record<string, unknown>).error).toBe("Input validation failed");
   });
 
+  it("strictValidation off (default): accepts a wrong-typed input (no regression)", async () => {
+    // Without strict validation, the engine only checks required presence — the
+    // historical lenient behaviour — so a non-numeric `amount` still executes.
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider });
+    executor.registry.register(simpleAction);
+
+    const result = await executor.execute(
+      "create_order",
+      { title: "Toy Order", amount: "not-a-number" },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it("strictValidation on: rejects a wrong-typed input end-to-end", async () => {
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider, strictValidation: true });
+    executor.registry.register(simpleAction);
+
+    const result = await executor.execute(
+      "create_order",
+      { title: "Bad Order", amount: "not-a-number" },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(false);
+    expect((result.data as Record<string, unknown>).error).toBe("Input validation failed");
+    const details = (result.data as Record<string, unknown>).details as Array<{ field: string }>;
+    expect(details.some((d) => d.field === "amount")).toBe(true);
+  });
+
+  it("strictValidation on: a valid production-shaped write succeeds", async () => {
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider, strictValidation: true });
+    executor.registry.register(simpleAction);
+
+    const result = await executor.execute(
+      "create_order",
+      { title: "Good Order", amount: 1299.99 },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(true);
+    expect((result.data as Record<string, unknown>).title).toBe("Good Order");
+  });
+
+  it("strictValidation on: strips undeclared keys from ctx.input (allowlist), keeps system fields", async () => {
+    // The handler must receive only declared + system keys — an undeclared key
+    // sent by a client must never reach ctx.input / the write path.
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider, strictValidation: true });
+    let seen: Record<string, unknown> | undefined;
+    const captureAction: ActionDefinition = {
+      name: "capture_order",
+      entity: "order",
+      label: "Capture Order",
+      input: { title: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: true },
+      handler: async (ctx) => {
+        seen = ctx.input;
+        return { ok: true };
+      },
+    };
+    executor.registry.register(captureAction);
+
+    const result = await executor.execute(
+      "capture_order",
+      { title: "X", surprise: "should-be-stripped", id: "rec-9" },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(true);
+    expect(seen?.title).toBe("X");
+    // Undeclared key stripped — handler never sees it.
+    expect(seen && "surprise" in seen).toBe(false);
+    // System field retained (server-managed identifiers survive sanitization).
+    expect(seen?.id).toBe("rec-9");
+  });
+
+  it("strictValidation off: ctx.input keeps undeclared keys (lenient, unchanged)", async () => {
+    const dataProvider = createMemoryDataProvider();
+    const executor = createActionExecutor({ dataProvider });
+    let seen: Record<string, unknown> | undefined;
+    const captureAction: ActionDefinition = {
+      name: "capture_order_lenient",
+      entity: "order",
+      label: "Capture Order Lenient",
+      input: { title: { type: "string", required: true } },
+      policy: { mode: "sync", transaction: true },
+      handler: async (ctx) => {
+        seen = ctx.input;
+        return { ok: true };
+      },
+    };
+    executor.registry.register(captureAction);
+
+    const result = await executor.execute(
+      "capture_order_lenient",
+      { title: "X", surprise: "kept" },
+      defaultActor,
+    );
+
+    expect(result.success).toBe(true);
+    // Lenient path forwards the original input untouched.
+    expect(seen?.surprise).toBe("kept");
+  });
+
   it("runs validate.required pre-validation", async () => {
     const dataProvider = createMemoryDataProvider();
     const executor = createActionExecutor({ dataProvider });
