@@ -7,8 +7,10 @@
  */
 
 export type {
+  ActionApprovalSuspender,
   ActionExecutor,
   ActionExecutorOptions,
+  ActionFlowStarter,
   ActionRegistry,
   DataProvider,
   DataQueryOptions,

@@ -1900,12 +1900,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       // the root / non-transactional level runs them — including any bubbled up
       // from children. Best-effort — a failure here never fails the
       // already-committed action.
+      // Bubble each channel independently (mirrors event handling) — coupling
+      // them with `&&` would risk silently dropping one if only the other were
+      // present. A nested action (in a parent tx) bubbles and does not run; the
+      // root / non-transactional level runs (including any bubbled child effects).
       const bubbleRuleActions = execOptions?._parentPendingRuleActions;
       const bubbleRuleFlows = execOptions?._parentPendingRuleFlows;
-      if (bubbleRuleActions && bubbleRuleFlows) {
-        bubbleRuleActions.push(...pendingRuleActions);
-        bubbleRuleFlows.push(...pendingRuleFlows);
-      } else if (
+      if (bubbleRuleActions) bubbleRuleActions.push(...pendingRuleActions);
+      if (bubbleRuleFlows) bubbleRuleFlows.push(...pendingRuleFlows);
+      if (
         !execOptions?._txDataProvider &&
         (pendingRuleActions.length > 0 || pendingRuleFlows.length > 0)
       ) {

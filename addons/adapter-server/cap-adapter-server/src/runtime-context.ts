@@ -11,6 +11,7 @@
 import type {
   ActionDefinition,
   ActionExecutor,
+  ActionFlowStarter,
   AIService,
   ApprovalEngine,
   ApprovalStore,
@@ -19,7 +20,6 @@ import type {
   EntityDefinition,
   EventBus,
   ExecutionLogger,
-  FlowEngine,
   InterfaceDefinition,
   MiddlewareRegistration,
   RuleDefinition,
@@ -78,10 +78,11 @@ export interface RuntimeContextOptions {
    */
   approvalStore?: ApprovalStore;
   /**
-   * Flow engine used to start durable Flows on `trigger_flow` rule effects
-   * (post-commit). When omitted, trigger_flow rules are logged and skipped.
+   * Flow starter used to start durable Flows on `trigger_flow` rule effects
+   * (post-commit). The minimal `ActionFlowStarter` interface (a `FlowEngine`
+   * satisfies it) — when omitted, trigger_flow rules are logged and skipped.
    */
-  flowEngine?: FlowEngine;
+  flowEngine?: ActionFlowStarter;
   middlewares?: MiddlewareRegistration[];
   /** Interface definitions — registered before schemas so field injection/validation works */
   interfaces?: InterfaceDefinition[];
