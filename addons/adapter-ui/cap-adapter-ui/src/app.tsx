@@ -292,7 +292,10 @@ export function App() {
   }
 
   return (
-    <ErrorBoundary>
+    // Root catch-all: a render error in the providers/router shows the fallback
+    // instead of a white screen. On Retry, clear the query cache so any
+    // corrupted/failed queries are dropped and refetched fresh.
+    <ErrorBoundary onReset={() => queryClient.clear()}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <RouterProvider router={router} />

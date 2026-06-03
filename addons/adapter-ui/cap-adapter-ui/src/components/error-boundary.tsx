@@ -69,8 +69,10 @@ function DefaultErrorFallback({ error, reset }: { error: Error; reset: () => voi
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { error: null };
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { error };
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    // React can surface non-Error throws (strings, plain objects, null).
+    // Normalize so the fallback can always safely read `error.message`.
+    return { error: error instanceof Error ? error : new Error(String(error)) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {

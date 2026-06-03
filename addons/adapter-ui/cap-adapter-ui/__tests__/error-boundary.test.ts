@@ -26,4 +26,10 @@ describe("ErrorBoundary.getDerivedStateFromError", () => {
     const next = ErrorBoundary.getDerivedStateFromError(error);
     expect(next.error).toBe(error);
   });
+
+  test("normalizes non-Error thrown values into Error objects", () => {
+    const next = ErrorBoundary.getDerivedStateFromError("string error");
+    expect(next.error).toBeInstanceOf(Error);
+    expect(next.error?.message).toBe("string error");
+  });
 });
