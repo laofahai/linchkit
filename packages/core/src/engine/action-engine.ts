@@ -952,9 +952,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       }
       if (applicableRules.length > 0) {
         // Record-state context: for an update (input carries an id), read the
-        // current record via the tenant-scoped baseProvider so conditions can
-        // reference existing field values. A read failure (not found / access)
-        // degrades to input-only — the rule simply can't see record state.
+        // current record so conditions can reference existing field values. A
+        // read failure (not found / access) degrades to input-only.
+        //
+        // Snapshot caveat (tracked follow-up): for a TOP-LEVEL transactional
+        // action this read happens before `runInTransaction` opens, so a
+        // concurrent commit between here and the write could make a
+        // record-state `block` / `require_approval` decision on a slightly
+        // stale snapshot. Hardening this means evaluating rules inside the
+        // write transaction — the same in-tx relocation field-lock enforcement
+        // took (PR #203) — which also requires moving ctx/enrich assembly into
+        // the tx, so it is deferred to a focused follow-up. Nested actions
+        // already read through the parent's tx provider below.
         let ruleTarget: Record<string, unknown> = effectiveInput;
         const ruleRecordId = effectiveInput.id;
         if (action.entity && typeof ruleRecordId === "string" && ruleRecordId.length > 0) {
