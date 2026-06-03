@@ -30,6 +30,7 @@ import type {
   RuleDefinition,
   RuleEffect,
   RuleEvaluationResult,
+  TriggerFlowEffect,
   WarnEffect,
 } from "../types/rule";
 import { type ConditionContext, evaluateCondition } from "./condition-evaluator";
@@ -97,6 +98,8 @@ export interface RuleEvalOutput {
   enrichFields: Record<string, unknown>;
   /** Collected execute_action effects */
   actions: ExecuteActionEffect[];
+  /** Collected trigger_flow effects (run post-commit) */
+  flows: TriggerFlowEffect[];
   /** Per-rule evaluation details */
   results: RuleEvaluationResult[];
   /** Total evaluation duration in ms */
@@ -169,6 +172,7 @@ export async function evaluateConditions(
     warnings: [],
     enrichFields: {},
     actions: [],
+    flows: [],
     results: [],
     duration: 0,
     contexts: [],
@@ -343,6 +347,10 @@ function mergeEffect(output: RuleEvalOutput, effect: RuleEffect, ruleName?: stri
     }
     case "execute_action": {
       output.actions.push(effect as ExecuteActionEffect);
+      break;
+    }
+    case "trigger_flow": {
+      output.flows.push(effect as TriggerFlowEffect);
       break;
     }
     default: {

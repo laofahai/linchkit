@@ -11,6 +11,7 @@
 import type {
   ActionDefinition,
   ActionExecutor,
+  ActionFlowStarter,
   AIService,
   ApprovalEngine,
   ApprovalStore,
@@ -76,6 +77,12 @@ export interface RuntimeContextOptions {
    * persistent approvals in production.
    */
   approvalStore?: ApprovalStore;
+  /**
+   * Flow starter used to start durable Flows on `trigger_flow` rule effects
+   * (post-commit). The minimal `ActionFlowStarter` interface (a `FlowEngine`
+   * satisfies it) — when omitted, trigger_flow rules are logged and skipped.
+   */
+  flowEngine?: ActionFlowStarter;
   middlewares?: MiddlewareRegistration[];
   /** Interface definitions — registered before schemas so field injection/validation works */
   interfaces?: InterfaceDefinition[];
@@ -192,6 +199,12 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   });
   approvalEngine.setExecutor(executor);
   executor.setApprovalEngine(approvalEngine);
+
+  // Wire the flow engine for `trigger_flow` rule effects when one is provided
+  // (the boot path injects it; the server does not yet aggregate flows here).
+  if (options?.flowEngine) {
+    executor.setFlowEngine(options.flowEngine);
+  }
 
   // Register views grouped by schema
   const views = new Map<string, ViewDefinition[]>();

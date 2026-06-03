@@ -437,6 +437,13 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     triggerBinding.bindAll(flowRegistry.getAll(), flowEngine);
   }
 
+  // Wire the flow engine into the executor so a `trigger_flow` rule effect can
+  // start a durable Flow post-commit (Spec 23 §1.1). Late-bound — the flow
+  // engine is built after the executor above.
+  if (flowEngine) {
+    executor.setFlowEngine(flowEngine);
+  }
+
   // Build DerivedPropertyEngine — auto-computes derived fields on write and read
   const derivedPropertyEngine = createDerivedPropertyEngine();
   derivedPropertyEngine.register(entities);

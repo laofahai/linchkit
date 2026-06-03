@@ -28,7 +28,12 @@ import {
   redactMetaForLog,
 } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
-import type { RequireApprovalEffect, RuleDefinition } from "../types/rule";
+import type {
+  ExecuteActionEffect,
+  RequireApprovalEffect,
+  RuleDefinition,
+  TriggerFlowEffect,
+} from "../types/rule";
 import {
   checkFieldLocks,
   type FieldLockViolation,
@@ -132,6 +137,14 @@ export interface ExecuteOptions {
   /** Internal: parent's pending events array for shared transaction */
   _parentPendingEvents?: PendingEvent[];
   /**
+   * Internal: parent's pending post-commit rule side-effect arrays for a shared
+   * transaction. A nested action inside a parent tx bubbles its collected
+   * `execute_action` / `trigger_flow` effects here so they run when the PARENT
+   * commits, instead of firing before the (not-yet-committed) parent write.
+   */
+  _parentPendingRuleActions?: ExecuteActionEffect[];
+  _parentPendingRuleFlows?: TriggerFlowEffect[];
+  /**
    * Execution metadata propagated through the execution chain (Spec 65).
    *
    * Accepts either a pre-built `ExecutionMeta` (how the CommandLayer and the
@@ -184,6 +197,19 @@ export interface ActionApprovalSuspender {
   }): Promise<ApprovalPendingResult>;
 }
 
+/**
+ * Minimal flow surface the executor needs to start a durable Flow as a
+ * post-commit `trigger_flow` rule side effect. Structural (a subset of
+ * FlowEngine) so the executor doesn't depend on the flow engine implementation.
+ */
+export interface ActionFlowStarter {
+  startFlow(
+    flowName: string,
+    input: Record<string, unknown>,
+    options?: { tenantId?: string; actor?: Actor },
+  ): Promise<unknown>;
+}
+
 export interface ActionExecutor {
   readonly registry: ActionRegistry;
 
@@ -201,6 +227,13 @@ export interface ActionExecutor {
    * one must be constructed first and wired to the other afterwards.
    */
   setApprovalEngine(engine: ActionApprovalSuspender): void;
+
+  /**
+   * Late-bind the flow engine used to start durable Flows on `trigger_flow`
+   * rule effects (post-commit, fire-and-forget). Optional — when unset, a
+   * trigger_flow effect is logged and skipped (no flow is started).
+   */
+  setFlowEngine(engine: ActionFlowStarter): void;
 }
 
 // ── Transactional event collection ──────────────────────────
@@ -312,6 +345,13 @@ export interface ActionExecutorOptions {
    * break the executor ↔ approval-engine dependency cycle.
    */
   approvalEngine?: ActionApprovalSuspender;
+  /**
+   * Flow engine used to start durable Flows on `trigger_flow` rule effects
+   * (post-commit, fire-and-forget). Optional — when omitted, a trigger_flow
+   * effect is logged and skipped. May also be wired after construction via
+   * `executor.setFlowEngine`.
+   */
+  flowEngine?: ActionFlowStarter;
 }
 
 /**
@@ -448,6 +488,12 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
   let approvalEngineRef = options.approvalEngine;
   function setApprovalEngine(engine: ActionApprovalSuspender): void {
     approvalEngineRef = engine;
+  }
+
+  // Flow engine for `trigger_flow` rule effects (post-commit, fire-and-forget).
+  let flowEngineRef = options.flowEngine;
+  function setFlowEngine(engine: ActionFlowStarter): void {
+    flowEngineRef = engine;
   }
 
   /** Silent noop logger — used when no logger is injected */
@@ -875,6 +921,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // effect merges its setFields into the input.
     let effectiveInput: Record<string, unknown> = inputValidation.value ?? input;
     const ruleWarnings: string[] = [];
+    // Post-commit rule side effects (run after the write is durable): collected
+    // by Step 4c, executed best-effort near the event flush below.
+    const pendingRuleActions: ExecuteActionEffect[] = [];
+    const pendingRuleFlows: TriggerFlowEffect[] = [];
 
     // Build ActionContext
     const childExecutionIds: string[] = [];
@@ -1062,6 +1112,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           effectiveInput = { ...effectiveInput, ...ruleOutput.enrichFields };
         }
         for (const warn of ruleOutput.warnings) ruleWarnings.push(warn.message);
+        // execute_action / trigger_flow are side effects — defer them to the
+        // post-commit point so they only run once the write is durable.
+        pendingRuleActions.push(...ruleOutput.actions);
+        pendingRuleFlows.push(...ruleOutput.flows);
       }
     }
 
@@ -1443,6 +1497,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           _depth: currentDepth + 1,
           _txDataProvider: childTxDataProvider,
           _parentPendingEvents: childParentPendingEvents,
+          // Bubble the child's post-commit rule side effects up to this parent
+          // (shared tx) so they fire on the parent's commit, not before it.
+          _parentPendingRuleActions: inTransaction ? pendingRuleActions : undefined,
+          _parentPendingRuleFlows: inTransaction ? pendingRuleFlows : undefined,
           meta: childMeta,
         });
         childExecutionIds.push(childResult.executionId);
@@ -1836,6 +1894,71 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       }
 
+      // Post-commit rule side effects (Spec 23 §1.1 / Spec 26 §2.2 — eventual
+      // consistency). A nested action inside a parent transaction bubbles its
+      // effects up so they fire on the PARENT's commit (mirrors event flush);
+      // the root / non-transactional level runs them — including any bubbled up
+      // from children. Best-effort — a failure here never fails the
+      // already-committed action.
+      // Bubble each channel independently (mirrors event handling) — coupling
+      // them with `&&` would risk silently dropping one if only the other were
+      // present. A nested action (in a parent tx) bubbles and does not run; the
+      // root / non-transactional level runs (including any bubbled child effects).
+      const bubbleRuleActions = execOptions?._parentPendingRuleActions;
+      const bubbleRuleFlows = execOptions?._parentPendingRuleFlows;
+      if (bubbleRuleActions) bubbleRuleActions.push(...pendingRuleActions);
+      if (bubbleRuleFlows) bubbleRuleFlows.push(...pendingRuleFlows);
+      if (
+        !execOptions?._txDataProvider &&
+        (pendingRuleActions.length > 0 || pendingRuleFlows.length > 0)
+      ) {
+        for (const act of pendingRuleActions) {
+          try {
+            // Stamp provenance like ctx.execute: `_source_action` (caller) +
+            // `_depth` in meta, plus `_depth` as an ExecuteOptions field so the
+            // recursion-depth guard bounds an execute_action cycle.
+            const childMeta = extendExecutionMeta(
+              resolvedMeta,
+              {},
+              { _depth: currentDepth + 1, _source_action: actionName },
+            );
+            const result = await execute(act.action, act.params ?? effectiveInput, actor, {
+              tenantId: execOptions?.tenantId,
+              meta: childMeta,
+              _depth: currentDepth + 1,
+            });
+            if (!result.success) {
+              const data = result.data as { error?: unknown } | undefined;
+              logger.warn(
+                `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" did not succeed: ${typeof data?.error === "string" ? data.error : "unknown error"}`,
+              );
+            }
+          } catch (err) {
+            logger.warn(
+              `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+        for (const fl of pendingRuleFlows) {
+          if (!flowEngineRef) {
+            logger.warn(
+              `[rule:trigger_flow] no flow engine wired — skipping flow "${fl.flow}" triggered by a rule on "${actionName}".`,
+            );
+            continue;
+          }
+          try {
+            await flowEngineRef.startFlow(fl.flow, fl.input ?? effectiveInput, {
+              tenantId: execOptions?.tenantId,
+              actor,
+            });
+          } catch (err) {
+            logger.warn(
+              `[rule:trigger_flow] starting flow "${fl.flow}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+      }
+
       return {
         success: true,
         data: resultData as T,
@@ -1927,5 +2050,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     registry,
     execute,
     setApprovalEngine,
+    setFlowEngine,
   };
 }

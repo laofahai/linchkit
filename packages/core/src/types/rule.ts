@@ -134,12 +134,25 @@ export interface ExecuteActionEffect {
   params?: Record<string, unknown>;
 }
 
+/**
+ * Start a durable Flow as a post-commit side effect of the rule firing
+ * (Spec 23 §1.1 / Spec 26 §2.2 — eventual-consistency, fire-and-forget). The
+ * Flow owns its own Saga / failure policy; it is NOT compensation-coupled to the
+ * action that triggered it. `input` defaults to the triggering action's input.
+ */
+export interface TriggerFlowEffect {
+  type: "trigger_flow";
+  flow: string;
+  input?: Record<string, unknown>;
+}
+
 export type RuleEffect =
   | BlockEffect
   | WarnEffect
   | RequireApprovalEffect
   | EnrichEffect
-  | ExecuteActionEffect;
+  | ExecuteActionEffect
+  | TriggerFlowEffect;
 
 // ── Context query (M1+) ────────────────────────────
 
