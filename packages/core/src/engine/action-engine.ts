@@ -27,6 +27,7 @@ import {
   redactMetaForLog,
 } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
+import type { RuleDefinition } from "../types/rule";
 import {
   checkFieldLocks,
   type FieldLockViolation,
@@ -49,6 +50,7 @@ import {
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
 import { hashBehaviorAffectingMeta } from "./meta-keys";
+import { collectRules, evaluateRules } from "./rule-engine";
 
 // Framework-reserved `_`-prefixed system meta keys are defined as
 // `FRAMEWORK_RESERVED_META_KEYS` in `../types/execution-meta` so they are
@@ -259,6 +261,17 @@ export interface ActionExecutorOptions {
    * legitimately send.
    */
   strictValidation?: boolean;
+  /**
+   * Business rules (`defineRule`) evaluated during action execution
+   * (Spec 23 §1.1). When omitted, no rule evaluation runs — back-compat for
+   * tests and minimal setups. Production wiring injects the capability-
+   * aggregated rule set. Only rules whose `trigger.action` targets the running
+   * action fire (filtered by `collectRules`). In this phase, `block` aborts the
+   * write, `enrich` augments the input, and `warn` surfaces on the result;
+   * `require_approval` / `execute_action` / `trigger_flow` are handled in
+   * follow-up phases.
+   */
+  rules?: RuleDefinition[];
 }
 
 /**
@@ -382,6 +395,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     entityRegistry,
     interceptorRegistry,
     strictValidation = false,
+    rules,
   } = options;
 
   /** Silent noop logger — used when no logger is injected */
@@ -801,6 +815,65 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
+    // Step 4c: Business-rule evaluation (Spec 23 §1.1). Runs after input
+    // validation and before the write so `block` aborts cleanly, `enrich`
+    // augments the input that reaches the handler/write path, and `warn`
+    // surfaces on the result. Only action-triggered rules for THIS action fire
+    // (filtered by collectRules). Conditions are evaluated against the validated
+    // input; the pre-existing record is not yet threaded in (that lands with the
+    // require_approval phase), so input-shape guards work today while
+    // record-state guards arrive in a follow-up. require_approval /
+    // execute_action / trigger_flow effects are collected but not yet acted on
+    // here — also follow-up phases.
+    let effectiveInput: Record<string, unknown> = inputValidation.value ?? input;
+    const ruleWarnings: string[] = [];
+    if (rules && rules.length > 0) {
+      const applicableRules = collectRules(actionName, rules);
+      if (applicableRules.length > 0) {
+        const ruleOutput = await evaluateRules(
+          applicableRules,
+          {
+            target: effectiveInput,
+            actor: { type: actor.type, id: actor.id, groups: actor.groups ?? [] },
+            meta: resolvedMeta,
+          },
+          { skipRules: execOptions?.skipRules, metrics },
+        );
+        if (ruleOutput.blocked) {
+          const reason = ruleOutput.blockReasons.join("; ") || "Blocked by rule";
+          await logExecution({
+            id: executionId,
+            action: actionName,
+            entity: action.entity,
+            actor,
+            input,
+            status: "failed",
+            error: { message: reason },
+            meta: metaSnapshot,
+            startedAt,
+          });
+          return {
+            success: false,
+            data: {
+              error: reason,
+              context: {
+                action: actionName,
+                entity: action.entity,
+                constraint: "rule_block",
+                expected: reason,
+                suggestion: ruleOutput.contexts[0]?.suggestion ?? reason,
+              },
+            } as T,
+            executionId,
+          };
+        }
+        if (Object.keys(ruleOutput.enrichFields).length > 0) {
+          effectiveInput = { ...effectiveInput, ...ruleOutput.enrichFields };
+        }
+        for (const warn of ruleOutput.warnings) ruleWarnings.push(warn.message);
+      }
+    }
+
     // Build ActionContext
     const childExecutionIds: string[] = [];
     const pendingEvents: PendingEvent[] = [];
@@ -1103,12 +1176,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // the meta snapshot. `resolvedMeta` and `metaSnapshot` are in scope here.
 
     const ctx: ActionContext = {
-      // In strict mode, forward the sanitized (allowlisted) payload so undeclared
-      // keys stripped by validation never reach handlers / the write path. Falls
-      // back to the original input on the lenient path (dev/test). System fields
+      // `effectiveInput` = the sanitized (allowlisted) payload — in strict mode
+      // undeclared keys stripped by validation never reach handlers / the write
+      // path; lenient (dev/test) falls back to the original input. System fields
       // are retained by the validator, so update/lock logic that reads `input.id`
-      // is unaffected.
-      input: inputValidation.value ?? input,
+      // is unaffected. Rule `enrich` effects (Step 4c) have already been merged
+      // into `effectiveInput`.
+      input: effectiveInput,
       actor,
       tenantId: execOptions?.tenantId,
       logger,
@@ -1628,6 +1702,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         success: true,
         data: resultData as T,
         record,
+        warnings: ruleWarnings.length > 0 ? ruleWarnings : undefined,
         executionId,
       };
     } catch (err) {
