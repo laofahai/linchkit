@@ -12,6 +12,7 @@ import type {
   ActionDefinition,
   ActionExecutor,
   AIService,
+  ApprovalEngine,
   CommandLayer,
   DataProvider,
   EntityDefinition,
@@ -26,12 +27,14 @@ import type {
 } from "@linchkit/core";
 import {
   createActionExecutor,
+  createApprovalEngine,
   createCommandLayer,
   createInterfaceRegistry,
   createNoopAIService,
   createStateMachine,
   detectEnvironment,
   EntityRegistry,
+  InMemoryApprovalStore,
   InMemoryExecutionLogger,
   InMemoryStore,
 } from "@linchkit/core/server";
@@ -40,6 +43,13 @@ export interface RuntimeContext {
   entityRegistry: EntityRegistry;
   executor: ActionExecutor;
   commandLayer: CommandLayer;
+  /**
+   * Approval engine for `require_approval` rule effects. Wired into the
+   * executor so an action suspends into an approval request, and re-executes
+   * via the CommandLayer on approve. Uses an in-memory store by default —
+   * persistence (DrizzleApprovalStore) is injected by the boot path.
+   */
+  approvalEngine: ApprovalEngine;
   /** DataProvider used by both action executor and GraphQL query resolvers */
   dataProvider: DataProvider;
   executionLogger: ExecutionLogger;
@@ -155,6 +165,19 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     }
   }
 
+  // Approval engine for `require_approval` rule effects (Spec 23 §1.1). Built
+  // with an in-memory store (persistence via DrizzleApprovalStore is a boot-path
+  // follow-up). Re-execution on approve routes through the CommandLayer. Wired
+  // both ways: the engine re-executes via the executor, and the executor
+  // suspends actions into the engine when a rule requires approval.
+  const approvalEngine = createApprovalEngine({
+    store: new InMemoryApprovalStore(),
+    eventBus: options?.eventBus,
+    commandLayer,
+  });
+  approvalEngine.setExecutor(executor);
+  executor.setApprovalEngine(approvalEngine);
+
   // Register views grouped by schema
   const views = new Map<string, ViewDefinition[]>();
   if (options?.views) {
@@ -169,6 +192,7 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     entityRegistry,
     executor,
     commandLayer,
+    approvalEngine,
     dataProvider,
     executionLogger,
     views,
