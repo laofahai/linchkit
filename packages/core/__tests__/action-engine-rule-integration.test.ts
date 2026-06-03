@@ -15,6 +15,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import {
   type ActionApprovalSuspender,
+  type ActionFlowStarter,
   createActionExecutor,
   type DataProvider,
 } from "../src/engine/action-engine";
@@ -31,6 +32,8 @@ interface Captured {
   handlerInput: Record<string, unknown> | null;
   /** Extra fields the mock `get` returns for a record — drives record-state tests. */
   existingFields: Record<string, unknown>;
+  /** Input the `notify` side-effect action received (execute_action tests). */
+  notifiedWith: Record<string, unknown> | null;
 }
 
 function makeDataProvider(captured: Captured): DataProvider {
@@ -62,6 +65,35 @@ function makeAction(captured: Captured): ActionDefinition {
       captured.handlerInput = { ...(ctx.input as Record<string, unknown>) };
       const record = await ctx.create("request", ctx.input as Record<string, unknown>);
       return record;
+    },
+  };
+}
+
+/** Side-effect action targeted by execute_action rules — records that it ran. */
+function makeNotifyAction(captured: Captured): ActionDefinition {
+  return {
+    name: "notify",
+    entity: "request",
+    label: "Notify",
+    policy: { mode: "sync", transaction: false },
+    exposure: "all",
+    handler: async (ctx) => {
+      captured.notifiedWith = { ...(ctx.input as Record<string, unknown>) };
+      return { notified: true };
+    },
+  };
+}
+
+/** Captures trigger_flow startFlow calls. */
+interface FlowCapture {
+  started: { flow: string; input: Record<string, unknown> } | null;
+}
+
+function makeFlowStarter(cap: FlowCapture): ActionFlowStarter {
+  return {
+    startFlow: async (flow, input) => {
+      cap.started = { flow, input };
+      return { id: "flow_1" };
     },
   };
 }
@@ -121,17 +153,29 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
   let captured: Captured;
 
   beforeEach(() => {
-    captured = { created: null, updated: null, handlerInput: null, existingFields: {} };
+    captured = {
+      created: null,
+      updated: null,
+      handlerInput: null,
+      existingFields: {},
+      notifiedWith: null,
+    };
   });
 
-  function build(rules: RuleDefinition[] | undefined, approvalEngine?: ActionApprovalSuspender) {
+  function build(
+    rules: RuleDefinition[] | undefined,
+    approvalEngine?: ActionApprovalSuspender,
+    flowEngine?: ActionFlowStarter,
+  ) {
     const executor = createActionExecutor({
       dataProvider: makeDataProvider(captured),
       rules,
       approvalEngine,
+      flowEngine,
     });
     executor.registry.register(makeAction(captured));
     executor.registry.register(makeDeclarativeUpdateAction());
+    executor.registry.register(makeNotifyAction(captured));
     return executor;
   }
 
@@ -325,5 +369,93 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
 
     expect(result.success).toBe(true);
     expect(captured.updated).not.toBeNull();
+  });
+
+  it("execute_action: runs the named action post-commit (after the primary write)", async () => {
+    const rule: RuleDefinition = {
+      name: "notify_on_submit",
+      label: "Notify on submit",
+      trigger: { action: "submit_request" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "execute_action", action: "notify", params: { channel: "email" } },
+    };
+    const executor = build([rule]);
+    const result = await executor.execute("submit_request", { amount: 10 }, actor);
+
+    expect(result.success).toBe(true);
+    // Primary write happened …
+    expect(captured.created).toMatchObject({ amount: 10 });
+    // … and the side-effect action ran with its params.
+    expect(captured.notifiedWith).toMatchObject({ channel: "email" });
+  });
+
+  it("trigger_flow: starts the flow post-commit via the flow engine", async () => {
+    const flowCap: FlowCapture = { started: null };
+    const rule: RuleDefinition = {
+      name: "kickoff_flow",
+      label: "Kick off fulfilment flow",
+      trigger: { action: "submit_request" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "trigger_flow", flow: "fulfilment" },
+    };
+    const executor = build([rule], undefined, makeFlowStarter(flowCap));
+    const result = await executor.execute("submit_request", { amount: 42 }, actor);
+
+    expect(result.success).toBe(true);
+    expect(captured.created).toMatchObject({ amount: 42 }); // write happened first
+    expect(flowCap.started?.flow).toBe("fulfilment");
+    // Defaults the flow input to the (enriched) action input.
+    expect(flowCap.started?.input).toMatchObject({ amount: 42 });
+  });
+
+  it("trigger_flow: explicit effect.input overrides the action input", async () => {
+    const flowCap: FlowCapture = { started: null };
+    const rule: RuleDefinition = {
+      name: "kickoff_flow_custom",
+      label: "Kick off with custom input",
+      trigger: { action: "submit_request" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "trigger_flow", flow: "audit", input: { reason: "high_value" } },
+    };
+    const executor = build([rule], undefined, makeFlowStarter(flowCap));
+    await executor.execute("submit_request", { amount: 42 }, actor);
+
+    expect(flowCap.started?.flow).toBe("audit");
+    expect(flowCap.started?.input).toEqual({ reason: "high_value" });
+  });
+
+  it("trigger_flow: with no flow engine wired, the action still succeeds (skip + log)", async () => {
+    const rule: RuleDefinition = {
+      name: "kickoff_flow_noengine",
+      label: "Kick off flow",
+      trigger: { action: "submit_request" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "trigger_flow", flow: "fulfilment" },
+    };
+    const executor = build([rule]); // no flowEngine
+    const result = await executor.execute("submit_request", { amount: 42 }, actor);
+
+    expect(result.success).toBe(true);
+    expect(captured.created).toMatchObject({ amount: 42 });
+  });
+
+  it("post-commit effects do NOT run when the action is blocked", async () => {
+    const flowCap: FlowCapture = { started: null };
+    const rules: RuleDefinition[] = [
+      blockRule(),
+      {
+        name: "kickoff_flow_blocked",
+        label: "Kick off flow",
+        trigger: { action: "submit_request" },
+        condition: { field: "target.amount", operator: "gt", value: 0 },
+        effect: { type: "trigger_flow", flow: "fulfilment" },
+      },
+    ];
+    const executor = build(rules, undefined, makeFlowStarter(flowCap));
+    const result = await executor.execute("submit_request", { amount: 5000 }, actor);
+
+    expect(result.success).toBe(false); // blocked
+    expect(captured.created).toBeNull(); // no write
+    expect(flowCap.started).toBeNull(); // and no post-commit side effect
   });
 });
