@@ -81,7 +81,7 @@ export class PermissionRegistry {
 
       // Follow inheritance edges depth-first, in declaration order.
       const implied = group.implies;
-      if (implied) {
+      if (Array.isArray(implied)) {
         for (const impliedName of implied) {
           if (typeof impliedName === "string" && impliedName.length > 0) {
             visit(impliedName);
@@ -90,7 +90,7 @@ export class PermissionRegistry {
       }
     };
 
-    for (const groupName of actor.groups) {
+    for (const groupName of actor.groups ?? []) {
       visit(groupName);
     }
 
