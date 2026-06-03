@@ -13,8 +13,13 @@
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
-import { createActionExecutor, type DataProvider } from "../src/engine/action-engine";
+import {
+  type ActionApprovalSuspender,
+  createActionExecutor,
+  type DataProvider,
+} from "../src/engine/action-engine";
 import type { ActionDefinition, Actor } from "../src/types/action";
+import type { ApprovalPendingResult } from "../src/types/approval";
 import type { RuleDefinition } from "../src/types/rule";
 
 const actor: Actor = { type: "human", id: "user-1", groups: ["staff"] };
@@ -24,11 +29,13 @@ interface Captured {
   created: Record<string, unknown> | null;
   updated: { id: string; data: Record<string, unknown> } | null;
   handlerInput: Record<string, unknown> | null;
+  /** Extra fields the mock `get` returns for a record — drives record-state tests. */
+  existingFields: Record<string, unknown>;
 }
 
 function makeDataProvider(captured: Captured): DataProvider {
   return {
-    get: async (_entity, id) => ({ id }),
+    get: async (_entity, id) => ({ id, ...captured.existingFields }),
     query: async () => [],
     create: async (_entity, data) => {
       captured.created = data;
@@ -81,17 +88,47 @@ function blockRule(): RuleDefinition {
   };
 }
 
+function approvalRule(): RuleDefinition {
+  return {
+    name: "approve_large",
+    label: "Require approval for large amount",
+    trigger: { action: "submit_request" },
+    condition: { field: "target.amount", operator: "gt", value: 1000 },
+    effect: { type: "require_approval", level: "manager", message: "Needs manager sign-off" },
+  };
+}
+
+/** Captures the createRequest call so tests can assert the suspend happened. */
+interface ApprovalCapture {
+  request: Parameters<ActionApprovalSuspender["createRequest"]>[0] | null;
+}
+
+function makeApprovalEngine(cap: ApprovalCapture): ActionApprovalSuspender {
+  return {
+    createRequest: async (opts) => {
+      cap.request = opts;
+      return {
+        status: "pending_approval",
+        approvalId: "appr_1",
+        message: "Pending approval",
+        level: opts.effect.level,
+      };
+    },
+  };
+}
+
 describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
   let captured: Captured;
 
   beforeEach(() => {
-    captured = { created: null, updated: null, handlerInput: null };
+    captured = { created: null, updated: null, handlerInput: null, existingFields: {} };
   });
 
-  function build(rules: RuleDefinition[] | undefined) {
+  function build(rules: RuleDefinition[] | undefined, approvalEngine?: ActionApprovalSuspender) {
     const executor = createActionExecutor({
       dataProvider: makeDataProvider(captured),
       rules,
+      approvalEngine,
     });
     executor.registry.register(makeAction(captured));
     executor.registry.register(makeDeclarativeUpdateAction());
@@ -201,5 +238,92 @@ describe("Action Engine ↔ Rule Engine integration (Spec 23 §1.1)", () => {
 
     expect(result.success).toBe(true);
     expect(captured.created).toMatchObject({ amount: 5000 });
+  });
+
+  it("require_approval: suspends the action into an approval request (no write)", async () => {
+    const apprCap: ApprovalCapture = { request: null };
+    const executor = build([approvalRule()], makeApprovalEngine(apprCap));
+    const result = await executor.execute("submit_request", { amount: 5000 }, actor);
+
+    const pending = result.data as ApprovalPendingResult;
+    expect(pending.status).toBe("pending_approval");
+    expect(pending.level).toBe("manager");
+    // createRequest received the effect + the triggering rule name(s).
+    expect(apprCap.request?.effect.level).toBe("manager");
+    expect(apprCap.request?.triggerRules).toEqual(["approve_large"]);
+    // The action was suspended — the write never ran.
+    expect(captured.created).toBeNull();
+  });
+
+  it("require_approval: with no approval engine wired, the action proceeds (no silent block)", async () => {
+    const executor = build([approvalRule()]); // no approvalEngine
+    const result = await executor.execute("submit_request", { amount: 5000 }, actor);
+
+    expect(result.success).toBe(true);
+    expect(captured.created).toMatchObject({ amount: 5000 });
+  });
+
+  it("require_approval: setApprovalEngine late-binding seam works", async () => {
+    const apprCap: ApprovalCapture = { request: null };
+    const executor = build([approvalRule()]); // constructed without an engine
+    executor.setApprovalEngine(makeApprovalEngine(apprCap));
+    const result = await executor.execute("submit_request", { amount: 5000 }, actor);
+
+    expect((result.data as ApprovalPendingResult).status).toBe("pending_approval");
+    expect(apprCap.request).not.toBeNull();
+    expect(captured.created).toBeNull();
+  });
+
+  it("require_approval: skipRules bypasses the gate (approved re-execution proceeds)", async () => {
+    const apprCap: ApprovalCapture = { request: null };
+    const executor = build([approvalRule()], makeApprovalEngine(apprCap));
+    const result = await executor.execute("submit_request", { amount: 5000 }, actor, {
+      skipRules: ["approve_large"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(apprCap.request).toBeNull(); // gate skipped — no new request
+    expect(captured.created).toMatchObject({ amount: 5000 });
+  });
+
+  it("record-state: a rule reading the pre-existing record fires (status from the DB, not input)", async () => {
+    // The current record is "closed"; the caller's input does not carry status.
+    captured.existingFields = { status: "closed" };
+    const blockClosed: RuleDefinition = {
+      name: "block_closed",
+      label: "Block edits to closed records",
+      trigger: { action: "tag_request" },
+      condition: { field: "target.status", operator: "eq", value: "closed" },
+      effect: { type: "block", message: "Record is closed", reason: "record_closed" },
+    };
+    const executor = build([blockClosed]);
+    // tag_request is an update (input carries an id) → executor reads the record.
+    const result = await executor.execute("tag_request", { id: "req_1", region: "x" }, actor);
+
+    expect(result.success).toBe(false);
+    expect((result.data as { error?: string }).error).toContain("record_closed");
+    expect(captured.updated).toBeNull(); // blocked before the write
+  });
+
+  it("record-state: input overrides record state in the rule's target view", async () => {
+    // Record is "closed", but the caller's input flips status to "open" — the
+    // merged target should reflect the input, so the block does NOT fire.
+    captured.existingFields = { status: "closed" };
+    const blockClosed: RuleDefinition = {
+      name: "block_closed_2",
+      label: "Block edits to closed records",
+      trigger: { action: "tag_request" },
+      condition: { field: "target.status", operator: "eq", value: "closed" },
+      effect: { type: "block", message: "Record is closed" },
+    };
+    const executor = build([blockClosed]);
+    const result = await executor.execute(
+      "tag_request",
+      { id: "req_1", status: "open", region: "x" },
+      actor,
+    );
+
+    expect(result.success).toBe(true);
+    expect(captured.updated).not.toBeNull();
   });
 });

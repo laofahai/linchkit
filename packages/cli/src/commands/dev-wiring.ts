@@ -287,6 +287,10 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     commandLayer,
     enforceAssignee: false, // M0b: not enforced yet
   });
+  // Wire the approval engine back into the executor so a `require_approval`
+  // rule effect suspends the action into an approval request (Spec 23 §1.1).
+  // Late-bound because the engine itself re-executes actions via the executor.
+  executor.setApprovalEngine(approvalEngine);
 
   // ── AI Audit Logger — always created (lightweight, no external deps) ──
   const aiAuditLogger = new AIAuditLogger({

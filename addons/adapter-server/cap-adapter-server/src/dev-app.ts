@@ -100,6 +100,7 @@ export function createDevApp(
     ...serverOverrides,
     executor: runtime.executor,
     commandLayer: runtime.commandLayer,
+    approvalEngine: runtime.approvalEngine,
     executionLogger: runtime.executionLogger,
     entityRegistry: runtime.entityRegistry,
     views: runtime.views,
