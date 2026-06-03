@@ -693,3 +693,269 @@ describe("system_admin registry check", () => {
     expect(result).toBe("all");
   });
 });
+
+// ── implies inheritance (RBAC double-brain fix) ─────────────
+
+describe("implies inheritance", () => {
+  function setupRegistry(...groups: PermissionGroupDefinition[]): PermissionRegistry {
+    const registry = new PermissionRegistry();
+    for (const g of groups) {
+      registry.register(g);
+    }
+    return registry;
+  }
+
+  it("resolveActorPermissions expands a single implies edge (A implies B)", () => {
+    const a = makeGroup({ name: "a", implies: ["b"] });
+    const b = makeGroup({ name: "b" });
+    const registry = setupRegistry(a, b);
+    const actor = makeActor({ groups: ["a"] });
+
+    expect(registry.resolveActorPermissions(actor)).toEqual([a, b]);
+  });
+
+  it("actor in A (A implies B) can do an action only B grants", () => {
+    const a = makeGroup({ name: "a", implies: ["b"], permissions: {} });
+    const b = makeGroup({
+      name: "b",
+      permissions: { purchase: { purchase_request: { actions: { submit: true } } } },
+    });
+    const registry = setupRegistry(a, b);
+    const actor = makeActor({ groups: ["a"] });
+
+    const result = checkActionPermission(registry, actor, "purchase", "submit");
+    expect(result.allowed).toBe(true);
+    expect(result.decidedBy).toBe("b");
+  });
+
+  it("resolves multi-level inheritance A -> B -> C (deduped, ordered)", () => {
+    const a = makeGroup({ name: "a", implies: ["b"] });
+    const b = makeGroup({ name: "b", implies: ["c"] });
+    const c = makeGroup({
+      name: "c",
+      permissions: { purchase: { purchase_request: { actions: { approve: true } } } },
+    });
+    const registry = setupRegistry(a, b, c);
+    const actor = makeActor({ groups: ["a"] });
+
+    expect(registry.resolveActorPermissions(actor)).toEqual([a, b, c]);
+    expect(checkActionPermission(registry, actor, "purchase", "approve").allowed).toBe(true);
+  });
+
+  it("terminates on a cycle A -> B -> A and still resolves both", () => {
+    const a = makeGroup({ name: "a", implies: ["b"] });
+    const b = makeGroup({
+      name: "b",
+      implies: ["a"],
+      permissions: { purchase: { purchase_request: { actions: { submit: true } } } },
+    });
+    const registry = setupRegistry(a, b);
+    const actor = makeActor({ groups: ["a"] });
+
+    // No infinite loop / throw; both groups appear exactly once.
+    const resolved = registry.resolveActorPermissions(actor);
+    expect(resolved.map((g) => g.name).sort()).toEqual(["a", "b"]);
+    expect(resolved.length).toBe(2);
+    expect(checkActionPermission(registry, actor, "purchase", "submit").allowed).toBe(true);
+  });
+
+  it("ignores an unknown implied group name (no throw, no grant)", () => {
+    const a = makeGroup({ name: "a", implies: ["does_not_exist"], permissions: {} });
+    const registry = setupRegistry(a);
+    const actor = makeActor({ groups: ["a"] });
+
+    expect(registry.resolveActorPermissions(actor)).toEqual([a]);
+    const result = checkActionPermission(registry, actor, "purchase", "submit");
+    expect(result.allowed).toBe(false);
+  });
+
+  it("explicit deny wins across inheritance (A implies B; B allows, A denies)", () => {
+    const a = makeGroup({
+      name: "a",
+      implies: ["b"],
+      permissions: { purchase: { purchase_request: { actions: { approve: false } } } },
+    });
+    const b = makeGroup({
+      name: "b",
+      permissions: { purchase: { purchase_request: { actions: { approve: true } } } },
+    });
+    const registry = setupRegistry(a, b);
+    const actor = makeActor({ groups: ["a"] });
+
+    const result = checkActionPermission(registry, actor, "purchase", "approve");
+    expect(result.allowed).toBe(false);
+    expect(result.decidedBy).toBe("a");
+  });
+
+  it("data access is inherited via implies", () => {
+    const a = makeGroup({ name: "a", implies: ["b"], permissions: {} });
+    const b = makeGroup({
+      name: "b",
+      permissions: { purchase: { purchase_request: { data: { read: "all" } } } },
+    });
+    const registry = setupRegistry(a, b);
+    const actor = makeActor({ groups: ["a"] });
+
+    expect(resolveDataAccess(registry, actor, "purchase", "purchase_request", "read")).toBe("all");
+  });
+});
+
+// ── grant-authored groups (the headline double-brain bug) ───
+
+describe("grant-authored groups", () => {
+  function setupRegistry(...groups: PermissionGroupDefinition[]): PermissionRegistry {
+    const registry = new PermissionRegistry();
+    for (const g of groups) {
+      registry.register(g);
+    }
+    return registry;
+  }
+
+  it("a group with only `grant` (no `permissions`) actually grants the action", () => {
+    // Authored via the documented `.grant(...)` API: entity-keyed, no capability
+    // nesting, no `permissions` literal. This silently granted NOTHING before.
+    const group: PermissionGroupDefinition = {
+      name: "purchase_manager",
+      grant: {
+        purchase_request: { actions: { approve_request: true } },
+      },
+    };
+    const registry = setupRegistry(group);
+    const actor = makeActor({ groups: ["purchase_manager"] });
+
+    // `grant` is capability-agnostic — applies for any capability name.
+    const result = checkActionPermission(registry, actor, "any_capability", "approve_request");
+    expect(result.allowed).toBe(true);
+    expect(result.decidedBy).toBe("purchase_manager");
+  });
+
+  it("a `grant` explicit deny wins over a `grant` allow in another group", () => {
+    const allow: PermissionGroupDefinition = {
+      name: "allow",
+      grant: { purchase_request: { actions: { approve: true } } },
+    };
+    const deny: PermissionGroupDefinition = {
+      name: "deny",
+      grant: { purchase_request: { actions: { approve: false } } },
+    };
+    const registry = setupRegistry(allow, deny);
+    const actor = makeActor({ groups: ["allow", "deny"] });
+
+    const result = checkActionPermission(registry, actor, "purchase", "approve");
+    expect(result.allowed).toBe(false);
+    expect(result.decidedBy).toBe("deny");
+  });
+
+  it("`grant` data access is honored", () => {
+    const group: PermissionGroupDefinition = {
+      name: "viewer",
+      grant: { purchase_request: { data: { read: "all" } } },
+    };
+    const registry = setupRegistry(group);
+    const actor = makeActor({ groups: ["viewer"] });
+
+    expect(resolveDataAccess(registry, actor, "any_cap", "purchase_request", "read")).toBe("all");
+  });
+
+  it("`grant` participates with `permissions` under explicit-deny-wins", () => {
+    // One group denies via legacy `permissions`, another allows via `grant`.
+    const denyLegacy = makeGroup({
+      name: "deny_legacy",
+      permissions: { purchase: { purchase_request: { actions: { approve: false } } } },
+    });
+    const allowGrant: PermissionGroupDefinition = {
+      name: "allow_grant",
+      grant: { purchase_request: { actions: { approve: true } } },
+    };
+    const registry = setupRegistry(denyLegacy, allowGrant);
+    const actor = makeActor({ groups: ["deny_legacy", "allow_grant"] });
+
+    const result = checkActionPermission(registry, actor, "purchase", "approve");
+    expect(result.allowed).toBe(false);
+    expect(result.decidedBy).toBe("deny_legacy");
+  });
+
+  it("`implies` + `grant` compose (A implies B; B grants via grant map)", () => {
+    const a: PermissionGroupDefinition = { name: "a", implies: ["b"] };
+    const b: PermissionGroupDefinition = {
+      name: "b",
+      grant: { purchase_request: { actions: { submit: true } } },
+    };
+    const registry = setupRegistry(a, b);
+    const actor = makeActor({ groups: ["a"] });
+
+    expect(checkActionPermission(registry, actor, "any_cap", "submit").allowed).toBe(true);
+  });
+});
+
+// ── systemLevel: "admin" bypass ─────────────────────────────
+
+describe('systemLevel: "admin" bypass', () => {
+  function setupRegistry(...groups: PermissionGroupDefinition[]): PermissionRegistry {
+    const registry = new PermissionRegistry();
+    for (const g of groups) {
+      registry.register(g);
+    }
+    return registry;
+  }
+
+  it("a group named NOT system_admin but systemLevel:'admin' bypasses everything", () => {
+    const group: PermissionGroupDefinition = {
+      name: "platform_owner",
+      systemLevel: "admin",
+    };
+    const registry = setupRegistry(group);
+    const actor = makeActor({ groups: ["platform_owner"] });
+
+    const result = checkActionPermission(registry, actor, "any_capability", "any_action");
+    expect(result.allowed).toBe(true);
+    expect(result.decidedBy).toBe("platform_owner");
+    expect(resolveDataAccess(registry, actor, "any_cap", "any_entity", "read")).toBe("all");
+  });
+
+  it("legacy system_admin name still bypasses (back-compat)", () => {
+    const registry = setupRegistry(makeGroup({ name: "system_admin", label: "System Admin" }));
+    const actor = makeActor({ groups: ["system_admin"] });
+
+    expect(checkActionPermission(registry, actor, "any", "any").allowed).toBe(true);
+  });
+
+  it("admin bypass is inherited via implies (A implies an admin group)", () => {
+    const admin: PermissionGroupDefinition = { name: "the_admin", systemLevel: "admin" };
+    const a: PermissionGroupDefinition = { name: "a", implies: ["the_admin"] };
+    const registry = setupRegistry(admin, a);
+    const actor = makeActor({ groups: ["a"] });
+
+    const result = checkActionPermission(registry, actor, "any", "any");
+    expect(result.allowed).toBe(true);
+    expect(result.decidedBy).toBe("the_admin");
+  });
+
+  it("a non-admin group does NOT get the bypass (default-deny floor intact)", () => {
+    const group: PermissionGroupDefinition = { name: "regular", grant: {} };
+    const registry = setupRegistry(group);
+    const actor = makeActor({ groups: ["regular"] });
+
+    expect(checkActionPermission(registry, actor, "any", "any").allowed).toBe(false);
+  });
+});
+
+// ── legacy `permissions`-literal regression guard ───────────
+
+describe("legacy permissions-literal regression guard", () => {
+  it("a group authored with only `permissions` works unchanged", () => {
+    const registry = new PermissionRegistry();
+    const group = makeGroup({
+      name: "employee",
+      permissions: { purchase: { purchase_request: { actions: { submit: true } } } },
+    });
+    registry.register(group);
+    const actor = makeActor({ groups: ["employee"] });
+
+    const result = checkActionPermission(registry, actor, "purchase", "submit");
+    expect(result.allowed).toBe(true);
+    expect(result.decidedBy).toBe("employee");
+    // An unmentioned action is still default-denied.
+    expect(checkActionPermission(registry, actor, "purchase", "approve").allowed).toBe(false);
+  });
+});

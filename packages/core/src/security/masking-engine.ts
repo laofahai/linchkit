@@ -124,27 +124,84 @@ export function canUnmask(
   entityName: string,
   fieldName: string,
 ): boolean {
-  // system_admin always sees raw data
-  if (actor.groups.includes("system_admin")) {
-    const hasSystemAdmin = groups.some((g) => g.name === "system_admin");
-    if (hasSystemAdmin) return true;
+  // Callers pass the full REGISTERED group set (registry.getAll()), so resolve
+  // the actor's EFFECTIVE membership here — direct groups plus everything they
+  // inherit via `implies` — and scope every unmask decision to it. This keeps
+  // masking consistent with the action engine (inheritance is honored) while
+  // never trusting a group the actor is not a (transitive) member of.
+  const effective = resolveEffectiveGroupNames(actor, groups);
+
+  // A system-admin group (by `systemLevel` or the legacy `system_admin` name)
+  // in the actor's effective set always sees raw data.
+  if (groups.some((g) => isAdminGroup(g) && effective.has(g.name))) {
+    return true;
   }
 
   for (const group of groups) {
-    if (!actor.groups.includes(group.name)) continue;
+    if (!effective.has(group.name)) continue;
 
-    const capPerms = group.permissions[capabilityName];
-    if (!capPerms) continue;
-
-    const schemaPerms = capPerms[entityName];
-    if (!schemaPerms?.fields?.unmask) continue;
-
-    if (schemaPerms.fields.unmask.includes(fieldName)) {
-      return true;
+    // Consult BOTH `permissions[capability][entity]` and the canonical
+    // `grant[entity]` source for unmask grants.
+    const candidates: Array<string[] | undefined> = [
+      group.permissions?.[capabilityName]?.[entityName]?.fields?.unmask,
+      group.grant?.[entityName]?.fields?.unmask,
+    ];
+    for (const unmask of candidates) {
+      // Defensive: a misconfigured string `unmask` (e.g. from raw DB/API data)
+      // would substring-match via String.prototype.includes — require an array.
+      if (Array.isArray(unmask) && unmask.includes(fieldName)) {
+        return true;
+      }
     }
   }
 
   return false;
+}
+
+/**
+ * Resolve an actor's effective permission-group names — direct memberships plus
+ * everything reachable via `implies` — over the provided registered group set.
+ *
+ * Mirrors {@link PermissionRegistry.resolveActorPermissions} (fail-safe: unknown
+ * names and `implies` cycles are ignored, never throws; a misconfigured
+ * non-array `implies` is skipped). Returned as a name set for membership scoping.
+ */
+function resolveEffectiveGroupNames(
+  actor: Actor,
+  groups: PermissionGroupDefinition[],
+): Set<string> {
+  const byName = new Map(groups.map((g) => [g.name, g]));
+  const effective = new Set<string>();
+
+  const visit = (name: string): void => {
+    if (effective.has(name)) return; // already resolved → cycle/dup guard
+    const group = byName.get(name);
+    if (!group) return; // unknown name → not a member, nothing to inherit
+    effective.add(name);
+    const implied = group.implies;
+    if (Array.isArray(implied)) {
+      for (const impliedName of implied) {
+        if (typeof impliedName === "string" && impliedName.length > 0) {
+          visit(impliedName);
+        }
+      }
+    }
+  };
+
+  for (const groupName of actor.groups ?? []) {
+    visit(groupName);
+  }
+
+  return effective;
+}
+
+/**
+ * Whether a group confers system-admin bypass — `systemLevel: "admin"` or the
+ * legacy `system_admin` name. Mirrors the engine's admin predicate so masking
+ * and authorization stay consistent.
+ */
+function isAdminGroup(group: PermissionGroupDefinition): boolean {
+  return group.systemLevel === "admin" || group.name === "system_admin";
 }
 
 /** Options for maskRecord */

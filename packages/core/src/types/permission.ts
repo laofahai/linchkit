@@ -54,16 +54,40 @@ export interface SchemaPermissions {
   };
 }
 
+// ── Grant access map (capability-agnostic, entity-keyed) ─
+
+/**
+ * Canonical access map: entity name → permissions. Produced by cap-permission's
+ * `definePermissionGroup`/`permissionGroup` builder (spec 10 §2.1).
+ *
+ * Unlike `permissions[capability][entity]`, `grant` is NOT nested under a
+ * capability name — capability is resolved from the action registry at
+ * evaluation time, so a `grant[entity]` applies regardless of the capability
+ * the entity currently belongs to. The inner shape is identical to
+ * {@link SchemaPermissions}.
+ */
+export type GrantMap = Record<string, SchemaPermissions>;
+
 // ── Permission group definition ────────────────────────
 
 export interface PermissionGroupDefinition {
   name: string;
-  label: string;
+
+  /**
+   * Human-readable label shown in admin UI. Optional so that groups authored via
+   * cap-permission's `grant`-only builder (which has no label requirement) remain
+   * structurally assignable to this canonical type.
+   */
+  label?: string;
   description?: string;
 
   /**
    * Permissions organized by Capability name.
    * Each capability maps schema names to their permissions.
+   *
+   * Optional: a group authored entirely via the canonical `grant` map omits this
+   * legacy 3-level structure. When absent, the engine consults `grant` instead.
+   * Always access via a guarded lookup (it may be `undefined`).
    *
    * Example:
    * ```ts
@@ -78,7 +102,26 @@ export interface PermissionGroupDefinition {
    * }
    * ```
    */
-  permissions: Record<string, Record<string, SchemaPermissions>>;
+  permissions?: Record<string, Record<string, SchemaPermissions>>;
+
+  /**
+   * Canonical, capability-agnostic access map (entity → permissions), authored
+   * via cap-permission's `.grant(...)` / `grant: {...}` API (spec 10 §2.1).
+   * Consulted by the engine ALONGSIDE `permissions`; both sources participate in
+   * the explicit-deny-wins merge. Optional — legacy groups only use `permissions`.
+   */
+  grant?: GrantMap;
+
+  /**
+   * Names of permission groups this one inherits from. Resolved transitively
+   * (with cycle detection) by the engine, so an actor in this group effectively
+   * belongs to all (recursively) implied groups too (spec 10 §2.1 + §7.1).
+   * Optional — legacy groups have no inheritance.
+   */
+  implies?: string[];
+
+  /** UI grouping bucket — typically a capability name (spec 10 §2.1). */
+  category?: string;
 
   /** Shorthand for system_admin level */
   systemLevel?: "admin";
