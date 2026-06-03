@@ -53,11 +53,10 @@ const deptPurchaseLink: RelationDefinition = {
 
 // ── Setup ──────────────────────────────────────────────────────────
 
-const PORT = 32177;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
-
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
+// Bound to a random free port (port 0) in beforeAll to avoid cross-test collisions.
+let gqlUrl: string;
 
 beforeAll(() => {
   store = new InMemoryStore();
@@ -70,9 +69,9 @@ beforeAll(() => {
     }
   }
 
-  const schemaMap = new Map<string, EntityDefinition>();
-  schemaMap.set("department", departmentSchema);
-  schemaMap.set("purchase_request", purchaseRequestSchema);
+  const entityMap = new Map<string, EntityDefinition>();
+  entityMap.set("department", departmentSchema);
+  entityMap.set("purchase_request", purchaseRequestSchema);
 
   const graphqlSchema = buildGraphQLSchema(schemas, {
     executor,
@@ -80,8 +79,15 @@ beforeAll(() => {
     relations: [deptPurchaseLink],
   });
 
-  app = createServer(graphqlSchema, { dataProvider: store, schemaMap });
-  app.listen(PORT);
+  // `entityMap` (not `schemaMap`) is the option createServer reads + injects
+  // into the GraphQL context.
+  app = createServer(graphqlSchema, { dataProvider: store, entityMap });
+  // Listen on port 0 → the OS assigns a free port; capture it so parallel test
+  // files never collide on a fixed port.
+  app.listen(0);
+  const port = app.server?.port;
+  if (!port) throw new Error("graphql-armor test server failed to bind a port");
+  gqlUrl = `http://localhost:${port}/graphql`;
 });
 
 afterAll(() => {
@@ -89,7 +95,7 @@ afterAll(() => {
 });
 
 async function gql(query: string) {
-  const res = await fetch(GQL_URL, {
+  const res = await fetch(gqlUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
