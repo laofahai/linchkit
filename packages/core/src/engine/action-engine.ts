@@ -25,7 +25,12 @@ import {
   redactMetaForLog,
 } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
-import type { ExecuteActionEffect, RuleDefinition, TriggerFlowEffect } from "../types/rule";
+import type {
+  ExecuteActionEffect,
+  RequireApprovalEffect,
+  RuleDefinition,
+  TriggerFlowEffect,
+} from "../types/rule";
 import {
   type FieldLockViolation,
   LockPreflightError,
@@ -79,6 +84,17 @@ import { collectRules } from "./rule-engine";
 // `FRAMEWORK_RESERVED_META_KEYS` in `../types/execution-meta` so they are
 // shared with ApprovalEngine (which must agree on the same boundary when
 // partitioning persisted meta on suspend / replay — Spec 65 §3.3, #230).
+
+// Private flow-control sentinel thrown inside runPipelineWithProvider to
+// signal an early exit (block / approval / validation / state failure).
+// Using a class ensures instanceof checks are reliable even across closures.
+// Never exported — callers never see it; the executor catches and translates.
+class PipelineAbortError extends Error {
+  constructor() {
+    super("pipeline_abort");
+    this.name = "PipelineAbortError";
+  }
+}
 
 /**
  * Create an ActionExecutor instance.
@@ -618,132 +634,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
      */
     let inTransaction = false;
 
-    // ── Step 4c: Business-rule evaluation (Spec 23 §1.1) ───────────
-    //
-    // Runs after provider setup and before the write. The decision logic lives
-    // in `evaluateActionRules` (engine/action-rule-eval.ts) so it stays a small,
-    // unit-testable unit; this site owns only the side effects that decision
-    // implies — execution logging, approval-request creation, and the early
-    // returns. `block` aborts the action, `require_approval` suspends it into an
-    // approval request, `enrich` augments the input that reaches the
-    // handler/write path, and `warn` surfaces on the result. Conditions are
-    // evaluated against the merged view of the pre-existing record (for updates)
-    // and the validated input, so both input-shape and record-state guards work.
-    // Only action-triggered rules for THIS action fire (filtered +
-    // priority-sorted by collectRules); `execute_action` / `trigger_flow`
-    // effects are collected here and run post-commit (once the write is durable).
-    //
-    // Snapshot caveat (tracked follow-up #462): for a TOP-LEVEL transactional
-    // action the record read inside `evaluateActionRules` happens before
-    // `runInTransaction` opens, so a concurrent commit between here and the write
-    // could make a record-state `block` / `require_approval` decision on a
-    // slightly stale snapshot. Hardening this means calling the helper with the
-    // transactional provider from inside the write transaction (the same in-tx
-    // relocation field-lock enforcement took in PR #203). Nested actions already
-    // read through the parent's tx provider (`parentTxProvider`).
-    if (rules && rules.length > 0) {
-      let applicableRules = applicableRulesCache.get(actionName);
-      if (applicableRules === undefined) {
-        applicableRules = collectRules(actionName, rules);
-        applicableRulesCache.set(actionName, applicableRules);
-      }
-      if (applicableRules.length > 0) {
-        const decision = await evaluateActionRules({
-          applicableRules,
-          entity: action.entity,
-          // Pre-enrich input: the approval request below stores this raw payload
-          // (enrich is re-derived on the post-approval re-execution).
-          effectiveInput,
-          actor,
-          meta: resolvedMeta,
-          // Read through the parent's transactional provider when this is a
-          // nested action inside an open transaction, so the rule sees the
-          // parent's uncommitted writes (Spec 26 §1.1); otherwise the
-          // tenant-scoped baseProvider.
-          readProvider: parentTxProvider ?? baseProvider,
-          queryOptions,
-          skipRules: execOptions?.skipRules,
-          metrics,
-        });
-
-        if (decision.blocked) {
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action.entity,
-            actor,
-            input,
-            // Policy/authorization-style block (consistent with exposure,
-            // field-lock, and state-transition blocks) — not an execution failure.
-            status: "blocked",
-            error: { message: decision.blocked.reason },
-            meta: metaSnapshot,
-            startedAt,
-          });
-          return {
-            success: false,
-            data: {
-              error: decision.blocked.reason,
-              context: {
-                action: actionName,
-                entity: action.entity,
-                constraint: "rule_block",
-                expected: decision.blocked.reason,
-                suggestion: decision.blocked.suggestion,
-              },
-            } as T,
-            executionId,
-          };
-        }
-
-        // require_approval: suspend the action into an approval request instead
-        // of writing. ApprovalEngine.approve() later re-executes the action with
-        // `skipRules = triggerRules`, so the approval rule does not re-fire. When
-        // no approval engine is wired (minimal setups), fall through and let the
-        // action proceed — the gate is best-effort, not a silent hard block.
-        if (decision.requiredApproval && approvalEngineRef) {
-          const pending = await approvalEngineRef.createRequest({
-            action: actionName,
-            entity: action.entity,
-            recordId: decision.recordId,
-            // Store the pre-enrich input — enrich is re-derived when the approved
-            // action re-executes (the approval rule itself is then skipped).
-            input: effectiveInput,
-            actor,
-            executionId,
-            effect: decision.requiredApproval.effect,
-            triggerRules: decision.requiredApproval.triggerRules,
-            tenantId: execOptions?.tenantId,
-            meta: resolvedMeta.toJSON(),
-          });
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action.entity,
-            actor,
-            input,
-            // Suspended pending approval — distinct from a hard block/failure so
-            // execution-log consumers can surface it as awaiting sign-off.
-            status: "pending_approval",
-            error: { message: `Pending approval (${pending.level})` },
-            meta: metaSnapshot,
-            startedAt,
-          });
-          return { success: false, data: pending as T, executionId };
-        }
-
-        // Proceed path: adopt the enriched input and fold in warn / side-effect
-        // results. (When require_approval fired but no engine is wired, we land
-        // here and apply them — the gate degraded to best-effort.)
-        effectiveInput = decision.effectiveInput;
-        for (const warning of decision.warnings) ruleWarnings.push(warning);
-        // execute_action / trigger_flow are side effects — defer them to the
-        // post-commit point so they only run once the write is durable.
-        pendingRuleActions.push(...decision.pendingActions);
-        pendingRuleFlows.push(...decision.pendingFlows);
-      }
-    }
-
     // ── Step 4b: Field-lock preflight for declarative updates ──────
     //
     // Lock enforcement fires from two places (Spec 63 Phase 1):
@@ -828,24 +718,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const needsDeclarativeLockCheck =
       !!recordId && !!resolvedEntity && hasLockMetadata && isDeclarativeUpdate;
     const needsStateFetch = !!recordId && !!action.stateTransition && !!stateMachine;
-
-    let existingRecord: Record<string, unknown> | undefined;
-    let existingRecordFetchError = false;
-    if (recordId && (needsDeclarativeLockCheck || needsStateFetch)) {
-      // Read through the parent's transactional provider when this is a
-      // nested `ctx.execute` inside an open transaction. Otherwise a child
-      // action sees the pre-transaction snapshot — a parent that just wrote
-      // `status = "submitted"` would have the write invisible to the child,
-      // letting `lockWhen: { state: "submitted" }` slip past enforcement.
-      // Tenant wrapping matches: the parent's txProvider is already
-      // tenant-scoped, so don't re-wrap. `parentTxProvider` is hoisted above.
-      const readProvider: DataProvider = parentTxProvider ?? baseProvider;
-      try {
-        existingRecord = await readProvider.get(action.entity, recordId, queryOptions);
-      } catch {
-        existingRecordFetchError = true;
-      }
-    }
 
     /**
      * Build a failed ActionResult for a field-lock preflight failure. Used
@@ -973,307 +845,410 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       };
     }
 
-    // The declarative-update lock check (formerly Step 4b) was relocated
-    // INTO runHandler below. CodeRabbit PR #203 review: a Step 4b preflight
-    // reads from `baseProvider`, but Step 7 then opens a new transaction and
-    // writes via the txProvider — a concurrent transaction could mutate the
-    // row between the preflight and the write, bypassing enforcement. The
-    // authoritative declarative lock check now runs inside runHandler against
-    // the same `dp` reference the write uses (txProvider when transactional,
-    // baseProvider otherwise), so check and write share one snapshot. Step 4b
-    // retains only the existing-record fetch needed for Step 6 state
-    // transition gating.
+    // Declarative-update lock check (PR #203) and all Steps 4c–7 run inside
+    // runPipelineWithProvider below so rule reads, state reads, and writes
+    // share one DataProvider snapshot (TOCTOU hardening — #466, Spec 23 §1.1).
 
-    // Meta was resolved at the top of `execute(...)` so every early-failure
-    // log entry (depth check, action lookup, exposure, validation) records
-    // the meta snapshot. `resolvedMeta` and `metaSnapshot` are in scope here.
+    // Early-exit data captured inside runPipelineWithProvider before throwing
+    // PipelineAbortError; read after the pipeline to log + return.
+    let pipelineEarlyExit:
+      | { kind: "blocked"; reason: string; suggestion: string }
+      | {
+          kind: "approval";
+          effect: RequireApprovalEffect;
+          triggerRules: string[];
+          approvalRecordId: string | undefined;
+        }
+      | { kind: "pre_validation"; errors: Array<{ field?: string; message: string }> | undefined }
+      | {
+          kind: "state_early";
+          logStatus: "failed" | "blocked";
+          message: string;
+          context?: Record<string, unknown>;
+        }
+      | undefined;
 
-    const ctx: ActionContext = {
-      // `effectiveInput` = the sanitized (allowlisted) payload — in strict mode
-      // undeclared keys stripped by validation never reach handlers / the write
-      // path; lenient (dev/test) falls back to the original input. System fields
-      // are retained by the validator, so update/lock logic that reads `input.id`
-      // is unaffected. Rule `enrich` effects (Step 4c) have already been merged
-      // into `effectiveInput`.
-      input: effectiveInput,
-      actor,
-      tenantId: execOptions?.tenantId,
-      logger,
-      signal: undefined,
-      ai: aiService ?? noopAi,
-      config: configRegistry ?? ConfigRegistry.empty(),
-      executionId,
-      timestamp: startedAt,
-      meta: resolvedMeta,
-      get: (entity, id) => activeProvider.get(entity, id, queryOptions),
-      query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
-      // ctx.create skips lock enforcement: creates are by definition writing
-      // a new row, immutable only applies to existing non-null values, and
-      // lockWhen/lockAllWhen require a pre-existing record to evaluate.
-      create: (entity, data) => activeProvider.create(entity, data),
-      update: async (entity, id, data) => {
-        // Handler-path lock check (Spec 63 round-5/6). Resolves the target
-        // entity each time so handlers updating a related record (cross-
-        // entity write) get the target entity's own immutable / lockWhen /
-        // lockAllWhen rules — not the current action's. Skips silently when
-        // the entity isn't registered or has no lock metadata.
-        if (entityRegistry) {
-          let targetResolved: ReturnType<EntityRegistry["resolve"]> | undefined;
-          try {
-            targetResolved = entityRegistry.resolve(entity);
-          } catch {
-            targetResolved = undefined;
-          }
-          if (targetResolved) {
-            const targetFields: Record<string, FieldDefinition> = {};
-            for (const [fname, rf] of Object.entries(targetResolved.fields)) {
-              targetFields[fname] = rf.definition;
+    // State-transition result and handler outputs — set inside the pipeline,
+    // read by the success-path logExecution and return below.
+    let stateTransitionRecord: { from: string; to: string } | undefined;
+    let resultData: unknown;
+    let record: Record<string, unknown> | undefined;
+
+    // Run the action handler or declarative logic against a given DataProvider.
+    const runHandler = async (dp: DataProvider, pipeCtx: ActionContext): Promise<void> => {
+      activeProvider = dp;
+      if (action.handler) {
+        resultData = await action.handler(pipeCtx);
+      } else {
+        // Declarative action — no handler needed. Use `effectiveInput` (the
+        // validated + rule-enriched payload) so `enrich` effects and strict
+        // sanitization apply to declarative writes exactly as they do on the
+        // handler path (ctx.input). Reading raw `input` here would silently
+        // drop rule-enriched fields and `$input.*` references to them.
+        const recordIdLocal = effectiveInput.id as string | undefined;
+
+        if (recordIdLocal) {
+          const updates: Record<string, unknown> = {};
+
+          if (action.setFields) {
+            for (const [key, value] of Object.entries(action.setFields)) {
+              updates[key] = resolveFieldExpression(value, effectiveInput, actor);
             }
-            const targetLockAllWhen = targetResolved.source.lockAllWhen;
-            const targetLockAllowFields = targetResolved.source.lockAllowFields;
-            const targetHasLockMetadata =
-              targetLockAllWhen !== undefined ||
-              Object.values(targetFields).some(
-                (f) => f.immutable === true || f.readonly === true || f.lockWhen !== undefined,
-              );
-            if (targetHasLockMetadata) {
-              // Fetch at write-time (not reusing any earlier snapshot) — the
-              // handler may have done other writes that changed this row.
-              let current: Record<string, unknown>;
+          }
+
+          if (action.stateTransition) {
+            updates.status = action.stateTransition.to;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            // Field-lock check INSIDE the transaction so the read snapshot
+            // matches the write snapshot. CodeRabbit PR #203: doing this at
+            // the pre-pipeline preflight (formerly Step 4b) opens a TOCTOU
+            // gap when transactionManager is in play — a concurrent tx
+            // could change lock-critical fields between the preflight read
+            // and the write inside the new tx. Reading via `dp` here uses
+            // the txProvider when transactional, baseProvider otherwise,
+            // matching what the write itself sees.
+            if (resolvedEntity && hasLockMetadata && action) {
+              let txCurrent: Record<string, unknown>;
               try {
-                current = await activeProvider.get(entity, id, queryOptions);
+                txCurrent = await dp.get(action.entity, recordIdLocal, queryOptions);
               } catch {
-                // Fail closed when the row can't be read — same stance as
-                // the declarative preflight's fetch-error path.
-                throw new LockPreflightError(entity, id);
+                throw new LockPreflightError(action.entity, recordIdLocal);
               }
-              const writesToCheck: Record<string, unknown> = { ...data };
+              const writesToCheck: Record<string, unknown> = { ...updates };
               delete writesToCheck.id;
               const violations = await checkAndRunFieldLockInterceptor({
-                entity,
-                fields: targetFields,
-                lockAllWhen: targetLockAllWhen,
-                lockAllowFields: targetLockAllowFields,
-                existingRecord: current,
+                entity: action.entity,
+                fields: resolvedFields,
+                lockAllWhen,
+                lockAllowFields,
+                existingRecord: txCurrent,
                 writesToCheck,
                 actor,
                 tenantId: execOptions?.tenantId,
                 interceptorRegistry,
               });
               if (violations.length > 0) {
-                throw new LockViolationError(violations, entity);
+                throw new LockViolationError(violations, action.entity);
+              }
+            }
+
+            record = await dp.update(action.entity, recordIdLocal, updates, queryOptions);
+            resultData = record;
+          }
+        }
+      }
+    };
+
+    /**
+     * Steps 4c–7 executed against a single DataProvider `dp`.
+     *
+     * For the top-level transactional case `dp` is the txProvider opened by
+     * `runInTransaction`, so rule reads, state reads, and writes share one
+     * snapshot — closing the TOCTOU window (issue #466, Spec 23 §1.1).
+     * For nested actions `dp` is the parent's txProvider (unchanged behaviour).
+     * For non-transactional actions `dp = baseProvider` (unchanged behaviour).
+     *
+     * Early exits set `pipelineEarlyExit` then throw PipelineAbortError so the
+     * outer catch can log + return the result after the tx rolls back.
+     */
+    const runPipelineWithProvider = async (dp: DataProvider): Promise<void> => {
+      // ── Step 4c: Business-rule evaluation (Spec 23 §1.1) ─────────
+      //
+      // `readProvider: dp` is the TOCTOU fix — for the top-level transactional
+      // case dp is the open txProvider, so rule reads share the same snapshot
+      // as the write. Nested and non-tx cases use the same provider as before.
+      if (rules && rules.length > 0) {
+        let applicableRules = applicableRulesCache.get(actionName);
+        if (applicableRules === undefined) {
+          applicableRules = collectRules(actionName, rules);
+          applicableRulesCache.set(actionName, applicableRules);
+        }
+        if (applicableRules.length > 0) {
+          const decision = await evaluateActionRules({
+            applicableRules,
+            entity: action.entity,
+            // Pre-enrich input: the approval request (created post-tx) stores
+            // this raw payload; enrich is re-derived on the post-approval replay.
+            effectiveInput,
+            actor,
+            meta: resolvedMeta,
+            readProvider: dp,
+            queryOptions,
+            skipRules: execOptions?.skipRules,
+            metrics,
+          });
+
+          if (decision.blocked) {
+            pipelineEarlyExit = {
+              kind: "blocked",
+              reason: decision.blocked.reason,
+              suggestion: decision.blocked.suggestion,
+            };
+            throw new PipelineAbortError();
+          }
+
+          // require_approval: store decision for post-tx createRequest call.
+          // createRequest must NOT run inside the tx — the tx will roll back
+          // on PipelineAbortError, but the approval record must persist.
+          if (decision.requiredApproval && approvalEngineRef) {
+            pipelineEarlyExit = {
+              kind: "approval",
+              effect: decision.requiredApproval.effect,
+              triggerRules: decision.requiredApproval.triggerRules,
+              approvalRecordId: decision.recordId,
+            };
+            throw new PipelineAbortError();
+          }
+
+          // Proceed: adopt enriched input and accumulate side effects.
+          effectiveInput = decision.effectiveInput;
+          for (const warning of decision.warnings) ruleWarnings.push(warning);
+          pendingRuleActions.push(...decision.pendingActions);
+          pendingRuleFlows.push(...decision.pendingFlows);
+        }
+      }
+
+      // ── Existing-record fetch for state-transition check ──────────
+      //
+      // Uses `dp` (not parentTxProvider ?? baseProvider) so the read shares
+      // the same snapshot as the write — part of the TOCTOU hardening (#466).
+      let existingRecord: Record<string, unknown> | undefined;
+      let existingRecordFetchError = false;
+      if (recordId && (needsDeclarativeLockCheck || needsStateFetch)) {
+        try {
+          existingRecord = await dp.get(action.entity, recordId, queryOptions);
+        } catch {
+          existingRecordFetchError = true;
+        }
+      }
+
+      // ── Build ActionContext (after enrich so ctx.input = enriched payload) ─
+      //
+      // Meta was resolved at the top of `execute(...)` so every early-failure
+      // log entry records the meta snapshot. `resolvedMeta` / `metaSnapshot`
+      // are in scope via closure.
+      const pipeCtx: ActionContext = {
+        input: effectiveInput,
+        actor,
+        tenantId: execOptions?.tenantId,
+        logger,
+        signal: undefined,
+        ai: aiService ?? noopAi,
+        config: configRegistry ?? ConfigRegistry.empty(),
+        executionId,
+        timestamp: startedAt,
+        meta: resolvedMeta,
+        get: (entity, id) => activeProvider.get(entity, id, queryOptions),
+        query: (entity, filter) => activeProvider.query(entity, filter, queryOptions),
+        // ctx.create skips lock enforcement: creates are by definition writing
+        // a new row, immutable only applies to existing non-null values, and
+        // lockWhen/lockAllWhen require a pre-existing record to evaluate.
+        create: (entity, data) => activeProvider.create(entity, data),
+        update: async (entity, id, data) => {
+          // Handler-path lock check (Spec 63 round-5/6). Resolves the target
+          // entity each time so handlers updating a related record (cross-
+          // entity write) get the target entity's own immutable / lockWhen /
+          // lockAllWhen rules — not the current action's. Skips silently when
+          // the entity isn't registered or has no lock metadata.
+          if (entityRegistry) {
+            let targetResolved: ReturnType<EntityRegistry["resolve"]> | undefined;
+            try {
+              targetResolved = entityRegistry.resolve(entity);
+            } catch {
+              targetResolved = undefined;
+            }
+            if (targetResolved) {
+              const targetFields: Record<string, FieldDefinition> = {};
+              for (const [fname, rf] of Object.entries(targetResolved.fields)) {
+                targetFields[fname] = rf.definition;
+              }
+              const targetLockAllWhen = targetResolved.source.lockAllWhen;
+              const targetLockAllowFields = targetResolved.source.lockAllowFields;
+              const targetHasLockMetadata =
+                targetLockAllWhen !== undefined ||
+                Object.values(targetFields).some(
+                  (f) => f.immutable === true || f.readonly === true || f.lockWhen !== undefined,
+                );
+              if (targetHasLockMetadata) {
+                // Fetch at write-time (not reusing any earlier snapshot) — the
+                // handler may have done other writes that changed this row.
+                let current: Record<string, unknown>;
+                try {
+                  current = await activeProvider.get(entity, id, queryOptions);
+                } catch {
+                  // Fail closed when the row can't be read — same stance as
+                  // the declarative preflight's fetch-error path.
+                  throw new LockPreflightError(entity, id);
+                }
+                const writesToCheck: Record<string, unknown> = { ...data };
+                delete writesToCheck.id;
+                const violations = await checkAndRunFieldLockInterceptor({
+                  entity,
+                  fields: targetFields,
+                  lockAllWhen: targetLockAllWhen,
+                  lockAllowFields: targetLockAllowFields,
+                  existingRecord: current,
+                  writesToCheck,
+                  actor,
+                  tenantId: execOptions?.tenantId,
+                  interceptorRegistry,
+                });
+                if (violations.length > 0) {
+                  throw new LockViolationError(violations, entity);
+                }
               }
             }
           }
-        }
-        return activeProvider.update(entity, id, data, queryOptions);
-      },
-      // ctx.delete skips lock enforcement: Spec 63 regulates field writes,
-      // not row deletion. Delete authorization lives elsewhere (soft-delete
-      // rules, permission slot).
-      delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
-      execute: async (childActionName, childInput, childOpts) => {
-        // Extend parent meta for the child call: parent keys always win (§4.3),
-        // framework updates _depth and _source_action unconditionally (§4.4),
-        // and the root _execution_id is preserved across the chain.
-        // Using the standalone extendExecutionMeta helper keeps the public
-        // ExecutionMeta interface read-only from the handler's perspective —
-        // handlers can't accidentally mutate meta by calling `.extend(...)`
-        // on `ctx.meta`.
-        // `extend` enforces the same filter + size limit as root meta
-        // construction. If the merged child payload exceeds 8 KB, surface the
-        // error as a failed ActionResult rather than letting the exception
-        // bubble up and crash the parent handler — consistent with how other
-        // child failures flow back to the caller (ctx.execute returns result.data).
-        let childMeta: ExecutionMeta;
-        try {
-          childMeta = extendExecutionMeta(resolvedMeta, childOpts?.meta ?? {}, {
-            _depth: currentDepth + 1,
-            _source_action: actionName,
-          });
-        } catch (err) {
-          if (err instanceof MetaSizeError) {
-            // The child never ran — no execution log entry exists for this
-            // rejection. Do NOT push a fake id onto childExecutionIds: that
-            // would break `ExecutionLogger.getById()` lookups from the parent
-            // log, since no record is ever written under it.
-            return { error: err.message, code: err.code };
+          return activeProvider.update(entity, id, data, queryOptions);
+        },
+        // ctx.delete skips lock enforcement: Spec 63 regulates field writes,
+        // not row deletion. Delete authorization lives elsewhere (soft-delete
+        // rules, permission slot).
+        delete: (entity, id) => activeProvider.delete(entity, id, queryOptions),
+        execute: async (childActionName, childInput, childOpts) => {
+          // Extend parent meta for the child call: parent keys always win (§4.3),
+          // framework updates _depth and _source_action unconditionally (§4.4),
+          // and the root _execution_id is preserved across the chain.
+          // Using the standalone extendExecutionMeta helper keeps the public
+          // ExecutionMeta interface read-only from the handler's perspective —
+          // handlers can't accidentally mutate meta by calling `.extend(...)`
+          // on `ctx.meta`.
+          // `extend` enforces the same filter + size limit as root meta
+          // construction. If the merged child payload exceeds 8 KB, surface the
+          // error as a failed ActionResult rather than letting the exception
+          // bubble up and crash the parent handler — consistent with how other
+          // child failures flow back to the caller (ctx.execute returns result.data).
+          let childMeta: ExecutionMeta;
+          try {
+            childMeta = extendExecutionMeta(resolvedMeta, childOpts?.meta ?? {}, {
+              _depth: currentDepth + 1,
+              _source_action: actionName,
+            });
+          } catch (err) {
+            if (err instanceof MetaSizeError) {
+              // The child never ran — no execution log entry exists for this
+              // rejection. Do NOT push a fake id onto childExecutionIds: that
+              // would break `ExecutionLogger.getById()` lookups from the parent
+              // log, since no record is ever written under it.
+              return { error: err.message, code: err.code };
+            }
+            throw err;
           }
-          throw err;
-        }
-        // Strip top-level idempotency key from the child invocation. The root
-        // ActionExecutor already gates on `currentDepth === 0`, so the key
-        // is unused at depth > 0 — but spreading `...execOptions` carried it
-        // through anyway and obscured the contract. Spec 26 §1.1 nested
-        // transactions: child operations participate in the parent's tx and
-        // do NOT register an independent idempotency record.
-        const { idempotencyKey: _drop, ...childExecOptions } = execOptions ?? {};
-        // Spec 26 §1.1: only forward `_txDataProvider` when the current
-        // execution is actually inside an open database transaction. A
-        // parent with `policy.transaction:false` does NOT have a tx to share,
-        // so its child must be free to open its own (per the child's own
-        // `policy.transaction`) instead of riding `baseProvider` mistakenly
-        // typed as a "tx provider". Likewise `_parentPendingEvents` is only
-        // meaningful when there's a parent tx whose commit will flush them.
-        const childTxDataProvider = inTransaction ? activeProvider : undefined;
-        const childParentPendingEvents = inTransaction ? pendingEvents : undefined;
-        const childResult = await execute(childActionName, childInput, actor, {
-          ...childExecOptions,
-          _depth: currentDepth + 1,
-          _txDataProvider: childTxDataProvider,
-          _parentPendingEvents: childParentPendingEvents,
-          // Bubble the child's post-commit rule side effects up to this parent
-          // (shared tx) so they fire on the parent's commit, not before it.
-          _parentPendingRuleActions: inTransaction ? pendingRuleActions : undefined,
-          _parentPendingRuleFlows: inTransaction ? pendingRuleFlows : undefined,
-          meta: childMeta,
-        });
-        childExecutionIds.push(childResult.executionId);
-        // Spec 26 §1.1 (nested transactions): when the parent is running
-        // inside a database transaction and the child returns a failed
-        // result, the parent's transaction MAY be on a rollback path —
-        // most engines (Postgres included) reject further writes after a
-        // statement error inside an open transaction. If the parent
-        // handler swallows the failed `data` and tries to keep going, the
-        // very next write may surface a "current transaction is aborted"
-        // style error.
-        //
-        // Note: not every failure category implies a tainted tx — input
-        // validation, exposure blocks, and permission denials all fail
-        // BEFORE any DB statement runs, so the tx is still healthy in
-        // those cases. Distinguishing DB vs logical failures from outside
-        // the engine would require typed error categories that core
-        // doesn't expose today. Pragmatic compromise: include the child's
-        // error code + message in the warning so a developer reading the
-        // log can decide if it's a real concern. Always-warn keeps us on
-        // the safe side (false positive ≈ extra log noise vs missing the
-        // case where parent silently continues into a poisoned tx).
-        if (!childResult.success && inTransaction) {
-          // The action engine's failed-result convention is
-          // `{ success: false, data: { error: <string>, code?: <string>, ... } }`.
-          // We read it structurally rather than via a typed cast since
-          // not every failure path attaches a `code` (handler throws emit
-          // only `error`, while declarative blocks like state-transition
-          // refusal also attach `code`).
-          const errData = childResult.data as { error?: unknown; code?: unknown } | undefined;
-          const codeRaw = errData?.code;
-          const msgRaw = errData?.error;
-          const errCode = typeof codeRaw === "string" ? ` code=${codeRaw}` : "";
-          const errMsg = typeof msgRaw === "string" ? ` message="${msgRaw}"` : "";
-          logger.warn(
-            `[nested-action] Child action "${childActionName}" failed inside parent transaction "${actionName}" (executionId=${executionId}).${errCode}${errMsg} If this was a database error, the parent's transaction is now on a rollback path — any subsequent ctx.create/update/delete will fail. Re-throw the error from your handler, or return early without further writes. (For pre-DB failures like validation/permission, the tx is still healthy and you can safely recover.)`,
-          );
-        }
-        return childResult.data;
-      },
-      hasCapability: (name: string) => capabilityNames.has(name),
-      emit: (eventType, payload) => {
-        const trace = getCurrentTrace();
-        pendingEvents.push({
-          type: eventType,
-          payload,
-          tenantId: execOptions?.tenantId,
-          sourceAction: actionName,
-          sourceExecutionId: executionId,
-          traceId: trace?.traceId,
-          // Capture this action's ExecutionMeta so the eventual handler
-          // sees the originating action's caller hints (Spec 65 §7).
-          meta: resolvedMeta,
-        });
-      },
-    };
-
-    // Step 5: Pre-validation
-    const preValidation = runPreValidation(action, ctx);
-    if (!preValidation.valid) {
-      const firstError = preValidation.errors?.[0];
-      await logExecution({
-        id: executionId,
-        action: actionName,
-        entity: action.entity,
-        actor,
-        input,
-        status: "failed",
-        error: { message: "Validation failed" },
-        meta: metaSnapshot,
-        startedAt,
-      });
-      return {
-        success: false,
-        data: {
-          error: "Validation failed",
-          details: preValidation.errors,
-          context: {
-            action: actionName,
-            entity: action?.entity,
-            constraint: "pre_validation",
-            field: firstError?.field,
-            expected: firstError?.message,
-            suggestion: firstError
-              ? `Fix field "${firstError.field}": ${firstError.message}`
-              : "Check input values against action validation rules",
-          },
-        } as T,
-        executionId,
-      };
-    }
-
-    // Step 6: State transition check
-    let stateTransitionRecord: { from: string; to: string } | undefined;
-
-    if (action.stateTransition && stateMachine) {
-      const fromStates = Array.isArray(action.stateTransition.from)
-        ? action.stateTransition.from
-        : [action.stateTransition.from];
-
-      // Get current state from input or record. The record itself was already
-      // fetched above (Step 4b) when `input.id` was present; reuse it to
-      // avoid a second round-trip on real databases.
-      let currentState: string | undefined;
-
-      if (recordId) {
-        if (existingRecordFetchError || !existingRecord) {
-          // Record fetch failed — fail closed when state transition is required
-          const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action?.entity,
-            actor,
-            input,
-            status: "failed",
-            error: { message: errorMsg },
-            meta: metaSnapshot,
-            startedAt,
+          // Strip top-level idempotency key from the child invocation. The root
+          // ActionExecutor already gates on `currentDepth === 0`, so the key
+          // is unused at depth > 0 — but spreading `...execOptions` carried it
+          // through anyway and obscured the contract. Spec 26 §1.1 nested
+          // transactions: child operations participate in the parent's tx and
+          // do NOT register an independent idempotency record.
+          const { idempotencyKey: _drop, ...childExecOptions } = execOptions ?? {};
+          // Spec 26 §1.1: only forward `_txDataProvider` when the current
+          // execution is actually inside an open database transaction. A
+          // parent with `policy.transaction:false` does NOT have a tx to share,
+          // so its child must be free to open its own (per the child's own
+          // `policy.transaction`) instead of riding `baseProvider` mistakenly
+          // typed as a "tx provider". Likewise `_parentPendingEvents` is only
+          // meaningful when there's a parent tx whose commit will flush them.
+          const childTxDataProvider = inTransaction ? activeProvider : undefined;
+          const childParentPendingEvents = inTransaction ? pendingEvents : undefined;
+          const childResult = await execute(childActionName, childInput, actor, {
+            ...childExecOptions,
+            _depth: currentDepth + 1,
+            _txDataProvider: childTxDataProvider,
+            _parentPendingEvents: childParentPendingEvents,
+            // Bubble the child's post-commit rule side effects up to this parent
+            // (shared tx) so they fire on the parent's commit, not before it.
+            _parentPendingRuleActions: inTransaction ? pendingRuleActions : undefined,
+            _parentPendingRuleFlows: inTransaction ? pendingRuleFlows : undefined,
+            meta: childMeta,
           });
-          return {
-            success: false,
-            data: { error: errorMsg } as T,
-            executionId,
-          };
-        }
-        currentState = existingRecord.status as string | undefined;
+          childExecutionIds.push(childResult.executionId);
+          // Spec 26 §1.1 (nested transactions): when the parent is running
+          // inside a database transaction and the child returns a failed
+          // result, the parent's transaction MAY be on a rollback path —
+          // most engines (Postgres included) reject further writes after a
+          // statement error inside an open transaction. If the parent
+          // handler swallows the failed `data` and tries to keep going, the
+          // very next write may surface a "current transaction is aborted"
+          // style error.
+          //
+          // Note: not every failure category implies a tainted tx — input
+          // validation, exposure blocks, and permission denials all fail
+          // BEFORE any DB statement runs, so the tx is still healthy in
+          // those cases. Distinguishing DB vs logical failures from outside
+          // the engine would require typed error categories that core
+          // doesn't expose today. Pragmatic compromise: include the child's
+          // error code + message in the warning so a developer reading the
+          // log can decide if it's a real concern. Always-warn keeps us on
+          // the safe side (false positive ≈ extra log noise vs missing the
+          // case where parent silently continues into a poisoned tx).
+          if (!childResult.success && inTransaction) {
+            // The action engine's failed-result convention is
+            // `{ success: false, data: { error: <string>, code?: <string>, ... } }`.
+            // We read it structurally rather than via a typed cast since
+            // not every failure path attaches a `code` (handler throws emit
+            // only `error`, while declarative blocks like state-transition
+            // refusal also attach `code`).
+            const errData = childResult.data as { error?: unknown; code?: unknown } | undefined;
+            const codeRaw = errData?.code;
+            const msgRaw = errData?.error;
+            const errCode = typeof codeRaw === "string" ? ` code=${codeRaw}` : "";
+            const errMsg = typeof msgRaw === "string" ? ` message="${msgRaw}"` : "";
+            logger.warn(
+              `[nested-action] Child action "${childActionName}" failed inside parent transaction "${actionName}" (executionId=${executionId}).${errCode}${errMsg} If this was a database error, the parent's transaction is now on a rollback path — any subsequent ctx.create/update/delete will fail. Re-throw the error from your handler, or return early without further writes. (For pre-DB failures like validation/permission, the tx is still healthy and you can safely recover.)`,
+            );
+          }
+          return childResult.data;
+        },
+        hasCapability: (name: string) => capabilityNames.has(name),
+        emit: (eventType, payload) => {
+          const trace = getCurrentTrace();
+          pendingEvents.push({
+            type: eventType,
+            payload,
+            tenantId: execOptions?.tenantId,
+            sourceAction: actionName,
+            sourceExecutionId: executionId,
+            traceId: trace?.traceId,
+            // Capture this action's ExecutionMeta so the eventual handler
+            // sees the originating action's caller hints (Spec 65 §7).
+            meta: resolvedMeta,
+          });
+        },
+      };
+
+      // ── Step 5: Pre-validation ──────────────────────────────────────
+      const preValidation = runPreValidation(action, pipeCtx);
+      if (!preValidation.valid) {
+        pipelineEarlyExit = { kind: "pre_validation", errors: preValidation.errors };
+        throw new PipelineAbortError();
       }
 
-      if (currentState !== undefined) {
-        // Check if current state is in the allowed "from" states
-        if (!fromStates.includes(currentState)) {
-          const errorMsg = `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`;
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action?.entity,
-            actor,
-            input,
-            status: "blocked",
-            error: { message: errorMsg },
-            meta: metaSnapshot,
-            startedAt,
-          });
-          return {
-            success: false,
-            data: {
-              error: errorMsg,
+      // ── Step 6: State transition check ─────────────────────────────
+      if (action.stateTransition && stateMachine) {
+        const fromStates = Array.isArray(action.stateTransition.from)
+          ? action.stateTransition.from
+          : [action.stateTransition.from];
+
+        let currentState: string | undefined;
+
+        if (recordId) {
+          if (existingRecordFetchError || !existingRecord) {
+            const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
+            pipelineEarlyExit = { kind: "state_early", logStatus: "failed", message: errorMsg };
+            throw new PipelineAbortError();
+          }
+          currentState = existingRecord.status as string | undefined;
+        }
+
+        if (currentState !== undefined) {
+          if (!fromStates.includes(currentState)) {
+            const errorMsg = `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`;
+            pipelineEarlyExit = {
+              kind: "state_early",
+              logStatus: "blocked",
+              message: errorMsg,
               context: {
                 entity: action?.entity,
                 action: actionName,
@@ -1283,30 +1258,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 actual: `Current state is "${currentState}"`,
                 suggestion: `Record is in "${currentState}" state. Allowed source states for "${actionName}" are: [${fromStates.join(", ")}]`,
               },
-            } as T,
-            executionId,
-          };
-        }
+            };
+            throw new PipelineAbortError();
+          }
 
-        // Also validate against state machine if available
-        if (!canTransition(stateMachine, currentState, actionName)) {
-          const available = getAvailableActions(stateMachine, currentState);
-          const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action?.entity,
-            actor,
-            input,
-            status: "blocked",
-            error: { message: errorMsg },
-            meta: metaSnapshot,
-            startedAt,
-          });
-          return {
-            success: false,
-            data: {
-              error: errorMsg,
+          if (!canTransition(stateMachine, currentState, actionName)) {
+            const available = getAvailableActions(stateMachine, currentState);
+            const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
+            pipelineEarlyExit = {
+              kind: "state_early",
+              logStatus: "blocked",
+              message: errorMsg,
               context: {
                 entity: action?.entity,
                 action: actionName,
@@ -1319,94 +1281,27 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                     ? `Available actions from "${currentState}": [${available.join(", ")}]`
                     : `No actions available from state "${currentState}"`,
               },
-            } as T,
-            executionId,
-          };
-        }
+            };
+            throw new PipelineAbortError();
+          }
 
-        stateTransitionRecord = { from: currentState, to: action.stateTransition.to };
+          stateTransitionRecord = { from: currentState, to: action.stateTransition.to };
+        }
       }
-    }
+
+      // ── Step 7: Run handler (actual write) ─────────────────────────
+      await runHandler(dp, pipeCtx);
+    };
 
     // Step 7: Execute
     //
-    // When a TransactionManager is provided, the handler runs within a
-    // database transaction. Events collected via ctx.emit() are persisted
+    // When a TransactionManager is provided, the pipeline runs within a
+    // database transaction. Events collected via pipeCtx.emit() are persisted
     // to _linchkit.events in the same transaction (Transactional Outbox).
     // On failure, both data changes and events roll back atomically.
     try {
-      let resultData: unknown;
-      let record: Record<string, unknown> | undefined;
-
-      /** Run the action handler or declarative logic against a given DataProvider */
-      const runHandler = async (dp: DataProvider): Promise<void> => {
-        activeProvider = dp;
-        if (action.handler) {
-          resultData = await action.handler(ctx);
-        } else {
-          // Declarative action — no handler needed. Use `effectiveInput` (the
-          // validated + rule-enriched payload) so `enrich` effects and strict
-          // sanitization apply to declarative writes exactly as they do on the
-          // handler path (ctx.input). Reading raw `input` here would silently
-          // drop rule-enriched fields and `$input.*` references to them.
-          const recordIdLocal = effectiveInput.id as string | undefined;
-
-          if (recordIdLocal) {
-            const updates: Record<string, unknown> = {};
-
-            if (action.setFields) {
-              for (const [key, value] of Object.entries(action.setFields)) {
-                updates[key] = resolveFieldExpression(value, effectiveInput, actor);
-              }
-            }
-
-            if (action.stateTransition) {
-              updates.status = action.stateTransition.to;
-            }
-
-            if (Object.keys(updates).length > 0) {
-              // Field-lock check INSIDE the transaction so the read snapshot
-              // matches the write snapshot. CodeRabbit PR #203: doing this at
-              // the pre-pipeline preflight (formerly Step 4b) opens a TOCTOU
-              // gap when transactionManager is in play — a concurrent tx
-              // could change lock-critical fields between the preflight read
-              // and the write inside the new tx. Reading via `dp` here uses
-              // the txProvider when transactional, baseProvider otherwise,
-              // matching what the write itself sees.
-              if (resolvedEntity && hasLockMetadata && action) {
-                let txCurrent: Record<string, unknown>;
-                try {
-                  txCurrent = await dp.get(action.entity, recordIdLocal, queryOptions);
-                } catch {
-                  throw new LockPreflightError(action.entity, recordIdLocal);
-                }
-                const writesToCheck: Record<string, unknown> = { ...updates };
-                delete writesToCheck.id;
-                const violations = await checkAndRunFieldLockInterceptor({
-                  entity: action.entity,
-                  fields: resolvedFields,
-                  lockAllWhen,
-                  lockAllowFields,
-                  existingRecord: txCurrent,
-                  writesToCheck,
-                  actor,
-                  tenantId: execOptions?.tenantId,
-                  interceptorRegistry,
-                });
-                if (violations.length > 0) {
-                  throw new LockViolationError(violations, action.entity);
-                }
-              }
-
-              record = await dp.update(action.entity, recordIdLocal, updates, queryOptions);
-              resultData = record;
-            }
-          }
-        }
-      };
-
       // `parentTxProvider` and `useTransaction` are hoisted near the top of
-      // `execute(...)` so the `ctx.execute` closure can detect in-transaction
+      // `execute(...)` so the pipeCtx.execute closure can detect in-transaction
       // state when warning about nested-action failure swallowing.
       const parentEvents = execOptions?._parentPendingEvents;
 
@@ -1416,7 +1311,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // operations participate in the same DB transaction.
         // Note: parent already wraps with tenant isolation, so no double-wrap needed.
         inTransaction = true;
-        await runHandler(parentTxProvider);
+        await runPipelineWithProvider(parentTxProvider);
         // Propagate child events to parent's pending list so they are
         // persisted atomically when the parent's transaction commits.
         if (parentEvents) {
@@ -1429,13 +1324,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           const scopedTxProvider = execOptions?.tenantId
             ? createTenantAwareDataProvider(txProvider, execOptions.tenantId)
             : txProvider;
-          return runHandler(scopedTxProvider);
+          return runPipelineWithProvider(scopedTxProvider);
         }, pendingEvents);
       } else {
         // No transaction in play — `inTransaction` stays false so any
-        // nested ctx.execute that happens inside this handler can open
+        // nested pipeCtx.execute that happens inside this handler can open
         // its own transaction per its own `policy.transaction`.
-        await runHandler(baseProvider);
+        await runPipelineWithProvider(baseProvider);
       }
 
       const durationMs = Date.now() - startedAt.getTime();
@@ -1560,83 +1455,226 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
-      // Field-lock violations raised from the ctx.update wrapper surface as
-      // these dedicated errors. Convert them to the standard failed
-      // ActionResult shape Step 4b produces so both the declarative and
-      // handler paths emit identical results to downstream consumers.
-      //
-      // Metrics: these are authorization-style blocks, not execution
-      // failures, but we still route them through the failed counter so
-      // operators can monitor lock-block rates. A future split could add a
-      // dedicated `blocked` status if the signal is worth separating. The
-      // metric emit happens INSIDE the helpers so declarative-path
-      // rejections (which return through the helpers without entering this
-      // catch) get counted identically.
-      if (err instanceof LockViolationError) {
+      // PipelineAbortError is a flow-control sentinel thrown inside
+      // runPipelineWithProvider to signal a rule block, approval suspension,
+      // pre-validation failure, or state-transition refusal. The actual
+      // exit data is in pipelineEarlyExit; fall through to the handler below.
+      if (err instanceof PipelineAbortError) {
+        // intentional fall-through — handled in the pipelineEarlyExit block below
+      } else if (err instanceof LockViolationError) {
+        // Field-lock violations raised from the ctx.update wrapper surface as
+        // these dedicated errors. Convert them to the standard failed
+        // ActionResult shape Step 4b produces so both the declarative and
+        // handler paths emit identical results to downstream consumers.
+        //
+        // Metrics: these are authorization-style blocks, not execution
+        // failures, but we still route them through the failed counter so
+        // operators can monitor lock-block rates. A future split could add a
+        // dedicated `blocked` status if the signal is worth separating. The
+        // metric emit happens INSIDE the helpers so declarative-path
+        // rejections (which return through the helpers without entering this
+        // catch) get counted identically.
         return buildLockViolationResult(err.violations, err.entity);
-      }
-      if (err instanceof LockPreflightError) {
+      } else if (err instanceof LockPreflightError) {
         return buildLockPreflightResult(err.recordId, err.entity);
-      }
+      } else {
+        const durationMs = Date.now() - startedAt.getTime();
+        metrics.increment("action.executed", {
+          action: actionName,
+          entity: action.entity ?? "",
+          status: "failed",
+        });
+        metrics.timing("action.duration_ms", durationMs, {
+          action: actionName,
+          entity: action.entity ?? "",
+        });
 
-      const durationMs = Date.now() - startedAt.getTime();
-      metrics.increment("action.executed", {
-        action: actionName,
-        entity: action.entity ?? "",
-        status: "failed",
-      });
-      metrics.timing("action.duration_ms", durationMs, {
-        action: actionName,
-        entity: action.entity ?? "",
-      });
+        // On failure, pendingEvents were NOT persisted (transaction rolled back)
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "failed",
+          error: { message: err instanceof Error ? err.message : String(err) },
+          stateTransition: stateTransitionRecord,
+          childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
+          meta: metaSnapshot,
+          startedAt,
+        });
 
-      // On failure, pendingEvents were NOT persisted (transaction rolled back)
-      await logExecution({
-        id: executionId,
-        action: actionName,
-        entity: action.entity,
-        actor,
-        input,
-        status: "failed",
-        error: { message: err instanceof Error ? err.message : String(err) },
-        stateTransition: stateTransitionRecord,
-        childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
-        meta: metaSnapshot,
-        startedAt,
-      });
-
-      // Emit action.failed event to EventBus (non-blocking — must not affect action result)
-      if (eventBus) {
-        try {
-          await eventBus.emit({
-            id: crypto.randomUUID(),
-            type: "action.failed",
-            category: "runtime",
-            timestamp: new Date(),
-            actor: { type: actor.type, id: actor.id },
-            entity: action?.entity,
-            action: actionName,
-            executionId,
-            tenantId: execOptions?.tenantId,
-            payload: {
+        // Emit action.failed event to EventBus (non-blocking — must not affect action result)
+        if (eventBus) {
+          try {
+            await eventBus.emit({
+              id: crypto.randomUUID(),
+              type: "action.failed",
+              category: "runtime",
+              timestamp: new Date(),
+              actor: { type: actor.type, id: actor.id },
+              entity: action?.entity,
               action: actionName,
-              error: err instanceof Error ? err.message : String(err),
-            },
-            meta: resolvedMeta,
-          });
-        } catch {
-          // Don't fail the action if event emission fails
+              executionId,
+              tenantId: execOptions?.tenantId,
+              payload: {
+                action: actionName,
+                error: err instanceof Error ? err.message : String(err),
+              },
+              meta: resolvedMeta,
+            });
+          } catch {
+            // Don't fail the action if event emission fails
+          }
         }
+
+        return {
+          success: false,
+          data: {
+            error: err instanceof Error ? err.message : String(err),
+          } as T,
+          executionId,
+        };
+      }
+    }
+
+    // ── Pipeline early-exit handler ────────────────────────────────────────
+    //
+    // Reached only when runPipelineWithProvider threw PipelineAbortError.
+    // pipelineEarlyExit carries the exit data set just before the throw.
+    // Each branch mirrors the inline handling from the previous single-scope
+    // implementation; the key difference is that approval createRequest now
+    // runs POST-transaction — the tx rolled back on PipelineAbortError, so
+    // calling it inside the tx would have been a no-op (rolled back too).
+    if (pipelineEarlyExit) {
+      if (pipelineEarlyExit.kind === "blocked") {
+        const { reason, suggestion } = pipelineEarlyExit;
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "blocked",
+          error: { message: reason },
+          meta: metaSnapshot,
+          startedAt,
+        });
+        return {
+          success: false,
+          data: {
+            error: reason,
+            context: {
+              action: actionName,
+              entity: action.entity,
+              constraint: "rule_block",
+              expected: reason,
+              suggestion,
+            },
+          } as T,
+          executionId,
+        };
       }
 
-      return {
-        success: false,
-        data: {
-          error: err instanceof Error ? err.message : String(err),
-        } as T,
-        executionId,
-      };
+      if (pipelineEarlyExit.kind === "approval") {
+        const { effect, triggerRules, approvalRecordId } = pipelineEarlyExit;
+        // approvalEngineRef is guaranteed non-null here: the approval early-exit
+        // is only set inside runPipelineWithProvider when approvalEngineRef is
+        // truthy (condition gates it). Guard narrows the type for the compiler.
+        if (!approvalEngineRef) {
+          return {
+            success: false,
+            data: { error: "internal: approval engine unset at suspend point" } as T,
+            executionId,
+          };
+        }
+        const pending = await approvalEngineRef.createRequest({
+          action: actionName,
+          entity: action.entity,
+          recordId: approvalRecordId,
+          input: effectiveInput,
+          actor,
+          executionId,
+          effect,
+          triggerRules,
+          tenantId: execOptions?.tenantId,
+          meta: resolvedMeta.toJSON(),
+        });
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "pending_approval",
+          error: { message: `Pending approval (${pending.level})` },
+          meta: metaSnapshot,
+          startedAt,
+        });
+        return { success: false, data: pending as T, executionId };
+      }
+
+      if (pipelineEarlyExit.kind === "pre_validation") {
+        const { errors } = pipelineEarlyExit;
+        const firstError = errors?.[0];
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: "failed",
+          error: { message: "Validation failed" },
+          meta: metaSnapshot,
+          startedAt,
+        });
+        return {
+          success: false,
+          data: {
+            error: "Validation failed",
+            details: errors,
+            context: {
+              action: actionName,
+              entity: action?.entity,
+              constraint: "pre_validation",
+              field: firstError?.field,
+              expected: firstError?.message,
+              suggestion: firstError
+                ? `Fix field "${firstError.field}": ${firstError.message}`
+                : "Check input values against action validation rules",
+            },
+          } as T,
+          executionId,
+        };
+      }
+
+      if (pipelineEarlyExit.kind === "state_early") {
+        const { logStatus, message, context } = pipelineEarlyExit;
+        await logExecution({
+          id: executionId,
+          action: actionName,
+          entity: action.entity,
+          actor,
+          input,
+          status: logStatus,
+          error: { message },
+          meta: metaSnapshot,
+          startedAt,
+        });
+        return {
+          success: false,
+          data: (context ? { error: message, context } : { error: message }) as T,
+          executionId,
+        };
+      }
     }
+
+    // Internal guard: PipelineAbortError thrown without setting pipelineEarlyExit.
+    return {
+      success: false,
+      data: { error: "internal: pipeline aborted without exit data" } as T,
+      executionId,
+    };
   }
 
   return {
