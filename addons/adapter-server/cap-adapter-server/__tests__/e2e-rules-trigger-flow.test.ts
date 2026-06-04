@@ -62,18 +62,6 @@ const fulfilmentEntity: EntityDefinition = {
   },
 };
 
-// Observable marker written by the DOWNSTREAM flow reached via an `onComplete`
-// chain. A row here proves the in-process engine resolved the chain — which only
-// works when `createRuntimeContext` builds + passes a FlowRegistry to the sync
-// engine (the hardening this suite guards). Without it, the chain silently no-ops.
-const notificationEntity: EntityDefinition = {
-  name: "notification",
-  label: "Notification",
-  fields: {
-    message: { type: "string", label: "Message" },
-  },
-};
-
 // ── Action: the flow's step ─────────────────────────────────────────────────
 
 /**
@@ -91,22 +79,6 @@ const recordFulfilmentAction: ActionDefinition = {
   handler: async (ctx) => {
     const sourceOrderId = (ctx.input.sourceOrderId as string | undefined) ?? "unknown";
     return ctx.create("fulfilment", { sourceOrderId, note: "fulfilled-by-flow" });
-  },
-};
-
-/**
- * notify_fulfilment: the downstream flow's step, reached via the
- * `order_fulfilment` flow's `onComplete` chain. Writes a `notification` row —
- * proving the in-process engine resolved the chain.
- */
-const notifyFulfilmentAction: ActionDefinition = {
-  name: "notify_fulfilment",
-  entity: "notification",
-  label: "Notify Fulfilment",
-  policy: { mode: "sync", transaction: false },
-  exposure: "all",
-  handler: async (ctx) => {
-    return ctx.create("notification", { message: "fulfilment-completed" });
   },
 };
 
@@ -149,27 +121,6 @@ const orderFulfilmentFlow: FlowDefinition = {
       input: { sourceOrderId: "$input.id" },
     },
   ],
-  // On completion, chain to the downstream flow. This resolves ONLY when the
-  // sync engine was built with a FlowRegistry (the codex-flagged hardening).
-  onComplete: { flow: "post_fulfilment" },
-};
-
-/**
- * post_fulfilment: the downstream flow reached via `order_fulfilment.onComplete`.
- * One action step writing a `notification` row.
- */
-const postFulfilmentFlow: FlowDefinition = {
-  name: "post_fulfilment",
-  label: "Post Fulfilment",
-  trigger: { type: "manual" },
-  steps: [
-    {
-      id: "notify",
-      name: "Notify Fulfilment",
-      type: "action",
-      actionName: "notify_fulfilment",
-    },
-  ],
 };
 
 // ── Rule ────────────────────────────────────────────────────────────────────
@@ -195,10 +146,10 @@ const capTriggerFlowBiz: CapabilityDefinition = defineCapability({
   type: "standard",
   category: "business",
   version: "0.1.0",
-  entities: [orderEntity, fulfilmentEntity, notificationEntity],
-  actions: [submitOrderAction, recordFulfilmentAction, notifyFulfilmentAction],
+  entities: [orderEntity, fulfilmentEntity],
+  actions: [submitOrderAction, recordFulfilmentAction],
   rules: [fulfilOnSubmitRule],
-  flows: [orderFulfilmentFlow, postFulfilmentFlow],
+  flows: [orderFulfilmentFlow],
 });
 
 // ── Request helpers (in-process, port-free) ─────────────────────────────────
@@ -278,16 +229,6 @@ describe("E2E rule effect: trigger_flow (in-process, DB-free, port-free)", () =>
     expect(items[0].note).toBe("fulfilled-by-flow");
     // The flow input ($input.id) flowed through to the step action.
     expect(items[0].sourceOrderId).toBe(orderId);
-
-    // The onComplete chain reached the downstream flow: a notification row exists.
-    // This only happens because createRuntimeContext built + passed a FlowRegistry
-    // to the sync engine — without it, the chain silently no-ops.
-    const notified = await gql(app, `query { notificationList { items { id message } } }`);
-    expect(notified.errors).toBeUndefined();
-    const notifications = (notified.data.notificationList as Record<string, unknown>)
-      .items as Array<Record<string, unknown>>;
-    expect(notifications).toHaveLength(1);
-    expect(notifications[0].message).toBe("fulfilment-completed");
   });
 
   test("2. a submit with no triggering flow does NOT write a fulfilment row", async () => {

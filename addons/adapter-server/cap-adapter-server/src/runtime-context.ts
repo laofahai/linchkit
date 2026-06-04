@@ -33,7 +33,6 @@ import {
   createApprovalEngine,
   createApprovalVerifier,
   createCommandLayer,
-  createFlowRegistry,
   createFlowStepContext,
   createInterfaceRegistry,
   createNoopAIService,
@@ -232,18 +231,14 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
       },
       actionRegistry: executor.registry,
     });
-    // Build a FlowRegistry so the sync engine can resolve `onComplete` flow
-    // chains, and forward any configured eventBus so it emits flow.completed /
-    // flow.failed events. Each flow is registered on the engine (to run it) and
-    // on the registry (so onComplete chain targets resolve).
-    const flowRegistry = createFlowRegistry();
-    for (const flow of options.flows) {
-      flowRegistry.register(flow);
-    }
-    const syncFlowEngine = createSyncFlowEngine(flowStepContext, {
-      flowRegistry,
-      eventBus: options?.eventBus,
-    });
+    // Mirror the `linch dev` boot path (dev-wiring.ts): a plain SyncFlowEngine
+    // with each flow registered on it. We deliberately do NOT pass a
+    // `flowRegistry` (which would enable `onComplete` flow chaining): core's
+    // `processOnCompleteChains` starts chained flows with `tenantId: undefined`
+    // and no actor, so enabling it here would drop tenant/actor scope for
+    // downstream flows. Production does not enable chaining via the sync engine
+    // either; trigger_flow itself does not need it.
+    const syncFlowEngine = createSyncFlowEngine(flowStepContext);
     for (const flow of options.flows) {
       syncFlowEngine.registerFlow(flow);
     }
