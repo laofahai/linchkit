@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { inferTrustLevel } from "../src/commands/install";
-import { runPublishChecks } from "../src/commands/publish";
+import { inferTrustLevel } from "../src/commands/install-utils";
+import { runPublishChecks } from "../src/commands/publish-utils";
 import {
   loadLocalRegistry,
   registerCapability,

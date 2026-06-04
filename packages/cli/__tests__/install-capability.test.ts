@@ -5,7 +5,7 @@ import {
   detectDependencyCycle,
   loadCapabilityMetadata,
   validateTypeCompatibility,
-} from "../src/commands/install";
+} from "../src/commands/install-utils";
 
 const TEST_DIR = resolve(import.meta.dir, ".tmp-test-install");
 const CLI_ENTRY = resolve(import.meta.dir, "../src/index.ts");
