@@ -45,15 +45,22 @@ import { evaluateRules } from "./rule-engine";
  * present. So we key on the specific `data.record.not_found` code, plus the
  * plain `Error("Record not found: …")` message the in-memory store and the test
  * fakes (which carry no `code`) throw on a miss.
+ *
+ * Any error that carries a `code` is decided purely on that code — we do NOT
+ * fall back to the message heuristic for it. Otherwise a coded infra error
+ * (e.g. a DB driver error with a numeric `code`) whose message happened to
+ * contain "record not found" could be misclassified as absence and bypass the
+ * gate. The message heuristic is reserved for genuinely code-less errors.
  */
 function isRecordNotFound(err: unknown): boolean {
   if (typeof err === "object" && err !== null) {
     const code = (err as { code?: unknown }).code;
-    // A coded provider error: ONLY the record-miss code is "absence". Any other
-    // coded NotFoundError (schema / entity / config) is a genuine failure.
-    if (typeof code === "string") return code === "data.record.not_found";
+    // A coded error: ONLY the record-miss code is "absence". Any other code
+    // (a non-record NotFoundError, or a driver's numeric code) is a genuine
+    // failure — never reach the message heuristic for it.
+    if (code !== undefined) return code === "data.record.not_found";
   }
-  // Untyped providers (in-memory store + test fakes) throw a plain Error with
+  // Code-less errors (in-memory store + test fakes) throw a plain Error with
   // this message shape on an absent row.
   return err instanceof Error && /record not found/i.test(err.message);
 }

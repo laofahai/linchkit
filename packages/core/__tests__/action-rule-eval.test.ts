@@ -341,6 +341,36 @@ describe("evaluateActionRules", () => {
     expect(d.blocked?.reason).toContain('has no "id" column');
   });
 
+  test("coded infra error (non-string code) is NOT treated as not-found via its message", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // A DB driver error can carry a numeric `code` AND a message that happens to
+    // contain "record not found". Because it is coded (and not the record-miss
+    // code), it must fail closed — NOT fall through to the message heuristic.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            const e = new Error("record not found in shard (connection reset)") as Error & {
+              code: number;
+            };
+            e.code = 23505;
+            throw e;
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain("connection reset");
+  });
+
   test("infra read throw with the ONLY gate rule in skipRules does not block", async () => {
     const rule: RuleDefinition = {
       name: "no_edit_shipped",
