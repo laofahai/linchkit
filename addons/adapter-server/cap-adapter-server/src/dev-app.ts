@@ -108,7 +108,12 @@ export function createDevApp(
     rules: contributions.rules,
     aiService: runtime.ai,
     states: contributions.states,
-    flows: contributions.flows,
+    // Flow admin endpoints (/api/flows) stay out of the in-process path, mirroring
+    // dev.ts — only the real `linch dev` boot path (http-transport) exposes them
+    // with a flowEngine. `trigger_flow` rule effects do NOT need this: their flow
+    // engine is wired onto the executor inside createRuntimeContext (from the
+    // aggregated capability flows), independent of this server-introspection arg.
+    flows: [],
     dataProvider: runtime.dataProvider,
     onchangeEvaluator,
   });
