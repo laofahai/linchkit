@@ -873,6 +873,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     let stateTransitionRecord: { from: string; to: string } | undefined;
     let resultData: unknown;
     let record: Record<string, unknown> | undefined;
+    // Hoisted so runHandler can reuse the existing-record snapshot that
+    // runPipelineWithProvider already fetched for the state-transition check —
+    // avoids a duplicate dp.get round-trip on the declarative lock-check path.
+    let existingRecord: Record<string, unknown> | undefined;
 
     // Run the action handler or declarative logic against a given DataProvider.
     const runHandler = async (dp: DataProvider, pipeCtx: ActionContext): Promise<void> => {
@@ -912,7 +916,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             if (resolvedEntity && hasLockMetadata && action) {
               let txCurrent: Record<string, unknown>;
               try {
-                txCurrent = await dp.get(action.entity, recordIdLocal, queryOptions);
+                // Reuse the snapshot already fetched by runPipelineWithProvider
+                // (same dp, same recordId) to avoid a duplicate db round-trip.
+                txCurrent =
+                  existingRecord ?? (await dp.get(action.entity, recordIdLocal, queryOptions));
               } catch {
                 throw new LockPreflightError(action.entity, recordIdLocal);
               }
@@ -954,6 +961,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
      * outer catch can log + return the result after the tx rolls back.
      */
     const runPipelineWithProvider = async (dp: DataProvider): Promise<void> => {
+      // Update activeProvider immediately so ctx.get/query closures (including
+      // any custom validate.custom function) use `dp` throughout the whole
+      // pipeline — not just inside runHandler. Without this, custom validators
+      // calling ctx.get() would hit the stale baseProvider instead of the
+      // txProvider, defeating the TOCTOU hardening.
+      activeProvider = dp;
+
       // ── Step 4c: Business-rule evaluation (Spec 23 §1.1) ─────────
       //
       // `readProvider: dp` is the TOCTOU fix — for the top-level transactional
@@ -1014,7 +1028,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       //
       // Uses `dp` (not parentTxProvider ?? baseProvider) so the read shares
       // the same snapshot as the write — part of the TOCTOU hardening (#466).
-      let existingRecord: Record<string, unknown> | undefined;
+      // `existingRecord` is hoisted to the outer execute() scope so runHandler
+      // can reuse this snapshot for the declarative lock check (avoids a second
+      // dp.get round-trip). `existingRecordFetchError` stays local — it is only
+      // used by the state-transition check below, also inside this function.
+      existingRecord = undefined;
       let existingRecordFetchError = false;
       if (recordId && (needsDeclarativeLockCheck || needsStateFetch)) {
         try {
