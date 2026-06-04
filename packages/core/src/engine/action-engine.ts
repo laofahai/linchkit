@@ -70,6 +70,7 @@ import {
   validateInput,
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
+import { runPostCommitRuleEffects } from "./action-rule-effects";
 import { evaluateActionRules } from "./action-rule-eval";
 import { hashBehaviorAffectingMeta } from "./meta-keys";
 import { collectRules } from "./rule-engine";
@@ -1536,51 +1537,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         !execOptions?._txDataProvider &&
         (pendingRuleActions.length > 0 || pendingRuleFlows.length > 0)
       ) {
-        for (const act of pendingRuleActions) {
-          try {
-            // Stamp provenance like ctx.execute: `_source_action` (caller) +
-            // `_depth` in meta, plus `_depth` as an ExecuteOptions field so the
-            // recursion-depth guard bounds an execute_action cycle.
-            const childMeta = extendExecutionMeta(
-              resolvedMeta,
-              {},
-              { _depth: currentDepth + 1, _source_action: actionName },
-            );
-            const result = await execute(act.action, act.params ?? effectiveInput, actor, {
-              tenantId: execOptions?.tenantId,
-              meta: childMeta,
-              _depth: currentDepth + 1,
-            });
-            if (!result.success) {
-              const data = result.data as { error?: unknown } | undefined;
-              logger.warn(
-                `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" did not succeed: ${typeof data?.error === "string" ? data.error : "unknown error"}`,
-              );
-            }
-          } catch (err) {
-            logger.warn(
-              `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-        }
-        for (const fl of pendingRuleFlows) {
-          if (!flowEngineRef) {
-            logger.warn(
-              `[rule:trigger_flow] no flow engine wired — skipping flow "${fl.flow}" triggered by a rule on "${actionName}".`,
-            );
-            continue;
-          }
-          try {
-            await flowEngineRef.startFlow(fl.flow, fl.input ?? effectiveInput, {
-              tenantId: execOptions?.tenantId,
-              actor,
-            });
-          } catch (err) {
-            logger.warn(
-              `[rule:trigger_flow] starting flow "${fl.flow}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-        }
+        await runPostCommitRuleEffects({
+          pendingActions: pendingRuleActions,
+          pendingFlows: pendingRuleFlows,
+          execute,
+          flowEngine: flowEngineRef,
+          logger,
+          actionName,
+          actor,
+          effectiveInput,
+          resolvedMeta,
+          currentDepth,
+          tenantId: execOptions?.tenantId,
+        });
       }
 
       return {
