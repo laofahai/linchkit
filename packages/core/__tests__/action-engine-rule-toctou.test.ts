@@ -17,6 +17,7 @@ import { describe, expect, it } from "bun:test";
 import {
   createActionExecutor,
   type DataProvider,
+  type DataQueryOptions,
   type PendingEvent,
   type TransactionManager,
 } from "../src/engine/action-engine";
@@ -29,10 +30,21 @@ interface Cap {
   updated: boolean;
 }
 
-/** Provider that always reads `record` and records whether `update` ran. */
-function makeProvider(record: Record<string, unknown>, cap: Cap): DataProvider {
+/**
+ * Provider that always reads `record` and records whether `update` ran. When a
+ * `getOptionsLog` is supplied, every `get()` call appends the options it received
+ * so a test can assert how the read was issued (e.g. `forUpdate`).
+ */
+function makeProvider(
+  record: Record<string, unknown>,
+  cap: Cap,
+  getOptionsLog?: Array<DataQueryOptions | undefined>,
+): DataProvider {
   return {
-    get: async (_entity, id) => ({ id, ...record }),
+    get: async (_entity, id, options) => {
+      getOptionsLog?.push(options);
+      return { id, ...record };
+    },
     query: async () => [],
     create: async (_entity, data) => ({ id: "r1", ...data }),
     update: async (_entity, id, data) => {
@@ -159,5 +171,35 @@ describe("record-state rules read inside the write transaction (#462 / #466 TOCT
     // The write went through the transactional provider, not the base one.
     expect(txCap.updated).toBe(true);
     expect(baseCap.updated).toBe(false);
+  });
+
+  it("the in-tx guard re-check reads FOR UPDATE; the pre-write Step 4c read does not (#470 row-lock)", async () => {
+    const baseGetOptions: Array<DataQueryOptions | undefined> = [];
+    const txGetOptions: Array<DataQueryOptions | undefined> = [];
+    const baseCap: Cap = { updated: false };
+    const txCap: Cap = { updated: false };
+    // Neither snapshot is "approved" → the guard does not fire and the write
+    // proceeds, so the in-tx read is exercised without the block short-circuiting.
+    const baseProvider = makeProvider({ status: "pending" }, baseCap, baseGetOptions);
+    const txProvider = makeProvider({ status: "pending" }, txCap, txGetOptions);
+
+    const executor = createActionExecutor({
+      dataProvider: baseProvider,
+      transactionManager: makeTxManager(txProvider),
+      rules: [blockIfApproved()],
+    });
+    executor.registry.register(approveAction());
+
+    const result = await executor.execute("approve_thing", { id: "r1" }, actor);
+    expect(result.success).toBe(true);
+
+    // The in-tx guard re-check pinned the guarded row with a `FOR UPDATE` lock so
+    // a concurrent writer can't flip its state before the write (#470).
+    expect(txGetOptions.length).toBeGreaterThan(0);
+    expect(txGetOptions.some((o) => o?.forUpdate === true)).toBe(true);
+    // The pre-write Step 4c read runs OUTSIDE the transaction, where a row lock is
+    // pointless (acquired and released at statement end), so it must NOT request one.
+    expect(baseGetOptions.length).toBeGreaterThan(0);
+    expect(baseGetOptions.every((o) => !o?.forUpdate)).toBe(true);
   });
 });

@@ -16,7 +16,7 @@ import {
   generateDrizzleTable,
   TableRegistry,
 } from "@linchkit/core/server";
-import { sql } from "drizzle-orm";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 // ── Test configuration ───────────────────────────────────────
@@ -155,6 +155,56 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider (integration)", () => {
 
   test("get not found — throws NotFoundError for non-existent id", async () => {
     await expect(provider.get(SCHEMA_NAME, "non-existent-id")).rejects.toThrow(NotFoundError);
+  });
+
+  // ── 3b. get with forUpdate — row-level locking (#470) ──
+
+  /**
+   * Probe whether `id`'s row is lockable from a SEPARATE pooled connection.
+   * `FOR UPDATE NOWAIT` fails immediately (SQLSTATE 55P03) when the row is
+   * already locked, so this is a deterministic test of lock state with no sleeps.
+   */
+  const probeRowLockable = async (id: string): Promise<boolean> => {
+    const table = tableRegistry.getTable(SCHEMA_NAME);
+    const idCol = getTableColumns(table).id;
+    try {
+      await (db as NonNullable<typeof db>)
+        .select()
+        .from(table)
+        .where(eq(idCol, id))
+        .for("update", { noWait: true });
+      return true; // acquired the lock → the row was free
+    } catch {
+      return false; // 55P03 lock_not_available → the row is locked elsewhere
+    }
+  };
+
+  test("get with forUpdate — pins the row with a lock that blocks a concurrent writer", async () => {
+    const created = await provider.create(SCHEMA_NAME, { title: "Lockable", status: "pending" });
+    const id = created.id as string;
+
+    await (db as NonNullable<typeof db>).transaction(async (tx) => {
+      const txProvider = provider.withConnection(tx as unknown as PostgresJsDatabase);
+      const locked = await txProvider.get(SCHEMA_NAME, id, { forUpdate: true });
+      expect(locked.id).toBe(id);
+      // While the transaction holds the FOR UPDATE lock, a separate session can't lock it.
+      expect(await probeRowLockable(id)).toBe(false);
+    });
+
+    // The lock is released once the transaction commits.
+    expect(await probeRowLockable(id)).toBe(true);
+  });
+
+  test("get without forUpdate — takes no row lock (opt-in)", async () => {
+    const created = await provider.create(SCHEMA_NAME, { title: "Unlocked", status: "pending" });
+    const id = created.id as string;
+
+    await (db as NonNullable<typeof db>).transaction(async (tx) => {
+      const txProvider = provider.withConnection(tx as unknown as PostgresJsDatabase);
+      await txProvider.get(SCHEMA_NAME, id); // plain read — no lock requested
+      // A plain read leaves the row free, so another session can still lock it.
+      expect(await probeRowLockable(id)).toBe(true);
+    });
   });
 
   // ── 4. query ──────────────────────────────────────────

@@ -1428,20 +1428,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Scope of the guarantee. This collapses the pre-write window — Step 4c
         // runs before validation, the state-machine check, and handler setup, so
         // the old read→write gap spanned all of those. The re-check moves the
-        // guard read inside the transaction, adjacent to the write. It does NOT,
-        // by itself, make read+write atomic under PostgreSQL READ COMMITTED: a
-        // concurrent commit landing between this read and the write (or while a
-        // long handler runs) is still possible. Full closure needs row-level
-        // locking (`SELECT … FOR UPDATE`) or a snapshot-stable isolation level,
-        // neither of which the DataProvider interface exposes today — tracked as
-        // follow-up (#466). The same residual applies to field-lock #203 and to
-        // #466's option-(b) design alike. It is fully closed for the
-        // InMemoryStore (no concurrency) and under serializable isolation.
-        //
-        // (The reverse direction — a guard that fired on a now-stale Step 4c
-        // snapshot but would NOT on the fresh one — still early-returns at
-        // Step 4c; that is a retryable false-rejection, not a write-integrity
-        // violation, and matches field-lock's pre-tx preflight.)
+        // guard read inside the transaction, adjacent to the write, AND acquires a
+        // row-level lock on it (`forUpdate`, #470): the guarded row is pinned from
+        // this read until commit, so a concurrent writer blocks rather than
+        // slipping a state change between the guard read and the write under
+        // READ COMMITTED. The lock is honored by providers that implement it (the
+        // Drizzle provider issues `SELECT … FOR UPDATE`); the InMemoryStore is
+        // single-threaded and already serialized, so it no-ops the flag and is
+        // closed by construction. Residual not covered here: the handler may read
+        // OTHER rows that aren't lock-pinned — only the guarded record is — and a
+        // higher isolation level would be needed to make the whole handler
+        // snapshot-stable. The reverse direction (a guard that fired on a
+        // now-stale Step 4c snapshot but would NOT on the fresh one) still
+        // early-returns at Step 4c — a retryable false-rejection, not a
+        // write-integrity violation, matching field-lock's pre-tx preflight.
         if (useTransaction && !parentTxProvider) {
           // Only `block` / `require_approval` outcomes can change the in-tx
           // decision — enrich / warn / execute_action / trigger_flow were
@@ -1469,7 +1469,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
               actor,
               meta: resolvedMeta,
               readProvider: dp,
-              queryOptions,
+              // Lock the row with `SELECT … FOR UPDATE` for the duration of the
+              // write transaction (#470). `dp` is the transactional provider, so
+              // the lock is held to commit — a concurrent writer can't flip the
+              // guarded state between this read and the write, closing the residual
+              // READ COMMITTED TOCTOU window left by #469. Constructed inline so the
+              // lock never leaks to the non-transactional Step 4c pre-write read.
+              queryOptions: { ...queryOptions, forUpdate: true },
               skipRules: execOptions?.skipRules,
               // The pre-write Step 4c pass already counted rule metrics for this
               // execution — use a noop collector to avoid double-counting.

@@ -36,6 +36,19 @@ export interface DataQueryOptions {
   includeDeleted?: boolean;
   /** Locale for resolving translatable fields (e.g., "zh-CN", "en") */
   locale?: string;
+  /**
+   * Acquire a row-level write lock (`SELECT … FOR UPDATE`) on the matched row.
+   *
+   * Only meaningful when the read runs inside a transaction: it pins the row
+   * from read to commit, closing the read→write TOCTOU window left open by a
+   * plain `SELECT` under READ COMMITTED (see #470). Used by the in-transaction
+   * record-state guard re-check (#466/#469). Outside a transaction the lock is
+   * acquired and released at statement end, so it has no lasting effect.
+   *
+   * No-op for stores without row-level locking — the InMemoryStore is
+   * single-threaded and already serialized, so it ignores this flag.
+   */
+  forUpdate?: boolean;
 }
 
 /** Abstraction for data access — injected into the executor for testability */
