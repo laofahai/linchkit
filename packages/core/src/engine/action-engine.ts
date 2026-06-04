@@ -55,8 +55,9 @@ import {
   validateInput,
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
+import { evaluateActionRules } from "./action-rule-eval";
 import { hashBehaviorAffectingMeta } from "./meta-keys";
-import { collectRules, evaluateRules } from "./rule-engine";
+import { collectRules } from "./rule-engine";
 
 // Framework-reserved `_`-prefixed system meta keys are defined as
 // `FRAMEWORK_RESERVED_META_KEYS` in `../types/execution-meta` so they are
@@ -985,15 +986,27 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // ── Step 4c: Business-rule evaluation (Spec 23 §1.1) ───────────
     //
-    // Runs after provider setup and before the write. `block` aborts the
-    // action, `require_approval` suspends it into an approval request, `enrich`
-    // augments the input that reaches the handler/write path, and `warn`
-    // surfaces on the result. Conditions are evaluated against the merged view
-    // of the pre-existing record (for updates) and the validated input, so both
-    // input-shape and record-state guards work. Only action-triggered rules for
-    // THIS action fire (filtered + priority-sorted by collectRules). The
-    // `execute_action` / `trigger_flow` effects are collected but not yet acted
-    // on here — a follow-up phase handles those post-commit.
+    // Runs after provider setup and before the write. The decision logic lives
+    // in `evaluateActionRules` (engine/action-rule-eval.ts) so it stays a small,
+    // unit-testable unit; this site owns only the side effects that decision
+    // implies — execution logging, approval-request creation, and the early
+    // returns. `block` aborts the action, `require_approval` suspends it into an
+    // approval request, `enrich` augments the input that reaches the
+    // handler/write path, and `warn` surfaces on the result. Conditions are
+    // evaluated against the merged view of the pre-existing record (for updates)
+    // and the validated input, so both input-shape and record-state guards work.
+    // Only action-triggered rules for THIS action fire (filtered +
+    // priority-sorted by collectRules); `execute_action` / `trigger_flow`
+    // effects are collected here and run post-commit (once the write is durable).
+    //
+    // Snapshot caveat (tracked follow-up #462): for a TOP-LEVEL transactional
+    // action the record read inside `evaluateActionRules` happens before
+    // `runInTransaction` opens, so a concurrent commit between here and the write
+    // could make a record-state `block` / `require_approval` decision on a
+    // slightly stale snapshot. Hardening this means calling the helper with the
+    // transactional provider from inside the write transaction (the same in-tx
+    // relocation field-lock enforcement took in PR #203). Nested actions already
+    // read through the parent's tx provider (`parentTxProvider`).
     if (rules && rules.length > 0) {
       let applicableRules = applicableRulesCache.get(actionName);
       if (applicableRules === undefined) {
@@ -1001,47 +1014,25 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         applicableRulesCache.set(actionName, applicableRules);
       }
       if (applicableRules.length > 0) {
-        // Record-state context: for an update (input carries an id), read the
-        // current record so conditions can reference existing field values. A
-        // read failure (not found / access) degrades to input-only.
-        //
-        // Snapshot caveat (tracked follow-up): for a TOP-LEVEL transactional
-        // action this read happens before `runInTransaction` opens, so a
-        // concurrent commit between here and the write could make a
-        // record-state `block` / `require_approval` decision on a slightly
-        // stale snapshot. Hardening this means evaluating rules inside the
-        // write transaction — the same in-tx relocation field-lock enforcement
-        // took (PR #203) — which also requires moving ctx/enrich assembly into
-        // the tx, so it is deferred to a focused follow-up. Nested actions
-        // already read through the parent's tx provider below.
-        let ruleTarget: Record<string, unknown> = effectiveInput;
-        const ruleRecordId = effectiveInput.id;
-        if (action.entity && typeof ruleRecordId === "string" && ruleRecordId.length > 0) {
+        const decision = await evaluateActionRules({
+          applicableRules,
+          entity: action.entity,
+          // Pre-enrich input: the approval request below stores this raw payload
+          // (enrich is re-derived on the post-approval re-execution).
+          effectiveInput,
+          actor,
+          meta: resolvedMeta,
           // Read through the parent's transactional provider when this is a
           // nested action inside an open transaction, so the rule sees the
           // parent's uncommitted writes (Spec 26 §1.1); otherwise the
-          // tenant-scoped baseProvider. A read failure degrades to input-only.
-          const ruleReadProvider = parentTxProvider ?? baseProvider;
-          try {
-            const existing = await ruleReadProvider.get(action.entity, ruleRecordId, queryOptions);
-            if (existing) ruleTarget = { ...existing, ...effectiveInput };
-          } catch {
-            // Not readable — fall back to input-only evaluation.
-          }
-        }
+          // tenant-scoped baseProvider.
+          readProvider: parentTxProvider ?? baseProvider,
+          queryOptions,
+          skipRules: execOptions?.skipRules,
+          metrics,
+        });
 
-        const ruleOutput = await evaluateRules(
-          applicableRules,
-          {
-            target: ruleTarget,
-            actor: { type: actor.type, id: actor.id, groups: actor.groups ?? [] },
-            meta: resolvedMeta,
-          },
-          { skipRules: execOptions?.skipRules, metrics },
-        );
-
-        if (ruleOutput.blocked) {
-          const reason = ruleOutput.blockReasons.join("; ") || "Blocked by rule";
+        if (decision.blocked) {
           await logExecution({
             id: executionId,
             action: actionName,
@@ -1051,20 +1042,20 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             // Policy/authorization-style block (consistent with exposure,
             // field-lock, and state-transition blocks) — not an execution failure.
             status: "blocked",
-            error: { message: reason },
+            error: { message: decision.blocked.reason },
             meta: metaSnapshot,
             startedAt,
           });
           return {
             success: false,
             data: {
-              error: reason,
+              error: decision.blocked.reason,
               context: {
                 action: actionName,
                 entity: action.entity,
                 constraint: "rule_block",
-                expected: reason,
-                suggestion: ruleOutput.contexts[0]?.suggestion ?? reason,
+                expected: decision.blocked.reason,
+                suggestion: decision.blocked.suggestion,
               },
             } as T,
             executionId,
@@ -1076,19 +1067,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // `skipRules = triggerRules`, so the approval rule does not re-fire. When
         // no approval engine is wired (minimal setups), fall through and let the
         // action proceed — the gate is best-effort, not a silent hard block.
-        if (ruleOutput.requiredApproval && approvalEngineRef) {
-          const triggerRules = ruleOutput.results
-            .filter((r) => r.triggered && r.effect?.type === "require_approval")
-            .map((r) => r.rule);
+        if (decision.requiredApproval && approvalEngineRef) {
           const pending = await approvalEngineRef.createRequest({
             action: actionName,
             entity: action.entity,
-            recordId: typeof ruleRecordId === "string" ? ruleRecordId : undefined,
+            recordId: decision.recordId,
+            // Store the pre-enrich input — enrich is re-derived when the approved
+            // action re-executes (the approval rule itself is then skipped).
             input: effectiveInput,
             actor,
             executionId,
-            effect: ruleOutput.requiredApproval,
-            triggerRules,
+            effect: decision.requiredApproval.effect,
+            triggerRules: decision.requiredApproval.triggerRules,
             tenantId: execOptions?.tenantId,
             meta: resolvedMeta.toJSON(),
           });
@@ -1108,14 +1098,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           return { success: false, data: pending as T, executionId };
         }
 
-        if (Object.keys(ruleOutput.enrichFields).length > 0) {
-          effectiveInput = { ...effectiveInput, ...ruleOutput.enrichFields };
-        }
-        for (const warn of ruleOutput.warnings) ruleWarnings.push(warn.message);
+        // Proceed path: adopt the enriched input and fold in warn / side-effect
+        // results. (When require_approval fired but no engine is wired, we land
+        // here and apply them — the gate degraded to best-effort.)
+        effectiveInput = decision.effectiveInput;
+        for (const warning of decision.warnings) ruleWarnings.push(warning);
         // execute_action / trigger_flow are side effects — defer them to the
         // post-commit point so they only run once the write is durable.
-        pendingRuleActions.push(...ruleOutput.actions);
-        pendingRuleFlows.push(...ruleOutput.flows);
+        pendingRuleActions.push(...decision.pendingActions);
+        pendingRuleFlows.push(...decision.pendingFlows);
       }
     }
 
