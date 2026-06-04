@@ -1411,38 +1411,55 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       const runHandler = async (dp: DataProvider): Promise<void> => {
         activeProvider = dp;
 
-        // In-transaction record-state rule re-check (#462 / #466). For a
-        // TOP-LEVEL transactional action, re-evaluate the `block` /
-        // `require_approval` guards against the transactional provider `dp`,
-        // inside the write transaction, before any write. A record-state guard
-        // that did not fire on the pre-write Step 4c snapshot but DOES fire on
-        // the in-transaction snapshot now blocks/suspends the action instead of
-        // letting a stale-but-valid-looking write through. Throwing rolls the
-        // transaction back; the catch maps it to the same blocked / pending
-        // result Step 4c produces. Scoped to the top-level-tx case because that
-        // is the only one whose Step 4c read (`baseProvider`) differs from the
-        // write snapshot: nested actions already read the parent tx, and
-        // non-transactional actions read `baseProvider == dp`. Mirrors the in-tx
-        // field-lock check (#203).
+        // In-transaction record-state rule re-check (#462 / #466 / #473). For
+        // ANY transactional action — TOP-LEVEL (this execution opened the tx)
+        // OR NESTED (it runs inside the parent's open tx via `parentTxProvider`)
+        // — re-evaluate the `block` / `require_approval` guards against the
+        // transactional provider `dp`, inside the write transaction, before any
+        // write. A record-state guard that did not fire on the pre-write Step 4c
+        // snapshot but DOES fire on the in-transaction snapshot now
+        // blocks/suspends the action instead of letting a stale-but-valid-looking
+        // write through. Throwing rolls the transaction back; the catch maps it
+        // to the same blocked / pending result Step 4c produces (for a nested
+        // action that surfaces to the parent as `childResult.success === false`,
+        // the existing nested-failure contract). Mirrors the in-tx field-lock
+        // check (#203).
+        //
+        // Why this now covers nested actions too (#473). The two transactional
+        // cases reach the write through different Step 4c reads, but BOTH leave
+        // the guarded row unlocked until this re-check:
+        //   - TOP-LEVEL: Step 4c reads `baseProvider` (the pre-transaction
+        //     snapshot), which differs from the write snapshot, so the re-check
+        //     supplies BOTH a fresh in-tx snapshot AND the lock.
+        //   - NESTED: Step 4c already reads through `parentTxProvider` (see the
+        //     `readProvider: parentTxProvider ?? baseProvider` Step 4c read), so
+        //     its snapshot is already fresh/in-transaction — but that read is a
+        //     plain `SELECT` with no row lock. Under READ COMMITTED a concurrent
+        //     external commit can still slip a state change between that unlocked
+        //     guard read and the nested write. The re-check adds the missing
+        //     `FOR UPDATE` lock, making nested UNIFORM with top-level: Step 4c is
+        //     a (non-locked) preflight and this in-tx re-check is the
+        //     authoritative locked decision.
         //
         // Scope of the guarantee. This collapses the pre-write window — Step 4c
         // runs before validation, the state-machine check, and handler setup, so
         // the old read→write gap spanned all of those. The re-check moves the
         // guard read inside the transaction, adjacent to the write, AND acquires a
         // row-level lock on it (`forUpdate`, #470): the guarded row is pinned from
-        // this read until commit, so a concurrent writer blocks rather than
-        // slipping a state change between the guard read and the write under
-        // READ COMMITTED. The lock is honored by providers that implement it (the
-        // Drizzle provider issues `SELECT … FOR UPDATE`); the InMemoryStore is
-        // single-threaded and already serialized, so it no-ops the flag and is
-        // closed by construction. Residual not covered here: the handler may read
-        // OTHER rows that aren't lock-pinned — only the guarded record is — and a
-        // higher isolation level would be needed to make the whole handler
-        // snapshot-stable. The reverse direction (a guard that fired on a
-        // now-stale Step 4c snapshot but would NOT on the fresh one) still
+        // this read until commit (the parent's commit for a nested action, since
+        // `dp` is the parent's transactional provider), so a concurrent writer
+        // blocks rather than slipping a state change between the guard read and
+        // the write under READ COMMITTED. The lock is honored by providers that
+        // implement it (the Drizzle provider issues `SELECT … FOR UPDATE`); the
+        // InMemoryStore is single-threaded and already serialized, so it no-ops
+        // the flag and is closed by construction. Residual not covered here: the
+        // handler may read OTHER rows that aren't lock-pinned — only the guarded
+        // record is — and a higher isolation level would be needed to make the
+        // whole handler snapshot-stable. The reverse direction (a guard that fired
+        // on a now-stale Step 4c snapshot but would NOT on the fresh one) still
         // early-returns at Step 4c — a retryable false-rejection, not a
         // write-integrity violation, matching field-lock's pre-tx preflight.
-        if (useTransaction && !parentTxProvider) {
+        if (inTransaction) {
           // Only `block` / `require_approval` outcomes can change the in-tx
           // decision — enrich / warn / execute_action / trigger_flow were
           // already handled by the pre-write Step 4c pass. Re-evaluate ONLY the
