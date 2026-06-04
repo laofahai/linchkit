@@ -477,7 +477,8 @@ export function createSyncFlowEngine(
       __flow: { instanceId },
     };
 
-    // Create instance
+    // Create instance. Persist tenant/actor so `onComplete`-chained downstream
+    // flows inherit the originating tenant scope and actor (tenant-isolation).
     const instance: FlowInstance = {
       id: instanceId,
       flowName: definition.name,
@@ -485,6 +486,8 @@ export function createSyncFlowEngine(
       currentStepId: definition.steps[0]?.id ?? "",
       context: flowContext,
       startedAt: new Date(),
+      tenantId: runOptions?.tenantId,
+      actor: runOptions?.actor,
     };
     instances.set(instanceId, instance);
 

@@ -329,8 +329,12 @@ export async function processOnCompleteChains(
       ? resolveInputMapping(chain.inputMapping, payload)
       : { _upstream: payload };
 
+    // Inherit the parent flow's tenant scope and actor so the downstream flow
+    // runs within the originating tenant boundary instead of with no tenant
+    // scope and the default/system actor (tenant-isolation correctness).
     await flowEngine.startFlow(chain.flow, input, {
-      tenantId: undefined, // Inherit from context if available
+      tenantId: instance.tenantId,
+      actor: instance.actor,
     });
   }
 }
