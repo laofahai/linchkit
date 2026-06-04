@@ -226,7 +226,13 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
             actionName,
             input,
             opts?.actor ?? { type: "system", id: "flow-engine", groups: [] },
-            { tenantId: opts?.tenantId, channel: "internal" },
+            {
+              tenantId: opts?.tenantId,
+              channel: "internal",
+              // Forward the Saga compensation idempotency key (Spec 26 §3.2) so a
+              // retried compensating action is not executed twice.
+              idempotencyKey: opts?.idempotencyKey,
+            },
           ),
       },
       actionRegistry: executor.registry,
