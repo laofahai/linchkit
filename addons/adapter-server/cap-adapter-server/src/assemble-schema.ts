@@ -19,6 +19,7 @@ import type {
   AIService,
   CapabilityDefinition,
   EntityDefinition,
+  FlowDefinition,
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
@@ -63,6 +64,7 @@ export interface CapabilityContributions {
   views: ViewDefinition[];
   relations: RelationDefinition[];
   rules: RuleDefinition[];
+  flows: FlowDefinition[];
   middlewares: MiddlewareRegistration[];
   seed: Record<string, Array<Record<string, unknown>>>;
   extraQueryFields: Record<string, unknown>;
@@ -83,6 +85,7 @@ export function extractCapabilities(
   const views: ViewDefinition[] = [];
   const relations: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
+  const flows: FlowDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
   const extraQueryFields: Record<string, unknown> = {};
@@ -95,6 +98,7 @@ export function extractCapabilities(
     if (cap.views) views.push(...cap.views);
     if (cap.relations) relations.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
+    if (cap.flows) flows.push(...cap.flows);
 
     if (cap.seed) {
       for (const [entityName, records] of Object.entries(cap.seed)) {
@@ -138,6 +142,7 @@ export function extractCapabilities(
     views,
     relations,
     rules,
+    flows,
     middlewares,
     seed,
     extraQueryFields,
@@ -210,6 +215,7 @@ export function assembleDevSchema(
     views: contributions.views,
     middlewares: contributions.middlewares,
     rules: contributions.rules,
+    flows: contributions.flows,
     ai: options?.aiService,
     capabilityNames,
   });

@@ -108,7 +108,7 @@ export function createDevApp(
     rules: contributions.rules,
     aiService: runtime.ai,
     states: contributions.states,
-    flows: [],
+    flows: contributions.flows,
     dataProvider: runtime.dataProvider,
     onchangeEvaluator,
   });

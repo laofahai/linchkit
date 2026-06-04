@@ -20,6 +20,7 @@ import type {
   EntityDefinition,
   EventBus,
   ExecutionLogger,
+  FlowDefinition,
   InterfaceDefinition,
   MiddlewareRegistration,
   RuleDefinition,
@@ -32,9 +33,11 @@ import {
   createApprovalEngine,
   createApprovalVerifier,
   createCommandLayer,
+  createFlowStepContext,
   createInterfaceRegistry,
   createNoopAIService,
   createStateMachine,
+  createSyncFlowEngine,
   detectEnvironment,
   EntityRegistry,
   InMemoryApprovalStore,
@@ -83,6 +86,14 @@ export interface RuntimeContextOptions {
    * satisfies it) — when omitted, trigger_flow rules are logged and skipped.
    */
   flowEngine?: ActionFlowStarter;
+  /**
+   * Capability flows (defineFlow). When supplied and no external `flowEngine`
+   * is injected, an in-process SyncFlowEngine is built from them so a
+   * `trigger_flow` rule effect starts its flow post-commit on this DB-free path
+   * (Spec 23 §1.1 / Spec 26 §2.2). The `linch dev` boot path injects a durable
+   * engine via `flowEngine` instead, which always wins.
+   */
+  flows?: FlowDefinition[];
   middlewares?: MiddlewareRegistration[];
   /** Interface definitions — registered before schemas so field injection/validation works */
   interfaces?: InterfaceDefinition[];
@@ -200,10 +211,34 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
   approvalEngine.setExecutor(executor);
   executor.setApprovalEngine(approvalEngine);
 
-  // Wire the flow engine for `trigger_flow` rule effects when one is provided
-  // (the boot path injects it; the server does not yet aggregate flows here).
-  if (options?.flowEngine) {
-    executor.setFlowEngine(options.flowEngine);
+  // Wire the flow engine for `trigger_flow` rule effects. An injected engine
+  // (e.g. the durable Restate engine from the `linch dev` boot path) always
+  // wins. Otherwise, when capability flows are supplied, build a default
+  // in-process SyncFlowEngine so a `trigger_flow` rule still starts its flow
+  // post-commit on this DB-free path (it previously logged + skipped).
+  let flowEngine: ActionFlowStarter | undefined = options?.flowEngine;
+  if (!flowEngine && options?.flows?.length) {
+    const flowStepContext = createFlowStepContext({
+      aiService: ai,
+      actionEngine: {
+        execute: (actionName, input, opts) =>
+          executor.execute(
+            actionName,
+            input,
+            opts?.actor ?? { type: "system", id: "flow-engine", groups: [] },
+            { tenantId: opts?.tenantId, channel: "internal" },
+          ),
+      },
+      actionRegistry: executor.registry,
+    });
+    const syncFlowEngine = createSyncFlowEngine(flowStepContext);
+    for (const flow of options.flows) {
+      syncFlowEngine.registerFlow(flow);
+    }
+    flowEngine = syncFlowEngine;
+  }
+  if (flowEngine) {
+    executor.setFlowEngine(flowEngine);
   }
 
   // Register views grouped by schema
