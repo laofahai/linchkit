@@ -375,6 +375,9 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
           return executor.execute(actionName, input, actor, {
             tenantId: options?.tenantId,
             channel: "internal",
+            // Forward the Saga compensation idempotency key (Spec 26 §3.2) so a
+            // retried compensating action is not executed twice.
+            idempotencyKey: options?.idempotencyKey,
           });
         },
       },
