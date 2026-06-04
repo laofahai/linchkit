@@ -13,8 +13,12 @@ import type {
   Actor,
   ValidationResult,
 } from "../types/action";
-import type { EntityDefinition } from "../types/entity";
-import type { ExecutionChannel } from "./action-engine";
+import type { EntityDefinition, FieldDefinition, LockCondition } from "../types/entity";
+import type { ExecutionMeta } from "../types/execution-meta";
+import { extendExecutionMeta } from "../types/execution-meta";
+import type { ExecutionChannel } from "./action-engine-types";
+import { checkFieldLocks, type FieldLockViolation } from "./field-lock-checker";
+import type { InterceptorRegistry } from "./interceptors";
 
 // NOTE: Group-based permission enforcement lives exclusively in cap-permission
 // via the CommandLayer "permission" slot — the executor no longer performs any
@@ -224,4 +228,95 @@ export function runPreValidation(action: ActionDefinition, ctx: ActionContext): 
   }
 
   return { valid: true };
+}
+
+/**
+ * Duck-type check: does `value` look like an {@link ExecutionMeta}? The
+ * public ExecuteOptions.meta accepts either a pre-built ExecutionMeta (how
+ * the CommandLayer + nested ctx.execute pass it) or a plain record (natural
+ * external call shape). We detect the former by the presence of the typed
+ * accessor methods rather than an `instanceof` check so third-party
+ * implementations (e.g., future Phase 2 subclasses) still work.
+ */
+export function isExecutionMeta(value: unknown): value is ExecutionMeta {
+  if (value === null || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.get === "function" &&
+    typeof candidate.has === "function" &&
+    typeof candidate.require === "function" &&
+    typeof candidate.toJSON === "function"
+  );
+}
+
+/**
+ * Extend an incoming ExecutionMeta with system defaults ONLY for keys the
+ * parent has not already set. Prevents a child execution from clobbering
+ * root-level `_execution_id`, while still backfilling it when a parent meta
+ * happens to arrive without one.
+ */
+export function fillMissingSystemKeys(
+  meta: ExecutionMeta,
+  systemDefaults: Record<string, unknown>,
+): ExecutionMeta {
+  const missing: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(systemDefaults)) {
+    if (!meta.has(k)) missing[k] = v;
+  }
+  if (Object.keys(missing).length === 0) return meta;
+  return extendExecutionMeta(meta, {}, missing);
+}
+
+/**
+ * Run the field-lock check and thread the resulting violations through the
+ * `field-lock-check` interceptor point (Spec 63 Phase 3), returning the
+ * (possibly transformed) violation set.
+ *
+ * Both update paths — the `ctx.update()` handler wrapper and the declarative
+ * `setFields` / `stateTransition` path — share this exact sequence; extracting
+ * it keeps them byte-for-byte identical. The interceptor step is an identity
+ * when no `field-lock-check` interceptor is registered, so behavior is
+ * unchanged from Phase 1 in that case.
+ */
+export async function checkAndRunFieldLockInterceptor(opts: {
+  entity: string;
+  fields: Record<string, FieldDefinition>;
+  lockAllWhen: LockCondition | undefined;
+  lockAllowFields: string[] | undefined;
+  existingRecord: Record<string, unknown>;
+  writesToCheck: Record<string, unknown>;
+  actor: Actor;
+  tenantId?: string;
+  interceptorRegistry?: InterceptorRegistry;
+}): Promise<FieldLockViolation[]> {
+  const {
+    entity,
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    writesToCheck,
+    actor,
+    tenantId,
+    interceptorRegistry,
+  } = opts;
+  let violations = checkFieldLocks({
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    input: writesToCheck,
+  });
+  // Spec 63 Phase 3: let a policy capability transform the violation set
+  // (shadow / bypass / tolerance). Identity when no interceptor is registered.
+  if (interceptorRegistry?.has("field-lock-check")) {
+    violations = await interceptorRegistry.run("field-lock-check", violations, {
+      entity,
+      actor,
+      record: existingRecord,
+      input: writesToCheck,
+      tenantId,
+    });
+  }
+  return violations;
 }
