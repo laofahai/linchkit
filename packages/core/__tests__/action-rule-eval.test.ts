@@ -43,9 +43,10 @@ function args(
   input: Record<string, unknown>,
   overrides: Partial<EvaluateActionRulesArgs> = {},
 ): EvaluateActionRulesArgs {
-  const actionName = (rules[0]?.trigger as { action?: string }).action ?? "do_thing";
+  const trigger = rules[0]?.trigger as { action?: string } | undefined;
+  const actionName = trigger?.action ?? "do_thing";
   return {
-    applicableRules: collectRules(actionName as string, rules),
+    applicableRules: collectRules(actionName, rules),
     entity: "order",
     effectiveInput: input,
     actor: ACTOR,
