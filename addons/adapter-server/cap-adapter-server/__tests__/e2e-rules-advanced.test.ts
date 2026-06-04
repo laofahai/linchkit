@@ -147,10 +147,12 @@ const createAuditEntryAction: ActionDefinition = {
 
 // ── Server setup (DB-free — InMemoryStore) ─────────────────────────────────
 
-const PORT = 32140;
-const REST_URL = `http://localhost:${PORT}/api/actions`;
-const APPROVALS_URL = `http://localhost:${PORT}/api/approvals`;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const BASE_URL = "http://local.test";
+const REST_URL = `${BASE_URL}/api/actions`;
+const APPROVALS_URL = `${BASE_URL}/api/approvals`;
+const GQL_URL = `${BASE_URL}/graphql`;
 
 let store: InMemoryStore;
 let approvalStore: InMemoryApprovalStore;
@@ -361,8 +363,8 @@ describe("E2E rule effect: require_approval", () => {
     // Retrieve the pending approval ID.
     const approvalsList = await getApprovals("pending");
     const req = approvalsList.data.items.find((r) => r.action === "submit_order");
-    expect(req).toBeDefined();
-    const approvalId = req?.id;
+    if (!req) throw new Error("expected a pending approval request for submit_order");
+    const approvalId = req.id;
 
     // Approve the request — should re-execute submit_order and write status = "submitted".
     const approveResult = await approveRequest(approvalId);
