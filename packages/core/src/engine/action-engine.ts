@@ -25,7 +25,12 @@ import {
   redactMetaForLog,
 } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
-import type { ExecuteActionEffect, RuleDefinition, TriggerFlowEffect } from "../types/rule";
+import type {
+  ExecuteActionEffect,
+  RequireApprovalEffect,
+  RuleDefinition,
+  TriggerFlowEffect,
+} from "../types/rule";
 import {
   type FieldLockViolation,
   LockPreflightError,
@@ -79,6 +84,38 @@ import { collectRules } from "./rule-engine";
 // `FRAMEWORK_RESERVED_META_KEYS` in `../types/execution-meta` so they are
 // shared with ApprovalEngine (which must agree on the same boundary when
 // partitioning persisted meta on suspend / replay — Spec 65 §3.3, #230).
+
+/**
+ * Thrown inside `runHandler` when the in-transaction re-evaluation of
+ * record-state guard rules (#462 / #466) decides — on the FRESH transactional
+ * snapshot — that the action must be blocked. The throw rolls the write
+ * transaction back; the Step-7 catch converts it to the same blocked
+ * ActionResult Step 4c produces. Mirrors how {@link LockViolationError} surfaces
+ * an in-transaction field-lock rejection (#203).
+ */
+class InTxRuleBlockError extends Error {
+  constructor(readonly blocked: { reason: string; suggestion: string }) {
+    super(blocked.reason);
+    this.name = "InTxRuleBlockError";
+  }
+}
+
+/**
+ * Thrown inside `runHandler` when the in-transaction re-evaluation of
+ * record-state guard rules (#462 / #466) decides — on the FRESH transactional
+ * snapshot — that the action must be suspended into an approval request. The
+ * throw rolls the write transaction back; the Step-7 catch creates the approval
+ * request and returns the pending result, exactly as Step 4c would.
+ */
+class InTxRuleApprovalError extends Error {
+  constructor(
+    readonly required: { effect: RequireApprovalEffect; triggerRules: string[] },
+    readonly recordId: string | undefined,
+  ) {
+    super("require_approval (in-transaction)");
+    this.name = "InTxRuleApprovalError";
+  }
+}
 
 /**
  * Create an ActionExecutor instance.
@@ -554,7 +591,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // provider setup — so rule conditions can read the pre-existing record.
     // `let`, not `const`: Step 4c below reassigns this when a rule `enrich`
     // effect merges its setFields into the input.
-    let effectiveInput: Record<string, unknown> = inputValidation.value ?? input;
+    // The validated payload BEFORE any rule `enrich` merge. Stored on an
+    // approval request (Step 4c / the in-tx re-check) so the approved
+    // re-execution re-derives enrich from the original input rather than
+    // double-applying it. `effectiveInput` diverges from this once Step 4c
+    // merges enrich fields.
+    const validatedInput: Record<string, unknown> = inputValidation.value ?? input;
+    let effectiveInput: Record<string, unknown> = validatedInput;
     const ruleWarnings: string[] = [];
     // Post-commit rule side effects (run after the write is durable): collected
     // by Step 4c, executed best-effort near the event flush below.
@@ -618,6 +661,78 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
      */
     let inTransaction = false;
 
+    // Shared block / require_approval handling. Used by BOTH the pre-write
+    // Step 4c decision and the in-transaction re-check (#462/#466) so each path
+    // produces an identical blocked / pending-approval ActionResult and
+    // execution-log entry.
+    const blockAndLog = async (blocked: {
+      reason: string;
+      suggestion: string;
+    }): Promise<ActionResult<T>> => {
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        entity: action.entity,
+        actor,
+        input,
+        // Policy/authorization-style block (consistent with exposure,
+        // field-lock, and state-transition blocks) — not an execution failure.
+        status: "blocked",
+        error: { message: blocked.reason },
+        meta: metaSnapshot,
+        startedAt,
+      });
+      return {
+        success: false,
+        data: {
+          error: blocked.reason,
+          context: {
+            action: actionName,
+            entity: action.entity,
+            constraint: "rule_block",
+            expected: blocked.reason,
+            suggestion: blocked.suggestion,
+          },
+        } as T,
+        executionId,
+      };
+    };
+
+    const suspendForApproval = async (
+      required: { effect: RequireApprovalEffect; triggerRules: string[] },
+      approvalRecordId: string | undefined,
+      approvalInput: Record<string, unknown>,
+    ): Promise<ActionResult<T>> => {
+      // Callers invoke this only when `approvalEngineRef` is wired.
+      const engine = approvalEngineRef as ActionApprovalSuspender;
+      const pending = await engine.createRequest({
+        action: actionName,
+        entity: action.entity,
+        recordId: approvalRecordId,
+        input: approvalInput,
+        actor,
+        executionId,
+        effect: required.effect,
+        triggerRules: required.triggerRules,
+        tenantId: execOptions?.tenantId,
+        meta: resolvedMeta.toJSON(),
+      });
+      await logExecution({
+        id: executionId,
+        action: actionName,
+        entity: action.entity,
+        actor,
+        input,
+        // Suspended pending approval — distinct from a hard block/failure so
+        // execution-log consumers can surface it as awaiting sign-off.
+        status: "pending_approval",
+        error: { message: `Pending approval (${pending.level})` },
+        meta: metaSnapshot,
+        startedAt,
+      });
+      return { success: false, data: pending as T, executionId };
+    };
+
     // ── Step 4c: Business-rule evaluation (Spec 23 §1.1) ───────────
     //
     // Runs after provider setup and before the write. The decision logic lives
@@ -633,14 +748,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // priority-sorted by collectRules); `execute_action` / `trigger_flow`
     // effects are collected here and run post-commit (once the write is durable).
     //
-    // Snapshot caveat (tracked follow-up #462): for a TOP-LEVEL transactional
-    // action the record read inside `evaluateActionRules` happens before
-    // `runInTransaction` opens, so a concurrent commit between here and the write
-    // could make a record-state `block` / `require_approval` decision on a
-    // slightly stale snapshot. Hardening this means calling the helper with the
-    // transactional provider from inside the write transaction (the same in-tx
-    // relocation field-lock enforcement took in PR #203). Nested actions already
-    // read through the parent's tx provider (`parentTxProvider`).
+    // TOCTOU note (#462 / #466): for a TOP-LEVEL transactional action this
+    // pre-write read happens before `runInTransaction` opens, so its record-
+    // state `block` / `require_approval` decision can be made on a snapshot that
+    // a concurrent commit then changes. This pass still runs pre-write because
+    // it also derives `enrich` / `warn` / post-commit side effects and provides
+    // an early rejection. The AUTHORITATIVE record-state guard for the
+    // integrity-critical direction (a now-blocked / now-approval-required action
+    // must NOT write) is re-evaluated INSIDE the write transaction in
+    // `runHandler` below, reading the transactional snapshot — the same in-tx
+    // relocation field-lock enforcement took in #203. Nested actions already
+    // read the parent's tx provider here; non-transactional actions read
+    // `baseProvider`, which the write also uses — so only the top-level-tx read
+    // is re-checked in-tx.
     if (rules && rules.length > 0) {
       let applicableRules = applicableRulesCache.get(actionName);
       if (applicableRules === undefined) {
@@ -667,69 +787,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         });
 
         if (decision.blocked) {
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action.entity,
-            actor,
-            input,
-            // Policy/authorization-style block (consistent with exposure,
-            // field-lock, and state-transition blocks) — not an execution failure.
-            status: "blocked",
-            error: { message: decision.blocked.reason },
-            meta: metaSnapshot,
-            startedAt,
-          });
-          return {
-            success: false,
-            data: {
-              error: decision.blocked.reason,
-              context: {
-                action: actionName,
-                entity: action.entity,
-                constraint: "rule_block",
-                expected: decision.blocked.reason,
-                suggestion: decision.blocked.suggestion,
-              },
-            } as T,
-            executionId,
-          };
+          return blockAndLog(decision.blocked);
         }
 
         // require_approval: suspend the action into an approval request instead
         // of writing. ApprovalEngine.approve() later re-executes the action with
         // `skipRules = triggerRules`, so the approval rule does not re-fire. When
         // no approval engine is wired (minimal setups), fall through and let the
-        // action proceed — the gate is best-effort, not a silent hard block.
+        // action proceed — the gate is best-effort, not a silent hard block. The
+        // pre-enrich `validatedInput` is stored so the approved re-execution
+        // re-derives enrich from the original payload.
         if (decision.requiredApproval && approvalEngineRef) {
-          const pending = await approvalEngineRef.createRequest({
-            action: actionName,
-            entity: action.entity,
-            recordId: decision.recordId,
-            // Store the pre-enrich input — enrich is re-derived when the approved
-            // action re-executes (the approval rule itself is then skipped).
-            input: effectiveInput,
-            actor,
-            executionId,
-            effect: decision.requiredApproval.effect,
-            triggerRules: decision.requiredApproval.triggerRules,
-            tenantId: execOptions?.tenantId,
-            meta: resolvedMeta.toJSON(),
-          });
-          await logExecution({
-            id: executionId,
-            action: actionName,
-            entity: action.entity,
-            actor,
-            input,
-            // Suspended pending approval — distinct from a hard block/failure so
-            // execution-log consumers can surface it as awaiting sign-off.
-            status: "pending_approval",
-            error: { message: `Pending approval (${pending.level})` },
-            meta: metaSnapshot,
-            startedAt,
-          });
-          return { success: false, data: pending as T, executionId };
+          return suspendForApproval(decision.requiredApproval, decision.recordId, validatedInput);
         }
 
         // Proceed path: adopt the enriched input and fold in warn / side-effect
@@ -1341,6 +1410,80 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       /** Run the action handler or declarative logic against a given DataProvider */
       const runHandler = async (dp: DataProvider): Promise<void> => {
         activeProvider = dp;
+
+        // In-transaction record-state rule re-check (#462 / #466). For a
+        // TOP-LEVEL transactional action, re-evaluate the `block` /
+        // `require_approval` guards against the transactional provider `dp`,
+        // inside the write transaction, before any write. A record-state guard
+        // that did not fire on the pre-write Step 4c snapshot but DOES fire on
+        // the in-transaction snapshot now blocks/suspends the action instead of
+        // letting a stale-but-valid-looking write through. Throwing rolls the
+        // transaction back; the catch maps it to the same blocked / pending
+        // result Step 4c produces. Scoped to the top-level-tx case because that
+        // is the only one whose Step 4c read (`baseProvider`) differs from the
+        // write snapshot: nested actions already read the parent tx, and
+        // non-transactional actions read `baseProvider == dp`. Mirrors the in-tx
+        // field-lock check (#203).
+        //
+        // Scope of the guarantee. This collapses the pre-write window — Step 4c
+        // runs before validation, the state-machine check, and handler setup, so
+        // the old read→write gap spanned all of those. The re-check moves the
+        // guard read inside the transaction, adjacent to the write. It does NOT,
+        // by itself, make read+write atomic under PostgreSQL READ COMMITTED: a
+        // concurrent commit landing between this read and the write (or while a
+        // long handler runs) is still possible. Full closure needs row-level
+        // locking (`SELECT … FOR UPDATE`) or a snapshot-stable isolation level,
+        // neither of which the DataProvider interface exposes today — tracked as
+        // follow-up (#466). The same residual applies to field-lock #203 and to
+        // #466's option-(b) design alike. It is fully closed for the
+        // InMemoryStore (no concurrency) and under serializable isolation.
+        //
+        // (The reverse direction — a guard that fired on a now-stale Step 4c
+        // snapshot but would NOT on the fresh one — still early-returns at
+        // Step 4c; that is a retryable false-rejection, not a write-integrity
+        // violation, and matches field-lock's pre-tx preflight.)
+        if (useTransaction && !parentTxProvider) {
+          // Only `block` / `require_approval` outcomes can change the in-tx
+          // decision — enrich / warn / execute_action / trigger_flow were
+          // already handled by the pre-write Step 4c pass. Re-evaluate ONLY the
+          // guard rules here so a non-guard rule's (possibly expensive or
+          // side-effecting) condition isn't run a second time inside, and
+          // lengthening, the write transaction.
+          const guardRules = applicableRulesCache
+            .get(actionName)
+            ?.filter((r) => r.effect.type === "block" || r.effect.type === "require_approval");
+          if (guardRules && guardRules.length > 0) {
+            const recheck = await evaluateActionRules({
+              applicableRules: guardRules,
+              entity: action.entity,
+              // Use the PRE-enrich `validatedInput`, NOT `effectiveInput`. The
+              // condition target is `{ ...record, ...input }`, so an `enrich`
+              // rule that set a guarded field (e.g. `status: "pending"`) would
+              // otherwise mask the fresh record state and let a now-`approved`
+              // row slip past a `target.status == "approved"` guard. Step 4c
+              // also evaluates against the pre-enrich payload (it merges enrich
+              // only AFTER its evaluateActionRules call), so this keeps the two
+              // passes consistent — the ONLY intended difference is the record
+              // snapshot (fresh in-tx vs the pre-write read).
+              effectiveInput: validatedInput,
+              actor,
+              meta: resolvedMeta,
+              readProvider: dp,
+              queryOptions,
+              skipRules: execOptions?.skipRules,
+              // The pre-write Step 4c pass already counted rule metrics for this
+              // execution — use a noop collector to avoid double-counting.
+              metrics: noopMetricsCollector,
+            });
+            if (recheck.blocked) {
+              throw new InTxRuleBlockError(recheck.blocked);
+            }
+            if (recheck.requiredApproval && approvalEngineRef) {
+              throw new InTxRuleApprovalError(recheck.requiredApproval, recheck.recordId);
+            }
+          }
+        }
+
         if (action.handler) {
           resultData = await action.handler(ctx);
         } else {
@@ -1560,6 +1703,18 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     } catch (err) {
+      // In-transaction record-state rule re-check outcomes (#462 / #466): the
+      // write transaction has already rolled back (the throw propagated through
+      // `runInTransaction`). Surface the exact blocked / pending-approval result
+      // Step 4c would have produced — no write happened, so this is an
+      // authorization-style outcome, not an execution failure.
+      if (err instanceof InTxRuleBlockError) {
+        return await blockAndLog(err.blocked);
+      }
+      if (err instanceof InTxRuleApprovalError && approvalEngineRef) {
+        return await suspendForApproval(err.required, err.recordId, validatedInput);
+      }
+
       // Field-lock violations raised from the ctx.update wrapper surface as
       // these dedicated errors. Convert them to the standard failed
       // ActionResult shape Step 4b produces so both the declarative and
