@@ -29,6 +29,35 @@ import type {
 import type { DataProvider, DataQueryOptions } from "./action-engine";
 import { evaluateRules } from "./rule-engine";
 
+/**
+ * Did a record read throw because the row is genuinely ABSENT (not found /
+ * soft-deleted / tenant-filtered) rather than because of a provider/schema or
+ * transient infra failure? Providers signal "absent" by throwing, not by
+ * returning falsy. An absent row is a legitimate outcome (e.g. create-shaped
+ * input with a caller-supplied id) the write path handles, so it must NOT trip
+ * the fail-closed gate.
+ *
+ * Detection is deliberately NARROW: only the record-miss signal counts as
+ * absence. The Drizzle provider throws a typed `NotFoundError` for record
+ * misses (`code: "data.record.not_found"`) but ALSO for provider/schema
+ * problems (`data.schema.no_id_column`, `data.entity.not_registered`, …) — those
+ * are real failures, not an empty row, and must fail closed when a guard rule is
+ * present. So we key on the specific `data.record.not_found` code, plus the
+ * plain `Error("Record not found: …")` message the in-memory store and the test
+ * fakes (which carry no `code`) throw on a miss.
+ */
+function isRecordNotFound(err: unknown): boolean {
+  if (typeof err === "object" && err !== null) {
+    const code = (err as { code?: unknown }).code;
+    // A coded provider error: ONLY the record-miss code is "absence". Any other
+    // coded NotFoundError (schema / entity / config) is a genuine failure.
+    if (typeof code === "string") return code === "data.record.not_found";
+  }
+  // Untyped providers (in-memory store + test fakes) throw a plain Error with
+  // this message shape on an absent row.
+  return err instanceof Error && /record not found/i.test(err.message);
+}
+
 /** Inputs for {@link evaluateActionRules}. */
 export interface EvaluateActionRulesArgs {
   /**
@@ -67,8 +96,11 @@ export interface EvaluateActionRulesArgs {
 /** What the executor should do after rule evaluation. */
 export interface ActionRuleEvalDecision {
   /**
-   * Non-null when a `block` effect fired. The executor logs a `blocked`
-   * execution and returns a failure result; no write happens.
+   * Non-null when the action must be aborted before any write — either a
+   * `block` effect fired, OR the record-state read threw while the rule set
+   * contains a `block` / `require_approval` gate (fail-closed: a guard that
+   * can't read its row blocks rather than silently degrading to input-only).
+   * The executor logs a `blocked` execution and returns a failure result.
    */
   blocked: { reason: string; suggestion: string } | null;
   /**
@@ -106,6 +138,13 @@ export interface ActionRuleEvalDecision {
  * pre-collected + priority-sorted rule set, and folds the resulting effects
  * into a {@link ActionRuleEvalDecision}.
  *
+ * Record read outcomes:
+ *  - returns a row → conditions see `{ ...record, ...input }` (input wins);
+ *  - returns falsy → the record is absent → input-only (not a failure);
+ *  - THROWS → fail closed when the rule set has a `block` / `require_approval`
+ *    gate (abort rather than let a record-state guard be bypassed on a read
+ *    error); degrade to input-only only when no gate effect is present.
+ *
  * Effect precedence mirrors the previous inline logic exactly:
  *  - `block` short-circuits (the executor aborts before any write); the
  *    returned `effectiveInput`/`warnings`/pending arrays are empty.
@@ -128,15 +167,54 @@ export async function evaluateActionRules(
     typeof recordIdRaw === "string" && recordIdRaw.length > 0 ? recordIdRaw : undefined;
 
   // Record-state context: for an update (input carries an id), read the current
-  // record so conditions can reference existing field values. A read failure
-  // (not found / access) degrades to input-only evaluation.
+  // record so conditions can reference existing field values.
   let ruleTarget: Record<string, unknown> = effectiveInput;
   if (entity && recordId) {
     try {
       const existing = await readProvider.get(entity, recordId, queryOptions);
+      // A falsy result = the record is genuinely absent (create-shaped input, a
+      // soft-deleted / missing row). Evaluating against input only is correct
+      // here — it is not a read failure.
       if (existing) ruleTarget = { ...existing, ...effectiveInput };
-    } catch {
-      // Not readable — fall back to input-only evaluation.
+    } catch (err) {
+      // A "record not found" read = the row is genuinely absent (create-shaped
+      // input with a caller id, a deleted / tenant-filtered row). That is a
+      // legitimate outcome the write path handles, NOT a guard-read failure, so
+      // degrade to input-only exactly as before — never fail closed on absence.
+      //
+      // Any OTHER throw is a transient / infra / access read failure: we could
+      // not establish the record state. Fail CLOSED for security-relevant
+      // gates — if any applicable, NON-skipped rule can `block` or
+      // `require_approval`, abort rather than silently degrade to input-only and
+      // let the write proceed (which would let a record-state guard be bypassed
+      // on a read error). `skipRules` gates are intentionally disabled (e.g. an
+      // already-approved re-execution) and must not re-block. Non-gate effects
+      // (enrich / warn / execute_action / trigger_flow) are not security
+      // boundaries, so a rule set with no live gate keeps the lenient degrade.
+      if (!isRecordNotFound(err)) {
+        const hasLiveGate = applicableRules.some(
+          (r) =>
+            !skipRules?.includes(r.name) &&
+            (r.effect.type === "block" || r.effect.type === "require_approval"),
+        );
+        if (hasLiveGate) {
+          const detail = err instanceof Error ? err.message : String(err);
+          return {
+            blocked: {
+              reason: `Could not read ${entity} "${recordId}" to evaluate guard rules: ${detail}`,
+              suggestion:
+                "A record-state guard rule could not be evaluated because the current record read failed; the action was blocked instead of proceeding on incomplete data. Retry once the data store is reachable.",
+            },
+            requiredApproval: null,
+            recordId,
+            effectiveInput,
+            warnings: [],
+            pendingActions: [],
+            pendingFlows: [],
+          };
+        }
+      }
+      // Absent row, or no live gate effect — degrade to input-only evaluation.
     }
   }
 

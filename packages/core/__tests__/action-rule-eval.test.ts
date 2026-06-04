@@ -11,6 +11,7 @@ import { describe, expect, test } from "bun:test";
 import type { DataProvider } from "../src/engine/action-engine";
 import { type EvaluateActionRulesArgs, evaluateActionRules } from "../src/engine/action-rule-eval";
 import { collectRules } from "../src/engine/rule-engine";
+import { NotFoundError } from "../src/errors";
 import { noopMetricsCollector } from "../src/observability/metrics";
 import type { Actor } from "../src/types/action";
 import { createExecutionMeta } from "../src/types/execution-meta";
@@ -160,7 +161,7 @@ describe("evaluateActionRules", () => {
     expect(d.blocked).toBeNull();
   });
 
-  test("read failure degrades to input-only evaluation (no throw)", async () => {
+  test("read throw with only NON-gate rules degrades to input-only (lenient)", async () => {
     const rule: RuleDefinition = {
       name: "warn_draft",
       label: "Warn draft",
@@ -179,9 +180,191 @@ describe("evaluateActionRules", () => {
         },
       ),
     );
-    // The read threw, so evaluation falls back to input-only — input has
-    // status:"draft", so the warn still fires.
+    // The read threw but the only effect is `warn` (not a security gate), so we
+    // preserve the lenient input-only degrade — input has status:"draft", so
+    // the warn still fires and nothing is blocked.
+    expect(d.blocked).toBeNull();
     expect(d.warnings).toEqual(["still draft"]);
+  });
+
+  test("read throw with a block-gate rule fails CLOSED (aborts, not bypassed)", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("db down");
+          }),
+        },
+      ),
+    );
+    // A record-state `block` rule could not read its row → fail closed rather
+    // than silently degrade to input-only (which would let the write through).
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain('Could not read order "o1"');
+    expect(d.blocked?.reason).toContain("db down");
+    expect(d.requiredApproval).toBeNull();
+  });
+
+  test("read throw with a require_approval-gate rule fails CLOSED", async () => {
+    const rule: RuleDefinition = {
+      name: "needs_signoff_when_shipped",
+      label: "Sign-off when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "require_approval", level: "manager" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("timeout");
+          }),
+        },
+      ),
+    );
+    // An approval gate that can't read its row also fails closed (aborts), so
+    // the approval can't be silently skipped.
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain("timeout");
+  });
+
+  test("record ABSENT (read returns falsy) is NOT a failure even with a gate rule", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // get returns null (record genuinely absent) — distinct from a throw. The
+    // condition evaluates against input-only (status:"draft" ≠ "shipped"), so
+    // the action proceeds; absence must NOT trip the fail-closed path.
+    const d = await evaluateActionRules(
+      args([rule], { id: "o1", status: "draft" }, { readProvider: fakeProvider(null) }),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("read NOT_FOUND throw with a gate rule degrades to input-only (absence ≠ read failure)", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // Real providers throw on absent rows (the InMemory store / Drizzle / test
+    // fakes throw "Record not found: …"). A not-found throw is absence, NOT an
+    // infra failure, so even with a block gate it must degrade to input-only —
+    // condition is false on input (status:"draft"), so the action proceeds.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("Record not found: order/o1");
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("typed NotFoundError throw with a gate rule also degrades to input-only", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new NotFoundError({
+              code: "data.record.not_found",
+              message: "Record not found",
+              resource: "order",
+              resourceId: "o1",
+            });
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("NotFoundError with a NON-record code (schema/provider failure) fails CLOSED", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // A NotFoundError can also signal a provider/schema problem (e.g. a missing
+    // id column) — that is NOT an absent row, so a guard rule must fail closed
+    // rather than silently proceed on input-only data.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new NotFoundError({
+              code: "data.schema.no_id_column",
+              message: 'Table for schema "order" has no "id" column',
+              resource: "order",
+              resourceId: "o1",
+            });
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain('Could not read order "o1"');
+    expect(d.blocked?.reason).toContain('has no "id" column');
+  });
+
+  test("infra read throw with the ONLY gate rule in skipRules does not block", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // The gate is intentionally disabled for this run (e.g. an approved
+    // re-execution). An infra read error must NOT resurrect it as a fail-closed
+    // block, since evaluateRules would skip the rule anyway.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("db down");
+          }),
+          skipRules: ["no_edit_shipped"],
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
   });
 
   test("no entity / no id → no record read, input-only", async () => {
