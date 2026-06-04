@@ -21,6 +21,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { EventHandlerDefinition } from "@linchkit/core";
 import { ConfigRegistry, defineEntity } from "@linchkit/core";
 import {
   ActionRegistry,
@@ -46,7 +47,9 @@ const order = defineEntity({
  * no middleware. Just enough to drive `wireDevEngines` so the overlay
  * registry construction path is exercised.
  */
-function buildInput(opts: { dataProvider?: InMemoryStore } = {}) {
+function buildInput(
+  opts: { dataProvider?: InMemoryStore; eventHandlers?: EventHandlerDefinition[] } = {},
+) {
   const dataProvider = opts.dataProvider ?? new InMemoryStore();
   const entityRegistry = new EntityRegistry();
   entityRegistry.register(order);
@@ -71,6 +74,7 @@ function buildInput(opts: { dataProvider?: InMemoryStore } = {}) {
     states: [],
     links: [],
     rules: [],
+    eventHandlers: opts.eventHandlers ?? [],
     middlewares: [],
     interceptors: [],
     capabilities: [],
@@ -151,5 +155,42 @@ describe("wireDevEngines — overlay registry wiring (Spec 59 §8.1)", () => {
     const raw = await inner.get("order", created.id as string);
     expect(raw._extensions).toEqual({ color: "red" });
     expect(raw.color).toBeUndefined();
+  });
+});
+
+describe("wireDevEngines — capability event handler registration", () => {
+  // Regression: `cap.eventHandlers` were collected but never registered on the
+  // dev EventHandlerRegistry, so capability-defined handlers never fired under
+  // `linch dev`. The fix threads `eventHandlers` from collection → dev boot →
+  // registration, mirroring events-bootstrap.ts's `linch events` replay path.
+  test("collected eventHandlers are registered on the dev EventHandlerRegistry", async () => {
+    const handler: EventHandlerDefinition = {
+      name: "on_order_created",
+      // Event name "order.created" → entity "order" (registered in buildInput),
+      // so the handler is indexed under "order" by the OntologyRegistry.
+      listen: "order.created",
+      handler: async () => {
+        // No-op: this test asserts registration, not dispatch.
+      },
+    };
+
+    const { transportCtx } = await wireDevEngines(buildInput({ eventHandlers: [handler] }));
+
+    const ontology = transportCtx.ontologyRegistry;
+    if (!ontology) throw new Error("ontologyRegistry undefined");
+
+    // The OntologyRegistry built inside wireDevEngines reads from the same
+    // EventHandlerRegistry the registration loop writes to (handlers grouped by
+    // their listened entity). Seeing the handler here proves it reached the
+    // registry — the contract that was previously broken.
+    const handlers = ontology.handlersFor("order");
+    expect(handlers.map((h) => h.name)).toContain("on_order_created");
+  });
+
+  test("no eventHandlers leaves the registry empty for the entity", async () => {
+    const { transportCtx } = await wireDevEngines(buildInput());
+    const ontology = transportCtx.ontologyRegistry;
+    if (!ontology) throw new Error("ontologyRegistry undefined");
+    expect(ontology.handlersFor("order")).toEqual([]);
   });
 });
