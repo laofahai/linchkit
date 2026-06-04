@@ -355,12 +355,16 @@ export class DrizzleDataProvider implements DataProvider {
     // #466/#469), the lock is held until commit, closing the read→write TOCTOU
     // window under READ COMMITTED (#470). `this.db` is the transactional handle
     // here because the executor reads through the tx-scoped provider copy.
-    const baseQuery = this.db
+    let query = this.db
       .select()
       .from(table)
       .where(and(...conditions))
-      .limit(1);
-    const rows = await (options?.forUpdate ? baseQuery.for("update") : baseQuery);
+      .limit(1)
+      .$dynamic();
+    if (options?.forUpdate) {
+      query = query.for("update");
+    }
+    const rows = await query;
 
     if (rows.length === 0) {
       throw new NotFoundError({

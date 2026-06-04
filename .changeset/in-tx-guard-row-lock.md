@@ -4,7 +4,7 @@
 
 Close the residual record-state guard TOCTOU window with a row-level lock (#470).
 
-#469 moved `block` / `require_approval` guard-rule evaluation inside the write
+PR #469 moved `block` / `require_approval` guard-rule evaluation inside the write
 transaction, but under PostgreSQL READ COMMITTED a plain `SELECT` guard read +
 the write were still not atomic — a concurrent commit could land between them.
 
