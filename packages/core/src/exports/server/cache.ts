@@ -11,6 +11,7 @@ export {
   type CacheProvider,
   type CacheSetOptions,
   type CacheStats,
+  type EntityInvalidationRule,
   type InMemoryCacheOptions,
   InMemoryCacheProvider,
   type NamespacedCache,

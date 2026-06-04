@@ -6,6 +6,7 @@
  */
 
 import type { CommandContext } from "../engine/command-layer";
+import type { InterceptorRegistration } from "../engine/interceptors";
 import type { ActionDefinition, ActionOverride } from "./action";
 import type { CliCommand } from "./cli";
 import type {
@@ -200,6 +201,8 @@ export interface CapabilityExtensions {
   states?: Array<{ target: string; extension: StateExtension }>;
   views?: Array<{ target: string; extension: ViewExtension }>;
   middlewares?: CapabilityMiddlewareRegistration[];
+  /** Value-returning extension points (strongly typed; see InterceptorCatalog). */
+  interceptors?: InterceptorRegistration[];
   /** CLI commands registered by this capability */
   commands?: CliCommand[];
   /** Transport adapters (protocol entry points for CommandLayer) */

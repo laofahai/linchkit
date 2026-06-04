@@ -209,6 +209,7 @@ export function assembleDevSchema(
     states: contributions.states,
     views: contributions.views,
     middlewares: contributions.middlewares,
+    rules: contributions.rules,
     ai: options?.aiService,
     capabilityNames,
   });

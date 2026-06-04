@@ -7,8 +7,10 @@
  */
 
 export type {
+  ActionApprovalSuspender,
   ActionExecutor,
   ActionExecutorOptions,
+  ActionFlowStarter,
   ActionRegistry,
   DataProvider,
   DataQueryOptions,
@@ -38,6 +40,18 @@ export {
   evaluateCondition,
   resolveField,
 } from "../../engine/condition-evaluator";
+// Field-lock semantics (Spec 63) — pure, browser-safe (engine/field-lock-checker
+// imports only types). The runtime engine consumes these directly; exposing them
+// here lets the auto-form UI reuse the authoritative matcher instead of mirroring it.
+export {
+  checkFieldLocks,
+  type FieldLockCheckArgs,
+  type FieldLockMode,
+  type FieldLockViolation,
+  type FieldLockViolationType,
+  matchesLockCondition,
+  SYSTEM_FIELD_NAMES,
+} from "../../engine/field-lock-checker";
 export type {
   GeneratorOutcomeType,
   GeneratorPriorityAggregator,
@@ -46,13 +60,22 @@ export type {
   GeneratorWeightRecord,
   OutcomeObservation,
 } from "../../engine/generator-priority-aggregator";
+// Interceptor type surface (Spec 63 Phase 3) — pure types, browser-safe.
+// The runtime `createInterceptorRegistry` lives in ../server/engines.ts.
+export type {
+  FieldLockCheckContext,
+  Interceptor,
+  InterceptorCatalog,
+  InterceptorPoint,
+  InterceptorRegistration,
+  InterceptorRegistry,
+} from "../../engine/interceptors";
 export {
   canAutoApproveOverlayChange,
   canAutoApproveOverlayProposal,
   executeOverlayProposal,
 } from "../../engine/overlay-proposal-executor";
 export type { PermissionRegistry } from "../../engine/permission-engine";
-
 export type {
   EffectVerificationPayload,
   EffectVerificationRecord,
@@ -82,7 +105,6 @@ export type {
   RollbackInsightEmitter,
   RollbackInsightEmitterOptions,
 } from "../../engine/rollback-insight-emitter";
-
 export type {
   RuleEvalInput,
   RuleEvalOptions,
@@ -90,3 +112,4 @@ export type {
 } from "../../engine/rule-engine";
 export type { StateMachine } from "../../engine/state-machine";
 export type { ValidationContext } from "../../engine/validation-engine";
+export type { ApprovalStore } from "../../types/approval";

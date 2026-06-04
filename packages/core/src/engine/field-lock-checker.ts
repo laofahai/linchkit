@@ -45,7 +45,7 @@ import type { FieldDefinition, LockCondition } from "../types/entity";
  * An explicit per-field `lockWhen` declared on a system field still applies
  * (deliberate authorial intent overrides the auto-exemption).
  */
-const SYSTEM_FIELD_NAMES = new Set([
+export const SYSTEM_FIELD_NAMES = new Set([
   "id",
   "tenant_id",
   "created_at",
@@ -74,11 +74,19 @@ const SYSTEM_FIELD_NAMES = new Set([
 
 export type FieldLockViolationType = "immutable" | "locked";
 
+/** Lock enforcement mode for a {@link FieldLockViolation} (Spec 63 §4.2). */
+export type FieldLockMode = "hard" | "soft";
+
 export interface FieldLockViolation {
   /** Field name that violated a lock rule */
   field: string;
   /** Which rule was violated */
   type: FieldLockViolationType;
+  /**
+   * Enforcement mode — `hard` blocks; `soft` is advisory (cap-lock allows+audits,
+   * UI confirms). `immutable` violations are always `hard`.
+   */
+  mode: FieldLockMode;
   /** For `locked` violations: the lock condition that triggered the block */
   condition?: LockCondition;
   /** Human-readable violation message */
@@ -303,6 +311,8 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
       violations.push({
         field: fieldName,
         type: "immutable",
+        // `immutable` is always hard — `lockMode` only governs conditional locks.
+        mode: "hard",
         message: `Field "${fieldName}" is immutable and cannot be modified`,
       });
       // Don't also report this field as locked — immutable is more specific.
@@ -331,6 +341,9 @@ export function checkFieldLocks(args: FieldLockCheckArgs): FieldLockViolation[] 
       violations.push({
         field: fieldName,
         type: "locked",
+        // Conditional locks honor the field's `lockMode` (default hard). A soft
+        // lock is advisory: cap-lock allows+audits it and the UI confirms.
+        mode: field.lockMode === "soft" ? "soft" : "hard",
         condition: lockCondition,
         message: `Field "${fieldName}" is locked${statusMsg}`,
       });

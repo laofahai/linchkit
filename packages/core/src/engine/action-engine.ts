@@ -16,7 +16,8 @@ import { getCurrentTrace } from "../observability/trace-context";
 import { createTenantAwareDataProvider } from "../security/tenant-isolation";
 import type { ActionContext, ActionResult, Actor } from "../types/action";
 import type { AIService } from "../types/ai";
-import type { FieldDefinition } from "../types/entity";
+import type { ApprovalPendingResult } from "../types/approval";
+import type { FieldDefinition, LockCondition } from "../types/entity";
 import type { ExecutionLogEntry, ExecutionLogger } from "../types/execution-log";
 import type { ExecutionMeta } from "../types/execution-meta";
 import {
@@ -27,12 +28,19 @@ import {
   redactMetaForLog,
 } from "../types/execution-meta";
 import type { Logger } from "../types/logger";
+import type {
+  ExecuteActionEffect,
+  RequireApprovalEffect,
+  RuleDefinition,
+  TriggerFlowEffect,
+} from "../types/rule";
 import {
   checkFieldLocks,
   type FieldLockViolation,
   LockPreflightError,
   LockViolationError,
 } from "./field-lock-checker";
+import type { InterceptorRegistry } from "./interceptors";
 import type { StateMachine } from "./state-machine";
 import { canTransition, getAvailableActions } from "./state-machine";
 
@@ -47,7 +55,9 @@ import {
   validateInput,
 } from "./action-helpers";
 import { ActionRegistry } from "./action-registry";
+import { evaluateActionRules } from "./action-rule-eval";
 import { hashBehaviorAffectingMeta } from "./meta-keys";
+import { collectRules } from "./rule-engine";
 
 // Framework-reserved `_`-prefixed system meta keys are defined as
 // `FRAMEWORK_RESERVED_META_KEYS` in `../types/execution-meta` so they are
@@ -128,6 +138,14 @@ export interface ExecuteOptions {
   /** Internal: parent's pending events array for shared transaction */
   _parentPendingEvents?: PendingEvent[];
   /**
+   * Internal: parent's pending post-commit rule side-effect arrays for a shared
+   * transaction. A nested action inside a parent tx bubbles its collected
+   * `execute_action` / `trigger_flow` effects here so they run when the PARENT
+   * commits, instead of firing before the (not-yet-committed) parent write.
+   */
+  _parentPendingRuleActions?: ExecuteActionEffect[];
+  _parentPendingRuleFlows?: TriggerFlowEffect[];
+  /**
    * Execution metadata propagated through the execution chain (Spec 65).
    *
    * Accepts either a pre-built `ExecutionMeta` (how the CommandLayer and the
@@ -157,6 +175,42 @@ export interface ExecuteOptions {
 
 // ── ActionExecutor ──────────────────────────────────────────
 
+/**
+ * Minimal approval surface the executor needs to suspend an action when a
+ * `require_approval` rule effect fires. Kept structural (a subset of
+ * ApprovalEngine.createRequest's options) rather than importing `ApprovalEngine`
+ * directly, because approval-engine.ts imports `ActionExecutor` from here — a
+ * structural type avoids the module cycle while staying type-checked against the
+ * canonical {@link RequireApprovalEffect} / {@link ApprovalPendingResult}.
+ */
+export interface ActionApprovalSuspender {
+  createRequest(options: {
+    action: string;
+    entity?: string;
+    recordId?: string;
+    input: Record<string, unknown>;
+    actor: Actor;
+    executionId: string;
+    effect: RequireApprovalEffect;
+    triggerRules: string[];
+    tenantId?: string;
+    meta?: Record<string, unknown>;
+  }): Promise<ApprovalPendingResult>;
+}
+
+/**
+ * Minimal flow surface the executor needs to start a durable Flow as a
+ * post-commit `trigger_flow` rule side effect. Structural (a subset of
+ * FlowEngine) so the executor doesn't depend on the flow engine implementation.
+ */
+export interface ActionFlowStarter {
+  startFlow(
+    flowName: string,
+    input: Record<string, unknown>,
+    options?: { tenantId?: string; actor?: Actor },
+  ): Promise<unknown>;
+}
+
 export interface ActionExecutor {
   readonly registry: ActionRegistry;
 
@@ -166,6 +220,21 @@ export interface ActionExecutor {
     actor: Actor,
     options?: ExecuteOptions,
   ): Promise<ActionResult<T>>;
+
+  /**
+   * Late-bind the approval engine used to suspend actions on `require_approval`
+   * rule effects. Deferred because the executor and the approval engine are
+   * mutually dependent (the engine re-executes actions via this executor), so
+   * one must be constructed first and wired to the other afterwards.
+   */
+  setApprovalEngine(engine: ActionApprovalSuspender): void;
+
+  /**
+   * Late-bind the flow engine used to start durable Flows on `trigger_flow`
+   * rule effects (post-commit, fire-and-forget). Optional — when unset, a
+   * trigger_flow effect is logged and skipped (no flow is started).
+   */
+  setFlowEngine(engine: ActionFlowStarter): void;
 }
 
 // ── Transactional event collection ──────────────────────────
@@ -239,6 +308,51 @@ export interface ActionExecutorOptions {
    * can omit this; production wiring (Runtime) always supplies it.
    */
   entityRegistry?: EntityRegistry;
+  /**
+   * Interceptor registry for value-returning core extension points (Spec 63
+   * Phase 3). Currently wires the `field-lock-check` point: a policy
+   * capability can transform the field-lock violation set (shadow / bypass /
+   * tolerance) before the engine throws. When omitted — or when no
+   * `field-lock-check` interceptor is registered — the lock check behaves
+   * byte-for-byte as Phase 1 (the registry's `run` is an identity).
+   */
+  interceptorRegistry?: InterceptorRegistry;
+  /**
+   * When true (production/staging), action input is validated against a Zod
+   * schema generated from the action's `input` field definitions — types +
+   * constraints, not just required-presence. Defaults to false (dev/test stay
+   * lenient with toy inputs). The generated schema mirrors the on-the-wire
+   * shape (ISO strings for dates, arbitrary objects for `json`, unknown keys
+   * stripped), so it never rejects a value a real HTTP/GraphQL client could
+   * legitimately send.
+   */
+  strictValidation?: boolean;
+  /**
+   * Business rules (`defineRule`) evaluated during action execution
+   * (Spec 23 §1.1). When omitted, no rule evaluation runs — back-compat for
+   * tests and minimal setups. Production wiring injects the capability-
+   * aggregated rule set. Only rules whose `trigger.action` targets the running
+   * action fire (filtered by `collectRules`). In this phase, `block` aborts the
+   * write, `enrich` augments the input, and `warn` surfaces on the result;
+   * `require_approval` / `execute_action` / `trigger_flow` are handled in
+   * follow-up phases.
+   */
+  rules?: RuleDefinition[];
+  /**
+   * Approval engine used to suspend an action when a `require_approval` rule
+   * effect fires (Spec 23 §1.1 / Spec 09). Optional — when omitted, a
+   * require_approval effect lets the action proceed (no silent hard block).
+   * May also be wired after construction via `executor.setApprovalEngine` to
+   * break the executor ↔ approval-engine dependency cycle.
+   */
+  approvalEngine?: ActionApprovalSuspender;
+  /**
+   * Flow engine used to start durable Flows on `trigger_flow` rule effects
+   * (post-commit, fire-and-forget). Optional — when omitted, a trigger_flow
+   * effect is logged and skipped. May also be wired after construction via
+   * `executor.setFlowEngine`.
+   */
+  flowEngine?: ActionFlowStarter;
 }
 
 /**
@@ -279,6 +393,60 @@ function fillMissingSystemKeys(
 }
 
 /**
+ * Run the field-lock check and thread the resulting violations through the
+ * `field-lock-check` interceptor point (Spec 63 Phase 3), returning the
+ * (possibly transformed) violation set.
+ *
+ * Both update paths — the `ctx.update()` handler wrapper and the declarative
+ * `setFields` / `stateTransition` path — share this exact sequence; extracting
+ * it keeps them byte-for-byte identical. The interceptor step is an identity
+ * when no `field-lock-check` interceptor is registered, so behavior is
+ * unchanged from Phase 1 in that case.
+ */
+async function checkAndRunFieldLockInterceptor(opts: {
+  entity: string;
+  fields: Record<string, FieldDefinition>;
+  lockAllWhen: LockCondition | undefined;
+  lockAllowFields: string[] | undefined;
+  existingRecord: Record<string, unknown>;
+  writesToCheck: Record<string, unknown>;
+  actor: Actor;
+  tenantId?: string;
+  interceptorRegistry?: InterceptorRegistry;
+}): Promise<FieldLockViolation[]> {
+  const {
+    entity,
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    writesToCheck,
+    actor,
+    tenantId,
+    interceptorRegistry,
+  } = opts;
+  let violations = checkFieldLocks({
+    fields,
+    lockAllWhen,
+    lockAllowFields,
+    existingRecord,
+    input: writesToCheck,
+  });
+  // Spec 63 Phase 3: let a policy capability transform the violation set
+  // (shadow / bypass / tolerance). Identity when no interceptor is registered.
+  if (interceptorRegistry?.has("field-lock-check")) {
+    violations = await interceptorRegistry.run("field-lock-check", violations, {
+      entity,
+      actor,
+      record: existingRecord,
+      input: writesToCheck,
+      tenantId,
+    });
+  }
+  return violations;
+}
+
+/**
  * Create an ActionExecutor instance.
  *
  * The executor follows the simplified M0b execution flow:
@@ -306,7 +474,28 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     eventBus,
     capabilityNames = new Set<string>(),
     entityRegistry,
+    interceptorRegistry,
+    strictValidation = false,
+    rules,
   } = options;
+
+  // Per-action cache of collected+priority-sorted rules. `rules` is fixed for
+  // the executor's lifetime, so collectRules() output is stable per action name
+  // — cache it to avoid re-filtering and re-sorting on every execution.
+  const applicableRulesCache = new Map<string, RuleDefinition[]>();
+
+  // Approval engine for `require_approval` rule effects. Late-bindable because
+  // the executor and the approval engine are mutually dependent.
+  let approvalEngineRef = options.approvalEngine;
+  function setApprovalEngine(engine: ActionApprovalSuspender): void {
+    approvalEngineRef = engine;
+  }
+
+  // Flow engine for `trigger_flow` rule effects (post-commit, fire-and-forget).
+  let flowEngineRef = options.flowEngine;
+  function setFlowEngine(engine: ActionFlowStarter): void {
+    flowEngineRef = engine;
+  }
 
   /** Silent noop logger — used when no logger is injected */
   const noopFn = () => {};
@@ -691,7 +880,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     }
 
     // Step 4: Input validation.
-    const inputValidation = validateInput(action, input);
+    const inputValidation = validateInput(action, input, { strict: strictValidation });
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];
       await logExecution({
@@ -724,6 +913,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         executionId,
       };
     }
+
+    // `effectiveInput` carries the validated payload plus any rule `enrich`
+    // fields; `ruleWarnings` collects rule `warn` messages. Both are populated
+    // by Step 4c (business-rule evaluation), which runs further down — after
+    // provider setup — so rule conditions can read the pre-existing record.
+    // `let`, not `const`: Step 4c below reassigns this when a rule `enrich`
+    // effect merges its setFields into the input.
+    let effectiveInput: Record<string, unknown> = inputValidation.value ?? input;
+    const ruleWarnings: string[] = [];
+    // Post-commit rule side effects (run after the write is durable): collected
+    // by Step 4c, executed best-effort near the event flush below.
+    const pendingRuleActions: ExecuteActionEffect[] = [];
+    const pendingRuleFlows: TriggerFlowEffect[] = [];
 
     // Build ActionContext
     const childExecutionIds: string[] = [];
@@ -781,6 +983,132 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
      * transaction declaration on its child.
      */
     let inTransaction = false;
+
+    // ── Step 4c: Business-rule evaluation (Spec 23 §1.1) ───────────
+    //
+    // Runs after provider setup and before the write. The decision logic lives
+    // in `evaluateActionRules` (engine/action-rule-eval.ts) so it stays a small,
+    // unit-testable unit; this site owns only the side effects that decision
+    // implies — execution logging, approval-request creation, and the early
+    // returns. `block` aborts the action, `require_approval` suspends it into an
+    // approval request, `enrich` augments the input that reaches the
+    // handler/write path, and `warn` surfaces on the result. Conditions are
+    // evaluated against the merged view of the pre-existing record (for updates)
+    // and the validated input, so both input-shape and record-state guards work.
+    // Only action-triggered rules for THIS action fire (filtered +
+    // priority-sorted by collectRules); `execute_action` / `trigger_flow`
+    // effects are collected here and run post-commit (once the write is durable).
+    //
+    // Snapshot caveat (tracked follow-up #462): for a TOP-LEVEL transactional
+    // action the record read inside `evaluateActionRules` happens before
+    // `runInTransaction` opens, so a concurrent commit between here and the write
+    // could make a record-state `block` / `require_approval` decision on a
+    // slightly stale snapshot. Hardening this means calling the helper with the
+    // transactional provider from inside the write transaction (the same in-tx
+    // relocation field-lock enforcement took in PR #203). Nested actions already
+    // read through the parent's tx provider (`parentTxProvider`).
+    if (rules && rules.length > 0) {
+      let applicableRules = applicableRulesCache.get(actionName);
+      if (applicableRules === undefined) {
+        applicableRules = collectRules(actionName, rules);
+        applicableRulesCache.set(actionName, applicableRules);
+      }
+      if (applicableRules.length > 0) {
+        const decision = await evaluateActionRules({
+          applicableRules,
+          entity: action.entity,
+          // Pre-enrich input: the approval request below stores this raw payload
+          // (enrich is re-derived on the post-approval re-execution).
+          effectiveInput,
+          actor,
+          meta: resolvedMeta,
+          // Read through the parent's transactional provider when this is a
+          // nested action inside an open transaction, so the rule sees the
+          // parent's uncommitted writes (Spec 26 §1.1); otherwise the
+          // tenant-scoped baseProvider.
+          readProvider: parentTxProvider ?? baseProvider,
+          queryOptions,
+          skipRules: execOptions?.skipRules,
+          metrics,
+        });
+
+        if (decision.blocked) {
+          await logExecution({
+            id: executionId,
+            action: actionName,
+            entity: action.entity,
+            actor,
+            input,
+            // Policy/authorization-style block (consistent with exposure,
+            // field-lock, and state-transition blocks) — not an execution failure.
+            status: "blocked",
+            error: { message: decision.blocked.reason },
+            meta: metaSnapshot,
+            startedAt,
+          });
+          return {
+            success: false,
+            data: {
+              error: decision.blocked.reason,
+              context: {
+                action: actionName,
+                entity: action.entity,
+                constraint: "rule_block",
+                expected: decision.blocked.reason,
+                suggestion: decision.blocked.suggestion,
+              },
+            } as T,
+            executionId,
+          };
+        }
+
+        // require_approval: suspend the action into an approval request instead
+        // of writing. ApprovalEngine.approve() later re-executes the action with
+        // `skipRules = triggerRules`, so the approval rule does not re-fire. When
+        // no approval engine is wired (minimal setups), fall through and let the
+        // action proceed — the gate is best-effort, not a silent hard block.
+        if (decision.requiredApproval && approvalEngineRef) {
+          const pending = await approvalEngineRef.createRequest({
+            action: actionName,
+            entity: action.entity,
+            recordId: decision.recordId,
+            // Store the pre-enrich input — enrich is re-derived when the approved
+            // action re-executes (the approval rule itself is then skipped).
+            input: effectiveInput,
+            actor,
+            executionId,
+            effect: decision.requiredApproval.effect,
+            triggerRules: decision.requiredApproval.triggerRules,
+            tenantId: execOptions?.tenantId,
+            meta: resolvedMeta.toJSON(),
+          });
+          await logExecution({
+            id: executionId,
+            action: actionName,
+            entity: action.entity,
+            actor,
+            input,
+            // Suspended pending approval — distinct from a hard block/failure so
+            // execution-log consumers can surface it as awaiting sign-off.
+            status: "pending_approval",
+            error: { message: `Pending approval (${pending.level})` },
+            meta: metaSnapshot,
+            startedAt,
+          });
+          return { success: false, data: pending as T, executionId };
+        }
+
+        // Proceed path: adopt the enriched input and fold in warn / side-effect
+        // results. (When require_approval fired but no engine is wired, we land
+        // here and apply them — the gate degraded to best-effort.)
+        effectiveInput = decision.effectiveInput;
+        for (const warning of decision.warnings) ruleWarnings.push(warning);
+        // execute_action / trigger_flow are side effects — defer them to the
+        // post-commit point so they only run once the write is durable.
+        pendingRuleActions.push(...decision.pendingActions);
+        pendingRuleFlows.push(...decision.pendingFlows);
+      }
+    }
 
     // ── Step 4b: Field-lock preflight for declarative updates ──────
     //
@@ -1027,7 +1355,13 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // the meta snapshot. `resolvedMeta` and `metaSnapshot` are in scope here.
 
     const ctx: ActionContext = {
-      input,
+      // `effectiveInput` = the sanitized (allowlisted) payload — in strict mode
+      // undeclared keys stripped by validation never reach handlers / the write
+      // path; lenient (dev/test) falls back to the original input. System fields
+      // are retained by the validator, so update/lock logic that reads `input.id`
+      // is unaffected. Rule `enrich` effects (Step 4c) have already been merged
+      // into `effectiveInput`.
+      input: effectiveInput,
       actor,
       tenantId: execOptions?.tenantId,
       logger,
@@ -1081,12 +1415,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
               }
               const writesToCheck: Record<string, unknown> = { ...data };
               delete writesToCheck.id;
-              const violations = checkFieldLocks({
+              const violations = await checkAndRunFieldLockInterceptor({
+                entity,
                 fields: targetFields,
                 lockAllWhen: targetLockAllWhen,
                 lockAllowFields: targetLockAllowFields,
                 existingRecord: current,
-                input: writesToCheck,
+                writesToCheck,
+                actor,
+                tenantId: execOptions?.tenantId,
+                interceptorRegistry,
               });
               if (violations.length > 0) {
                 throw new LockViolationError(violations, entity);
@@ -1150,6 +1488,10 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           _depth: currentDepth + 1,
           _txDataProvider: childTxDataProvider,
           _parentPendingEvents: childParentPendingEvents,
+          // Bubble the child's post-commit rule side effects up to this parent
+          // (shared tx) so they fire on the parent's commit, not before it.
+          _parentPendingRuleActions: inTransaction ? pendingRuleActions : undefined,
+          _parentPendingRuleFlows: inTransaction ? pendingRuleFlows : undefined,
           meta: childMeta,
         });
         childExecutionIds.push(childResult.executionId);
@@ -1368,15 +1710,19 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (action.handler) {
           resultData = await action.handler(ctx);
         } else {
-          // Declarative action — no handler needed
-          const recordIdLocal = input.id as string | undefined;
+          // Declarative action — no handler needed. Use `effectiveInput` (the
+          // validated + rule-enriched payload) so `enrich` effects and strict
+          // sanitization apply to declarative writes exactly as they do on the
+          // handler path (ctx.input). Reading raw `input` here would silently
+          // drop rule-enriched fields and `$input.*` references to them.
+          const recordIdLocal = effectiveInput.id as string | undefined;
 
           if (recordIdLocal) {
             const updates: Record<string, unknown> = {};
 
             if (action.setFields) {
               for (const [key, value] of Object.entries(action.setFields)) {
-                updates[key] = resolveFieldExpression(value, input, actor);
+                updates[key] = resolveFieldExpression(value, effectiveInput, actor);
               }
             }
 
@@ -1402,12 +1748,16 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 }
                 const writesToCheck: Record<string, unknown> = { ...updates };
                 delete writesToCheck.id;
-                const violations = checkFieldLocks({
+                const violations = await checkAndRunFieldLockInterceptor({
+                  entity: action.entity,
                   fields: resolvedFields,
                   lockAllWhen,
                   lockAllowFields,
                   existingRecord: txCurrent,
-                  input: writesToCheck,
+                  writesToCheck,
+                  actor,
+                  tenantId: execOptions?.tenantId,
+                  interceptorRegistry,
                 });
                 if (violations.length > 0) {
                   throw new LockViolationError(violations, action.entity);
@@ -1535,10 +1885,76 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         }
       }
 
+      // Post-commit rule side effects (Spec 23 §1.1 / Spec 26 §2.2 — eventual
+      // consistency). A nested action inside a parent transaction bubbles its
+      // effects up so they fire on the PARENT's commit (mirrors event flush);
+      // the root / non-transactional level runs them — including any bubbled up
+      // from children. Best-effort — a failure here never fails the
+      // already-committed action.
+      // Bubble each channel independently (mirrors event handling) — coupling
+      // them with `&&` would risk silently dropping one if only the other were
+      // present. A nested action (in a parent tx) bubbles and does not run; the
+      // root / non-transactional level runs (including any bubbled child effects).
+      const bubbleRuleActions = execOptions?._parentPendingRuleActions;
+      const bubbleRuleFlows = execOptions?._parentPendingRuleFlows;
+      if (bubbleRuleActions) bubbleRuleActions.push(...pendingRuleActions);
+      if (bubbleRuleFlows) bubbleRuleFlows.push(...pendingRuleFlows);
+      if (
+        !execOptions?._txDataProvider &&
+        (pendingRuleActions.length > 0 || pendingRuleFlows.length > 0)
+      ) {
+        for (const act of pendingRuleActions) {
+          try {
+            // Stamp provenance like ctx.execute: `_source_action` (caller) +
+            // `_depth` in meta, plus `_depth` as an ExecuteOptions field so the
+            // recursion-depth guard bounds an execute_action cycle.
+            const childMeta = extendExecutionMeta(
+              resolvedMeta,
+              {},
+              { _depth: currentDepth + 1, _source_action: actionName },
+            );
+            const result = await execute(act.action, act.params ?? effectiveInput, actor, {
+              tenantId: execOptions?.tenantId,
+              meta: childMeta,
+              _depth: currentDepth + 1,
+            });
+            if (!result.success) {
+              const data = result.data as { error?: unknown } | undefined;
+              logger.warn(
+                `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" did not succeed: ${typeof data?.error === "string" ? data.error : "unknown error"}`,
+              );
+            }
+          } catch (err) {
+            logger.warn(
+              `[rule:execute_action] "${act.action}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+        for (const fl of pendingRuleFlows) {
+          if (!flowEngineRef) {
+            logger.warn(
+              `[rule:trigger_flow] no flow engine wired — skipping flow "${fl.flow}" triggered by a rule on "${actionName}".`,
+            );
+            continue;
+          }
+          try {
+            await flowEngineRef.startFlow(fl.flow, fl.input ?? effectiveInput, {
+              tenantId: execOptions?.tenantId,
+              actor,
+            });
+          } catch (err) {
+            logger.warn(
+              `[rule:trigger_flow] starting flow "${fl.flow}" triggered by a rule on "${actionName}" failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+      }
+
       return {
         success: true,
         data: resultData as T,
         record,
+        warnings: ruleWarnings.length > 0 ? ruleWarnings : undefined,
         executionId,
       };
     } catch (err) {
@@ -1624,5 +2040,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
   return {
     registry,
     execute,
+    setApprovalEngine,
+    setFlowEngine,
   };
 }

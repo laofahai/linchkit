@@ -10,6 +10,7 @@ import type {
   EntityDefinition,
   EventHandlerDefinition,
   GraphQLExtensionRegistration,
+  InterceptorRegistration,
   InterfaceDefinition,
   MiddlewareRegistration,
   RelationDefinition,
@@ -31,6 +32,8 @@ export interface CollectedDefinitions {
   rules: RuleDefinition[];
   eventHandlers: EventHandlerDefinition[];
   middlewares: MiddlewareRegistration[];
+  /** Interceptors collected from `cap.extensions.interceptors` (Spec 63 Phase 3). */
+  interceptors: InterceptorRegistration[];
   transports: TransportAdapterDefinition[];
   graphqlExtensions: GraphQLExtensionRegistration[];
   commands: CliCommand[];
@@ -55,6 +58,7 @@ export function collectCapabilityDefinitions(
   const rules: RuleDefinition[] = [];
   const eventHandlers: EventHandlerDefinition[] = [];
   const middlewares: MiddlewareRegistration[] = [];
+  const interceptors: InterceptorRegistration[] = [];
   const transports: TransportAdapterDefinition[] = [];
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
   const commands: CliCommand[] = [];
@@ -77,6 +81,13 @@ export function collectCapabilityDefinitions(
           handler: mw.handler,
           order: mw.priority ?? (mw as MiddlewareRegistration).order,
         });
+      }
+    }
+    if (cap.extensions?.interceptors) {
+      for (const reg of cap.extensions.interceptors) {
+        // Default the owning capability name when a registration omits it,
+        // so fail-closed diagnostics always identify the source capability.
+        interceptors.push({ ...reg, capability: reg.capability || cap.name });
       }
     }
     if (cap.extensions?.transports) transports.push(...cap.extensions.transports);
@@ -104,6 +115,7 @@ export function collectCapabilityDefinitions(
     rules,
     eventHandlers,
     middlewares,
+    interceptors,
     transports,
     graphqlExtensions,
     commands,

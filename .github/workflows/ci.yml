@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: these jobs only check out code and run lint/typecheck/tests.
+# No write access to contents, PRs, issues, deployments, etc.
+permissions:
+  contents: read
+
 jobs:
   quality:
     name: Code Quality
@@ -29,6 +34,22 @@ jobs:
           --health-interval 2s
           --health-timeout 5s
           --health-retries 15
+      # Redis for the Redis-gated cache integration suite. Without it the
+      # `describe.skipIf(!redisAvailable)` suite SKIPS in CI — i.e. the real
+      # ioredis GET/SET/DEL/EXPIRE/SUBSCRIBE/PUBLISH path never runs. Mirrors
+      # the `redis-test` service in docker-compose.yml (image/port) so local
+      # and CI behave identically; the test connects to localhost:6380 via
+      # REDIS_TEST_URL below. The host port is 6380 (not 6379) to avoid
+      # clashing with a developer's local Redis, mirroring postgres's 5434.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
     steps:
       - uses: actions/checkout@v5
 
@@ -45,6 +66,13 @@ jobs:
       - name: TypeScript type check
         run: bun run typecheck
 
+      - name: Verify test coverage (every test file is in a batch)
+        shell: bash
+        # Proves scripts/run-tests.sh executes EVERY *.test.ts(x) in the repo.
+        # Fails the job if a file is in no batch — so a new test directory can
+        # never silently fall outside the runner's coverage.
+        run: bash scripts/verify-test-coverage.sh
+
       - name: Run tests
         shell: bash
         env:
@@ -52,32 +80,18 @@ jobs:
           # run. Matches the `postgres` service above and the hardcoded default
           # the test files fall back to.
           DATABASE_TEST_URL: postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test
-        run: |
-          # Bun 1.2.18 occasionally segfaults during process teardown
-          # (panic 0x4A at exit) even when every test passes. The crash can land
-          # AFTER the summary (a "0 fail" line is printed) or BEFORE it (no
-          # summary at all). In both cases bun prints a per-test "(fail)" line
-          # for any genuine failure as the tests run, so the reliable signal is:
-          # a non-zero exit with at least one "(pass)" line and ZERO "(fail)"
-          # lines is the teardown segfault — not a real test failure.
-          set +e
-          OUTPUT=$(bun test 2>&1)
-          RC=$?
-          set -e
-          printf '%s\n' "$OUTPUT"
-          if [ "$RC" -eq 0 ]; then
-            exit 0
-          fi
-          # Use here-strings (not `printf | grep`): the shell runs with pipefail,
-          # and `grep -q` closes the pipe on its first match (an early `(pass)`
-          # line), which SIGPIPEs printf and makes the pipeline return non-zero —
-          # defeating the check. `<<<` feeds grep directly with no pipe.
-          if grep -qE '^\(pass\)' <<< "$OUTPUT" \
-             && ! grep -qE '^\(fail\)' <<< "$OUTPUT"; then
-            echo "::warning::bun test exited $RC with passing tests and no (fail) lines — treating as success (known Bun teardown segfault, panic 0x4A; the crash may precede the summary)."
-            exit 0
-          fi
-          exit "$RC"
+          # Flips the Redis-gated `describe.skipIf(!redisAvailable)` cache suite
+          # from skip to run. Matches the `redis` service above and the
+          # hardcoded default the test file falls back to.
+          REDIS_TEST_URL: redis://localhost:6380
+        # A single root `bun test` does NOT run the whole suite: Bun 1.2.18
+        # crashes MID-RUN (panic 0x4A) inside packages/cli's
+        # lint-capability.test.ts, BEFORE addons/ is reached — so 0 of the 177
+        # addons test files ran, and the old guard masked the truncated run as
+        # success. scripts/run-tests.sh runs the suite as completion-verified
+        # batches, quarantines the one known crash file with an explicit logged
+        # allowance, and FAILS the job on any truncated/crashed batch.
+        run: bash scripts/run-tests.sh
 
   capability-lint:
     name: Capability Lint

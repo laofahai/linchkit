@@ -149,6 +149,35 @@ describe("canUnmask", () => {
     },
   };
 
+  // A manager INHERITS viewer's unmask via `implies` (no direct grant of its own).
+  const managerGroup: PermissionGroupDefinition = {
+    name: "manager",
+    label: "Manager",
+    implies: ["viewer"],
+  };
+
+  // A grant-source group (canonical capability-agnostic `grant[entity]`).
+  const grantViewerGroup: PermissionGroupDefinition = {
+    name: "grant_viewer",
+    label: "Grant Viewer",
+    grant: { order: { fields: { unmask: ["phone"] } } },
+  };
+
+  // systemLevel-based admin (no legacy `system_admin` name).
+  const sysLevelAdmin: PermissionGroupDefinition = {
+    name: "ops_admin",
+    label: "Ops Admin",
+    systemLevel: "admin",
+    permissions: {},
+  };
+
+  // Inherits admin via `implies` (consistent with "implies = inherit everything").
+  const superGroup: PermissionGroupDefinition = {
+    name: "super",
+    label: "Super",
+    implies: ["ops_admin"],
+  };
+
   test("system_admin always has unmask permission", () => {
     const actor: Actor = { type: "human", id: "1", groups: ["system_admin"] };
     expect(canUnmask(actor, [adminGroup], "purchase", "order", "phone")).toBe(true);
@@ -173,6 +202,57 @@ describe("canUnmask", () => {
   test("actor without matching capability", () => {
     const actor: Actor = { type: "human", id: "2", groups: ["viewer"] };
     expect(canUnmask(actor, [viewerGroup], "other_cap", "order", "phone")).toBe(false);
+  });
+
+  // ── inheritance (`implies`) + grant source, scoped over the registered set ──
+
+  test("inherits unmask from an implied group (manager → viewer)", () => {
+    const actor: Actor = { type: "human", id: "4", groups: ["manager"] };
+    // `groups` is the full registered set, as production passes registry.getAll().
+    const registered = [adminGroup, viewerGroup, basicGroup, managerGroup];
+    expect(canUnmask(actor, registered, "purchase", "order", "phone")).toBe(true);
+  });
+
+  test("reads unmask from the canonical `grant` source", () => {
+    const actor: Actor = { type: "human", id: "5", groups: ["grant_viewer"] };
+    expect(canUnmask(actor, [grantViewerGroup], "purchase", "order", "phone")).toBe(true);
+  });
+
+  test("systemLevel:'admin' confers unmask without the legacy name", () => {
+    const actor: Actor = { type: "human", id: "6", groups: ["ops_admin"] };
+    expect(canUnmask(actor, [sysLevelAdmin], "purchase", "order", "phone")).toBe(true);
+  });
+
+  test("admin inherited via implies confers unmask", () => {
+    const actor: Actor = { type: "human", id: "7", groups: ["super"] };
+    expect(canUnmask(actor, [superGroup, sysLevelAdmin], "purchase", "order", "phone")).toBe(true);
+  });
+
+  // ── security: never trust a group the actor is not a member of ──
+
+  test("does NOT leak unmask from a registered group the actor is not in", () => {
+    // Actor is only in `basic`; `viewer` (which grants unmask) is in the
+    // registered set but the actor neither belongs to nor inherits it.
+    const actor: Actor = { type: "human", id: "8", groups: ["basic"] };
+    expect(canUnmask(actor, [viewerGroup, basicGroup], "purchase", "order", "phone")).toBe(false);
+  });
+
+  // ── defensive guards ──
+
+  test("a misconfigured string `unmask` does not substring-match", () => {
+    const actor: Actor = { type: "human", id: "9", groups: ["weird"] };
+    // `unmask` arriving as a string (e.g. raw DB/API data) must not let
+    // "phone_extra".includes("phone") leak the field.
+    const weirdGroup = {
+      name: "weird",
+      grant: { order: { fields: { unmask: "phone_extra" } } },
+    } as unknown as PermissionGroupDefinition;
+    expect(canUnmask(actor, [weirdGroup], "purchase", "order", "phone")).toBe(false);
+  });
+
+  test("an actor with no groups field is denied (no throw)", () => {
+    const actor = { type: "human", id: "10" } as unknown as Actor;
+    expect(canUnmask(actor, [viewerGroup], "purchase", "order", "phone")).toBe(false);
   });
 });
 

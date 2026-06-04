@@ -6,6 +6,7 @@
  */
 
 import { cors } from "@elysiajs/cors";
+import { EnvelopArmorPlugin } from "@escape.tech/graphql-armor";
 import type {
   ActionExecutor,
   Actor,
@@ -41,10 +42,14 @@ import type {
   InMemoryMetricsCollector,
   OnchangeEvaluator,
 } from "@linchkit/core/server";
-import { createTenantAwareDataProvider, getCurrentTrace } from "@linchkit/core/server";
+import {
+  createTenantAwareDataProvider,
+  detectEnvironment,
+  getCurrentTrace,
+} from "@linchkit/core/server";
 import { Elysia } from "elysia";
-import type { GraphQLSchema } from "graphql";
-import { createYoga } from "graphql-yoga";
+import { type GraphQLSchema, NoSchemaIntrospectionCustomRule } from "graphql";
+import { createYoga, type Plugin } from "graphql-yoga";
 import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
 import { mountActionRoutes } from "./routes/action-api";
@@ -52,6 +57,7 @@ import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
 import { mountAIByokRoutes } from "./routes/ai-byok";
 import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
+import { mountResolveSchemaIntentRoute } from "./routes/ai-resolve-schema-intent";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
@@ -216,6 +222,38 @@ export interface ServerOptions {
 export { parseAcceptLanguage } from "./routes/shared";
 
 /**
+ * GraphQL hardening limits (security audit follow-up).
+ *
+ * The GraphQL schema is auto-generated from the meta-model and exposes
+ * bidirectional relation fields, so a query like `a { b { a { b ... } } }`
+ * can recurse without bound and trigger compounding N+1 fan-out — a DoS
+ * vector. graphql-armor's `maxDepth` + `costLimit` envelop validations cap
+ * both the nesting depth and the estimated query cost before resolution.
+ *
+ * Depth accounting (graphql-armor): each nested selection set adds 1. List
+ * queries wrap rows in `xList { items { ... } }`, which already consumes two
+ * levels before the first relation hop. The deepest *legitimate* queries the
+ * app issues today reach ~5 levels (e.g. `departmentList { items {
+ * purchaseRequests { department { name } } } }` — a two-hop bidirectional
+ * traversal, or the field-meta introspection-of-lock-metadata queries).
+ * `12` leaves comfortable headroom (>2x the deepest legit query) for richer
+ * relation chains while still capping unbounded relation cycles to a handful
+ * of round-trips.
+ */
+const GRAPHQL_MAX_DEPTH = 12;
+
+/**
+ * Max estimated query cost (graphql-armor `costLimit`). With the plugin
+ * defaults (objectCost 2, scalarCost 1, depthCostFactor 1.5) a normal
+ * paginated relation query costs well under 1000; armor's own default is
+ * 5000. We keep a generous `15000` ceiling so legitimate wide/deep reads pass
+ * while a maliciously fanned-out recursive query — whose cost grows
+ * factorially with depth — is rejected. Introspection is exempt by default
+ * (`ignoreIntrospection: true`), so tooling/tests are unaffected.
+ */
+const GRAPHQL_MAX_COST = 15_000;
+
+/**
  * Create an Elysia server with GraphQL, health check, and REST action endpoints.
  *
  * @param graphqlSchema - A GraphQL schema built via buildGraphQLSchema()
@@ -239,12 +277,49 @@ export function createServer(
   // Track current schema for hot-reload support
   let currentSchema = graphqlSchema;
 
+  // Resolve the runtime environment via the canonical core helper
+  // (BUN_ENV > NODE_ENV; "development"/"test" → non-production). Both
+  // development AND test are treated as non-production so local tooling and
+  // the test suite keep introspection + the GraphiQL landing page; production
+  // and staging lock both down.
+  const environment = detectEnvironment();
+  const isNonProduction = !environment.isProduction;
+
+  // ── GraphQL hardening (security audit) ───────────────────────
+  // graphql-armor wraps the envelop validation phase with query-depth and
+  // cost ceilings. Both protections ignore introspection by default, so
+  // schema tooling and the test suite (which rely on introspection) are
+  // unaffected. blockFieldSuggestion strips "did you mean …" hints from
+  // validation errors so a probing actor cannot reconstruct the schema even
+  // when introspection is disabled in production.
+  const yogaPlugins: Plugin[] = [
+    EnvelopArmorPlugin({
+      maxDepth: { n: GRAPHQL_MAX_DEPTH },
+      costLimit: { maxCost: GRAPHQL_MAX_COST },
+      blockFieldSuggestion: { enabled: true },
+    }),
+  ];
+
+  // Disable schema introspection in production/staging only. In dev/test it
+  // stays on (GraphiQL + tests depend on it). Implemented as a thin envelop
+  // validation rule using graphql-js's built-in NoSchemaIntrospectionCustomRule,
+  // avoiding an extra runtime dependency.
+  if (!isNonProduction) {
+    yogaPlugins.push({
+      onValidate({ addValidationRule }) {
+        addValidationRule(NoSchemaIntrospectionCustomRule);
+      },
+    });
+  }
+
   // Create graphql-yoga instance with actor + tenant context factory
   const yoga = createYoga({
     schema: () => currentSchema,
     graphqlEndpoint: graphqlPath,
-    // Landing page serves as GraphQL playground in development
-    landingPage: true,
+    // GraphiQL landing page is a dev/test convenience only; never expose the
+    // interactive playground in production/staging.
+    landingPage: isNonProduction,
+    plugins: yogaPlugins,
     // Build GraphQL context with actor, tenant isolation, locale, data provider, and masking context for link resolvers
     context: async ({ request }) => {
       const actor = resolveRequestActor
@@ -335,6 +410,8 @@ export function createServer(
   // audit logging) wins routing for `POST /api/ai/resolve-intent` if any
   // legacy handler is left in the file.
   mountResolveIntentRoute(app, opts);
+  // Spec 52 "说→有" first slice — NL utterance → governed `add_rule` ProposalDraft.
+  mountResolveSchemaIntentRoute(app, opts);
   mountTranslationRoutes(app, opts);
   mountOnchangeRoutes(app, opts, opts.onchangeEvaluator);
 

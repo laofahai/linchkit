@@ -32,6 +32,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { useEntityOnchange } from "../../hooks/use-entity-onchange";
+import { useFieldUnlock } from "../../hooks/use-field-lock-bypass";
+import { useFieldLockState } from "../../hooks/use-field-lock-state";
 import { buildRelationFieldMap } from "../../lib/entity-form-utils";
 import { evaluateVisibility } from "../../lib/field-visibility";
 import { isMaskedValue } from "../../lib/masking";
@@ -142,6 +144,35 @@ export function AutoForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const isViewMode = mode === "view";
+
+  // ── Field-lock state (Spec 63 §5.1) ──
+  // Compute which entity fields are locked for the CURRENT record + mode.
+  // Locked fields render readonly (folded into `isFieldReadonly`) with a lock
+  // indicator. `immutable` only locks on edit; `lockWhen`/`lockAllWhen` lock
+  // when their condition matches the current record's status.
+  const lockFieldNames = useMemo(() => Object.keys(schema.fields), [schema.fields]);
+  // Single source of truth for the record status used by both lock EVALUATION
+  // (below) and lock DISPLAY (the badge in renderField). Prefer the explicit
+  // `recordStatus` prop, falling back to the live form value.
+  const resolvedStatus = recordStatus ?? (formData.status as string | undefined);
+  // NOTE: This memoization assumes Phase-1 lock conditions read ONLY `status`
+  // (matchesLockCondition). Revisit if/when Phase-2 `domain`-based conditions
+  // that inspect other record fields land — they'd need those fields in deps.
+  const lockRecord = useMemo(() => ({ status: resolvedStatus }), [resolvedStatus]);
+  const fieldLockState = useFieldLockState({
+    entity: schema,
+    fieldNames: lockFieldNames,
+    record: lockRecord,
+    mode,
+  });
+
+  // ── Field-lock bypass / unlock (Spec 63 §5.2) ──
+  // Whether the CURRENT actor may override field locks (decided by cap-lock's
+  // policy via the `fieldLockBypass` query; false when cap-lock is absent) and
+  // which fields they have opted to unlock for editing. A bypass-eligible actor
+  // can click a locked field's badge to unlock it. The state + derivation live
+  // in `useFieldUnlock` so this large component stays lean.
+  const { canBypass, isUnlocked, toggleUnlock } = useFieldUnlock();
 
   // ── Entity onchange (Spec 64) ──
   // Server-driven interactive form computation. Fires after a debounced field
@@ -768,6 +799,15 @@ export function AutoForm({
     }
   }
 
+  /**
+   * Whether a locked field can be unlocked from the form. True when the actor
+   * may bypass locks (Spec 63 §5.2) OR the lock is SOFT (advisory — anyone may
+   * unlock it via the two-step confirmation, Spec 63 §4.2).
+   */
+  function canUnlock(fieldName: string): boolean {
+    return fieldLockState[fieldName]?.mode === "soft" || canBypass;
+  }
+
   function isFieldReadonly(
     fieldName: string,
     fieldDef: FieldDefinition,
@@ -778,7 +818,16 @@ export function AutoForm({
     const vf = view.fields.find((f) => f.field === fieldName);
     if (vf?.readonly) return true;
     if (fieldDef.type === "state") return true;
-    if (mode === "edit" && fieldDef.immutable) return true;
+    // Spec 63 §5.1 — computed readonly from entity lock rules (immutable on
+    // edit, lockWhen/lockAllWhen by current state). Supersedes the previous
+    // inline `immutable` check, which this hook also covers.
+    if (fieldLockState[fieldName]?.locked) {
+      // Spec 63 §5.2 / §4.2 — an actor who may unlock the field (bypass-eligible,
+      // or a SOFT lock anyone may confirm) and has explicitly unlocked it may
+      // edit it; otherwise the lock stands.
+      if (canUnlock(fieldName) && isUnlocked(fieldName)) return false;
+      return true;
+    }
     return false;
   }
 
@@ -821,6 +870,36 @@ export function AutoForm({
     const required = !!fieldDef.required && !isViewMode;
     const readonly = isFieldReadonly(node.field, fieldDef, node.readonly);
     const suggestion = aiSuggestions?.[node.field];
+    // Lock indicator: only when the field is locked by an entity lock RULE
+    // (not by view/node readonly or view-mode), so the badge means "rule-locked".
+    const lockInfo = fieldLockState[node.field];
+    // Derive the displayed status from the SAME `resolvedStatus` used for lock
+    // evaluation, so a field can never be evaluated locked under one status
+    // while the tooltip shows a different one.
+    // Spec 63 §5.2 — when the actor may bypass, the badge becomes an unlock
+    // toggle. `lock` is still passed even after a field is unlocked (readonly
+    // cleared) so the open-lock toggle stays visible to re-lock the field.
+    // Spec 63 §4.2 — a soft (advisory) lock is unlockable by ANY actor via the
+    // badge's two-step confirmation, so the badge renders its toggle when
+    // `canBypass || soft`.
+    const soft = lockInfo?.mode === "soft";
+    // The badge may only offer an unlock toggle when the lock is the ONLY reason
+    // the field is readonly. If another source still wins (view/node `readonly`
+    // or a `state`-typed field — the non-lock branches of isFieldReadonly), a
+    // confirmed unlock would flip the badge to "unlocked" while the input stays
+    // readonly — a broken soft-lock UX. In that case fall back to a static badge.
+    const unlockableByBadge = !node.readonly && !viewField?.readonly && fieldDef.type !== "state";
+    const lock =
+      lockInfo?.locked && !isViewMode
+        ? {
+            reason: lockInfo.reason ?? "locked",
+            status: resolvedStatus,
+            canBypass: unlockableByBadge && canBypass,
+            soft: unlockableByBadge && soft,
+            unlocked: unlockableByBadge && isUnlocked(node.field),
+            onToggle: unlockableByBadge ? () => toggleUnlock(node.field) : undefined,
+          }
+        : undefined;
 
     const hasCondition = !!(
       node.visibleWhen ?? view.fields.find((f) => f.field === node.field)?.visibleWhen
@@ -843,6 +922,7 @@ export function AutoForm({
         isDirty={dirtyFields.has(node.field)}
         onChange={(val) => handleChange(node.field, val)}
         onBlur={() => handleBlur(node.field)}
+        lock={lock}
       />
     );
 

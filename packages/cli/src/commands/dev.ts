@@ -143,7 +143,17 @@ export const devCommand = defineCommand({
 
     // ── Collect all definitions from capabilities ──
     const collected = collectCapabilityDefinitions(capabilities);
-    const { entities, actions, views, states, links, rules, middlewares, transports } = collected;
+    const {
+      entities,
+      actions,
+      views,
+      states,
+      links,
+      rules,
+      middlewares,
+      interceptors,
+      transports,
+    } = collected;
 
     consoleLogger.info(
       `Loaded ${capabilities.length} capabilities, ${entities.length} schemas, ${actions.length} actions`,
@@ -210,6 +220,7 @@ export const devCommand = defineCommand({
       links,
       rules,
       middlewares,
+      interceptors,
       capabilities,
       sensors: collected.sensors,
       dbInstance,

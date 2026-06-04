@@ -32,6 +32,11 @@ export interface CacheManagerOptions {
   defaultTtl?: number;
   /** Per-namespace TTL policies. Auto-applied when set() has no explicit TTL. */
   ttlPolicies?: CacheTtlPolicy[];
+  /**
+   * Derived-cache invalidation rules contributed by capabilities. Can also be
+   * added later via {@link CacheManager.registerEntityInvalidation}.
+   */
+  entityInvalidationRules?: EntityInvalidationRule[];
 }
 
 // ── Namespace handle ──────────────────────────────────────
@@ -56,13 +61,24 @@ export interface NamespacedCache {
 /** Runtime events emitted by Action Engine after successful writes */
 const WRITE_EVENT_TYPES = new Set(["record.created", "record.updated", "record.deleted"]);
 
-/** Permission-related action names whose success should flush permission caches */
-const PERMISSION_ACTION_PREFIXES = [
-  "assign_role",
-  "revoke_role",
-  "update_role",
-  "update_permission",
-];
+/**
+ * A derived-cache invalidation rule: when a write touches one of `entities`,
+ * the tag returned by `tagFor(tenantId)` is invalidated.
+ *
+ * Core stays domain-agnostic — it knows nothing about specific addon entities
+ * or cache namespaces. Capabilities that maintain derived caches register their
+ * own rules (e.g. cap-permission registers `["permission_assignment",
+ * "permission_group"] → perm:{tenant}` so a membership/grant change flushes the
+ * permission-decision cache). This replaces a previous hardcoded action-name
+ * prefix list that had drifted from the real action names and silently failed
+ * to invalidate on revocation (fail-open).
+ */
+export interface EntityInvalidationRule {
+  /** Entity names whose create/update/delete should trigger this rule. */
+  entities: readonly string[];
+  /** Derive the cache tag to invalidate from the event's tenant scope. */
+  tagFor: (tenantId?: string) => string;
+}
 
 // ── CacheManager ──────────────────────────────────────────
 
@@ -72,6 +88,8 @@ export class CacheManager {
   private logger: Logger | undefined;
   private defaultTtl: number | undefined;
   private ttlPolicies: CacheTtlPolicy[];
+  /** Capability-registered entity→tag invalidation rules (see registerEntityInvalidation). */
+  private entityInvalidationRules: EntityInvalidationRule[] = [];
 
   constructor(options?: CacheManagerOptions) {
     this.l1 = options?.l1 ?? new InMemoryCacheProvider();
@@ -79,11 +97,24 @@ export class CacheManager {
     this.logger = options?.logger;
     this.defaultTtl = options?.defaultTtl;
     this.ttlPolicies = options?.ttlPolicies ?? [];
+    for (const rule of options?.entityInvalidationRules ?? []) {
+      this.registerEntityInvalidation(rule);
+    }
 
     // Wire up event-driven invalidation
     if (options?.eventBus) {
       this.subscribeToEvents(options.eventBus);
     }
+  }
+
+  /**
+   * Register a derived-cache invalidation rule. When a subsequent write event
+   * touches one of `rule.entities`, the tag from `rule.tagFor(tenantId)` is
+   * invalidated. Lets capabilities (e.g. cap-permission) own the knowledge of
+   * which entity writes flush which derived cache, keeping core domain-agnostic.
+   */
+  registerEntityInvalidation(rule: EntityInvalidationRule): void {
+    this.entityInvalidationRules.push(rule);
   }
 
   // ── Core operations ─────────────────────────────────────
@@ -255,7 +286,7 @@ export class CacheManager {
   handleEvent(event: EventRecord): void {
     if (!WRITE_EVENT_TYPES.has(event.type)) return;
 
-    const { entity, tenantId, action } = event;
+    const { entity, tenantId } = event;
 
     // Invalidate query caches for the affected entity
     if (entity) {
@@ -264,11 +295,16 @@ export class CacheManager {
       this.logger?.debug?.(`Cache invalidated ${count} entries for tag "${tag}" on ${event.type}`);
     }
 
-    // Invalidate permission caches if the action is permission-related
-    if (action && PERMISSION_ACTION_PREFIXES.some((p) => action.startsWith(p))) {
-      const permTag = tenantId ? `perm:${tenantId}` : "perm";
-      const count = this.invalidateByTag(permTag);
-      this.logger?.debug?.(`Cache invalidated ${count} permission entries for tag "${permTag}"`);
+    // Apply capability-registered derived-cache rules (e.g. cap-permission's
+    // permission_assignment/permission_group → perm:{tenant}). Entity-based so a
+    // rule can't drift from action names; core itself knows no domain entities.
+    if (entity) {
+      for (const rule of this.entityInvalidationRules) {
+        if (!rule.entities.includes(entity)) continue;
+        const tag = rule.tagFor(tenantId);
+        const count = this.invalidateByTag(tag);
+        this.logger?.debug?.(`Cache invalidated ${count} entries for rule tag "${tag}"`);
+      }
     }
   }
 

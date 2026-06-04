@@ -12,6 +12,8 @@ import type { FieldDefinition, FormFieldNode, ViewFieldConfig } from "@linchkit/
 import { cn } from "@linchkit/ui-kit/lib/utils";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "../../i18n/use-entity-label";
+import type { FieldLockReason } from "../../lib/field-lock-state";
+import { FieldLockBadge } from "../field-lock-badge";
 import { FieldDisplay, FieldInput, Label } from "../field-renderer";
 import { OverlayFieldBadge } from "../overlay-field-badge";
 
@@ -30,6 +32,25 @@ export interface FormFieldRowProps {
   onBlur: () => void;
   /** Show a visual indicator that this is a runtime overlay (custom) field */
   overlayIndicator?: boolean;
+  /**
+   * When set, the field is locked by an entity lock rule (Spec 63 §5.1). Drives
+   * a lock indicator next to the label. The field's `readonly` prop is set by
+   * the caller; this only controls the visual badge.
+   *
+   * `canBypass` / `unlocked` / `onToggle` (Spec 63 §5.2) make the badge an
+   * interactive unlock toggle for bypass-eligible actors. When `canBypass` is
+   * true and the actor has unlocked the field, the caller clears `readonly` —
+   * but still passes `lock` so the open-lock toggle stays visible (to re-lock).
+   */
+  lock?: {
+    reason: FieldLockReason;
+    status?: string;
+    canBypass?: boolean;
+    /** Spec 63 §4.2 — the conditional lock is advisory; unlocking needs confirmation. */
+    soft?: boolean;
+    unlocked?: boolean;
+    onToggle?: () => void;
+  };
 }
 
 /** Renders a single form field row with label alignment and overlay badge support. */
@@ -46,6 +67,7 @@ export function FormFieldRow({
   onChange,
   onBlur,
   overlayIndicator,
+  lock,
 }: FormFieldRowProps) {
   const { t } = useTranslation();
   const { resolveLabel } = useEntityLabel();
@@ -109,6 +131,16 @@ export function FormFieldRow({
         <span className="inline-flex items-center gap-1">
           {label}
           {overlayIndicator && <OverlayFieldBadge />}
+          {lock && (
+            <FieldLockBadge
+              reason={lock.reason}
+              status={lock.status}
+              canBypass={lock.canBypass}
+              soft={lock.soft}
+              unlocked={lock.unlocked}
+              onToggle={lock.onToggle}
+            />
+          )}
         </span>
       </Label>
 

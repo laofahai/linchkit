@@ -1,0 +1,508 @@
+/**
+ * Unit tests for `evaluateActionRules` (engine/action-rule-eval.ts).
+ *
+ * These exercise the rule-evaluation DECISION in isolation — with a fake
+ * DataProvider and hand-built rule sets — independent of the full action
+ * executor. The end-to-end wiring (executor → logExecution / approval engine /
+ * post-commit side effects) is covered by action-engine-rule-integration.test.ts.
+ */
+
+import { describe, expect, test } from "bun:test";
+import type { DataProvider } from "../src/engine/action-engine";
+import { type EvaluateActionRulesArgs, evaluateActionRules } from "../src/engine/action-rule-eval";
+import { collectRules } from "../src/engine/rule-engine";
+import { NotFoundError } from "../src/errors";
+import { noopMetricsCollector } from "../src/observability/metrics";
+import type { Actor } from "../src/types/action";
+import { createExecutionMeta } from "../src/types/execution-meta";
+import type { RuleDefinition } from "../src/types/rule";
+
+const ACTOR: Actor = { type: "human", id: "u1", groups: ["staff"] };
+
+/** A DataProvider whose `get` returns a fixed record (or throws). */
+function fakeProvider(record: Record<string, unknown> | (() => never) | null): DataProvider {
+  const get = async (): Promise<Record<string, unknown>> => {
+    if (typeof record === "function") record();
+    // The executor treats a falsy record as "not found" and degrades to
+    // input-only; the DataProvider contract is non-null, so we cast here to
+    // emulate a not-found read without widening the interface.
+    return record as Record<string, unknown>;
+  };
+  return {
+    get,
+    query: async () => [],
+    create: async (_s, data) => data,
+    update: async (_s, _id, data) => data,
+    delete: async () => {},
+    count: async () => 0,
+  };
+}
+
+/** Build args with sensible defaults; rules are collected + sorted like the executor does. */
+function args(
+  rules: RuleDefinition[],
+  input: Record<string, unknown>,
+  overrides: Partial<EvaluateActionRulesArgs> = {},
+): EvaluateActionRulesArgs {
+  const trigger = rules[0]?.trigger as { action?: string } | undefined;
+  const actionName = trigger?.action ?? "do_thing";
+  return {
+    applicableRules: collectRules(actionName, rules),
+    entity: "order",
+    effectiveInput: input,
+    actor: ACTOR,
+    meta: createExecutionMeta({}),
+    readProvider: fakeProvider(null),
+    metrics: noopMetricsCollector,
+    ...overrides,
+  } as EvaluateActionRulesArgs;
+}
+
+describe("evaluateActionRules", () => {
+  test("block effect → blocked decision with reason + suggestion, nothing else applied", async () => {
+    const rule: RuleDefinition = {
+      name: "no_huge",
+      label: "Block huge amounts",
+      trigger: { action: "create_order" },
+      condition: { field: "target.amount", operator: "gt", value: 1000 },
+      effect: { type: "block", message: "Amount too large", reason: "amount exceeds 1000" },
+    };
+    const d = await evaluateActionRules(args([rule], { amount: 5000 }));
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toBe("amount exceeds 1000");
+    expect(d.blocked?.suggestion).toContain("amount exceeds 1000");
+    expect(d.requiredApproval).toBeNull();
+    expect(d.warnings).toEqual([]);
+    expect(d.pendingActions).toEqual([]);
+    expect(d.pendingFlows).toEqual([]);
+  });
+
+  test("enrich effect → merged into returned effectiveInput (input wins on conflict)", async () => {
+    const rule: RuleDefinition = {
+      name: "stamp_source",
+      label: "Stamp source",
+      trigger: { action: "create_order" },
+      condition: { field: "target.amount", operator: "gte", value: 0 },
+      effect: { type: "enrich", setFields: { source: "rule", note: "auto" } },
+    };
+    const d = await evaluateActionRules(args([rule], { amount: 10, note: "user" }));
+    expect(d.blocked).toBeNull();
+    // enrich merges OVER input, so its values win for keys it sets.
+    expect(d.effectiveInput).toEqual({ amount: 10, note: "auto", source: "rule" });
+  });
+
+  test("warn effect → message collected, decision still proceeds", async () => {
+    const rule: RuleDefinition = {
+      name: "warn_big",
+      label: "Warn on big",
+      trigger: { action: "create_order" },
+      condition: { field: "target.amount", operator: "gt", value: 100 },
+      effect: { type: "warn", message: "Large order" },
+    };
+    const d = await evaluateActionRules(args([rule], { amount: 500 }));
+    expect(d.blocked).toBeNull();
+    expect(d.warnings).toEqual(["Large order"]);
+  });
+
+  test("require_approval effect → reported with triggerRules, not auto-applied", async () => {
+    const rule: RuleDefinition = {
+      name: "needs_signoff",
+      label: "Needs signoff",
+      trigger: { action: "create_order" },
+      condition: { field: "target.amount", operator: "gt", value: 100 },
+      effect: { type: "require_approval", level: "manager" },
+    };
+    const d = await evaluateActionRules(args([rule], { id: "o1", amount: 500 }));
+    expect(d.requiredApproval?.effect.level).toBe("manager");
+    expect(d.requiredApproval?.triggerRules).toEqual(["needs_signoff"]);
+    expect(d.recordId).toBe("o1");
+  });
+
+  test("record-state condition reads current record via provider", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      // Condition references a field NOT in the input — only the stored record.
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", note: "tweak" },
+        {
+          readProvider: fakeProvider({ id: "o1", status: "shipped" }),
+        },
+      ),
+    );
+    expect(d.blocked?.reason).toBe("Order already shipped");
+  });
+
+  test("input value overrides stored record for the merged condition target", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // Stored status is "shipped" but the input moves it to "draft" → input wins,
+    // condition does NOT match, action proceeds.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider({ id: "o1", status: "shipped" }),
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("read throw with only NON-gate rules degrades to input-only (lenient)", async () => {
+    const rule: RuleDefinition = {
+      name: "warn_draft",
+      label: "Warn draft",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "draft" },
+      effect: { type: "warn", message: "still draft" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("db down");
+          }),
+        },
+      ),
+    );
+    // The read threw but the only effect is `warn` (not a security gate), so we
+    // preserve the lenient input-only degrade — input has status:"draft", so
+    // the warn still fires and nothing is blocked.
+    expect(d.blocked).toBeNull();
+    expect(d.warnings).toEqual(["still draft"]);
+  });
+
+  test("read throw with a block-gate rule fails CLOSED (aborts, not bypassed)", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("db down");
+          }),
+        },
+      ),
+    );
+    // A record-state `block` rule could not read its row → fail closed rather
+    // than silently degrade to input-only (which would let the write through).
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain('Could not read order "o1"');
+    expect(d.blocked?.reason).toContain("db down");
+    expect(d.requiredApproval).toBeNull();
+  });
+
+  test("read throw with a require_approval-gate rule fails CLOSED", async () => {
+    const rule: RuleDefinition = {
+      name: "needs_signoff_when_shipped",
+      label: "Sign-off when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "require_approval", level: "manager" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("timeout");
+          }),
+        },
+      ),
+    );
+    // An approval gate that can't read its row also fails closed (aborts), so
+    // the approval can't be silently skipped.
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain("timeout");
+  });
+
+  test("record ABSENT (read returns falsy) is NOT a failure even with a gate rule", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // get returns null (record genuinely absent) — distinct from a throw. The
+    // condition evaluates against input-only (status:"draft" ≠ "shipped"), so
+    // the action proceeds; absence must NOT trip the fail-closed path.
+    const d = await evaluateActionRules(
+      args([rule], { id: "o1", status: "draft" }, { readProvider: fakeProvider(null) }),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("read NOT_FOUND throw with a gate rule degrades to input-only (absence ≠ read failure)", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // Real providers throw on absent rows (the InMemory store / Drizzle / test
+    // fakes throw "Record not found: …"). A not-found throw is absence, NOT an
+    // infra failure, so even with a block gate it must degrade to input-only —
+    // condition is false on input (status:"draft"), so the action proceeds.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("Record not found: order/o1");
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("typed NotFoundError throw with a gate rule also degrades to input-only", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new NotFoundError({
+              code: "data.record.not_found",
+              message: "Record not found",
+              resource: "order",
+              resourceId: "o1",
+            });
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("NotFoundError with a NON-record code (schema/provider failure) fails CLOSED", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // A NotFoundError can also signal a provider/schema problem (e.g. a missing
+    // id column) — that is NOT an absent row, so a guard rule must fail closed
+    // rather than silently proceed on input-only data.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new NotFoundError({
+              code: "data.schema.no_id_column",
+              message: 'Table for schema "order" has no "id" column',
+              resource: "order",
+              resourceId: "o1",
+            });
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain('Could not read order "o1"');
+    expect(d.blocked?.reason).toContain('has no "id" column');
+  });
+
+  test("coded infra error (non-string code) is NOT treated as not-found via its message", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // A DB driver error can carry a numeric `code` AND a message that happens to
+    // contain "record not found". Because it is coded (and not the record-miss
+    // code), it must fail closed — NOT fall through to the message heuristic.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            const e = new Error("record not found in shard (connection reset)") as Error & {
+              code: number;
+            };
+            e.code = 23505;
+            throw e;
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).not.toBeNull();
+    expect(d.blocked?.reason).toContain("connection reset");
+  });
+
+  test("code-less infra error that only MENTIONS 'record not found' mid-message fails CLOSED", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // The not-found message heuristic is anchored to the START of the message,
+    // so an unrelated failure that merely mentions the phrase mid-message is a
+    // real read failure → fail closed, not treated as an absent row.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            // Phrase appears mid-message (with spaces) — an UNanchored regex
+            // would wrongly match it; the anchored one must not.
+            throw new Error("Connection failed: record not found in replica cache");
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).not.toBeNull();
+  });
+
+  test("infra read throw with the ONLY gate rule in skipRules does not block", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // The gate is intentionally disabled for this run (e.g. an approved
+    // re-execution). An infra read error must NOT resurrect it as a fail-closed
+    // block, since evaluateRules would skip the rule anyway.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            throw new Error("db down");
+          }),
+          skipRules: ["no_edit_shipped"],
+        },
+      ),
+    );
+    expect(d.blocked).toBeNull();
+  });
+
+  test("no entity / no id → no record read, input-only", async () => {
+    const rule: RuleDefinition = {
+      name: "warn_any",
+      label: "Warn any",
+      trigger: { action: "do_thing" },
+      condition: { field: "target.x", operator: "eq", value: 1 },
+      effect: { type: "warn", message: "x is 1" },
+    };
+    let getCalled = false;
+    const provider = fakeProvider({ should: "not-read" });
+    const origGet = provider.get;
+    provider.get = async (...a) => {
+      getCalled = true;
+      return origGet(...a);
+    };
+    const d = await evaluateActionRules(
+      args([rule], { x: 1 }, { entity: undefined, readProvider: provider }),
+    );
+    expect(getCalled).toBe(false);
+    expect(d.warnings).toEqual(["x is 1"]);
+    expect(d.recordId).toBeUndefined();
+  });
+
+  test("execute_action + trigger_flow effects collected as pending side effects", async () => {
+    const rules: RuleDefinition[] = [
+      {
+        name: "spawn_action",
+        label: "Spawn",
+        trigger: { action: "create_order" },
+        condition: { field: "target.amount", operator: "gte", value: 0 },
+        effect: { type: "execute_action", action: "notify_ops", params: { reason: "new" } },
+      },
+      {
+        name: "spawn_flow",
+        label: "Flow",
+        trigger: { action: "create_order" },
+        condition: { field: "target.amount", operator: "gte", value: 0 },
+        effect: { type: "trigger_flow", flow: "fulfillment" },
+      },
+    ];
+    const d = await evaluateActionRules(args(rules, { amount: 1 }));
+    expect(d.pendingActions).toHaveLength(1);
+    expect(d.pendingActions[0]?.action).toBe("notify_ops");
+    expect(d.pendingFlows).toHaveLength(1);
+    expect(d.pendingFlows[0]?.flow).toBe("fulfillment");
+  });
+
+  test("skipRules suppresses the named rule", async () => {
+    const rule: RuleDefinition = {
+      name: "needs_signoff",
+      label: "Needs signoff",
+      trigger: { action: "create_order" },
+      condition: { field: "target.amount", operator: "gt", value: 0 },
+      effect: { type: "require_approval", level: "manager" },
+    };
+    const d = await evaluateActionRules(
+      args([rule], { amount: 500 }, { skipRules: ["needs_signoff"] }),
+    );
+    expect(d.requiredApproval).toBeNull();
+  });
+
+  test("empty-string id → recordId undefined and no record read", async () => {
+    const rule: RuleDefinition = {
+      name: "warn_any",
+      label: "Warn any",
+      trigger: { action: "update_order" },
+      condition: { field: "target.amount", operator: "gte", value: 0 },
+      effect: { type: "warn", message: "hi" },
+    };
+    let getCalled = false;
+    const provider = fakeProvider({ id: "" });
+    provider.get = async () => {
+      getCalled = true;
+      return { id: "" };
+    };
+    const d = await evaluateActionRules(
+      args([rule], { id: "", amount: 1 }, { readProvider: provider }),
+    );
+    expect(getCalled).toBe(false);
+    expect(d.recordId).toBeUndefined();
+  });
+});

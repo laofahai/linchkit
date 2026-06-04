@@ -27,9 +27,13 @@ Runs `tsc --noEmit` in strict mode. No `any` types allowed.
 
 ## 4. Tests
 ```bash
-bun test
+bun run test
 ```
-All tests must pass. Write tests alongside implementation.
+All tests must pass. Write tests alongside implementation. `bun run test` invokes
+`scripts/run-tests.sh`, which runs the suite as completion-verified batches — a bare
+`bun test` crashes mid-run (Bun panic 0x4A) and silently skips every addons test. While
+iterating you may run one subtree (e.g. `bun test ./addons/<cap>/`), but the gate is
+`bun run test`.
 
 ## 5. File Size Check
 Single files MUST NOT exceed 500 lines. If a file is too large:

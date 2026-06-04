@@ -24,7 +24,7 @@
 - [ ] `linch validate` passes
 - [ ] `bun run check` passes
 - [ ] `bun run typecheck` passes
-- [ ] `bun test` passes
+- [ ] `bun run test` passes
 
 ## Checklist
 - [ ] No files exceed 500 lines

@@ -1,0 +1,31 @@
+{
+  "name": "@linchkit/cap-lock",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src/",
+    "capability.json",
+    "package.json",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "graphql": "^16.13.1"
+  },
+  "peerDependencies": {
+    "@linchkit/core": "^0.2.0"
+  },
+  "devDependencies": {
+    "@linchkit/core": "workspace:*",
+    "typescript": "^6.0.2"
+  },
+  "linchkit": {
+    "coreVersion": "^0.2.0",
+    "type": "standard",
+    "category": "system"
+  }
+}

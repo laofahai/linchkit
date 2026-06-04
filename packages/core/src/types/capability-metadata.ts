@@ -44,6 +44,21 @@ const extensionManifestSchema = z.object({
   ruleEffects: z.array(z.string()).optional(),
   /** Hook identifiers */
   hooks: z.array(z.string()).optional(),
+  /**
+   * Interceptor point names this capability attaches to via
+   * `extensions.interceptors` — the value-returning extension seam (Spec 63
+   * §4.2, e.g. "field-lock-check"). Distinct from `hooks`: an interceptor
+   * transforms and returns a value rather than reacting to an event.
+   */
+  interceptors: z.array(z.string()).optional(),
+  /**
+   * GraphQL query/mutation field names this capability contributes via
+   * `extensions.graphqlExtensions` — the read-side IoC seam merged into the
+   * root schema by adapter-server (Spec 63 §5.2, e.g. "fieldLockBypass").
+   * Declarative-only manifest mirror of the runtime extension, exactly like
+   * `interceptors` above.
+   */
+  graphqlExtensions: z.array(z.string()).optional(),
   /** Middleware slot names */
   middlewares: z.array(z.string()).optional(),
   /** CLI command names */

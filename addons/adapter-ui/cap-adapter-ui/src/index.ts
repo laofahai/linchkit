@@ -38,6 +38,12 @@ export {
   DEFAULT_ONCHANGE_DEBOUNCE_MS,
   useEntityOnchange,
 } from "./hooks/use-entity-onchange";
+// Field-lock bypass + unlock (Spec 63 §5.2)
+export type { FieldUnlockState } from "./hooks/use-field-lock-bypass";
+export { useFieldLockBypass, useFieldUnlock } from "./hooks/use-field-lock-bypass";
+export type { FieldLockStateMap, UseFieldLockStateArgs } from "./hooks/use-field-lock-state";
+// Field-lock state (Spec 63 §5.1)
+export { useFieldLockState } from "./hooks/use-field-lock-state";
 export type { SupportedLanguage } from "./i18n";
 // i18n
 export { changeLanguage, default as i18n, languageNames, supportedLanguages } from "./i18n";
@@ -46,6 +52,17 @@ export { resolveEntityLabel, useEntityLabel, useSchemaLabel } from "./i18n/use-e
 export { ShellLayout } from "./layouts/shell";
 export type { EntityOnchangeResult } from "./lib/api";
 export { requestEntityOnchange } from "./lib/api";
+export type {
+  ComputeEntityLockStateArgs,
+  ComputeFieldLockStateArgs,
+  FieldLockReason,
+  FieldLockState,
+} from "./lib/field-lock-state";
+export {
+  computeEntityLockState,
+  computeFieldLockState,
+  matchesLockCondition,
+} from "./lib/field-lock-state";
 // Onchange dispatcher (framework-agnostic primitives — useful for non-React hosts)
 export type { OnchangeFetcher } from "./lib/onchange-dispatcher";
 export { buildOnchangeIndex, OnchangeDispatcher } from "./lib/onchange-dispatcher";

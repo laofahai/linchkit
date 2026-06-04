@@ -79,7 +79,7 @@ addons/ (capabilities — OCA model):
 ```bash
 bun run dev:server    # Server on :3001
 bun run dev:ui        # UI on :3000, proxies API to :3001
-bun test              # Run all tests
+bun run test          # Run the full test suite (batched runner — see scripts/run-tests.sh)
 bun run check         # Biome lint + format
 bun run typecheck     # TypeScript check
 linch validate        # Meta-model validation

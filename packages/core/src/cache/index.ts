@@ -5,7 +5,12 @@
  */
 
 export { type CacheHealthCheckOptions, createCacheHealthCheck } from "./cache-health";
-export { CacheManager, type CacheManagerOptions, type NamespacedCache } from "./cache-manager";
+export {
+  CacheManager,
+  type CacheManagerOptions,
+  type EntityInvalidationRule,
+  type NamespacedCache,
+} from "./cache-manager";
 export type { CacheEntry, CacheProvider, CacheSetOptions, CacheStats } from "./cache-provider";
 export type { CacheManagerStats, CacheManagerStatsOptions } from "./cache-stats";
 export {

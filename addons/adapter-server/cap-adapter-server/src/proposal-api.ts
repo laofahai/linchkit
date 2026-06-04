@@ -8,7 +8,7 @@
 
 import { PatternDetector, type PatternInsight } from "@linchkit/cap-ai-provider";
 import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";
-import { createProposalEngine } from "@linchkit/core/server";
+import { createProposalEngine, type ProposalEngine } from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -52,6 +52,23 @@ export interface EvolutionEntry {
 
 const proposalEngine = createProposalEngine();
 const patternDetector = new PatternDetector();
+
+/**
+ * The single governed Proposal engine instance served by `/api/proposals`.
+ *
+ * Exposed so other routes that mint governed Proposals — notably the
+ * Spec 52/55 "说→有" NL → `add_rule` draft endpoint
+ * (`routes/ai-resolve-schema-intent.ts`) — can persist into the SAME engine the
+ * Proposal review API reads from. Without a shared handle, an NL-produced draft
+ * would land in a different engine instance and never surface in
+ * `GET /api/proposals`.
+ *
+ * Returns the engine as-is (drafts land in `draft` status). It is NEVER
+ * auto-approved or applied here; graduation is a separate human-gated path.
+ */
+export function getSharedProposalEngine(): ProposalEngine {
+  return proposalEngine;
+}
 
 // ── Cached insights from PatternDetector ─────────────────
 

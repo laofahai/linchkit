@@ -97,6 +97,20 @@
       "hasErrors": "Please fix the errors below before submitting",
       "uniqueHint": "Must be unique — validated on save"
     },
+    "lock": {
+      "immutable": "This field cannot be changed after creation",
+      "locked": "This field is locked in the current state",
+      "lockedInState": "Locked because the record is in state \"{{status}}\"",
+      "ariaLabel": "Locked field",
+      "canOverride": "Locked — you may override. Click to unlock.",
+      "unlocked": "Unlocked — you may edit this field",
+      "toggleAriaLabel": "Toggle field lock",
+      "softLocked": "Locked — editing requires confirmation. Click to confirm.",
+      "confirmTitle": "Confirm editing a locked field",
+      "confirmBody": "This field is locked in the current state. Are you sure you want to edit it?",
+      "confirmOk": "Yes, edit",
+      "confirmCancel": "Cancel"
+    },
     "overlayFields": "Custom Fields"
   },
   "list": {
@@ -260,7 +274,9 @@
     "dataLoadFailed": "Failed to load records.",
     "recordNotFound": "Record \"{{id}}\" not found.",
     "recordLoadFailed": "Failed to load record.",
-    "failedToLoadData": "Failed to load data"
+    "failedToLoadData": "Failed to load data",
+    "boundaryTitle": "Something went wrong",
+    "boundaryDescription": "An unexpected error occurred while rendering this view."
   },
   "theme": {
     "light": "Light",
@@ -617,6 +633,18 @@
         "committed_at": "Committed At",
         "deployed_at": "Deployed At",
         "rejection_reason": "Rejection Reason"
+      }
+    },
+    "watcher_state": {
+      "_label": "Watcher State",
+      "_labelPlural": "Watcher States",
+      "fields": {
+        "watcher_name": "Watcher",
+        "group_key": "Group Key",
+        "last_fired_at": "Last Fired At",
+        "condition_met": "Condition Met",
+        "tenant_id": "Tenant",
+        "updated_at": "Updated At"
       }
     }
   },

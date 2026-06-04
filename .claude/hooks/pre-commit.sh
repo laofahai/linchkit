@@ -41,7 +41,7 @@ source "$(dirname "$0")/workflow-state.sh"
 MISSING=""
 wf_fresh check_passed     || MISSING="$MISSING"$'\n  - bun run check'
 wf_fresh typecheck_passed || MISSING="$MISSING"$'\n  - bun run typecheck'
-wf_fresh tests_passed     || MISSING="$MISSING"$'\n  - bun test'
+wf_fresh tests_passed     || MISSING="$MISSING"$'\n  - bun run test'
 
 if [ -n "$MISSING" ]; then
   printf 'BLOCKED: Quality gates not passed or stale:%s\n' "$MISSING" >&2

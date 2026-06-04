@@ -46,6 +46,7 @@ import { buildBatchMutationField } from "./build-batch-mutation";
 import { buildOnchangeMutationFields } from "./build-onchange-mutations";
 import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscriptions";
 import { buildEventsGraphQLExtension } from "./events";
+import { buildFieldMetaList, getFieldMetaType } from "./field-meta";
 import { safeParseJSON } from "./json-arg";
 import {
   generateActionInputType,
@@ -603,6 +604,26 @@ export function buildGraphQLSchema(
             });
           }
         : () => ({ items: [], total: 0, pageInfo: { limit: 20, offset: 0, hasMore: false } }),
+    };
+
+    // ── Query: static field-lock metadata (Spec 63 §6) ────
+    // Pure schema metadata: per-field `immutable` + effective `lockWhen`
+    // (per-field `lockWhen`, else entity `lockAllWhen` when covered). No live
+    // record is read here — clients use this to pre-compute lock state.
+    // Active overlay fields are passed so the introspected field set matches
+    // the entity's GraphQL object/input types (which include overlay fields);
+    // overlays carry no lock vocabulary, so they surface as unlocked — see
+    // `buildFieldMetaList`. Computed once per entity at build time and shared
+    // across requests; no dataProvider dependency, so it works in mock mode.
+    const fieldMetaOverlays = overlayRegistry?.overlaysFor(entityName);
+    const fieldMetaList = buildFieldMetaList(
+      entity,
+      fieldMetaOverlays?.length ? fieldMetaOverlays : undefined,
+    );
+    queryFields[`${camelName}FieldMeta`] = {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(getFieldMetaType()))),
+      description: `Static field-lock metadata for ${entity.label ?? entityName} (Spec 63 §6)`,
+      resolve: () => fieldMetaList,
     };
 
     // Internal schemas are read-only — skip mutation generation

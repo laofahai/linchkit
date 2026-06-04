@@ -97,6 +97,20 @@
       "hasErrors": "请先修正以下错误再提交",
       "uniqueHint": "必须唯一 — 保存时验证"
     },
+    "lock": {
+      "immutable": "此字段创建后不可更改",
+      "locked": "此字段在当前状态下已锁定",
+      "lockedInState": "因记录处于状态“{{status}}”而锁定",
+      "ariaLabel": "已锁定字段",
+      "canOverride": "已锁定 — 你有权限覆盖，点击解锁",
+      "unlocked": "已解锁 — 可编辑此字段",
+      "toggleAriaLabel": "切换字段锁定",
+      "softLocked": "已锁定 — 编辑需确认，点击确认",
+      "confirmTitle": "确认编辑锁定字段",
+      "confirmBody": "该字段在当前状态下已锁定。确定要编辑它吗？",
+      "confirmOk": "确定编辑",
+      "confirmCancel": "取消"
+    },
     "overlayFields": "自定义字段"
   },
   "list": {
@@ -260,7 +274,9 @@
     "dataLoadFailed": "加载数据失败。",
     "recordNotFound": "未找到记录「{{id}}」。",
     "recordLoadFailed": "加载记录失败。",
-    "failedToLoadData": "数据加载失败"
+    "failedToLoadData": "数据加载失败",
+    "boundaryTitle": "出错了",
+    "boundaryDescription": "渲染此视图时发生意外错误。"
   },
   "theme": {
     "light": "浅色",
@@ -617,6 +633,18 @@
         "committed_at": "提交时间",
         "deployed_at": "部署时间",
         "rejection_reason": "拒绝原因"
+      }
+    },
+    "watcher_state": {
+      "_label": "监视器状态",
+      "_labelPlural": "监视器状态",
+      "fields": {
+        "watcher_name": "监视器",
+        "group_key": "分组键",
+        "last_fired_at": "上次触发时间",
+        "condition_met": "条件已满足",
+        "tenant_id": "租户",
+        "updated_at": "更新时间"
       }
     }
   },
