@@ -121,8 +121,16 @@ describe.skipIf(!dbAvailable)("DrizzleDataProvider row-level locking (#470)", ()
         .where(eq(idCol, id))
         .for("update", { noWait: true });
       return true; // acquired the lock → the row was free
-    } catch {
-      return false; // 55P03 lock_not_available → the row is locked elsewhere
+    } catch (err) {
+      // Only "lock not available" (SQLSTATE 55P03) means the row is locked
+      // elsewhere. Surface any other failure instead of masking it as "locked",
+      // which would let an unrelated query/setup error pass as a green test.
+      // drizzle wraps the driver error in DrizzleQueryError, so the Postgres
+      // SQLSTATE is on the wrapped `cause`.
+      const code =
+        (err as { code?: string }).code ?? (err as { cause?: { code?: string } }).cause?.code;
+      if (code === "55P03") return false;
+      throw err;
     }
   };
 
