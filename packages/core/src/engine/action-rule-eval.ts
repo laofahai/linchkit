@@ -60,9 +60,11 @@ function isRecordNotFound(err: unknown): boolean {
     // failure — never reach the message heuristic for it.
     if (code !== undefined) return code === "data.record.not_found";
   }
-  // Code-less errors (in-memory store + test fakes) throw a plain Error with
-  // this message shape on an absent row.
-  return err instanceof Error && /record not found/i.test(err.message);
+  // Code-less errors (in-memory store + test fakes) throw a plain Error whose
+  // message STARTS with "Record not found" (e.g. "Record not found: order/o1")
+  // on an absent row. Anchor the match so an unrelated failure that merely
+  // mentions the phrase mid-message is not misclassified as absence.
+  return err instanceof Error && /^record not found\b/i.test(err.message);
 }
 
 /** Inputs for {@link evaluateActionRules}. */
@@ -210,7 +212,7 @@ export async function evaluateActionRules(
             blocked: {
               reason: `Could not read ${entity} "${recordId}" to evaluate guard rules: ${detail}`,
               suggestion:
-                "A record-state guard rule could not be evaluated because the current record read failed; the action was blocked instead of proceeding on incomplete data. Retry once the data store is reachable.",
+                "A record-state guard rule could not be evaluated because the current record read failed; the action was blocked instead of proceeding on incomplete data. Resolve the underlying read failure (data-store availability, access/permissions, or schema configuration) and retry.",
             },
             requiredApproval: null,
             recordId,

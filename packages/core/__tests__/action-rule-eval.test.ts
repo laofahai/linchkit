@@ -371,6 +371,33 @@ describe("evaluateActionRules", () => {
     expect(d.blocked?.reason).toContain("connection reset");
   });
 
+  test("code-less infra error that only MENTIONS 'record not found' mid-message fails CLOSED", async () => {
+    const rule: RuleDefinition = {
+      name: "no_edit_shipped",
+      label: "No edit when shipped",
+      trigger: { action: "update_order" },
+      condition: { field: "target.status", operator: "eq", value: "shipped" },
+      effect: { type: "block", message: "Order already shipped" },
+    };
+    // The not-found message heuristic is anchored to the START of the message,
+    // so an unrelated failure that merely mentions the phrase mid-message is a
+    // real read failure → fail closed, not treated as an absent row.
+    const d = await evaluateActionRules(
+      args(
+        [rule],
+        { id: "o1", status: "draft" },
+        {
+          readProvider: fakeProvider(() => {
+            // Phrase appears mid-message (with spaces) — an UNanchored regex
+            // would wrongly match it; the anchored one must not.
+            throw new Error("Connection failed: record not found in replica cache");
+          }),
+        },
+      ),
+    );
+    expect(d.blocked).not.toBeNull();
+  });
+
   test("infra read throw with the ONLY gate rule in skipRules does not block", async () => {
     const rule: RuleDefinition = {
       name: "no_edit_shipped",
