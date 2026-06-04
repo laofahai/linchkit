@@ -86,6 +86,7 @@ export function extractCapabilities(
   const relations: RelationDefinition[] = [];
   const rules: RuleDefinition[] = [];
   const flows: FlowDefinition[] = [];
+  const flowNames = new Set<string>();
   const middlewares: MiddlewareRegistration[] = [];
   const seed: Record<string, Array<Record<string, unknown>>> = {};
   const extraQueryFields: Record<string, unknown> = {};
@@ -98,7 +99,22 @@ export function extractCapabilities(
     if (cap.views) views.push(...cap.views);
     if (cap.relations) relations.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
-    if (cap.flows) flows.push(...cap.flows);
+    // Detect duplicate flow names at assembly time. The sync flow engine
+    // registers by name (Map.set), so a collision would otherwise let the later
+    // capability's flow silently overwrite the earlier one — a hard-to-debug
+    // runtime surprise. Fail loud, mirroring mergeGraphQLFields above.
+    if (cap.flows) {
+      for (const flow of cap.flows) {
+        if (flowNames.has(flow.name)) {
+          throw new Error(
+            `Duplicate flow "${flow.name}" contributed by capability "${cap.name}" — ` +
+              "another capability already registered a flow with this name.",
+          );
+        }
+        flowNames.add(flow.name);
+        flows.push(flow);
+      }
+    }
 
     if (cap.seed) {
       for (const [entityName, records] of Object.entries(cap.seed)) {

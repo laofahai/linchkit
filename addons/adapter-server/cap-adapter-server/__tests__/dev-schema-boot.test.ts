@@ -50,6 +50,7 @@ import type {
   ActionDefinition,
   CapabilityDefinition,
   EntityDefinition,
+  FlowDefinition,
   RelationDefinition,
   StateDefinition,
 } from "@linchkit/core";
@@ -284,5 +285,38 @@ describe("capability contribution merging", () => {
     const contributions = extractCapabilities([a, b]);
     expect(contributions.extraQueryFields.fieldA).toBeDefined();
     expect(contributions.extraQueryFields.fieldB).toBeDefined();
+  });
+
+  // Build a minimal capability contributing a single flow, so two of them can
+  // collide on the same flow name.
+  function capWithFlow(name: string, flowName: string): CapabilityDefinition {
+    const flow: FlowDefinition = {
+      name: flowName,
+      label: flowName,
+      trigger: { type: "manual" },
+      steps: [{ id: "s1", name: "Step", type: "action", actionName: "noop" }],
+    };
+    return defineCapability({
+      name,
+      label: name,
+      description: `Synthetic capability contributing flow "${flowName}"`,
+      type: "standard",
+      category: "business",
+      version: "0.1.0",
+      flows: [flow],
+    });
+  }
+
+  it("throws (does not silently overwrite) on a duplicate flow name", () => {
+    const a = capWithFlow("cap-flow-a", "duplicatedFlow");
+    const b = capWithFlow("cap-flow-b", "duplicatedFlow");
+    expect(() => extractCapabilities([a, b])).toThrow(/Duplicate flow "duplicatedFlow"/);
+  });
+
+  it("aggregates distinct flows from different capabilities", () => {
+    const a = capWithFlow("cap-flow-distinct-a", "flowA");
+    const b = capWithFlow("cap-flow-distinct-b", "flowB");
+    const contributions = extractCapabilities([a, b]);
+    expect(contributions.flows.map((f) => f.name).sort()).toEqual(["flowA", "flowB"]);
   });
 });
