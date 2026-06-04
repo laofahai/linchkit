@@ -350,11 +350,21 @@ export class DrizzleDataProvider implements DataProvider {
 
     const conditions = [eq(idCol, id), ...this.buildBaseConditions(table, options)];
 
-    const rows = await this.db
+    // `forUpdate` pins the row with a `SELECT … FOR UPDATE` row lock. When this
+    // read runs inside a transaction (e.g. the in-tx record-state guard re-check,
+    // #466/#469), the lock is held until commit, closing the read→write TOCTOU
+    // window under READ COMMITTED (#470). `this.db` is the transactional handle
+    // here because the executor reads through the tx-scoped provider copy.
+    let query = this.db
       .select()
       .from(table)
       .where(and(...conditions))
-      .limit(1);
+      .limit(1)
+      .$dynamic();
+    if (options?.forUpdate) {
+      query = query.for("update");
+    }
+    const rows = await query;
 
     if (rows.length === 0) {
       throw new NotFoundError({
