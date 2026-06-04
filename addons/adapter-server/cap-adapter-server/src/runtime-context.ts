@@ -33,6 +33,7 @@ import {
   createApprovalEngine,
   createApprovalVerifier,
   createCommandLayer,
+  createFlowRegistry,
   createFlowStepContext,
   createInterfaceRegistry,
   createNoopAIService,
@@ -231,7 +232,18 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
       },
       actionRegistry: executor.registry,
     });
-    const syncFlowEngine = createSyncFlowEngine(flowStepContext);
+    // Build a FlowRegistry so the sync engine can resolve `onComplete` flow
+    // chains, and forward any configured eventBus so it emits flow.completed /
+    // flow.failed events. Each flow is registered on the engine (to run it) and
+    // on the registry (so onComplete chain targets resolve).
+    const flowRegistry = createFlowRegistry();
+    for (const flow of options.flows) {
+      flowRegistry.register(flow);
+    }
+    const syncFlowEngine = createSyncFlowEngine(flowStepContext, {
+      flowRegistry,
+      eventBus: options?.eventBus,
+    });
     for (const flow of options.flows) {
       syncFlowEngine.registerFlow(flow);
     }
