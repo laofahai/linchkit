@@ -114,6 +114,11 @@ export function createDevApp(
     // engine is wired onto the executor inside createRuntimeContext (from the
     // aggregated capability flows), independent of this server-introspection arg.
     flows: [],
+    // Event bus assembled in createRuntimeContext — forwarded so the SSE
+    // subscription route (`/api/subscribe`) mounts and domain events reach
+    // subscribers. Without it, `mountSubscriptionRoutes` early-returns and the
+    // route is dead.
+    eventBus: runtime.eventBus,
     dataProvider: runtime.dataProvider,
     onchangeEvaluator,
   });

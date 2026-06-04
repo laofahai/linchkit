@@ -26,7 +26,7 @@ import type {
   StateDefinition,
   ViewDefinition,
 } from "@linchkit/core";
-import { createOnchangeEvaluator } from "@linchkit/core/server";
+import { createEventBus, createOnchangeEvaluator } from "@linchkit/core/server";
 import type { GraphQLFieldConfig, GraphQLSchema } from "graphql";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
 import { createRuntimeContext, type RuntimeContext } from "./runtime-context";
@@ -224,6 +224,12 @@ export function assembleDevSchema(
 
   const capabilityNames = new Set(capabilities.map((c) => c.name));
 
+  // In-process event bus for the DB-free dev/boot path. The durable `linch dev`
+  // boot path (dev-wiring.ts) builds a PersistentEventBus instead; here a plain
+  // in-memory bus is enough to flush domain events to SSE subscribers and event
+  // handlers. Mirrors dev-wiring.ts's `const { bus } = createEventBus()`.
+  const { bus: eventBus } = createEventBus();
+
   const runtime = createRuntimeContext({
     entities: allEntities,
     actions: allActions,
@@ -234,6 +240,7 @@ export function assembleDevSchema(
     flows: contributions.flows,
     ai: options?.aiService,
     capabilityNames,
+    eventBus,
   });
 
   const onchangeEvaluator = createOnchangeEvaluator({
