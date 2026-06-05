@@ -1670,14 +1670,17 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 actor: { type: actor.type, id: actor.id },
                 // Legacy emitters (e.g. CRUD actions) populate `schema` rather
                 // than `entity`; fall back so the bus EventRecord always carries
-                // the entity name for SSE routing.
+                // the entity name for SSE routing. `payload` is typed non-null,
+                // but this flush is wrapped in a silent catch — optional chaining
+                // keeps a malformed (untyped) emit from dropping the whole batch.
                 entity:
-                  typeof pe.payload.entity === "string"
+                  typeof pe.payload?.entity === "string"
                     ? pe.payload.entity
-                    : typeof pe.payload.schema === "string"
+                    : typeof pe.payload?.schema === "string"
                       ? pe.payload.schema
                       : undefined,
-                recordId: typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
+                recordId:
+                  typeof pe.payload?.recordId === "string" ? pe.payload.recordId : undefined,
                 tenantId: pe.tenantId,
                 executionId: pe.sourceExecutionId ?? executionId,
                 payload: pe.payload,
