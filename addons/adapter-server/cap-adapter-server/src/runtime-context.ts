@@ -163,6 +163,10 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     capabilityNames: options?.capabilityNames,
     entityRegistry,
     transactionManager: options?.transactionManager,
+    // Event bus — domain events (record.created/updated/deleted, action.succeeded)
+    // are emitted here so SSE subscribers and event handlers receive them. Without
+    // it, ctx.emit() events are collected but never flushed to any subscriber.
+    eventBus: options?.eventBus,
     // Strict type/constraint input validation in production + staging; dev/test
     // stay lenient (toy inputs). Sourced from the canonical environment policy.
     strictValidation: detectEnvironment().features.strictValidation,
@@ -170,10 +174,14 @@ export function createRuntimeContext(options?: RuntimeContextOptions): RuntimeCo
     rules: options?.rules,
   });
 
-  // Register actions
+  // Register actions, skipping duplicate names. Mirrors the dedup guard at
+  // build-registries.ts and http-transport.ts (ActionRegistry.has → skip) so a
+  // capability that re-declares a CRUD action name does not throw on re-register.
   if (options?.actions) {
     for (const action of options.actions) {
-      executor.registry.register(action);
+      if (!executor.registry.has(action.name)) {
+        executor.registry.register(action);
+      }
     }
   }
 

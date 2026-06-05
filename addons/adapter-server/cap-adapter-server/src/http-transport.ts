@@ -139,6 +139,12 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
     views: viewsMap,
     capabilities: ctx.capabilities,
     dataProvider: ctx.dataProvider,
+    // Wire the event bus so SSE /api/subscribe is live (subscription-api bails when absent).
+    eventBus: ctx.eventBus,
+    // Wire the approval engine so /api/approvals works (returns 501 when absent).
+    approvalEngine: ctx.approvalEngine,
+    // Wire the cache manager so /internal/cache/stats reports real stats (errors when absent).
+    cacheManager: ctx.cacheManager,
     healthCheckRegistry: ctx.healthCheckRegistry,
     permissionGroups: permGroups,
     entityMap,
