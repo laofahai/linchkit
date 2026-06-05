@@ -235,14 +235,16 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   // handler. Mirrors the registration pattern in events-bootstrap.ts (the
   // `linch events` replay path): guard with `registry.get(name)` because
   // `register()` throws on a duplicate name.
+  const registeredHandlerNames: string[] = [];
   for (const handler of eventHandlers) {
     if (!eventHandlerRegistry.get(handler.name)) {
       eventHandlerRegistry.register(handler);
+      registeredHandlerNames.push(handler.name);
     }
   }
-  if (eventHandlers.length > 0) {
+  if (registeredHandlerNames.length > 0) {
     consoleLogger.info(
-      `Registered ${eventHandlers.length} event handler(s): ${eventHandlers.map((h) => h.name).join(", ")}`,
+      `Registered ${registeredHandlerNames.length} event handler(s): ${registeredHandlerNames.join(", ")}`,
     );
   }
 
