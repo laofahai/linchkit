@@ -10,7 +10,7 @@
  *   6. Auto-trigger: action.succeeded → TriggerBinding → flow starts automatically
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -129,58 +129,55 @@ const app = createServer(graphqlSchema, {
   flowEngine,
 });
 
-const PORT = 4030;
-const BASE = `http://localhost:${PORT}`;
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const BASE = "http://local.test";
 
 // ── Helpers ─────────────────────────────────────────────
 
 async function restAction(name: string, body: Record<string, unknown> = {}) {
-  const res = await fetch(`${BASE}/api/actions/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/actions/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
 async function gql(query: string) {
-  const res = await fetch(`${BASE}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return (await res.json()) as Record<string, unknown>;
 }
 
 async function startFlow(flowName: string, input: Record<string, unknown>) {
-  const res = await fetch(`${BASE}/api/flows/${flowName}/start`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/flows/${flowName}/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
 async function flowStatus(flowName: string, instanceId: string) {
-  const res = await fetch(`${BASE}/api/flows/${flowName}/status/${instanceId}`);
+  const res = await app.handle(new Request(`${BASE}/api/flows/${flowName}/status/${instanceId}`));
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
-
-// ── Lifecycle ───────────────────────────────────────────
-
-beforeAll(() => {
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
-});
 
 // ── Tests ───────────────────────────────────────────────
 
 describe("Flow REST API — list and detail", () => {
   test("GET /api/flows lists registered flows", async () => {
-    const res = await fetch(`${BASE}/api/flows`);
+    const res = await app.handle(new Request(`${BASE}/api/flows`));
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.success).toBe(true);
     const flows = body.data as Array<Record<string, unknown>>;
@@ -190,7 +187,7 @@ describe("Flow REST API — list and detail", () => {
   });
 
   test("GET /api/flows/:name returns flow definition", async () => {
-    const res = await fetch(`${BASE}/api/flows/purchase_approval`);
+    const res = await app.handle(new Request(`${BASE}/api/flows/purchase_approval`));
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.success).toBe(true);
     const flow = body.data as Record<string, unknown>;
@@ -199,7 +196,7 @@ describe("Flow REST API — list and detail", () => {
   });
 
   test("GET /api/flows/nonexistent returns 404", async () => {
-    const res = await fetch(`${BASE}/api/flows/nonexistent`);
+    const res = await app.handle(new Request(`${BASE}/api/flows/nonexistent`));
     expect(res.status).toBe(404);
   });
 });

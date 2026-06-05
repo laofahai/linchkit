@@ -6,7 +6,7 @@
  * - Restore clears deleted_at
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -33,7 +33,7 @@ const SCHEMA_NAME = "soft_del_item";
 let store: InMemoryStore;
 let executor: ReturnType<typeof createActionExecutor>;
 let app: ReturnType<typeof createServer>;
-const port = 3991;
+const BASE = "http://local.test";
 
 beforeAll(() => {
   store = new InMemoryStore();
@@ -45,11 +45,6 @@ beforeAll(() => {
 
   const graphqlSchema = buildGraphQLSchema([schema], { executor, dataProvider: store });
   app = createServer(graphqlSchema);
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 beforeEach(() => {
@@ -59,11 +54,13 @@ beforeEach(() => {
 // ── Helper ────────────────────────────────────────────────
 
 async function gql(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 
@@ -251,7 +248,6 @@ describe("GraphQL soft delete", () => {
  * raw executor. See PR #187.
  */
 describe("GraphQL restore goes through CommandLayer permission slot", () => {
-  const RESTORE_PORT = 3992;
   let pipelineStore: InMemoryStore;
   let pipelineApp: ReturnType<typeof createServer>;
   /** Records of each permission middleware invocation on this pipeline. */
@@ -296,11 +292,6 @@ describe("GraphQL restore goes through CommandLayer permission slot", () => {
       commandLayer,
       dataProvider: pipelineStore,
     });
-    pipelineApp.listen(RESTORE_PORT);
-  });
-
-  afterAll(() => {
-    pipelineApp.stop();
   });
 
   beforeEach(() => {
@@ -310,11 +301,13 @@ describe("GraphQL restore goes through CommandLayer permission slot", () => {
   });
 
   async function gqlPipeline(query: string) {
-    const res = await fetch(`http://localhost:${RESTORE_PORT}/graphql`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
+    const res = await pipelineApp.handle(
+      new Request(`${BASE}/graphql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      }),
+    );
     return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
   }
 

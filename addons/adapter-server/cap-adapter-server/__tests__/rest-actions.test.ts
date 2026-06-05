@@ -5,7 +5,7 @@
  * structure per spec 16 §2.3.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -107,34 +107,26 @@ for (const action of [
 
 const graphqlSchema = buildGraphQLSchema([itemSchema]);
 const app = createServer(graphqlSchema, { executor });
-const port = 4010;
+const BASE = "http://local.test";
 
 function actionUrl(name: string): string {
-  return `http://localhost:${port}/api/actions/${name}`;
+  return `${BASE}/api/actions/${name}`;
 }
 
 async function postAction(
   name: string,
   body: Record<string, unknown> = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(actionUrl(name), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(actionUrl(name), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
   const json = (await res.json()) as Record<string, unknown>;
   return { status: res.status, body: json };
 }
-
-// ── Lifecycle ─────────────────────────────────────────────
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
 
 // ── Tests ─────────────────────────────────────────────────
 
@@ -206,25 +198,21 @@ describe("REST action endpoint — status codes", () => {
         groups: [],
       }),
     });
-    const restrictedPort = 4012;
-    restrictedApp.listen(restrictedPort);
 
-    try {
-      const res = await fetch(`http://localhost:${restrictedPort}/api/actions/do_restricted`, {
+    const res = await restrictedApp.handle(
+      new Request(`${BASE}/api/actions/do_restricted`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
-      });
-      const json = (await res.json()) as Record<string, unknown>;
+      }),
+    );
+    const json = (await res.json()) as Record<string, unknown>;
 
-      expect(res.status).toBe(403);
-      expect(json.success).toBe(false);
-      const err = json.error as Record<string, unknown>;
-      expect(err.code).toBe("ACTION.EXECUTION.FAILED");
-      expect(err.message as string).toContain("does not belong to");
-    } finally {
-      restrictedApp.stop();
-    }
+    expect(res.status).toBe(403);
+    expect(json.success).toBe(false);
+    const err = json.error as Record<string, unknown>;
+    expect(err.code).toBe("ACTION.EXECUTION.FAILED");
+    expect(err.message as string).toContain("does not belong to");
   });
 
   test("(d) input validation failure → 400", async () => {
@@ -285,25 +273,21 @@ describe("REST action endpoint — response structure", () => {
     // Create a server without an executor
     const bareSchema = buildGraphQLSchema([]);
     const bareApp = createServer(bareSchema);
-    const barePort = 4011;
-    bareApp.listen(barePort);
 
-    try {
-      const res = await fetch(`http://localhost:${barePort}/api/actions/anything`, {
+    const res = await bareApp.handle(
+      new Request(`${BASE}/api/actions/anything`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
-      });
+      }),
+    );
 
-      expect(res.status).toBe(500);
-      const body = (await res.json()) as Record<string, unknown>;
-      expect(body.success).toBe(false);
-      const err = body.error as Record<string, unknown>;
-      expect(err.code).toBe("SYSTEM.SERVER.NOT_CONFIGURED");
-      expect(err.type).toBe("system");
-    } finally {
-      bareApp.stop();
-    }
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.success).toBe(false);
+    const err = body.error as Record<string, unknown>;
+    expect(err.code).toBe("SYSTEM.SERVER.NOT_CONFIGURED");
+    expect(err.type).toBe("system");
   });
 });
 

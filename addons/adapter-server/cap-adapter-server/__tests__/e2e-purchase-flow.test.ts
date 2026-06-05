@@ -7,7 +7,7 @@
  * Uses the same demo setup as dev.ts.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -98,41 +98,36 @@ const graphqlSchema = buildGraphQLSchema([purchaseRequestSchema], {
 });
 
 const app = createServer(graphqlSchema, { executor, executionLogger, entityRegistry });
-const PORT = 4020;
-const BASE = `http://localhost:${PORT}`;
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const BASE = "http://local.test";
 
 async function restAction(name: string, body: Record<string, unknown> = {}) {
-  const res = await fetch(`${BASE}/api/actions/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/actions/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
 async function graphql(query: string) {
-  const res = await fetch(`${BASE}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return (await res.json()) as Record<string, unknown>;
 }
 
 async function getExecutions(params = "") {
-  const res = await fetch(`${BASE}/api/executions${params ? `?${params}` : ""}`);
+  const res = await app.handle(new Request(`${BASE}/api/executions${params ? `?${params}` : ""}`));
   return (await res.json()) as Record<string, unknown>;
 }
-
-// ── Lifecycle ────────────────────────────────────────────
-
-beforeAll(() => {
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
-});
 
 // ── Tests ────────────────────────────────────────────────
 
@@ -140,7 +135,7 @@ describe("E2E: Purchase management flow", () => {
   let createdId: string;
 
   test("1. Health check", async () => {
-    const res = await fetch(`${BASE}/health`);
+    const res = await app.handle(new Request(`${BASE}/health`));
     const body = (await res.json()) as Record<string, unknown>;
     expect(res.status).toBe(200);
     expect(body.status).toBe("healthy");
@@ -287,7 +282,7 @@ describe("E2E: Execution Log", () => {
     const items = listData.items as Array<Record<string, unknown>>;
     const firstId = items[0].id as string;
 
-    const res = await fetch(`${BASE}/api/executions/${firstId}`);
+    const res = await app.handle(new Request(`${BASE}/api/executions/${firstId}`));
     const body = (await res.json()) as Record<string, unknown>;
 
     expect(body.success).toBe(true);
@@ -299,7 +294,7 @@ describe("E2E: Execution Log", () => {
   });
 
   test("11. REST: 404 for non-existent execution", async () => {
-    const res = await fetch(`${BASE}/api/executions/nonexistent_id`);
+    const res = await app.handle(new Request(`${BASE}/api/executions/nonexistent_id`));
     expect(res.status).toBe(404);
   });
 

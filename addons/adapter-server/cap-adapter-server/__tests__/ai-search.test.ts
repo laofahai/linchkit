@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { AIService, EntityDefinition } from "@linchkit/core";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -29,31 +29,32 @@ const orderSchema: EntityDefinition = {
 
 const graphqlSchema = buildGraphQLSchema([orderSchema]);
 
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
+
 // ── No AI configured ─────────────────────────────────────
 
 describe("POST /api/ai/search — no AI configured", () => {
-  const PORT = 31930;
   let server: ReturnType<typeof createServer>;
 
   beforeAll(() => {
-    server = createServer(graphqlSchema, { port: PORT });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
+    server = createServer(graphqlSchema);
   });
 
   test("returns null data when AI is not configured", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: "orders over 1000",
-        schema: "order",
-        fields: { amount: { type: "number", label: "Amount" } },
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "orders over 1000",
+          schema: "order",
+          fields: { amount: { type: "number", label: "Amount" } },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -62,11 +63,13 @@ describe("POST /api/ai/search — no AI configured", () => {
   });
 
   test("returns 400 when query is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ schema: "order" }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schema: "order" }),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -75,11 +78,13 @@ describe("POST /api/ai/search — no AI configured", () => {
   });
 
   test("returns 400 when schema is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: "find something" }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: "find something" }),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -91,7 +96,6 @@ describe("POST /api/ai/search — no AI configured", () => {
 // ── With mock AI service ─────────────────────────────────
 
 describe("POST /api/ai/search — with AI service", () => {
-  const PORT = 31931;
   let server: ReturnType<typeof createServer>;
 
   const mockAiService: AIService = {
@@ -116,29 +120,25 @@ describe("POST /api/ai/search — with AI service", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: mockAiService,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
   });
 
   test("returns filter condition from AI", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: "orders over 1000",
-        schema: "order",
-        fields: {
-          amount: { type: "number", label: "Amount" },
-          status: { type: "enum", label: "Status", options: ["draft", "confirmed"] },
-        },
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "orders over 1000",
+          schema: "order",
+          fields: {
+            amount: { type: "number", label: "Amount" },
+            status: { type: "enum", label: "Status", options: ["draft", "confirmed"] },
+          },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -173,15 +173,12 @@ describe("POST /api/ai/search — with AI service", () => {
       }),
     };
 
-    const PORT2 = 31932;
     const srv = createServer(graphqlSchema, {
-      port: PORT2,
       aiService: compositeAiService,
     });
-    srv.listen(PORT2);
 
-    try {
-      const res = await fetch(`http://localhost:${PORT2}/api/ai/search`, {
+    const res = await srv.handle(
+      new Request(`${BASE}/api/ai/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -192,16 +189,14 @@ describe("POST /api/ai/search — with AI service", () => {
             status: { type: "enum", label: "Status" },
           },
         }),
-      });
+      }),
+    );
 
-      expect(res.status).toBe(200);
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data.filter.operator).toBe("and");
-      expect(json.data.filter.conditions).toHaveLength(2);
-    } finally {
-      srv.stop?.();
-    }
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.filter.operator).toBe("and");
+    expect(json.data.filter.conditions).toHaveLength(2);
   });
 });
 
@@ -209,7 +204,6 @@ describe("POST /api/ai/search — with AI service", () => {
 
 describe("POST /api/ai/search — filter validation", () => {
   test("strips fields not in the schema", async () => {
-    const PORT = 31933;
     const badFieldAiService: AIService = {
       configured: true,
       defaultProvider: "mock",
@@ -233,13 +227,11 @@ describe("POST /api/ai/search — filter validation", () => {
     };
 
     const srv = createServer(graphqlSchema, {
-      port: PORT,
       aiService: badFieldAiService,
     });
-    srv.listen(PORT);
 
-    try {
-      const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
+    const res = await srv.handle(
+      new Request(`${BASE}/api/ai/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -250,22 +242,19 @@ describe("POST /api/ai/search — filter validation", () => {
             status: { type: "enum", label: "Status" },
           },
         }),
-      });
+      }),
+    );
 
-      expect(res.status).toBe(200);
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      // The invalid field should be stripped; only `amount` remains
-      const filter = json.data.filter;
-      // After stripping, the AND with one condition reduces to just the single condition
-      expect(filter.field).toBe("amount");
-    } finally {
-      srv.stop?.();
-    }
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    // The invalid field should be stripped; only `amount` remains
+    const filter = json.data.filter;
+    // After stripping, the AND with one condition reduces to just the single condition
+    expect(filter.field).toBe("amount");
   });
 
   test("strips sensitive fields (password, tenant_id)", async () => {
-    const PORT = 31934;
     const sensitiveFieldAiService: AIService = {
       configured: true,
       defaultProvider: "mock",
@@ -287,13 +276,11 @@ describe("POST /api/ai/search — filter validation", () => {
     };
 
     const srv = createServer(graphqlSchema, {
-      port: PORT,
       aiService: sensitiveFieldAiService,
     });
-    srv.listen(PORT);
 
-    try {
-      const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
+    const res = await srv.handle(
+      new Request(`${BASE}/api/ai/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -303,22 +290,19 @@ describe("POST /api/ai/search — filter validation", () => {
             amount: { type: "number", label: "Amount" },
           },
         }),
-      });
+      }),
+    );
 
-      expect(res.status).toBe(200);
-      const json = await res.json();
-      // tenant_id is a sensitive field and should be stripped
-      // The filter is validated server-side: stripped field → null filter
-      // But the endpoint wraps it in { filter, explanation }, so data.filter is null
-      expect(json.success).toBe(true);
-      expect(json.data.filter).toBeNull();
-    } finally {
-      srv.stop?.();
-    }
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    // tenant_id is a sensitive field and should be stripped
+    // The filter is validated server-side: stripped field → null filter
+    // But the endpoint wraps it in { filter, explanation }, so data.filter is null
+    expect(json.success).toBe(true);
+    expect(json.data.filter).toBeNull();
   });
 
   test("returns null when AI returns null filter", async () => {
-    const PORT = 31935;
     const nullFilterAi: AIService = {
       configured: true,
       defaultProvider: "mock",
@@ -335,11 +319,10 @@ describe("POST /api/ai/search — filter validation", () => {
       }),
     };
 
-    const srv = createServer(graphqlSchema, { port: PORT, aiService: nullFilterAi });
-    srv.listen(PORT);
+    const srv = createServer(graphqlSchema, { aiService: nullFilterAi });
 
-    try {
-      const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
+    const res = await srv.handle(
+      new Request(`${BASE}/api/ai/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -347,15 +330,13 @@ describe("POST /api/ai/search — filter validation", () => {
           schema: "order",
           fields: { amount: { type: "number" } },
         }),
-      });
+      }),
+    );
 
-      expect(res.status).toBe(200);
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data).toBeNull();
-    } finally {
-      srv.stop?.();
-    }
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data).toBeNull();
   });
 });
 
@@ -363,7 +344,6 @@ describe("POST /api/ai/search — filter validation", () => {
 
 describe("POST /api/ai/search — query sanitization", () => {
   test("sanitizes control characters from query", async () => {
-    const PORT = 31936;
     let capturedPrompt = "";
     const spyAiService: AIService = {
       configured: true,
@@ -382,11 +362,10 @@ describe("POST /api/ai/search — query sanitization", () => {
       },
     };
 
-    const srv = createServer(graphqlSchema, { port: PORT, aiService: spyAiService });
-    srv.listen(PORT);
+    const srv = createServer(graphqlSchema, { aiService: spyAiService });
 
-    try {
-      await fetch(`http://localhost:${PORT}/api/ai/search`, {
+    await srv.handle(
+      new Request(`${BASE}/api/ai/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -394,20 +373,17 @@ describe("POST /api/ai/search — query sanitization", () => {
           schema: "order",
           fields: { amount: { type: "number" } },
         }),
-      });
+      }),
+    );
 
-      // Control characters should be stripped from the query before passing to AI
-      expect(capturedPrompt).not.toContain("\x00");
-      expect(capturedPrompt).not.toContain("\x01");
-      expect(capturedPrompt).toContain("orders");
-      expect(capturedPrompt).toContain("100");
-    } finally {
-      srv.stop?.();
-    }
+    // Control characters should be stripped from the query before passing to AI
+    expect(capturedPrompt).not.toContain("\x00");
+    expect(capturedPrompt).not.toContain("\x01");
+    expect(capturedPrompt).toContain("orders");
+    expect(capturedPrompt).toContain("100");
   });
 
   test("truncates excessively long queries", async () => {
-    const PORT = 31937;
     let capturedPrompt = "";
     const spyAiService: AIService = {
       configured: true,
@@ -425,12 +401,11 @@ describe("POST /api/ai/search — query sanitization", () => {
       },
     };
 
-    const srv = createServer(graphqlSchema, { port: PORT, aiService: spyAiService });
-    srv.listen(PORT);
+    const srv = createServer(graphqlSchema, { aiService: spyAiService });
 
-    try {
-      const longQuery = "a".repeat(1000);
-      await fetch(`http://localhost:${PORT}/api/ai/search`, {
+    const longQuery = "a".repeat(1000);
+    await srv.handle(
+      new Request(`${BASE}/api/ai/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -438,13 +413,11 @@ describe("POST /api/ai/search — query sanitization", () => {
           schema: "order",
           fields: { amount: { type: "number" } },
         }),
-      });
+      }),
+    );
 
-      // The raw query in the prompt should be truncated to 500 chars
-      // (the prompt wraps it in quotes, so we check the sanitized content inside)
-      expect(capturedPrompt).not.toContain("a".repeat(501));
-    } finally {
-      srv.stop?.();
-    }
+    // The raw query in the prompt should be truncated to 500 chars
+    // (the prompt wraps it in quotes, so we check the sanitized content inside)
+    expect(capturedPrompt).not.toContain("a".repeat(501));
   });
 });

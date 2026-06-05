@@ -9,7 +9,7 @@
  * Uses InMemoryStore with CommandLayer middleware for auth/permission checks.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { ActionDefinition, Actor, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -90,9 +90,12 @@ const internalAction: ActionDefinition = {
 
 // ── Setup ────────────────────────────────────────────────
 
-const PORT = 32150;
-const REST_URL = `http://localhost:${PORT}/api/actions`;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+// Binding a real socket per suite (`app.listen`) crashes the batched addons run.
+const BASE = "http://local.test";
+const REST_URL = `${BASE}/api/actions`;
+const GQL_URL = `${BASE}/graphql`;
 
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
@@ -165,11 +168,6 @@ beforeAll(() => {
       return undefined;
     },
   });
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 beforeEach(() => {
@@ -183,20 +181,24 @@ async function restAction(
   body: Record<string, unknown> = {},
   headers: Record<string, string> = {},
 ) {
-  const res = await fetch(`${REST_URL}/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${REST_URL}/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    }),
+  );
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
 async function gql(query: string, headers: Record<string, string> = {}) {
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 
@@ -345,7 +347,7 @@ describe("E2E auth + permission flow", () => {
   });
 
   test("12. Health endpoint always accessible", async () => {
-    const res = await fetch(`http://localhost:${PORT}/health`);
+    const res = await app.handle(new Request(`${BASE}/health`));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe("healthy");

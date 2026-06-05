@@ -9,7 +9,7 @@
  *   - Happy-path response shape { updates, warnings }
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -69,7 +69,6 @@ function buildServer(options: {
   permissionDeny?: boolean;
   permissionDenyMessage?: string;
   withEvaluator?: boolean;
-  port: number;
 }) {
   const entityRegistry = createEntityRegistry();
   entityRegistry.register(lineEntity);
@@ -110,46 +109,38 @@ function buildServer(options: {
     entityRegistry,
     onchangeEvaluator: evaluator,
   });
-  app.listen(options.port);
   return app;
 }
 
-const happyPort = 4210;
-const denyPort = 4211;
-const leakyDenyPort = 4212;
+const BASE = "http://local.test";
 let happyApp: ReturnType<typeof buildServer>;
 let denyApp: ReturnType<typeof buildServer>;
 let leakyDenyApp: ReturnType<typeof buildServer>;
 
 beforeAll(() => {
-  happyApp = buildServer({ port: happyPort, withEvaluator: true });
-  denyApp = buildServer({ port: denyPort, withEvaluator: true, permissionDeny: true });
+  happyApp = buildServer({ withEvaluator: true });
+  denyApp = buildServer({ withEvaluator: true, permissionDeny: true });
   // A permission middleware that echoes an entity-specific denial string —
   // exactly the kind of side-channel Non-blocker 4 canonicalizes away.
   leakyDenyApp = buildServer({
-    port: leakyDenyPort,
     withEvaluator: true,
     permissionDeny: true,
     permissionDenyMessage: "forbidden: entity admin_secret",
   });
 });
 
-afterAll(() => {
-  happyApp.stop();
-  denyApp.stop();
-  leakyDenyApp.stop();
-});
-
 async function postOnchange(
-  port: number,
+  app: ReturnType<typeof buildServer>,
   entityName: string,
   body: unknown,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(`http://localhost:${port}/api/entities/${entityName}/onchange`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/entities/${entityName}/onchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
   const json = (await res.json()) as Record<string, unknown>;
   return { status: res.status, body: json };
 }
@@ -158,7 +149,7 @@ async function postOnchange(
 
 describe("POST /api/entities/:name/onchange", () => {
   test("happy path returns { updates, warnings } with chained subtotal cascade", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: { product_id: "p1", quantity: 2 },
     });
@@ -173,7 +164,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("comma-separated trigger (quantity,unit_price) updates subtotal", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "quantity",
       values: { quantity: 4, unit_price: 5 },
     });
@@ -182,7 +173,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("400 when changedField is missing", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       values: { product_id: "p1" },
     });
     expect(status).toBe(400);
@@ -190,7 +181,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("400 when changedField is not a known field on the entity", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "does_not_exist",
       values: {},
     });
@@ -199,7 +190,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("400 when changedField is not a string", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: 42,
       values: {},
     });
@@ -211,7 +202,7 @@ describe("POST /api/entities/:name/onchange", () => {
     // Permission slot is a no-op allow_all — with authorization in hand, the
     // evaluator DOES reveal that the entity is missing. Only unauthenticated
     // callers see a uniform 403 (see Finding 1 tests below).
-    const { status, body } = await postOnchange(happyPort, "ghost", {
+    const { status, body } = await postOnchange(happyApp, "ghost", {
       changedField: "x",
       values: {},
     });
@@ -220,7 +211,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("404 when entity has no onchange definition", async () => {
-    const { status, body } = await postOnchange(happyPort, "plain", {
+    const { status, body } = await postOnchange(happyApp, "plain", {
       changedField: "title",
       values: { title: "hi" },
     });
@@ -231,7 +222,7 @@ describe("POST /api/entities/:name/onchange", () => {
   test("404 when changedField exists on entity but has no onchange hook", async () => {
     // `description` is defined on purchase_line but no hook is registered
     // against it. Spec 64 §4.1 mandates this returns 404 (not an empty 200).
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "description",
       values: { description: "x" },
     });
@@ -242,7 +233,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("403 when permission middleware denies the request", async () => {
-    const { status, body } = await postOnchange(denyPort, "purchase_line", {
+    const { status, body } = await postOnchange(denyApp, "purchase_line", {
       changedField: "product_id",
       values: { product_id: "p1" },
     });
@@ -258,7 +249,7 @@ describe("POST /api/entities/:name/onchange", () => {
   });
 
   test("response shape includes updates (record) and warnings (array)", async () => {
-    const { body } = await postOnchange(happyPort, "purchase_line", {
+    const { body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: { product_id: "p1" },
     });
@@ -276,7 +267,7 @@ describe("POST /api/entities/:name/onchange — authorize before revealing exist
     // The deny-all server rejects at the permission slot. The caller must
     // NOT be able to tell from the response whether "ghost" exists — they
     // only learn that they're not authorized.
-    const { status, body } = await postOnchange(denyPort, "ghost", {
+    const { status, body } = await postOnchange(denyApp, "ghost", {
       changedField: "x",
       values: {},
     });
@@ -289,7 +280,7 @@ describe("POST /api/entities/:name/onchange — authorize before revealing exist
   });
 
   test("probe against real entity with denying permission returns 403", async () => {
-    const { status, body } = await postOnchange(denyPort, "purchase_line", {
+    const { status, body } = await postOnchange(denyApp, "purchase_line", {
       changedField: "product_id",
       values: { product_id: "p1" },
     });
@@ -302,14 +293,14 @@ describe("POST /api/entities/:name/onchange — authorize before revealing exist
     // permission slot, letting an unauthenticated caller distinguish "bad
     // request shape" from "entity does not exist" vs "permission denied".
     // Now auth runs first so the answer is always 403.
-    const { status } = await postOnchange(denyPort, "purchase_line", {
+    const { status } = await postOnchange(denyApp, "purchase_line", {
       values: {},
     });
     expect(status).toBe(403);
   });
 
   test("probe with malformed values on denying permission still returns 403 (auth wins)", async () => {
-    const { status } = await postOnchange(denyPort, "purchase_line", {
+    const { status } = await postOnchange(denyApp, "purchase_line", {
       changedField: "product_id",
       values: "not an object",
     });
@@ -326,7 +317,7 @@ describe("POST /api/entities/:name/onchange — canonical 403 envelope (Non-bloc
     // into the response body would let an attacker enumerate entities via
     // varying error strings. The canonical envelope collapses every 403 into
     // the same payload.
-    const { status, body } = await postOnchange(leakyDenyPort, "purchase_line", {
+    const { status, body } = await postOnchange(leakyDenyApp, "purchase_line", {
       changedField: "product_id",
       values: { product_id: "p1" },
     });
@@ -347,11 +338,11 @@ describe("POST /api/entities/:name/onchange — canonical 403 envelope (Non-bloc
     // Probing two different entities must return byte-identical 403 bodies so
     // no observable difference lets a caller distinguish one entity from
     // another via the response text.
-    const a = await postOnchange(leakyDenyPort, "purchase_line", {
+    const a = await postOnchange(leakyDenyApp, "purchase_line", {
       changedField: "product_id",
       values: {},
     });
-    const b = await postOnchange(leakyDenyPort, "ghost_entity_xyz", {
+    const b = await postOnchange(leakyDenyApp, "ghost_entity_xyz", {
       changedField: "anything",
       values: {},
     });
@@ -365,7 +356,7 @@ describe("POST /api/entities/:name/onchange — canonical 403 envelope (Non-bloc
 
 describe("POST /api/entities/:name/onchange — malformed values (Finding 2)", () => {
   test("values as array → 400 with MALFORMED_VALUES code", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: [],
     });
@@ -375,7 +366,7 @@ describe("POST /api/entities/:name/onchange — malformed values (Finding 2)", (
   });
 
   test("values as string → 400 with MALFORMED_VALUES code", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: "not an object",
     });
@@ -385,7 +376,7 @@ describe("POST /api/entities/:name/onchange — malformed values (Finding 2)", (
   });
 
   test("values as null → 400 with MALFORMED_VALUES code", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: null,
     });
@@ -395,7 +386,7 @@ describe("POST /api/entities/:name/onchange — malformed values (Finding 2)", (
   });
 
   test("values as number → 400 with MALFORMED_VALUES code", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: 42,
     });
@@ -405,7 +396,7 @@ describe("POST /api/entities/:name/onchange — malformed values (Finding 2)", (
   });
 
   test("values as plain object → proceeds normally", async () => {
-    const { status, body } = await postOnchange(happyPort, "purchase_line", {
+    const { status, body } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
       values: { product_id: "p1", quantity: 1 },
     });
@@ -417,7 +408,7 @@ describe("POST /api/entities/:name/onchange — malformed values (Finding 2)", (
   test("values omitted entirely → defaults to {} and proceeds", async () => {
     // `values` is optional — the old behavior of treating absent as `{}` is
     // preserved. Only explicitly-wrong shapes trigger MALFORMED_VALUES.
-    const { status } = await postOnchange(happyPort, "purchase_line", {
+    const { status } = await postOnchange(happyApp, "purchase_line", {
       changedField: "product_id",
     });
     expect(status).toBe(200);
