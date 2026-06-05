@@ -18,6 +18,7 @@ import type {
   CapabilityDefinition,
   DataProvider,
   EntityDefinition,
+  EventHandlerDefinition,
   InterceptorRegistration,
   LinchKitConfig,
   MiddlewareRegistration,
@@ -100,6 +101,8 @@ export interface WireDevEnginesInput {
   states: StateDefinition[];
   links: RelationDefinition[];
   rules: RuleDefinition[];
+  /** Event handlers collected from cap.eventHandlers — registered on the EventHandlerRegistry */
+  eventHandlers: EventHandlerDefinition[];
   middlewares: MiddlewareRegistration[];
   /** Interceptors collected from cap.extensions.interceptors (Spec 63 Phase 3) */
   interceptors: InterceptorRegistration[];
@@ -140,6 +143,7 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     states,
     links,
     rules,
+    eventHandlers,
     middlewares,
     interceptors,
     capabilities,
@@ -224,6 +228,25 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   const { bus: eventBus, registry: eventHandlerRegistry } = dbInstance
     ? createPersistentEventBus(dbInstance)
     : createEventBus();
+
+  // Register capability-defined event handlers on the EventHandlerRegistry so
+  // they actually fire under `linch dev`. Without this, `cap.eventHandlers` are
+  // collected but never wired, so domain events emitted by actions reach no
+  // handler. Mirrors the registration pattern in events-bootstrap.ts (the
+  // `linch events` replay path): guard with `registry.get(name)` because
+  // `register()` throws on a duplicate name.
+  const registeredHandlerNames: string[] = [];
+  for (const handler of eventHandlers) {
+    if (!eventHandlerRegistry.get(handler.name)) {
+      eventHandlerRegistry.register(handler);
+      registeredHandlerNames.push(handler.name);
+    }
+  }
+  if (registeredHandlerNames.length > 0) {
+    consoleLogger.info(
+      `Registered ${registeredHandlerNames.length} event handler(s): ${registeredHandlerNames.join(", ")}`,
+    );
+  }
 
   // Build capability name set for ctx.hasCapability() weak dependency checks
   const capabilityNames = new Set(capabilities.map((c) => c.name));
