@@ -43,6 +43,7 @@ export interface CreateDevAppOptions
         ServerOptions,
         | "executor"
         | "commandLayer"
+        | "approvalEngine"
         | "executionLogger"
         | "entityRegistry"
         | "views"
@@ -51,6 +52,7 @@ export interface CreateDevAppOptions
         | "aiService"
         | "states"
         | "flows"
+        | "eventBus"
         | "dataProvider"
         | "onchangeEvaluator"
       >

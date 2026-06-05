@@ -68,11 +68,18 @@ async function readChunkWithTimeout(
   decoder: TextDecoder,
   timeoutMs: number,
 ): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<{ value: undefined; done: true }>((resolve) => {
-    setTimeout(() => resolve({ value: undefined, done: true }), timeoutMs);
+    timer = setTimeout(() => resolve({ value: undefined, done: true }), timeoutMs);
   });
-  const result = await Promise.race([reader.read(), timeout]);
-  return result.value ? decoder.decode(result.value) : "";
+  try {
+    const result = await Promise.race([reader.read(), timeout]);
+    return result.value ? decoder.decode(result.value) : "";
+  } finally {
+    // Clear the timer on the happy path so it does not linger as a background
+    // timer after the read resolves (avoids batched-runner timer accumulation).
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -100,6 +107,8 @@ describe("SSE /api/subscribe e2e (in-process, DB-free, port-free)", () => {
     expect(firstFrame).toContain("event: connected");
     expect(firstFrame).toContain("connectionId");
 
+    // Cancelling the reader closes the SSE stream, which removes the
+    // subscription and clears its per-connection heartbeat/idle timers.
     await reader.cancel();
   });
 
