@@ -136,6 +136,9 @@ export function generateCrudActions(
       }
       const result = await ctx.create(name, inputWithDefaults);
       ctx.emit("record.created", {
+        entity: name,
+        // Legacy alias — kept alongside the canonical `entity` for consumers
+        // that still read `payload.schema` (e.g. cap-search fallback chain).
         schema: name,
         recordId: result.id as string,
         ...result,
@@ -215,6 +218,9 @@ export function generateCrudActions(
         (k) => before[k] !== (result as Record<string, unknown>)[k],
       );
       ctx.emit("record.updated", {
+        entity: name,
+        // Legacy alias — kept alongside the canonical `entity` for consumers
+        // that still read `payload.schema` (e.g. cap-search fallback chain).
         schema: name,
         recordId: id,
         _old: before,
@@ -262,6 +268,9 @@ export function generateCrudActions(
       }
       await ctx.delete(name, id);
       ctx.emit("record.deleted", {
+        entity: name,
+        // Legacy alias — kept alongside the canonical `entity` for consumers
+        // that still read `payload.schema` (e.g. cap-search fallback chain).
         schema: name,
         recordId: id,
         id,

@@ -1668,7 +1668,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
                 category: pe.type.startsWith("record.") ? "change" : "custom",
                 timestamp: new Date(),
                 actor: { type: actor.type, id: actor.id },
-                entity: typeof pe.payload.entity === "string" ? pe.payload.entity : undefined,
+                // Legacy emitters (e.g. CRUD actions) populate `schema` rather
+                // than `entity`; fall back so the bus EventRecord always carries
+                // the entity name for SSE routing.
+                entity:
+                  typeof pe.payload.entity === "string"
+                    ? pe.payload.entity
+                    : typeof pe.payload.schema === "string"
+                      ? pe.payload.schema
+                      : undefined,
                 recordId: typeof pe.payload.recordId === "string" ? pe.payload.recordId : undefined,
                 tenantId: pe.tenantId,
                 executionId: pe.sourceExecutionId ?? executionId,
