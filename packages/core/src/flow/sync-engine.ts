@@ -495,8 +495,10 @@ export function createSyncFlowEngine(
     // multiple flows run concurrently (each gets its own tenant/actor/flowContext).
     const runCtx: FlowStepContext = {
       ...stepContext,
-      tenantId: runOptions?.tenantId,
-      actor: runOptions?.actor,
+      // Only override when explicitly provided so an absent tenant/actor does
+      // NOT wipe any ambient context already on stepContext (tenant isolation).
+      ...(runOptions?.tenantId !== undefined ? { tenantId: runOptions.tenantId } : {}),
+      ...(runOptions?.actor !== undefined ? { actor: runOptions.actor } : {}),
       flowContext,
     };
 

@@ -333,8 +333,10 @@ export async function processOnCompleteChains(
     // runs within the originating tenant boundary instead of with no tenant
     // scope and the default/system actor (tenant-isolation correctness).
     await flowEngine.startFlow(chain.flow, input, {
-      tenantId: instance.tenantId,
-      actor: instance.actor,
+      // Only include when the parent actually had them, so an absent tenant/actor
+      // does not override ambient context the engine may apply (tenant isolation).
+      ...(instance.tenantId !== undefined ? { tenantId: instance.tenantId } : {}),
+      ...(instance.actor !== undefined ? { actor: instance.actor } : {}),
     });
   }
 }
