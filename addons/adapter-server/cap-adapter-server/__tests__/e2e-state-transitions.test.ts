@@ -11,7 +11,7 @@
  * Uses InMemoryStore with state definitions for deterministic testing.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { ActionDefinition, EntityDefinition, StateDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -120,9 +120,10 @@ const resubmitAction: ActionDefinition = {
 
 // ── Setup ────────────────────────────────────────────────
 
-const PORT = 32110;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
-const REST_URL = `http://localhost:${PORT}/api/actions`;
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const GQL_URL = "http://local.test/graphql";
+const REST_URL = "http://local.test/api/actions";
 
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
@@ -148,11 +149,6 @@ beforeAll(() => {
   });
 
   app = createServer(graphqlSchema, { executor });
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 beforeEach(() => {
@@ -162,20 +158,24 @@ beforeEach(() => {
 // ── Helper ────────────────────────────────────────────────
 
 async function gql(query: string) {
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 
 async function restAction(name: string, body: Record<string, unknown> = {}) {
-  const res = await fetch(`${REST_URL}/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${REST_URL}/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 

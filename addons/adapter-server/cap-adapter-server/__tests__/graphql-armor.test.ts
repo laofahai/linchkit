@@ -13,7 +13,7 @@
  * Mirrors the server-construction pattern in e2e-relations.test.ts.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { EntityDefinition, RelationDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -55,8 +55,9 @@ const deptPurchaseLink: RelationDefinition = {
 
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
-// Bound to a random free port (port 0) in beforeAll to avoid cross-test collisions.
-let gqlUrl: string;
+// In-process, port-free: this URL only supplies a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const gqlUrl = "http://local.test/graphql";
 
 beforeAll(() => {
   store = new InMemoryStore();
@@ -82,24 +83,16 @@ beforeAll(() => {
   // `entityMap` (not `schemaMap`) is the option createServer reads + injects
   // into the GraphQL context.
   app = createServer(graphqlSchema, { dataProvider: store, entityMap });
-  // Listen on port 0 → the OS assigns a free port; capture it so parallel test
-  // files never collide on a fixed port.
-  app.listen(0);
-  const port = app.server?.port;
-  if (!port) throw new Error("graphql-armor test server failed to bind a port");
-  gqlUrl = `http://localhost:${port}/graphql`;
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 async function gql(query: string) {
-  const res = await fetch(gqlUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(gqlUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return res.json() as Promise<{
     data?: Record<string, unknown> | null;
     errors?: Array<{ message: string }>;

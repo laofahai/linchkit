@@ -9,7 +9,7 @@
  * because the auto-generated GraphQL resolvers read from DataProvider.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -43,15 +43,9 @@ const graphqlSchema = buildGraphQLSchema([taskSchema, executionLogSchema], {
   internalSchemas: new Set(["execution_log"]),
 });
 const app = createServer(graphqlSchema);
-const port = 3993;
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
+// In-process, port-free: this URL only supplies a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const GQL_URL = "http://local.test/graphql";
 
 beforeEach(() => {
   store.clear();
@@ -60,11 +54,13 @@ beforeEach(() => {
 // ── Helper ────────────────────────────────────────────────
 
 async function gql(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 

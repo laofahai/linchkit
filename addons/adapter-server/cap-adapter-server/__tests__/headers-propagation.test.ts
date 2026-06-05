@@ -9,7 +9,7 @@
  * mutations / `<entity>_onchange` mutations.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ActionContext, ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -142,15 +142,7 @@ const app = createServer(graphqlSchema, {
   onchangeEvaluator,
 });
 
-const port = 4321;
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
+const BASE = "http://local.test";
 
 function clearCaptures(): void {
   captures.length = 0;
@@ -162,11 +154,13 @@ async function postRest(
   body: Record<string, unknown> = {},
   headers: Record<string, string> = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(`http://localhost:${port}/api/actions/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/actions/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    }),
+  );
   const json = (await res.json()) as Record<string, unknown>;
   return { status: res.status, body: json };
 }
@@ -176,11 +170,13 @@ async function gql(
   variables: Record<string, unknown> | undefined,
   headers: Record<string, string> = {},
 ): Promise<{ data?: Record<string, unknown>; errors?: Array<Record<string, unknown>> }> {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return (await res.json()) as {
     data?: Record<string, unknown>;
     errors?: Array<Record<string, unknown>>;

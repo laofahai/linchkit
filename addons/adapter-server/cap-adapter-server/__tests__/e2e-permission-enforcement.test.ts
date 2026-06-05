@@ -10,9 +10,9 @@
  *
  * The full stack runs through `createDevApp(...)` — real GraphQL schema, real
  * CommandLayer pipeline, real REST + GraphQL routes, InMemoryStore (DB-free) —
- * and is driven over a real HTTP listener with `fetch`, exactly like the other
- * e2e REST tests in this package. No mocks of the permission decision: every
- * denial originates from the real engine.
+ * and is driven in-process via `app.handle(new Request(...))`, exactly like the
+ * other e2e REST tests in this package. No mocks of the permission decision:
+ * every denial originates from the real engine.
  *
  * Proves:
  *   (a) an actor WITHOUT the required permission is DENIED (HTTP 403, the real
@@ -29,7 +29,7 @@
  * permission slot is the real cap-permission middleware.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
 import { createCapPermission } from "@linchkit/cap-permission";
 import type {
   ActionDefinition,
@@ -155,35 +155,23 @@ function resolveRequestActor(request: Request): Actor | undefined {
 
 // ── App + helpers ──────────────────────────────────────────
 
-// Bind an OS-assigned free port (listen(0)) rather than a hardcoded one so
-// parallel test runs — or an already-bound port — don't cause flaky
-// collisions. REST_BASE / GQL_URL are resolved from the actual port in
-// beforeAll, before any test runs.
-let REST_BASE: string;
-let GQL_URL: string;
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const REST_BASE = "http://local.test/api/actions";
+const GQL_URL = "http://local.test/graphql";
 
 let app: ReturnType<typeof createDevApp>["app"];
 
 beforeAll(() => {
-  // Assemble the app ONCE and bind the port once (re-listening on the same
-  // port between tests can crash the Bun runtime). The REAL cap-permission
-  // middleware occupies the `permission` slot, so the dev allow-all stub is
-  // NOT injected. CORS disabled — same-origin in-test fetch. Tests reference
-  // records by the id returned at creation, so the shared InMemoryStore needs
-  // no per-test reset.
+  // Assemble the app ONCE. The REAL cap-permission middleware occupies the
+  // `permission` slot, so the dev allow-all stub is NOT injected. CORS disabled
+  // — same-origin in-process dispatch. Tests reference records by the id
+  // returned at creation, so the shared InMemoryStore needs no per-test reset.
   const capPermission = createCapPermission({ registry: buildRegistry() });
   app = createDevApp([capReportTest, capPermission], {
     cors: false,
     resolveRequestActor,
   }).app;
-  app.listen(0);
-  const port = app.server?.port ?? 0;
-  REST_BASE = `http://localhost:${port}/api/actions`;
-  GQL_URL = `http://localhost:${port}/graphql`;
-});
-
-afterAll(() => {
-  app?.stop();
 });
 
 interface RestResult {
@@ -202,11 +190,13 @@ async function restAction(
 ): Promise<RestResult> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (auth) headers.authorization = auth;
-  const res = await fetch(`${REST_BASE}/${name}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(input),
-  });
+  const res = await app.handle(
+    new Request(`${REST_BASE}/${name}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input),
+    }),
+  );
   return { status: res.status, body: (await res.json()) as RestResult["body"] };
 }
 
@@ -218,11 +208,13 @@ interface GqlResult {
 async function gql(query: string, auth?: string): Promise<GqlResult> {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (auth) headers.authorization = auth;
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query }),
+    }),
+  );
   return (await res.json()) as GqlResult;
 }
 

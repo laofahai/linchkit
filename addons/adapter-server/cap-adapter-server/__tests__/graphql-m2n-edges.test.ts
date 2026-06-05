@@ -6,7 +6,7 @@
  * while M:N links without properties continue to return plain arrays.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition, RelationDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -88,8 +88,8 @@ const articleToTags: RelationDefinition = {
 
 // ── Setup ────────────────────────────────────────────────
 
-const PORT = 32160;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+const BASE = "http://local.test";
+const GQL_URL = `${BASE}/graphql`;
 
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
@@ -119,11 +119,6 @@ beforeAll(() => {
     dataProvider: store,
     schemaMap,
   });
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 beforeEach(() => {
@@ -133,11 +128,13 @@ beforeEach(() => {
 // ── Helper ────────────────────────────────────────────────
 
 async function gql(query: string) {
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 

@@ -5,7 +5,7 @@
  * via multipart form data (CSV and JSON formats).
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -47,25 +47,19 @@ const entityRegistry = new EntityRegistry();
 entityRegistry.register(productSchema);
 
 const graphqlSchema = buildGraphQLSchema([productSchema]);
-const port = 4077;
 const app = createServer(graphqlSchema, {
   executor,
   entityRegistry,
 });
 
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
+
 function importUrl(entityName: string): string {
-  return `http://localhost:${port}/api/entities/${entityName}/import`;
+  return `${BASE}/api/entities/${entityName}/import`;
 }
-
-// ── Lifecycle ─────────────────────────────────────────────
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
 
 // ── Tests ─────────────────────────────────────────────────
 
@@ -82,10 +76,12 @@ describe("Data Import endpoint", () => {
     formData.append("file", blob, "import.json");
     formData.append("format", "json");
 
-    const res = await fetch(importUrl("product"), {
-      method: "POST",
-      body: formData,
-    });
+    const res = await app.handle(
+      new Request(importUrl("product"), {
+        method: "POST",
+        body: formData,
+      }),
+    );
 
     const json = await res.json();
     expect(res.status).toBe(200);
@@ -102,10 +98,12 @@ describe("Data Import endpoint", () => {
     formData.append("file", blob, "import.csv");
     formData.append("format", "csv");
 
-    const res = await fetch(importUrl("product"), {
-      method: "POST",
-      body: formData,
-    });
+    const res = await app.handle(
+      new Request(importUrl("product"), {
+        method: "POST",
+        body: formData,
+      }),
+    );
 
     const json = await res.json();
     expect(res.status).toBe(200);
@@ -120,10 +118,12 @@ describe("Data Import endpoint", () => {
     formData.append("file", blob, "import.json");
     formData.append("format", "json");
 
-    const res = await fetch(importUrl("nonexistent"), {
-      method: "POST",
-      body: formData,
-    });
+    const res = await app.handle(
+      new Request(importUrl("nonexistent"), {
+        method: "POST",
+        body: formData,
+      }),
+    );
 
     expect(res.status).toBe(404);
     const json = await res.json();
@@ -134,10 +134,12 @@ describe("Data Import endpoint", () => {
     const formData = new FormData();
     formData.append("format", "json");
 
-    const res = await fetch(importUrl("product"), {
-      method: "POST",
-      body: formData,
-    });
+    const res = await app.handle(
+      new Request(importUrl("product"), {
+        method: "POST",
+        body: formData,
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -157,10 +159,12 @@ describe("Data Import endpoint", () => {
     formData.append("file", blob, "import.json");
     formData.append("format", "json");
 
-    const res = await fetch(importUrl("product"), {
-      method: "POST",
-      body: formData,
-    });
+    const res = await app.handle(
+      new Request(importUrl("product"), {
+        method: "POST",
+        body: formData,
+      }),
+    );
 
     const json = await res.json();
     expect(res.status).toBe(200);
@@ -175,10 +179,12 @@ describe("Data Import endpoint", () => {
     formData.append("file", blob, "import.json");
     formData.append("format", "json");
 
-    const res = await fetch(importUrl("product"), {
-      method: "POST",
-      body: formData,
-    });
+    const res = await app.handle(
+      new Request(importUrl("product"), {
+        method: "POST",
+        body: formData,
+      }),
+    );
 
     const json = await res.json();
     expect(res.status).toBe(200);

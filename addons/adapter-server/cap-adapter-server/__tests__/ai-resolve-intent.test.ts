@@ -14,7 +14,7 @@
  * All tests use a deterministic fake AIService — no real LLM calls.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type {
   ActionDefinition,
   Actor,
@@ -141,22 +141,28 @@ const ANON_ACTOR: Actor = {
   groups: [],
 };
 
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
+
 async function postResolveIntent(
-  port: number,
+  app: ReturnType<typeof createServer>,
   body: unknown,
 ): Promise<{ status: number; json: unknown }> {
-  const res = await fetch(`http://localhost:${port}/api/ai/resolve-intent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/ai/resolve-intent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
   return { status: res.status, json: await res.json() };
 }
 
 // ── Scenario 1: Happy path ───────────────────────────────────
 
 describe("POST /api/ai/resolve-intent — happy path", () => {
-  const PORT = 31940;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
@@ -172,22 +178,15 @@ describe("POST /api/ai/resolve-intent — happy path", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: ai,
       ontologyRegistry: ontology,
       aiAuditLogger: auditLogger,
       resolveRequestActor: () => ANON_ACTOR,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
-    auditLogger.clear();
   });
 
   test("returns ActionProposal and writes one matched=true audit entry", async () => {
-    const { status, json } = await postResolveIntent(PORT, {
+    const { status, json } = await postResolveIntent(server, {
       prompt: "Create a purchase request for 5000 for General Admin",
     });
     expect(status).toBe(200);
@@ -227,7 +226,6 @@ describe("POST /api/ai/resolve-intent — happy path", () => {
 // ── Scenario 2: AI cannot match ──────────────────────────────
 
 describe("POST /api/ai/resolve-intent — AI cannot match", () => {
-  const PORT = 31941;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
@@ -242,22 +240,15 @@ describe("POST /api/ai/resolve-intent — AI cannot match", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: ai,
       ontologyRegistry: ontology,
       aiAuditLogger: auditLogger,
       resolveRequestActor: () => ANON_ACTOR,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
-    auditLogger.clear();
   });
 
   test("returns { proposal: null } and writes one matched=false audit entry", async () => {
-    const { status, json } = await postResolveIntent(PORT, {
+    const { status, json } = await postResolveIntent(server, {
       prompt: "Recite a sonnet about TypeScript.",
     });
     expect(status).toBe(200);
@@ -275,7 +266,6 @@ describe("POST /api/ai/resolve-intent — AI cannot match", () => {
 // ── Scenario 3: Empty prompt → 400 (Zod) ─────────────────────
 
 describe("POST /api/ai/resolve-intent — empty prompt", () => {
-  const PORT = 31942;
   let server: ReturnType<typeof createServer>;
   const { ontology } = buildOntology([createPurchaseAction]);
   const ai = fakeAiService({
@@ -284,19 +274,13 @@ describe("POST /api/ai/resolve-intent — empty prompt", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: ai,
       ontologyRegistry: ontology,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
   });
 
   test("rejects empty prompt with 400 + structured error", async () => {
-    const { status, json } = await postResolveIntent(PORT, { prompt: "" });
+    const { status, json } = await postResolveIntent(server, { prompt: "" });
     expect(status).toBe(400);
     const body = json as { success: boolean; error: { code: string; message: string } };
     expect(body.success).toBe(false);
@@ -305,7 +289,7 @@ describe("POST /api/ai/resolve-intent — empty prompt", () => {
   });
 
   test("rejects request without prompt field with 400", async () => {
-    const { status, json } = await postResolveIntent(PORT, {});
+    const { status, json } = await postResolveIntent(server, {});
     expect(status).toBe(400);
     const body = json as { success: boolean };
     expect(body.success).toBe(false);
@@ -315,28 +299,20 @@ describe("POST /api/ai/resolve-intent — empty prompt", () => {
 // ── Scenario 4: AI service unavailable → 503 ─────────────────
 
 describe("POST /api/ai/resolve-intent — AI unavailable", () => {
-  const PORT = 31943;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       // No aiService configured → graceful 503
       ontologyRegistry: ontology,
       aiAuditLogger: auditLogger,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
-    auditLogger.clear();
   });
 
   test("returns 503 with structured error envelope when no AI service is configured", async () => {
-    const { status, json } = await postResolveIntent(PORT, {
+    const { status, json } = await postResolveIntent(server, {
       prompt: "Create something",
     });
     expect(status).toBe(503);
@@ -346,34 +322,26 @@ describe("POST /api/ai/resolve-intent — AI unavailable", () => {
   });
 
   test("returns 503 when aiService.configured === false", async () => {
-    const PORT2 = 31924;
     const auditLogger2 = new AIAuditLogger();
     const server2 = createServer(graphqlSchema, {
-      port: PORT2,
       aiService: noopAiService,
       ontologyRegistry: ontology,
       aiAuditLogger: auditLogger2,
     });
-    server2.listen(PORT2);
-    try {
-      const { status } = await postResolveIntent(PORT2, { prompt: "anything" });
-      expect(status).toBe(503);
-      // Audit entry still emitted so volume is observable.
-      const entries = auditLogger2.query();
-      expect(entries.length).toBe(1);
-      expect(entries[0]?.eventType).toBe("intent_resolution");
-      const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
-      expect(meta?.serviceUnavailable).toBe(true);
-    } finally {
-      server2.stop?.();
-    }
+    const { status } = await postResolveIntent(server2, { prompt: "anything" });
+    expect(status).toBe(503);
+    // Audit entry still emitted so volume is observable.
+    const entries = auditLogger2.query();
+    expect(entries.length).toBe(1);
+    expect(entries[0]?.eventType).toBe("intent_resolution");
+    const meta = entries[0]?.metadata as Record<string, unknown> | undefined;
+    expect(meta?.serviceUnavailable).toBe(true);
   });
 });
 
 // ── Scenario 5: Permission filtering ─────────────────────────
 
 describe("POST /api/ai/resolve-intent — permission filtering", () => {
-  const PORT = 31945;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   // Build an ontology with TWO actions; the actor is allowed to execute
@@ -417,23 +385,16 @@ describe("POST /api/ai/resolve-intent — permission filtering", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: ai,
       ontologyRegistry: ontology,
       aiAuditLogger: auditLogger,
       permissionRegistry,
       resolveRequestActor: () => viewerActor,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
-    auditLogger.clear();
   });
 
   test("filters out actions the actor cannot execute from the resolver's catalog", async () => {
-    const { status } = await postResolveIntent(PORT, {
+    const { status } = await postResolveIntent(server, {
       prompt: "Erase everything immediately.",
     });
     expect(status).toBe(200);
@@ -454,7 +415,6 @@ describe("POST /api/ai/resolve-intent — permission filtering", () => {
 // ── Scenario 6: Audit entry shape ────────────────────────────
 
 describe("POST /api/ai/resolve-intent — audit entry shape", () => {
-  const PORT = 31946;
   let server: ReturnType<typeof createServer>;
   const auditLogger = new AIAuditLogger();
   const { ontology } = buildOntology([createPurchaseAction]);
@@ -470,22 +430,15 @@ describe("POST /api/ai/resolve-intent — audit entry shape", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: ai,
       ontologyRegistry: ontology,
       aiAuditLogger: auditLogger,
       resolveRequestActor: () => ANON_ACTOR,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
-    auditLogger.clear();
   });
 
   test("audit entry contains all expected fields", async () => {
-    await postResolveIntent(PORT, { prompt: "create a purchase for 100 Eng" });
+    await postResolveIntent(server, { prompt: "create a purchase for 100 Eng" });
     const entries = auditLogger.query();
     expect(entries.length).toBe(1);
     const entry = entries[0];

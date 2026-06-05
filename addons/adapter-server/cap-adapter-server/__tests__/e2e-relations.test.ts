@@ -10,7 +10,7 @@
  * Uses InMemoryStore with link definitions for deterministic testing.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition, RelationDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -54,8 +54,9 @@ const deptPurchaseLink: RelationDefinition = {
 
 // ── Setup ────────────────────────────────────────────────
 
-const PORT = 32120;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+// In-process, port-free: this URL only supplies a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const GQL_URL = "http://local.test/graphql";
 
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
@@ -85,11 +86,6 @@ beforeAll(() => {
     dataProvider: store,
     schemaMap,
   });
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 beforeEach(() => {
@@ -99,11 +95,13 @@ beforeEach(() => {
 // ── Helper ────────────────────────────────────────────────
 
 async function gql(query: string) {
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 

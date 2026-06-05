@@ -7,7 +7,7 @@
  * Uses InMemoryStore for fast, deterministic testing without PostgreSQL.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -29,8 +29,9 @@ const departmentSchema: EntityDefinition = {
 
 // ── Setup ────────────────────────────────────────────────
 
-const PORT = 32100;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+// In-process, port-free: this URL only supplies a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const GQL_URL = "http://local.test/graphql";
 
 let store: InMemoryStore;
 let app: ReturnType<typeof createServer>;
@@ -48,11 +49,6 @@ beforeAll(() => {
     dataProvider: store,
   });
   app = createServer(graphqlSchema);
-  app.listen(PORT);
-});
-
-afterAll(() => {
-  app.stop();
 });
 
 beforeEach(() => {
@@ -62,11 +58,13 @@ beforeEach(() => {
 // ── Helper ────────────────────────────────────────────────
 
 async function gql(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(GQL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(GQL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 

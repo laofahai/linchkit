@@ -14,7 +14,7 @@
  *  - Malformed headers / args produce structured error responses, not 500s.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ActionContext, ActionDefinition, EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -96,15 +96,9 @@ const graphqlSchema = buildGraphQLSchema([taskSchema], {
   actions: [captureMetaAction],
 });
 const app = createServer(graphqlSchema, { executor, commandLayer });
-const port = 4032;
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
+// In-process, port-free: these URLs only supply a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const BASE = "http://local.test";
 
 function clearCaptures(): void {
   captures.length = 0;
@@ -115,11 +109,13 @@ async function postAction(
   body: Record<string, unknown> = {},
   headers: Record<string, string> = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(`http://localhost:${port}/api/actions/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(body),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/actions/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    }),
+  );
   const json = (await res.json()) as Record<string, unknown>;
   return { status: res.status, body: json };
 }
@@ -128,11 +124,13 @@ async function postBatch(
   payload: Record<string, unknown>,
   headers: Record<string, string> = {},
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(`http://localhost:${port}/api/actions/batch`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(payload),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/api/actions/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(payload),
+    }),
+  );
   const json = (await res.json()) as Record<string, unknown>;
   return { status: res.status, body: json };
 }
@@ -141,11 +139,13 @@ async function gql(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<{ data?: Record<string, unknown>; errors?: Array<Record<string, unknown>> }> {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{
     data?: Record<string, unknown>;
     errors?: Array<Record<string, unknown>>;

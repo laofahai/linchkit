@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { AIService, EntityDefinition } from "@linchkit/core";
 import { EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
@@ -27,29 +27,30 @@ const graphqlSchema = buildGraphQLSchema([productSchema]);
 const entityRegistry = new EntityRegistry();
 entityRegistry.register(productSchema);
 
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
+
 // ── No AI configured ─────────────────────────────────────
 
 describe("POST /api/ai/chat — no AI configured", () => {
-  const PORT = 31920;
   let server: ReturnType<typeof createServer>;
 
   beforeAll(() => {
-    server = createServer(graphqlSchema, { port: PORT });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
+    server = createServer(graphqlSchema);
   });
 
   test("returns 503 when AI is not configured", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: "Hello" }],
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Hello" }],
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(503);
     const json = await res.json();
@@ -58,11 +59,13 @@ describe("POST /api/ai/chat — no AI configured", () => {
   });
 
   test("returns 400 when messages array is empty", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [] }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [] }),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -71,11 +74,13 @@ describe("POST /api/ai/chat — no AI configured", () => {
   });
 
   test("returns 400 when messages is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -86,7 +91,6 @@ describe("POST /api/ai/chat — no AI configured", () => {
 // ── With AI configured but missing aiConfig ──────────────
 
 describe("POST /api/ai/chat — AI service but no aiConfig", () => {
-  const PORT = 31921;
   let server: ReturnType<typeof createServer>;
 
   const mockAiService: AIService = {
@@ -105,25 +109,21 @@ describe("POST /api/ai/chat — AI service but no aiConfig", () => {
   beforeAll(() => {
     // aiService is set but aiConfig is NOT — chat endpoint requires both
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: mockAiService,
       entityRegistry,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
   });
 
   test("returns 503 when aiConfig is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: "Hello" }],
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Hello" }],
+        }),
       }),
-    });
+    );
 
     // Chat endpoint checks both aiService?.configured AND aiConfig
     expect(res.status).toBe(503);
@@ -135,34 +135,32 @@ describe("POST /api/ai/chat — AI service but no aiConfig", () => {
 // ── Message format validation ────────────────────────────
 
 describe("POST /api/ai/chat — message validation", () => {
-  const PORT = 31922;
   let server: ReturnType<typeof createServer>;
 
   beforeAll(() => {
-    server = createServer(graphqlSchema, { port: PORT });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
+    server = createServer(graphqlSchema);
   });
 
   test("returns 400 when messages is not an array", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: "not an array" }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: "not an array" }),
+      }),
+    );
 
     expect(res.status).toBe(400);
   });
 
   test("returns 400 when body is null/empty", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(null),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(null),
+      }),
+    );
 
     // Should get 400 since messages is missing
     expect(res.status).toBe(400);

@@ -34,8 +34,9 @@ const DATABASE_URL =
   process.env.DATABASE_TEST_URL ??
   "postgres://linchkit_test:linchkit_test@localhost:5434/linchkit_test";
 
-const PORT = 3091;
-const GQL_URL = `http://localhost:${PORT}/graphql`;
+// In-process, port-free: this URL only supplies a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const GQL_URL = "http://local.test/graphql";
 
 const testSchema = defineEntity({
   name: "e2e_item",
@@ -83,11 +84,13 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
   // ── GraphQL helper via real HTTP fetch ─────────────────
 
   async function gql(query: string, variables?: Record<string, unknown>) {
-    const res = await fetch(GQL_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables }),
-    });
+    const res = await app.handle(
+      new Request(GQL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables }),
+      }),
+    );
     return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
   }
 
@@ -142,19 +145,15 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
       dataProvider: provider,
     });
 
-    // Start the real HTTP server
+    // Build the in-process app — requests are dispatched via `app.handle`.
     app = createServer(graphqlSchema, {
       executor,
       executionLogger,
       dataProvider: provider,
     });
-    app.listen(PORT);
   });
 
   afterAll(async () => {
-    if (app) {
-      app.stop();
-    }
     if (db) {
       await db.execute(sql.raw(`DROP TABLE IF EXISTS "${TABLE_NAME}" CASCADE`));
       await closeDatabase();
@@ -526,7 +525,7 @@ describe.skipIf(!dbAvailable)("E2E Integration: HTTP → GraphQL → PostgreSQL"
   // ── 10. REST health check works alongside GraphQL ─────
 
   test("health endpoint — returns healthy status", async () => {
-    const res = await fetch(`http://localhost:${PORT}/health`);
+    const res = await app.handle(new Request("http://local.test/health"));
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.status).toBe("healthy");
