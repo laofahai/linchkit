@@ -6,6 +6,7 @@
  * human approval gates, and AI completion steps.
  */
 
+import type { Actor } from "./action";
 import type { FlowSemantics } from "./meta-semantics";
 
 // ── Flow triggers ──────────────────────────────────────
@@ -239,4 +240,16 @@ export interface FlowInstance {
   error?: { stepId: string; message: string };
   /** Log of compensation actions executed during Saga rollback */
   compensationLog?: CompensationLogEntry[];
+  /**
+   * Tenant scope this instance runs under (if multi-tenant). Persisted so that
+   * `onComplete`-chained downstream flows inherit the originating tenant rather
+   * than running with no tenant scope. Optional for back-compat.
+   */
+  tenantId?: string;
+  /**
+   * Actor who triggered this instance. Persisted so that `onComplete`-chained
+   * downstream flows inherit the originating actor rather than falling back to
+   * the default/system actor. Optional for back-compat.
+   */
+  actor?: Actor;
 }

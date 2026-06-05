@@ -6,14 +6,16 @@ import {
   FLOW_COMPLETED_EVENT,
   FLOW_FAILED_EVENT,
   getFlowDependencies,
+  processOnCompleteChains,
   resolveInputMapping,
   validateFlowChains,
 } from "../src/flow/flow-chaining";
 import { createFlowRegistry } from "../src/flow/flow-registry";
 import { createSyncFlowEngine } from "../src/flow/sync-engine";
-import type { FlowStepContext } from "../src/flow/types";
+import type { FlowEngine, FlowStepContext } from "../src/flow/types";
+import type { Actor } from "../src/types/action";
 import type { EventRecord } from "../src/types/event";
-import type { FlowDefinition } from "../src/types/flow";
+import type { FlowDefinition, FlowInstance } from "../src/types/flow";
 
 // ── Mock step context ───────────────────────────────────
 
@@ -470,6 +472,184 @@ describe("Flow Chaining", () => {
       expect(instance.status).toBe("failed");
       // flow-b should NOT have been triggered (onStatus defaults to "completed")
       expect(executedActions).not.toContain("do.b");
+    });
+  });
+
+  // ── Tenant-isolation: onComplete chains must inherit tenant + actor ──
+  //
+  // Security regression coverage. Before the fix, `processOnCompleteChains`
+  // started the downstream flow with `{ tenantId: undefined }` and dropped the
+  // actor entirely, so a chained flow ran with no tenant scope and the
+  // default/system actor — able to touch records OUTSIDE the originating
+  // tenant. The downstream flow MUST inherit the parent's tenantId + actor.
+  describe("onComplete chain tenant + actor inheritance", () => {
+    /**
+     * A fake FlowEngine whose only job is to record the options each chained
+     * `startFlow` call receives, so we can assert what context is forwarded.
+     */
+    function createRecordingEngine(): {
+      engine: FlowEngine;
+      calls: Array<{
+        flowName: string;
+        input: Record<string, unknown>;
+        options?: { instanceId?: string; tenantId?: string; actor?: Actor };
+      }>;
+    } {
+      const calls: Array<{
+        flowName: string;
+        input: Record<string, unknown>;
+        options?: { instanceId?: string; tenantId?: string; actor?: Actor };
+      }> = [];
+
+      const engine: FlowEngine = {
+        registerFlow() {},
+        async startFlow(flowName, input, options) {
+          calls.push({ flowName, input, options });
+          // Return a minimal completed instance — the chain does not read it.
+          return {
+            id: "downstream-inst",
+            flowName,
+            status: "completed",
+            currentStepId: "",
+            context: {},
+            startedAt: new Date(),
+          } satisfies FlowInstance;
+        },
+        async getFlowStatus() {
+          return null;
+        },
+        async sendSignal() {},
+        async cancelFlow() {},
+      };
+
+      return { engine, calls };
+    }
+
+    const parentActor: Actor = { type: "human", id: "user-77", groups: ["buyers"] };
+
+    /** Parent flow instance carrying a real tenant scope + actor. */
+    function makeParentInstance(): FlowInstance {
+      return {
+        id: "parent-inst",
+        flowName: "flow-a",
+        status: "completed",
+        currentStepId: "step1",
+        context: { __steps: { step1: { output: { orderId: "ord-1" } } } },
+        startedAt: new Date(),
+        completedAt: new Date(),
+        tenantId: "tenant-42",
+        actor: parentActor,
+      };
+    }
+
+    it("forwards the parent's tenantId to the downstream chained flow", async () => {
+      const registry = createFlowRegistry();
+      registry.register(flowA);
+      registry.register(flowB);
+
+      const { engine, calls } = createRecordingEngine();
+      await processOnCompleteChains(makeParentInstance(), registry, engine);
+
+      expect(calls.length).toBe(1);
+      expect(calls[0]?.flowName).toBe("flow-b");
+      // Fail-first guard: old behavior passed `tenantId: undefined`; this
+      // assertion fails unless the parent's tenant is threaded through.
+      expect(calls[0]?.options?.tenantId).toBe("tenant-42");
+      expect(calls[0]?.options?.tenantId).not.toBeUndefined();
+    });
+
+    it("forwards the parent's actor (not the default system actor)", async () => {
+      const registry = createFlowRegistry();
+      registry.register(flowA);
+      registry.register(flowB);
+
+      const { engine, calls } = createRecordingEngine();
+      await processOnCompleteChains(makeParentInstance(), registry, engine);
+
+      expect(calls.length).toBe(1);
+      // Fail-first guard: old behavior dropped the actor entirely (undefined),
+      // which downstream resolves to the default/system actor.
+      expect(calls[0]?.options?.actor).toEqual(parentActor);
+      expect(calls[0]?.options?.actor?.type).not.toBe("system");
+      expect(calls[0]?.options?.actor?.id).toBe("user-77");
+    });
+
+    it("forwards tenant + actor to EVERY downstream flow in a multi-chain", async () => {
+      const multiChainA: FlowDefinition = {
+        name: "flow-a",
+        trigger: { type: "manual" },
+        steps: [{ id: "s1", name: "Step", type: "action", actionName: "do.a" }],
+        onComplete: [{ flow: "flow-b" }, { flow: "flow-c" }],
+      };
+
+      const registry = createFlowRegistry();
+      registry.register(multiChainA);
+      registry.register(flowB);
+      registry.register(flowC);
+
+      const { engine, calls } = createRecordingEngine();
+      await processOnCompleteChains(makeParentInstance(), registry, engine);
+
+      expect(calls.length).toBe(2);
+      for (const call of calls) {
+        expect(call.options?.tenantId).toBe("tenant-42");
+        expect(call.options?.actor).toEqual(parentActor);
+      }
+    });
+
+    it("end-to-end: SyncFlowEngine threads parent tenant + actor into the chained flow", async () => {
+      // Exercise the whole path with the real SyncFlowEngine: the parent
+      // instance must persist tenantId/actor (sync-engine) AND the chain must
+      // read + forward them (flow-chaining). Each downstream action runs with
+      // the per-run step context as its `this`, so we capture `this.tenantId`
+      // / `this.actor` to prove the scope crossed the chain boundary.
+      const captured: Record<string, { tenantId?: string; actor?: Actor }> = {};
+
+      const ctx: FlowStepContext = {
+        flowContext: {},
+        // Non-arrow method so `this` is the per-run context the engine injects.
+        async executeAction(this: FlowStepContext, actionName, input) {
+          captured[actionName] = { tenantId: this.tenantId, actor: this.actor };
+          return { ok: true, actionName, input };
+        },
+        async callAI() {
+          return { response: "", tokensUsed: 0 };
+        },
+        evaluateCondition() {
+          return false;
+        },
+      };
+
+      const registry = createFlowRegistry();
+      registry.register(flowA);
+      registry.register(flowB);
+
+      const engine = createSyncFlowEngine(ctx, { flowRegistry: registry });
+      engine.registerFlow(flowA);
+      engine.registerFlow(flowB);
+
+      const parentActor2: Actor = { type: "ai", id: "agent-9", groups: [] };
+      const parent = await engine.startFlow(
+        "flow-a",
+        { userId: "u-1" },
+        { tenantId: "tenant-99", actor: parentActor2 },
+      );
+
+      // Parent instance persisted its tenant + actor (prerequisite for chaining).
+      expect(parent.tenantId).toBe("tenant-99");
+      expect(parent.actor).toEqual(parentActor2);
+
+      // Parent action (do.a) ran with the parent's scope.
+      expect(captured["do.a"]?.tenantId).toBe("tenant-99");
+      expect(captured["do.a"]?.actor).toEqual(parentActor2);
+
+      // Downstream chained action (do.b) INHERITED the parent's scope, instead
+      // of running with undefined tenant + default/system actor (the old bug).
+      expect(captured["do.b"]).toBeDefined();
+      expect(captured["do.b"]?.tenantId).toBe("tenant-99");
+      expect(captured["do.b"]?.tenantId).not.toBeUndefined();
+      expect(captured["do.b"]?.actor).toEqual(parentActor2);
+      expect(captured["do.b"]?.actor?.type).not.toBe("system");
     });
   });
 });
