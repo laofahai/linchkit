@@ -136,12 +136,15 @@ export function generateCrudActions(
       }
       const result = await ctx.create(name, inputWithDefaults);
       ctx.emit("record.created", {
+        // Spread record data FIRST so the routing metadata below always wins,
+        // even if a record field happens to be named `entity`/`schema`/`recordId`
+        // (the action engine prefers `payload.entity` for SSE routing).
+        ...result,
         entity: name,
         // Legacy alias — kept alongside the canonical `entity` for consumers
         // that still read `payload.schema` (e.g. cap-search fallback chain).
         schema: name,
         recordId: result.id as string,
-        ...result,
       });
       // Cascade recalculate parent aggregate fields if this child schema affects any
       if (derivedEngine?.hasCascadeTargets(name)) {
