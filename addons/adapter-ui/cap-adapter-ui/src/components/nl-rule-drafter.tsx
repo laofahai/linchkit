@@ -70,6 +70,14 @@ export function NlRuleDrafter() {
       if (outcome.kind === "proposal_draft") {
         setPrompt("");
       }
+    } catch (err) {
+      // resolveSchemaIntent maps transport errors internally, but a defensive
+      // catch keeps an unexpected throw (e.g. handleUnauthorized, or storage
+      // access denied) from becoming an unhandled rejection with no UI feedback.
+      setResult({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Schema intent resolution failed",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -101,6 +109,7 @@ export function NlRuleDrafter() {
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t("nlRule.placeholder")}
+            aria-label={t("nlRule.title")}
             rows={2}
             className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             disabled={submitting}

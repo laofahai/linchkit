@@ -843,7 +843,7 @@ interface SchemaIntentWireResponse {
  */
 export async function resolveSchemaIntent(
   text: string,
-  opts: { fetchImpl?: typeof fetch } = {},
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
 ): Promise<ResolveSchemaIntentResult> {
   const doFetch = opts.fetchImpl ?? fetch;
   let res: Response;
@@ -852,6 +852,7 @@ export async function resolveSchemaIntent(
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ prompt: text }),
+      signal: opts.signal,
     });
   } catch (err) {
     // Transport-level error (network down, etc.).
