@@ -568,7 +568,9 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       return overlayAwareDataProvider.count(entity, filter);
     },
     async sampleRecordIds(entity, limit, filter) {
-      const safeLimit = Math.max(0, limit);
+      // Guard against NaN/Infinity/fractional limits: Math.max(0, NaN) is NaN,
+      // which would slip past a `=== 0` check and reach the query/slice.
+      const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0;
       if (safeLimit === 0) return [];
       // Push the limit into the query so the provider fetches only the sample
       // rows. Both DrizzleDataProvider and InMemoryStore honor the `limit` filter
@@ -581,7 +583,11 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
       });
       return rows
         .slice(0, safeLimit)
-        .map((row) => String((row as { id?: unknown }).id ?? ""))
+        .map((row) =>
+          row && typeof row === "object" && "id" in row
+            ? String((row as { id?: unknown }).id ?? "")
+            : "",
+        )
         .filter((id) => id.length > 0);
     },
   };
