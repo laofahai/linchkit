@@ -757,6 +757,172 @@ export async function resolveIntent(
   return { kind: "proposal", proposal };
 }
 
+// ── Schema-intent resolution ("说→有" — Spec 52) ──────────
+
+/**
+ * A natural-language rule draft that was minted as a GOVERNED, `draft`-status
+ * Proposal in the shared review engine. Mirrors the `proposal_draft` arm of the
+ * server's `ResolveSchemaIntentResponse` — the fields the UI needs to surface
+ * the draft and route the user to the existing review flow.
+ *
+ * Defined locally (the UI NEVER imports from `@linchkit/core` / server packages
+ * per the module-boundary rule); kept in sync with the route's wire response in
+ * `ai-resolve-schema-intent.ts`.
+ */
+export interface SchemaIntentDraft {
+  /**
+   * The governed Proposal id (persisted into `/api/proposals`). Use it to link
+   * the user into the existing review surface. Always references a `draft`-status
+   * Proposal — the endpoint never submits, approves, or applies it.
+   */
+  proposalId?: string;
+  /** Lifecycle status at persist time — always `"draft"`. */
+  proposalStatus?: string;
+  /** The generated rule's name. */
+  ruleName?: string;
+  /** The entity the rule attaches to. */
+  targetEntity?: string;
+  /** Resolver confidence (0-1). */
+  confidence?: number;
+  /** Human-readable explanation of the proposed rule. */
+  explanation?: string;
+}
+
+/**
+ * Discriminated result of `resolveSchemaIntent`.
+ *
+ * Mirrors `resolveIntent`'s discriminated shape so callers can render each
+ * outcome distinctly:
+ *
+ *  - `{ kind: "proposal_draft" }` — the server minted a `draft` governed
+ *    Proposal; surface it and link into the review flow. NEVER auto-approve.
+ *  - `{ kind: "clarification" }` — the resolver needs more info; show the
+ *    `question` and let the user refine + resubmit.
+ *  - `{ kind: "no_match" }` — no rule could be drafted; show the `reason`.
+ *  - `{ kind: "unavailable" }` — the server returned 503 (AI / ontology not
+ *    configured); surface a graceful "AI not configured" state.
+ *  - `{ kind: "error" }` — a 400 / 500 / transport error; show a user-friendly
+ *    error message.
+ */
+export type ResolveSchemaIntentResult =
+  | { kind: "proposal_draft"; draft: SchemaIntentDraft }
+  | { kind: "clarification"; question: string; bestConfidence?: number }
+  | { kind: "no_match"; reason?: string; message?: string }
+  | { kind: "unavailable"; message?: string }
+  | { kind: "error"; message: string };
+
+/** Shape of the JSON the server returns. Local mirror of the wire contract. */
+interface SchemaIntentWireResponse {
+  outcome?: "proposal_draft" | "clarification" | "no_match";
+  proposalId?: string;
+  proposalStatus?: string;
+  ruleName?: string;
+  targetEntity?: string;
+  confidence?: number;
+  explanation?: string;
+  question?: string;
+  bestConfidence?: number;
+  reason?: string;
+  message?: string;
+  error?: { code?: string; message?: string };
+}
+
+/**
+ * Resolve a natural-language utterance into a GOVERNED rule draft.
+ *
+ * Wire contract (Spec 52 — POST /api/ai/resolve-schema-intent):
+ *   request:  { prompt }
+ *   response: discriminated by `outcome`
+ *             (proposal_draft / clarification / no_match), or a 503 envelope.
+ *
+ * Returns a discriminated `ResolveSchemaIntentResult` so the caller can render
+ * each outcome. This NEVER submits / approves / applies anything — the server
+ * persists a `draft`-status Proposal and the UI only routes the user to review
+ * it. The optional `fetchImpl` parameter lets tests inject a stub `fetch`
+ * without leaking a global mock across the batched suite.
+ */
+export async function resolveSchemaIntent(
+  text: string,
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+): Promise<ResolveSchemaIntentResult> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  let res: Response;
+  try {
+    res = await doFetch("/api/ai/resolve-schema-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ prompt: text }),
+      signal: opts.signal,
+    });
+  } catch (err) {
+    // Transport-level error (network down, etc.).
+    return {
+      kind: "error",
+      message: err instanceof Error ? err.message : "Schema intent resolution failed",
+    };
+  }
+
+  handleUnauthorized(res);
+
+  // 503 — AI service / ontology not configured (graceful degradation).
+  if (res.status === 503) {
+    let message: string | undefined;
+    try {
+      const json = (await res.json()) as SchemaIntentWireResponse;
+      message = json.error?.message ?? json.message;
+    } catch {
+      // Body may be empty/non-JSON — fall back to the generic message below.
+    }
+    return { kind: "unavailable", message };
+  }
+
+  // 400 / 500 / other non-2xx — surface a user-friendly error.
+  if (!res.ok) {
+    let message = "Schema intent resolution failed";
+    try {
+      const json = (await res.json()) as SchemaIntentWireResponse;
+      message = json.error?.message ?? json.message ?? message;
+    } catch {
+      // Non-JSON error body — keep the generic message.
+    }
+    return { kind: "error", message };
+  }
+
+  let json: SchemaIntentWireResponse;
+  try {
+    json = (await res.json()) as SchemaIntentWireResponse;
+  } catch {
+    return { kind: "error", message: "Schema intent resolution returned an invalid response" };
+  }
+
+  switch (json.outcome) {
+    case "proposal_draft":
+      return {
+        kind: "proposal_draft",
+        draft: {
+          proposalId: json.proposalId,
+          proposalStatus: json.proposalStatus,
+          ruleName: json.ruleName,
+          targetEntity: json.targetEntity,
+          confidence: json.confidence,
+          explanation: json.explanation,
+        },
+      };
+    case "clarification":
+      return {
+        kind: "clarification",
+        question: json.question ?? "",
+        bestConfidence: json.bestConfidence,
+      };
+    case "no_match":
+      return { kind: "no_match", reason: json.reason, message: json.message };
+    default:
+      // Unknown / missing outcome — treat as an error rather than silently
+      // dropping it, so the UI surfaces something actionable.
+      return { kind: "error", message: "Schema intent resolution returned an unknown outcome" };
+  }
+}
+
 // ── Chatter ──────────────────────────────────────────────
 
 export interface ChatterMessageAuthor {

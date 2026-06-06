@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { NlRuleDrafter } from "@/components/nl-rule-drafter";
 import { type EvolutionEntry, fetchEvolutionHistory } from "@/lib/proposal-api";
 
 // ── Change type badge ────────────────────────────────────
@@ -200,6 +201,10 @@ export function EvolutionPage() {
 
   return (
     <div className="p-4 space-y-4">
+      {/* "说→有" — draft a governed rule from natural language. The draft enters
+          the human-gated review pipeline; this surface never approves/applies. */}
+      <NlRuleDrafter />
+
       <div className="flex justify-end">
         <Button variant="outline" size="icon-sm" onClick={loadHistory}>
           <RefreshCwIcon className="h-4 w-4" />
