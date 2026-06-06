@@ -31,9 +31,16 @@ import type {
 } from "@linchkit/core";
 import {
   type ConfigRegistry,
+  createDedupAnalyzer,
+  createDefaultInsightTranslatorRegistry,
   createDerivedPropertyEngine,
   createDispatchQuery,
   createEvolutionRuntime,
+  createImpactAnalyzer,
+  createPreAnalysisPipeline,
+  type ImpactDataProvider,
+  type PendingProposalStore,
+  type ProposalDefinition,
 } from "@linchkit/core";
 import {
   type ActionRegistry,
@@ -539,12 +546,83 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
   // Dispatch query routes `execution_log` → ExecutionLogger and other schemas
   // → DataProvider. Without this split, sensors reading execution_log would
   // silently see zero rows in both PostgreSQL and in-memory dev modes.
+  //
+  // The runtime must ALSO receive `ontology` + `translatorRegistry` for the
+  // cycle to translate surfaced insights into proposals (Spec 55 §7). Without
+  // BOTH, structural checks have no input and `result.proposals` stays `[]` —
+  // the live loop dead-ends at Insight. We supply the same ontologyRegistry the
+  // transport uses, the default structural translator registry, and a
+  // pre-analysis pipeline so every proposal arrives with a reviewer envelope
+  // (dedup + impact) attached on `result.proposalAnalyses`.
+  //
+  // SAFETY: this produces proposals as DATA only. No graduation is wired —
+  // nothing here writes files, commits, or opens PRs (Spec 55 §7.6/§7.7 are
+  // intentionally NOT instantiated in the dev boot path).
+
+  // Real impact provider: the impact analyzer's narrow ImpactDataProvider
+  // contract (countRecords / sampleRecordIds) maps directly onto the overlay-
+  // aware DataProvider already in scope, so dev proposals get true first-order
+  // record counts instead of stubbed zeros.
+  const impactDataProvider: ImpactDataProvider = {
+    async countRecords(entity, filter) {
+      return overlayAwareDataProvider.count(entity, filter);
+    },
+    async sampleRecordIds(entity, limit, filter) {
+      // Guard against NaN/Infinity/fractional limits: Math.max(0, NaN) is NaN,
+      // which would slip past a `=== 0` check and reach the query/slice.
+      const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0;
+      if (safeLimit === 0) return [];
+      // Push the limit into the query so the provider fetches only the sample
+      // rows. Both DrizzleDataProvider and InMemoryStore honor the `limit` filter
+      // key, so this avoids scanning + materializing a whole table just to return
+      // a handful of ids. The post-fetch slice stays as a defensive cap in case a
+      // provider ignores the hint.
+      const rows = await overlayAwareDataProvider.query(entity, {
+        ...(filter ?? {}),
+        limit: safeLimit,
+      });
+      return rows
+        .slice(0, safeLimit)
+        .map((row) =>
+          row && typeof row === "object" && "id" in row
+            ? String((row as { id?: unknown }).id ?? "")
+            : "",
+        )
+        .filter((id) => id.length > 0);
+    },
+  };
+
+  // Empty pending-proposal store: dev-wiring instantiates no ProposalEngine /
+  // proposal repository, so there is no live pending set to dedup against. The
+  // dedup stage still runs (proving the pipeline executes) and reports an empty
+  // similar list. Wiring a real store would require standing up proposal
+  // persistence, which is out of scope for G1.
+  // TODO(G1 follow-up): back with the real PendingProposalStore once a proposal
+  // repository (e.g. ProposalEngine's pending view) is available in dev-wiring.
+  const pendingProposalStore: PendingProposalStore = {
+    async listPending(): Promise<ProposalDefinition[]> {
+      return [];
+    },
+  };
+
+  const proposalPreAnalysisPipeline = createPreAnalysisPipeline({
+    analyzers: [
+      createDedupAnalyzer({ store: pendingProposalStore }),
+      createImpactAnalyzer({ dataProvider: impactDataProvider }),
+    ],
+  });
+
   const evolutionRuntime = createEvolutionRuntime({
     sensors,
     query: createDispatchQuery({ dataProvider: overlayAwareDataProvider, executionLogger }),
+    ontology: ontologyRegistry,
+    translatorRegistry: createDefaultInsightTranslatorRegistry(),
+    proposalCapability: "linch-dev",
+    proposalPreAnalysisPipeline,
   });
   consoleLogger.info(
-    `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered`,
+    `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered ` +
+      "(insight→proposal translator + pre-analysis pipeline wired)",
   );
 
   const transportCtx: TransportContext = {
