@@ -156,3 +156,7 @@ export {
   validatePhase1,
   validateProposal,
 } from "../../engine/validation-engine";
+export {
+  type ValidatePhase3Options,
+  validatePhase3,
+} from "../../engine/validation-phase3";

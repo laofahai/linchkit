@@ -395,6 +395,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "validateAIOutput",
   "validateAIProposal",
   "validatePhase1",
+  "validatePhase3",
   "validateProposal",
   "validateProposalExtended",
   "validateRequiredEnvVars",
