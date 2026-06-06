@@ -852,6 +852,20 @@
     "revert": "Revert",
     "showChanges": "Show {{count}} change(s)"
   },
+  "nlRule": {
+    "title": "Draft a rule from natural language",
+    "subtitle": "Describe a business rule in plain language. AI drafts it as a proposal for your review — nothing is applied automatically.",
+    "placeholder": "e.g. Require an approver when a purchase order total exceeds 10000",
+    "draft": "Draft rule",
+    "draftCreated": "Rule draft created",
+    "targetEntity": "Target entity",
+    "proposalId": "Proposal",
+    "reviewDraft": "Review draft",
+    "refineHint": "Refine your description and submit again.",
+    "noMatch": "Couldn't draft a rule from that description. Try rephrasing.",
+    "notConfigured": "AI is not configured. Configure an AI provider to enable rule drafting.",
+    "error": "Something went wrong. Please try again."
+  },
   "insights": {
     "title": "AI Insights",
     "subtitle": "AI-detected patterns and suggestions",

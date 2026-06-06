@@ -852,6 +852,20 @@
     "revert": "回滚",
     "showChanges": "查看 {{count}} 项变更"
   },
+  "nlRule": {
+    "title": "用自然语言起草规则",
+    "subtitle": "用日常语言描述一条业务规则，AI 会将其起草为提案供你审阅 —— 不会自动应用任何变更。",
+    "placeholder": "例如：当采购订单总额超过 10000 时需要审批人",
+    "draft": "起草规则",
+    "draftCreated": "规则草稿已创建",
+    "targetEntity": "目标实体",
+    "proposalId": "提案",
+    "reviewDraft": "审阅草稿",
+    "refineHint": "请完善你的描述后重新提交。",
+    "noMatch": "无法根据该描述起草规则，请尝试换一种说法。",
+    "notConfigured": "AI 尚未配置。请配置 AI 提供商以启用规则起草。",
+    "error": "出现错误，请重试。"
+  },
   "insights": {
     "title": "AI 洞察",
     "subtitle": "AI 检测到的模式和建议",
