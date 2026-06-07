@@ -98,6 +98,28 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(result.errors).toEqual([]);
   });
 
+  test("an import that appears only inside a string literal does NOT satisfy the import check", () => {
+    // The full import statement lives inside a string; defineAction is called as
+    // real code but there is NO real import binding → must flag missing import
+    // (codex review hardening — string-aware import detection).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: [
+            'const fake = "import { defineAction } from \\"@linchkit/core\\";";',
+            'export const do_thing = defineAction({ name: "do_thing", handler: async () => ({ fake }) });',
+          ].join("\n"),
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) => e.message.includes('does not import from "@linchkit/core"')),
+    ).toBe(true);
+  });
+
   test("a re-export from core does NOT satisfy the import check (no local binding)", () => {
     // `export { defineAction } from "@linchkit/core"` re-exports — it creates no
     // local `defineAction` binding, so calling it would fail. The import check

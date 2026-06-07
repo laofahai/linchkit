@@ -65,9 +65,11 @@ const CONTRACT_BY_TARGET: Partial<Record<ProposalChangeTarget, { call: string; r
 // `@linchkit/core` contains no regex metacharacters, so these literals are exact.
 // `[^;]*?` allows a multi-line import clause bounded by the statement terminator.
 // Only `import` (not `export … from`) is accepted: a re-export creates NO local
-// binding, so `defineAction(...)` would have nothing to call.
-const IMPORT_CORE_RE = /\bimport\b[^;]*?from\s*["'`]@linchkit\/core["'`]/;
-const REQUIRE_CORE_RE = /require\(\s*["'`]@linchkit\/core["'`]\s*\)/;
+// binding, so `defineAction(...)` would have nothing to call. Global so callers
+// can `matchAll` and verify each match's `import` keyword is real code (not text
+// inside a string literal) via index cross-reference against the blanked view.
+const IMPORT_CORE_RE = /\bimport\b[^;]*?from\s*["'`]@linchkit\/core["'`]/g;
+const REQUIRE_CORE_RE = /\brequire\(\s*["'`]@linchkit\/core["'`]\s*\)/g;
 
 // ── Comment / string stripping ───────────────────────────
 // The contract checks must not be satisfiable by a token that appears only in a
@@ -76,12 +78,22 @@ const REQUIRE_CORE_RE = /require\(\s*["'`]@linchkit\/core["'`]\s*\)/;
 // string (e.g. a URL "https://x"). So this walks the source ONCE, tracking
 // string vs comment state, blanking comments (and optionally string bodies).
 
+/** Blank a span to spaces but keep newlines (for length preservation). */
+function blank(span: string): string {
+  return span.replace(/[^\n]/g, " ");
+}
+
 /**
- * Single left-to-right pass that removes comments and, when `stripStrings` is
+ * Single left-to-right pass that blanks comments and, when `stripStrings` is
  * true, the BODIES of string / template literals (delimiters kept). It is
  * string/comment aware: a comment marker inside a string is preserved, and a
  * quote inside a comment is ignored. Template-literal interpolation is treated
  * as opaque string content (good enough for these heuristic checks).
+ *
+ * LENGTH-PRESERVING: every input char maps to exactly one output char (blanked
+ * regions become spaces / kept newlines). This lets callers cross-reference an
+ * index between the strings-kept and strings-blanked views (used by the import
+ * check to confirm an `import` keyword is real code, not text inside a string).
  */
 function stripCode(src: string, stripStrings: boolean): string {
   let out = "";
@@ -91,16 +103,18 @@ function stripCode(src: string, stripStrings: boolean): string {
     const c = src[i];
     const next = src[i + 1];
     if (c === "/" && next === "/") {
+      const start = i;
       i += 2;
       while (i < n && src[i] !== "\n") i++;
-      out += " ";
+      out += blank(src.slice(start, i));
       continue;
     }
     if (c === "/" && next === "*") {
+      const start = i;
       i += 2;
       while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
-      i += 2; // skip the closing */
-      out += " ";
+      i = Math.min(i + 2, n); // consume the closing */ (or stop at EOF)
+      out += blank(src.slice(start, i));
       continue;
     }
     if (c === '"' || c === "'" || c === "`") {
@@ -118,7 +132,11 @@ function stripCode(src: string, stripStrings: boolean): string {
         }
         i++;
       }
-      out += stripStrings ? `${quote}${quote}` : src.slice(start, i);
+      const literal = src.slice(start, i);
+      // Blank the whole literal (delimiters included) when stripping strings —
+      // `code` only needs token positions, not delimiters; this is unambiguously
+      // length-preserving so the strings-kept and strings-blanked views align.
+      out += stripStrings ? blank(literal) : literal;
       continue;
     }
     out += c;
@@ -203,10 +221,18 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     }
 
     // Definitions need the define* helpers, which come from @linchkit/core. Match
-    // a real import/export-from or require() statement (not a bare mention) so a
-    // comment or unrelated string can't satisfy it. `[^;]*?` allows multi-line
-    // import clauses bounded by the statement terminator.
-    const importsCore = IMPORT_CORE_RE.test(noComments) || REQUIRE_CORE_RE.test(noComments);
+    // a real `import …`/`require()` statement (not a re-export, comment, or string)
+    // so nothing fake can satisfy it. We scan the strings-KEPT view (so the
+    // specifier is visible) but confirm each match's keyword sits in REAL CODE by
+    // cross-referencing the same index in the strings-BLANKED view — a fake import
+    // inside a string literal is blanked there, so its index is whitespace.
+    const importIsReal = (re: RegExp): boolean => {
+      for (const m of noComments.matchAll(re)) {
+        if (m.index !== undefined && /\S/.test(code[m.index] ?? "")) return true;
+      }
+      return false;
+    };
+    const importsCore = importIsReal(IMPORT_CORE_RE) || importIsReal(REQUIRE_CORE_RE);
     if (!importsCore) {
       findings.push({
         code: "GENERATED_SOURCE_CONTRACT",
