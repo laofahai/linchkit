@@ -98,6 +98,26 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(msgs.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
   });
 
+  test("a different name that merely CONTAINS the declared name does not satisfy it", () => {
+    // Declared "do_thing" but the source defines "do_thing_v2" — substring would
+    // pass, word-boundary must not (codex review hardening).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import { defineAction } from "@linchkit/core";\nexport const do_thing_v2 = defineAction({ name: "do_thing_v2", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) =>
+        e.message.includes('does not reference its declared name "do_thing"'),
+      ),
+    ).toBe(true);
+  });
+
   test("strictGeneratedContract: findings become errors, status failed", () => {
     const result = validatePhase4({
       changes: [change({ name: "do_thing", generatedSource: `export const do_thing = 1;` })],

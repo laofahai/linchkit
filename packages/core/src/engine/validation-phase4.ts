@@ -81,6 +81,11 @@ function stripCommentsAndStrings(src: string): string {
     .replace(/`(?:[^`\\]|\\.)*`/g, "``");
 }
 
+/** Escape a string for safe interpolation into a RegExp. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // ── Entry point ──────────────────────────────────────────
 
 /**
@@ -128,8 +133,12 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     // The generated definition should reference its declared name. A missing name
     // usually means the AI generated something unrelated or a bare stub. The name
     // may appear as an identifier or as the definition's `name:` literal, so this
-    // check runs on the comments-stripped (string-preserving) source.
-    if (!noComments.includes(change.name)) {
+    // check runs on the comments-stripped (string-preserving) source. Match on a
+    // word boundary so a different name that merely CONTAINS the declared one
+    // (e.g. `do_thing_v2` for `do_thing`) does not satisfy it — `_` is a word
+    // char, so `\bdo_thing\b` won't match inside `do_thing_v2`.
+    const nameRef = new RegExp(`\\b${escapeRegExp(change.name)}\\b`);
+    if (!nameRef.test(noComments)) {
       findings.push({
         code: "GENERATED_SOURCE_CONTRACT",
         message: `Generated source for ${change.target} "${change.name}" does not reference its declared name "${change.name}".`,
