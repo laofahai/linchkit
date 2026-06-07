@@ -107,7 +107,10 @@ export function persistCycleProposalsAsDrafts(
       pendingKeys.add(
         dedupKey(
           existing.capability,
-          existing.changes.map((c) => c.name),
+          // Defensive: `changes` is required by the type, but a proposal loaded
+          // from persistent/external storage could be malformed. One bad row
+          // must not crash dedup over the whole pending set.
+          (existing.changes ?? []).map((c) => c.name),
         ),
       );
     }
@@ -119,7 +122,9 @@ export function persistCycleProposalsAsDrafts(
   for (const proposal of proposals) {
     const key = dedupKey(
       proposal.capability,
-      proposal.changes.map((c) => c.name),
+      // Defensive: guard a malformed cycle proposal with no `changes` so a
+      // partially-initialized translator output can't crash the batch.
+      (proposal.changes ?? []).map((c) => c.name),
     );
     if (pendingKeys.has(key)) {
       deduped += 1;

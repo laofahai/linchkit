@@ -76,8 +76,11 @@ export function mountEvolutionCycleRoutes(app: Elysia, options: ServerOptions): 
   const evolutionRuntime: EvolutionRuntime | undefined = options.evolutionRuntime;
 
   app.post("/api/evolution/run-cycle", async ({ set, request }) => {
-    if (!evolutionRuntime) {
-      // 501 — feature not wired in this deployment. (No cycle to run.)
+    if (!evolutionRuntime?.evolutionCycle) {
+      // 501 — feature not wired in this deployment. Also covers a partially
+      // constructed runtime (present, but its `evolutionCycle` is missing, e.g.
+      // a mock or incomplete config): there is no cycle to run either way, so we
+      // degrade gracefully here instead of throwing a 500 deeper in the handler.
       return serviceUnavailable(
         set,
         "Evolution runtime is not configured — on-demand cycle execution is unavailable.",
