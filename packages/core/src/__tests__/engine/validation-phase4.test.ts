@@ -74,6 +74,30 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(codes.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
   });
 
+  test("tokens that appear only in comments or strings do NOT satisfy the contract", () => {
+    // defineAction( and @linchkit/core appear ONLY inside a comment / string —
+    // they must not satisfy the call/import checks (codex review hardening).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: [
+            '// import { defineAction } from "@linchkit/core";',
+            "/* defineAction( should not count */",
+            'const note = "use defineAction() from @linchkit/core";',
+            "export const do_thing = 1;",
+          ].join("\n"),
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    const msgs = result.errors.map((e) => e.message);
+    // Both the call check and the import check must fire despite the mentions.
+    expect(msgs.some((m) => m.includes("does not call defineAction(...)"))).toBe(true);
+    expect(msgs.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
+  });
+
   test("strictGeneratedContract: findings become errors, status failed", () => {
     const result = validatePhase4({
       changes: [change({ name: "do_thing", generatedSource: `export const do_thing = 1;` })],
