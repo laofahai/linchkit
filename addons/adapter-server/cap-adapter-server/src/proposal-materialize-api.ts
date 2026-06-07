@@ -146,6 +146,15 @@ export async function runProposalMaterialization(
     // Persist the candidate source back onto the draft. `updateProposal` replaces
     // `changes` (recomputing impact) and is draft-only — never approves/graduates.
     const updated = deps.engine.updateProposal(proposalId, { changes: result.proposal.changes });
+    // Defensive: the engine contract returns the updated `ProposalDefinition`, but
+    // a custom/future impl could return null/undefined. Surfacing that as an error
+    // keeps the route from later dereferencing `proposal.id` in serializeProposal.
+    if (!updated) {
+      return {
+        kind: "error",
+        message: "Proposal update returned no proposal after materialization.",
+      };
+    }
     return {
       kind: "ok",
       proposal: updated,

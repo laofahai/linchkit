@@ -156,6 +156,25 @@ describe("runProposalMaterialization — happy path", () => {
     expect(proposal.changes[0]?.generatedSource).toBeUndefined();
   });
 
+  test("engine returning no proposal from updateProposal → error (not a crash)", async () => {
+    const proposal = makeProposal();
+    const { provider } = makeProvider();
+    // A custom engine whose updateProposal returns undefined instead of the row.
+    const engine: MaterializeEngine = {
+      getProposal: () => proposal,
+      updateProposal: () => undefined as unknown as ProposalDefinition,
+    };
+
+    const outcome = await runProposalMaterialization(proposal.id, {
+      engine,
+      provider,
+      qualityGate: PASS_GATE,
+    });
+
+    expect(outcome.kind).toBe("error");
+    if (outcome.kind === "error") expect(outcome.message).toContain("no proposal");
+  });
+
   test("provider throwing surfaces as error (caught, not leaked)", async () => {
     const proposal = makeProposal();
     const { engine, updates } = makeEngine(proposal);

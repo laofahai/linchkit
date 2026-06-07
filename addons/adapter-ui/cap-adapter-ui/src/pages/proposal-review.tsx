@@ -169,7 +169,7 @@ function ProposalCard({
   // Prefer the freshly-materialized proposal's changes (if any) over the prop so
   // generated source shows immediately after a click without a manual refresh.
   const sourcedChanges: ProposalChange[] = (
-    mat?.kind === "ok" && mat.proposal ? mat.proposal.changes : proposal.changes
+    (mat?.kind === "ok" && mat.proposal ? mat.proposal.changes : proposal.changes) ?? []
   ).filter((c) => typeof c.generatedSource === "string" && c.generatedSource.trim().length > 0);
 
   return (
@@ -331,7 +331,10 @@ function ProposalCard({
               {t("proposals.generatedSource", "Generated source (candidate)")}
             </h5>
             {sourcedChanges.map((c) => (
-              <details key={`${c.target}:${c.name}`} className="rounded-md border bg-muted/30">
+              <details
+                key={`${c.target}:${c.operation}:${c.name}`}
+                className="rounded-md border bg-muted/30"
+              >
                 <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
                   {c.target}/{c.name}
                 </summary>
