@@ -142,6 +142,13 @@ export async function graduateProposal(
   } catch {
     return { kind: "not_found" };
   }
+  // Defensive: the engine contract returns a `ProposalDefinition`, but a custom
+  // or future `GraduationEngine` impl could return `null`/`undefined` for a
+  // missing id instead of throwing. Treat that as not-found so the next line's
+  // `proposal.status` read can never throw an unhandled (non-envelope) 500.
+  if (!proposal) {
+    return { kind: "not_found" };
+  }
 
   // ── Approved-only guard (REQUIRED) ──
   // Graduation only ever acts on an approved proposal. Anything else is
@@ -232,7 +239,13 @@ export function mountProposalGraduateAPI(
   const engine: GraduationEngine = options?.engine ?? getSharedProposalEngine();
   const resolveConfig = options?.resolveConfig ?? (() => resolveGraduationConfig());
   const createWriter =
-    options?.createWriter ?? ((config: GraduationConfig) => new ProposalFileWriter(config));
+    options?.createWriter ??
+    ((config: GraduationConfig) =>
+      // Format generated source through Biome so the graduation PR's files pass
+      // the same Code Quality gate every other PR faces. Formatting failures are
+      // swallowed by the writer (it falls back to un-formatted source), so this
+      // can never block graduation.
+      new ProposalFileWriter({ ...config, formatter: true }));
   const createCommitter =
     options?.createCommitter ??
     ((config: GraduationConfig) =>
