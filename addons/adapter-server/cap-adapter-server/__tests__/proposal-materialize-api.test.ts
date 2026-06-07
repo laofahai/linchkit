@@ -13,7 +13,12 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { CommandLayer, ProposalChange, ProposalDefinition } from "@linchkit/core";
+import type {
+  CommandLayer,
+  OntologyRegistry,
+  ProposalChange,
+  ProposalDefinition,
+} from "@linchkit/core";
 import type { CodeGenerationProvider, QualityGateRunner } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import {
@@ -321,5 +326,123 @@ describe("POST /api/proposals/:id/materialize", () => {
     expect(status).toBe(500);
     expect(json.success).toBe(false);
     expect(json.error?.message).toContain("model exploded");
+  });
+});
+
+// ── Ontology-derived generation context ──────────────────────
+
+const ONTOLOGY_MARKER = "ENTITY: order — Purchase order";
+
+/**
+ * Minimal fake ontology: only `toMarkdown()` is exercised here. The other methods
+ * throw so any accidental reliance on them surfaces loudly rather than silently
+ * returning empty data.
+ */
+function makeFakeOntology(markdown: string): OntologyRegistry {
+  const unused = (): never => {
+    throw new Error("OntologyRegistry method not expected in this test");
+  };
+  return {
+    toMarkdown: () => markdown,
+    describe: unused,
+    listEntities: unused,
+    searchEntities: unused,
+    actionsFor: unused,
+    rulesFor: unused,
+    stateFor: unused,
+    viewsFor: unused,
+    flowsFor: unused,
+    handlersFor: unused,
+    relatedEntities: unused,
+    entitiesImplementing: unused,
+    toJSON: unused,
+    searchByIntent: unused,
+  } as unknown as OntologyRegistry;
+}
+
+/** Provider that records the `context` (2nd) argument of every generateCode call. */
+function makeRecordingProvider(): {
+  provider: CodeGenerationProvider;
+  contexts: Array<string | undefined>;
+} {
+  const contexts: Array<string | undefined> = [];
+  const provider: CodeGenerationProvider = {
+    async generateCode(_prompt, context) {
+      contexts.push(context);
+      return GOOD;
+    },
+  };
+  return { provider, contexts };
+}
+
+describe("POST /api/proposals/:id/materialize — context sourcing", () => {
+  test("ontology (no explicit context) → provider receives the ontology summary", async () => {
+    const proposal = makeProposal();
+    const { engine } = makeEngine(proposal);
+    const { provider, contexts } = makeRecordingProvider();
+    const app = new Elysia();
+    mountProposalMaterializeAPI(app, {
+      commandLayer: PASS_COMMAND_LAYER,
+      engine,
+      qualityGate: PASS_GATE,
+      ontology: makeFakeOntology(ONTOLOGY_MARKER),
+      resolveProvider: () => provider,
+    });
+
+    const { status, json } = await postMaterialize(app, proposal.id);
+
+    expect(status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(contexts).toHaveLength(1);
+    // The generated context embeds the real ontology summary…
+    expect(contexts[0]).toContain(ONTOLOGY_MARKER);
+    // …prefixed with the project conventions preamble.
+    expect(contexts[0]).toContain("defineAction()");
+  });
+
+  test("explicit context wins over the ontology (verbatim, no summary)", async () => {
+    const proposal = makeProposal();
+    const { engine } = makeEngine(proposal);
+    const { provider, contexts } = makeRecordingProvider();
+    const explicit = "MY EXPLICIT CONTEXT";
+    const app = new Elysia();
+    mountProposalMaterializeAPI(app, {
+      commandLayer: PASS_COMMAND_LAYER,
+      engine,
+      qualityGate: PASS_GATE,
+      context: explicit,
+      ontology: makeFakeOntology(ONTOLOGY_MARKER),
+      resolveProvider: () => provider,
+    });
+
+    const { status } = await postMaterialize(app, proposal.id);
+
+    expect(status).toBe(200);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]).toBe(explicit);
+    expect(contexts[0]).not.toContain(ONTOLOGY_MARKER);
+  });
+
+  test("ontology summary over the cap is truncated with a marker", async () => {
+    const proposal = makeProposal();
+    const { engine } = makeEngine(proposal);
+    const { provider, contexts } = makeRecordingProvider();
+    // 20k of filler well past the ~12k cap.
+    const huge = `${ONTOLOGY_MARKER}\n${"x".repeat(20_000)}`;
+    const app = new Elysia();
+    mountProposalMaterializeAPI(app, {
+      commandLayer: PASS_COMMAND_LAYER,
+      engine,
+      qualityGate: PASS_GATE,
+      ontology: makeFakeOntology(huge),
+      resolveProvider: () => provider,
+    });
+
+    const { status } = await postMaterialize(app, proposal.id);
+
+    expect(status).toBe(200);
+    expect(contexts[0]).toContain("(truncated)");
+    // Preamble + capped summary stays bounded (well under the raw 20k input).
+    expect((contexts[0] ?? "").length).toBeLessThan(13_000);
   });
 });
