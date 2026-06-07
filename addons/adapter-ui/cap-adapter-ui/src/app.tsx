@@ -33,6 +33,7 @@ import { EntityListPage } from "./pages/entity-list";
 import { EvolutionPage } from "./pages/evolution";
 import { FlowDetailPage } from "./pages/flow-detail";
 import { MetricsDashboardPage } from "./pages/metrics-dashboard";
+import { ProposalReviewPage } from "./pages/proposal-review";
 import { ProposalReviewDemoPage } from "./pages/proposal-review-demo";
 import { RelationGraphPage } from "./pages/relation-graph";
 import { RuleDetailPage } from "./pages/rule-detail";
@@ -229,6 +230,14 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  // Real human-gated proposal review surface — list / approve / reject / graduate.
+  const proposalReviewRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/proposals",
+    component: ProposalReviewPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Spec 55 §7.3 — pre-analysis review panel demo. Renders mock fixtures so the
   // panel is reviewable end-to-end before a real proposal review page lands.
   const proposalReviewDemoRoute = createRoute({
@@ -255,6 +264,7 @@ function buildRouter(appConfig: AppConfig) {
       configCenterRoute,
       relationGraphRoute,
       metricsDashboardRoute,
+      proposalReviewRoute,
       proposalReviewDemoRoute,
       ...pageRegistrations
         .filter((page) => page.layout === "shell")
