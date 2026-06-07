@@ -215,7 +215,7 @@ export function extractDependencyEdges(input: DagExtractionInput): DependencyEdg
   }
   // Fallback: an entity field of `type: "state"` naming a registered machine.
   for (const entity of input.entities) {
-    for (const field of Object.values(entity.fields)) {
+    for (const field of Object.values(entity.fields ?? {})) {
       if (
         field.type === "state" &&
         typeof field.machine === "string" &&
