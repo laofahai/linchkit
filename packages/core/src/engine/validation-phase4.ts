@@ -63,12 +63,11 @@ const CONTRACT_BY_TARGET: Partial<Record<ProposalChangeTarget, string>> = {
 // Pre-compiled core-import detectors (recreating per change/iteration is wasteful).
 // `@linchkit/core` contains no regex metacharacters, so these literals are exact.
 // `[^;]*?` allows a multi-line import clause bounded by the statement terminator.
-// Only `import` (not `export … from`) is accepted: a re-export creates NO local
-// binding, so `defineAction(...)` would have nothing to call. Global so callers
-// can `matchAll` and verify each match's `import` keyword is real code (not text
-// inside a string literal) via index cross-reference against the blanked view.
+// Fallback (no known helper): any real `import … from "@linchkit/core"`. Only
+// `import` (not `export … from`) — a re-export creates NO local binding. Global so
+// callers can `matchAll` and verify each match's `import` keyword is real code
+// (not text inside a string literal) via index cross-reference vs the blanked view.
 const IMPORT_CORE_RE = /\bimport\b[^;]*?from\s*["'`]@linchkit\/core["'`]/g;
-const REQUIRE_CORE_RE = /\brequire\(\s*["'`]@linchkit\/core["'`]\s*\)/g;
 
 // ── Comment / string stripping ───────────────────────────
 // The contract checks must not be satisfiable by a token that appears only in a
@@ -250,8 +249,10 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     };
     // When the target has a known helper (e.g. `defineAction`), require THAT helper
     // in the import clause — `import { defineEntity } from core` must not satisfy a
-    // `defineAction` contract. `require("@linchkit/core")` (destructured) is also
-    // accepted. Without a contract, fall back to any real core import.
+    // `defineAction` contract. Without a contract, fall back to any real core
+    // import. Generated definition source is ESM (the materializer prompts for
+    // `import … from "@linchkit/core"`), so CommonJS `require` is intentionally
+    // not accepted — a require-based file simply gets an (advisory) import warning.
     const helper = contract;
     const importRe = helper
       ? new RegExp(
@@ -259,7 +260,7 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
           "g",
         )
       : IMPORT_CORE_RE;
-    const importsCore = importIsReal(importRe) || importIsReal(REQUIRE_CORE_RE);
+    const importsCore = importIsReal(importRe);
     if (!importsCore) {
       const what = helper ? `${helper} from "${CORE_IMPORT}"` : `from "${CORE_IMPORT}"`;
       findings.push({
