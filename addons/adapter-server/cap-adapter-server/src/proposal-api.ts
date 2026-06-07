@@ -7,8 +7,12 @@
  */
 
 import { PatternDetector, type PatternInsight } from "@linchkit/cap-ai-provider";
-import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";
-import { createProposalEngine, type ProposalEngine } from "@linchkit/core/server";
+import type { ExecutionLogger, OntologyRegistry, ProposalDefinition } from "@linchkit/core";
+import {
+  createProposalEngine,
+  type ProposalEngine,
+  type ValidationContext,
+} from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -164,15 +168,51 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
 
 // ── Mount endpoints onto Elysia app ──────────────────────
 
+/** Extra wiring for proposal validation (Phase 3 compatibility checks). */
+export interface MountProposalAPIOptions {
+  /** Execution logger for real PatternDetector analysis. */
+  executionLogger?: ExecutionLogger;
+  /**
+   * Current meta-model view used by validation Phase 3 to detect breaking
+   * references. When absent, Phase 3 degrades to "skipped".
+   */
+  ontology?: OntologyRegistry;
+  /**
+   * Escalate Phase 3 breaking-reference findings from WARN to BLOCK. Sourced
+   * from `detectEnvironment().features.strictCompatibility` (true in prod/staging).
+   */
+  strictCompatibility?: boolean;
+}
+
 /**
  * Register proposal/evolution/insights REST endpoints on the given Elysia app.
  * Call this in createServer() after the main app is created.
  *
  * @param app Elysia app instance
- * @param executionLogger Optional execution logger for real PatternDetector analysis
+ * @param options Execution logger + Phase 3 compatibility wiring (also accepts a
+ *   bare ExecutionLogger for backward compatibility).
  */
-// biome-ignore lint/suspicious/noExplicitAny: Elysia plugin typing
-export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): void {
+export function mountProposalAPI(
+  // biome-ignore lint/suspicious/noExplicitAny: Elysia plugin typing
+  app: any,
+  options?: MountProposalAPIOptions | ExecutionLogger,
+): void {
+  // Backward-compatible: a bare ExecutionLogger may still be passed positionally.
+  // Discriminate by its `log` method (MountProposalAPIOptions has no such field).
+  const isLogger = (v: unknown): v is ExecutionLogger =>
+    typeof (v as { log?: unknown } | undefined)?.log === "function";
+  const opts: MountProposalAPIOptions = isLogger(options)
+    ? { executionLogger: options }
+    : (options ?? {});
+  const executionLogger = opts.executionLogger;
+
+  // ValidationContext threaded into both submit sites so Phase 3 can run.
+  // Built once; when ontology is absent Phase 3 returns "skipped" (unchanged).
+  const validationContext: ValidationContext = {
+    ontology: opts.ontology,
+    strictCompatibility: opts.strictCompatibility,
+  };
+
   // Run initial pattern scan in background if execution logger is available
   if (executionLogger) {
     scanInsights(executionLogger).catch(() => {
@@ -231,7 +271,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
         // If draft, auto-submit first
         if (proposal.status === "draft") {
-          proposalEngine.submitProposal({ proposalId: params.id });
+          proposalEngine.submitProposal({ proposalId: params.id, context: validationContext });
         }
 
         // Re-fetch to check validation result
@@ -276,7 +316,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
         // If draft, auto-submit first
         if (proposal.status === "draft") {
-          proposalEngine.submitProposal({ proposalId: params.id });
+          proposalEngine.submitProposal({ proposalId: params.id, context: validationContext });
         }
 
         const refreshed = proposalEngine.getProposal(params.id);

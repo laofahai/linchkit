@@ -442,7 +442,14 @@ export function createServer(
   mountDeployRoutes(app, opts.deployWebhookHandler);
 
   // ── Proposal / Evolution / AI Insights endpoints ──────────────
-  mountProposalAPI(app, executionLogger);
+  // Thread the ontology + the env compatibility policy so proposal validation
+  // Phase 3 (Spec 09 §4.5) can detect breaking references. strictCompatibility
+  // blocks breaking proposals in prod/staging; dev/test stay warn-only.
+  mountProposalAPI(app, {
+    executionLogger,
+    ontology: opts.ontologyRegistry,
+    strictCompatibility: environment.features.strictCompatibility,
+  });
 
   // ── SSE Subscription endpoint (/api/subscribe) ────────────────
   mountSubscriptionRoutes(app, opts);

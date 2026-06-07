@@ -11,6 +11,7 @@
  */
 
 import type { EntityRegistry } from "../entity/entity-registry";
+import type { OntologyRegistry } from "../ontology/ontology-registry";
 import type { ActionDefinition } from "../types/action";
 import type { EntityDefinition, FieldType } from "../types/entity";
 import type {
@@ -24,6 +25,7 @@ import type {
 } from "../types/proposal";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
+import { validatePhase3 } from "./validation-phase3";
 
 // ── Valid field types ────────────────────────────────────
 // Relationships are now declared via defineRelation(), not field types
@@ -56,6 +58,18 @@ export interface ValidationContext {
   existingStates?: string[];
   /** Existing event names */
   existingEvents?: string[];
+  /**
+   * Read-only semantic view of the CURRENT (pre-change) meta-model. Used by
+   * Phase 3 (compatibility) to detect breaking references. When absent, Phase 3
+   * degrades to "skipped" (no findings) — existing callers stay unchanged.
+   */
+  ontology?: OntologyRegistry;
+  /**
+   * Escalate Phase 3 breaking-reference findings from WARN to BLOCK. Default
+   * (false / undefined) → Phase 3 is warn-only and does NOT affect `passed`.
+   * Mirrors the `strictValidation` env-feature pattern.
+   */
+  strictCompatibility?: boolean;
 }
 
 // ── Phase 1: Static checks ──────────────────────────────
@@ -639,7 +653,7 @@ export function validateProposal(options: {
   // Phase 1: Static checks
   const phase1 = validatePhase1({ changes: proposal.changes, context });
 
-  // Phase 2-4: Skipped for M1
+  // Phase 2: Skipped for M1 (build check)
   const phase2: PhaseResult = {
     phase: 2,
     status: "skipped",
@@ -647,13 +661,18 @@ export function validateProposal(options: {
     warnings: [],
     duration: 0,
   };
-  const phase3: PhaseResult = {
-    phase: 3,
-    status: "skipped",
-    errors: [],
-    warnings: [],
-    duration: 0,
-  };
+
+  // Phase 3: Compatibility (breaking-reference) check (Spec 09 §4.5).
+  // Warn-only by default; gated to BLOCK via context.strictCompatibility. When
+  // the context carries no ontology, validatePhase3 returns "skipped" — same
+  // behavior as before this phase existed, so existing callers are unaffected.
+  const phase3 = validatePhase3({
+    changes: proposal.changes,
+    ontology: context?.ontology,
+    strictCompatibility: context?.strictCompatibility,
+  });
+
+  // Phase 4: Skipped for M1 (test pass)
   const phase4: PhaseResult = {
     phase: 4,
     status: "skipped",

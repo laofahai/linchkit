@@ -177,3 +177,4 @@ export {
   validatePhase1,
   validateProposal,
 } from "./validation-engine";
+export { type ValidatePhase3Options, validatePhase3 } from "./validation-phase3";

@@ -14,6 +14,13 @@ export interface EnvironmentFeatureFlags {
   verboseLogging: boolean;
   /** Enable strict validation (schema + action input checks) (default: true in prod/staging) */
   strictValidation: boolean;
+  /**
+   * Escalate proposal-validation Phase 3 breaking-reference findings from WARN
+   * to BLOCK (default: true in prod/staging). Sibling of `strictValidation`:
+   * legitimate proposals are never blocked in dev/test, but production refuses
+   * proposals that break existing references.
+   */
+  strictCompatibility: boolean;
   /** Enable detailed error messages in responses (default: true in dev/test) */
   detailedErrors: boolean;
   /** Enable hot-reload / watch mode (default: true in dev) */
@@ -90,6 +97,7 @@ function buildConfig(name: EnvironmentName): EnvironmentConfig {
     features: {
       verboseLogging: isDevelopment || isTest,
       strictValidation: isProduction,
+      strictCompatibility: isProduction,
       detailedErrors: isDevelopment || isTest,
       hotReload: isDevelopment,
       requestLogging: isDevelopment,
