@@ -250,15 +250,18 @@ describe("validatePhase3 — action/state deletion", () => {
     expect(result.warnings.map((w) => w.code)).toContain("BREAKING_ELEMENT_DELETE");
   });
 
-  test("deleting a state machine that nothing depends on produces no findings", () => {
+  test("deleting a state machine attached to an entity flags the owning entity", () => {
     const ontology = buildOntology();
     const result = validatePhase3({
       changes: [{ target: "state", operation: "delete", name: "order_state" }],
       ontology,
     });
-    // Nothing in the DAG points TO state:order_state, so no breakage.
-    expect(result.status).toBe("passed");
-    expect(result.warnings).toHaveLength(0);
+    // order.status is a `type: "state"` field whose `machine` is "order_state",
+    // so entity:order depends on state:order_state (state_machine DAG edge).
+    expect(result.status).toBe("passed"); // warn-only
+    const elementWarnings = result.warnings.filter((w) => w.code === "BREAKING_ELEMENT_DELETE");
+    expect(elementWarnings.length).toBeGreaterThanOrEqual(1);
+    expect(elementWarnings.some((w) => w.message.includes('entity "order"'))).toBe(true);
   });
 
   test("deleting a whole entity flags entity-level dependents (not just fields)", () => {

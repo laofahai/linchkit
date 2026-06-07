@@ -160,7 +160,12 @@ export function extractDependencyEdges(input: DagExtractionInput): DependencyEdg
   }
 
   // State.transitions → guards → Rule
+  // State.transitions → state_transition → Action (State depends on the action it
+  // uses as a transition; deleting the action breaks the state machine).
+  const stateNames = new Set(input.states.map((s) => s.name));
   for (const state of input.states) {
+    // Dedupe per state: a state may reuse the same action across transitions.
+    const seenTransitionActions = new Set<string>();
     for (const transition of state.transitions) {
       if (transition.guard) {
         edges.push({
@@ -168,6 +173,55 @@ export function extractDependencyEdges(input: DagExtractionInput): DependencyEdg
           to: { type: "rule", name: transition.guard },
           type: "guards",
         });
+      }
+      if (
+        transition.action &&
+        actionToEntity.has(transition.action) &&
+        !seenTransitionActions.has(transition.action)
+      ) {
+        seenTransitionActions.add(transition.action);
+        edges.push({
+          from: { type: "state", name: state.name },
+          to: { type: "action", name: transition.action },
+          type: "state_transition",
+        });
+      }
+    }
+  }
+
+  // Entity → state_machine → State (Entity depends on its StateDefinition;
+  // deleting the state machine breaks the entity). Derive from BOTH the
+  // authoritative `StateDefinition.entity` attachment AND a `type: "state"`
+  // field's `machine` reference, deduped — a state machine may be attached via
+  // either, and the registered field's `machine` can be absent or differ from
+  // the state name while the StateDefinition still declares its entity.
+  const entityNames = new Set(input.entities.map((e) => e.name));
+  const seenStateMachineEdges = new Set<string>();
+  const pushStateMachineEdge = (entityName: string, stateName: string): void => {
+    const key = `${entityName} ${stateName}`;
+    if (seenStateMachineEdges.has(key)) return;
+    seenStateMachineEdges.add(key);
+    edges.push({
+      from: { type: "entity", name: entityName },
+      to: { type: "state", name: stateName },
+      type: "state_machine",
+    });
+  };
+  // Authoritative: each registered StateDefinition declares the entity it is on.
+  for (const state of input.states) {
+    if (state.entity && entityNames.has(state.entity)) {
+      pushStateMachineEdge(state.entity, state.name);
+    }
+  }
+  // Fallback: an entity field of `type: "state"` naming a registered machine.
+  for (const entity of input.entities) {
+    for (const field of Object.values(entity.fields)) {
+      if (
+        field.type === "state" &&
+        typeof field.machine === "string" &&
+        stateNames.has(field.machine)
+      ) {
+        pushStateMachineEdge(entity.name, field.machine);
       }
     }
   }
