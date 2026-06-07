@@ -74,6 +74,30 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(codes.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
   });
 
+  test("comment markers INSIDE string literals are not treated as comments (URL / slash safety)", () => {
+    // `/*` in one string and `*/` in another must NOT be parsed as a block
+    // comment that swallows the real import/defineAction between them — and a URL's
+    // `//` must not be parsed as a line comment. A naive regex stripper fails this;
+    // the single-pass string-aware walker passes it (gemini review hardening).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "sync_data",
+          generatedSource: [
+            'const open = "/*";',
+            'import { defineAction } from "@linchkit/core";',
+            'const url = "https://api.example.com/v1";',
+            'export const sync_data = defineAction({ name: "sync_data", handler: async () => ({ url }) });',
+            'const close = "*/";',
+          ].join("\n"),
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("passed");
+    expect(result.errors).toEqual([]);
+  });
+
   test("tokens that appear only in comments or strings do NOT satisfy the contract", () => {
     // defineAction( and @linchkit/core appear ONLY inside a comment / string —
     // they must not satisfy the call/import checks (codex review hardening).

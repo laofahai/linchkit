@@ -47,38 +47,92 @@ export interface ValidatePhase4Options {
   strictGeneratedContract?: boolean;
 }
 
+const CORE_IMPORT = "@linchkit/core";
+
 /**
- * Map a materializable target to the `define*()` call its generated source is
- * expected to contain. Only `action` is materializable today (see the proposal
- * materializer's MATERIALIZABLE_TARGETS); other targets are serialized
- * declaratively and never carry `generatedSource`. A target absent from this map
- * simply skips the define-call check (the name/import checks still run).
+ * Per-materializable-target contract: the `define*()` call its generated source
+ * must contain, with a pre-compiled detector regex. Only `action` is
+ * materializable today (see the proposal materializer's MATERIALIZABLE_TARGETS);
+ * other targets are serialized declaratively and never carry `generatedSource`.
+ * A target absent from this map skips the call check (name/import checks still
+ * run). `\b...\(` matches a real call after comment/string removal.
  */
-const DEFINE_CALL_BY_TARGET: Partial<Record<ProposalChangeTarget, string>> = {
-  action: "defineAction",
+const CONTRACT_BY_TARGET: Partial<Record<ProposalChangeTarget, { call: string; re: RegExp }>> = {
+  action: { call: "defineAction", re: /\bdefineAction\s*\(/ },
 };
 
-const CORE_IMPORT = "@linchkit/core";
+// Pre-compiled core-import detectors (recreating per change/iteration is wasteful).
+// `@linchkit/core` contains no regex metacharacters, so these literals are exact.
+// `[^;]*?` allows a multi-line import clause bounded by the statement terminator.
+const IMPORT_CORE_RE = /(?:import|export)\b[^;]*?from\s*["'`]@linchkit\/core["'`]/;
+const REQUIRE_CORE_RE = /require\(\s*["'`]@linchkit\/core["'`]\s*\)/;
 
 // ── Comment / string stripping ───────────────────────────
 // The contract checks must not be satisfiable by a token that appears only in a
 // comment (`// defineAction(`) or a string literal (`"call defineAction()"`).
-// These lightweight strippers remove those regions before the structural checks.
-// They are deliberately conservative: over-stripping (e.g. comment markers inside
-// an oddly-quoted string) only makes a check MORE likely to flag — a false
-// WARNING, never a false PASS.
+// A regex-only stripper is NOT string-aware — it would corrupt `//` inside a
+// string (e.g. a URL "https://x"). So this walks the source ONCE, tracking
+// string vs comment state, blanking comments (and optionally string bodies).
 
-/** Remove `//` line comments and block comments. */
-function stripComments(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+/**
+ * Single left-to-right pass that removes comments and, when `stripStrings` is
+ * true, the BODIES of string / template literals (delimiters kept). It is
+ * string/comment aware: a comment marker inside a string is preserved, and a
+ * quote inside a comment is ignored. Template-literal interpolation is treated
+ * as opaque string content (good enough for these heuristic checks).
+ */
+function stripCode(src: string, stripStrings: boolean): string {
+  let out = "";
+  const n = src.length;
+  let i = 0;
+  while (i < n) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (c === "/" && next === "/") {
+      i += 2;
+      while (i < n && src[i] !== "\n") i++;
+      out += " ";
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      i += 2;
+      while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2; // skip the closing */
+      out += " ";
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const quote = c;
+      const start = i;
+      i++;
+      while (i < n) {
+        if (src[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (src[i] === quote) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      out += stripStrings ? `${quote}${quote}` : src.slice(start, i);
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
 
-/** Remove comments AND string / template literals (their bodies). */
+/** Remove comments only (string bodies preserved). */
+function stripComments(src: string): string {
+  return stripCode(src, false);
+}
+
+/** Remove comments AND string / template literal bodies. */
 function stripCommentsAndStrings(src: string): string {
-  return stripComments(src)
-    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
-    .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+  return stripCode(src, true);
 }
 
 /** Escape a string for safe interpolation into a RegExp. */
@@ -121,11 +175,11 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     const code = stripCommentsAndStrings(source);
     const noComments = stripComments(source);
 
-    const expectedCall = DEFINE_CALL_BY_TARGET[change.target];
-    if (expectedCall && !new RegExp(`\\b${expectedCall}\\s*\\(`).test(code)) {
+    const contract = CONTRACT_BY_TARGET[change.target];
+    if (contract && !contract.re.test(code)) {
       findings.push({
         code: "GENERATED_SOURCE_CONTRACT",
-        message: `Generated source for ${change.target} "${change.name}" does not call ${expectedCall}(...).`,
+        message: `Generated source for ${change.target} "${change.name}" does not call ${contract.call}(...).`,
         target: change.name,
       });
     }
@@ -150,9 +204,7 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     // a real import/export-from or require() statement (not a bare mention) so a
     // comment or unrelated string can't satisfy it. `[^;]*?` allows multi-line
     // import clauses bounded by the statement terminator.
-    const importsCore =
-      new RegExp(`(?:import|export)\\b[^;]*?from\\s*["'\`]${CORE_IMPORT}["'\`]`).test(noComments) ||
-      new RegExp(`require\\(\\s*["'\`]${CORE_IMPORT}["'\`]\\s*\\)`).test(noComments);
+    const importsCore = IMPORT_CORE_RE.test(noComments) || REQUIRE_CORE_RE.test(noComments);
     if (!importsCore) {
       findings.push({
         code: "GENERATED_SOURCE_CONTRACT",
