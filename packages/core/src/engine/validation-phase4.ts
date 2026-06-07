@@ -196,23 +196,44 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     const noComments = stripComments(source);
 
     const contract = CONTRACT_BY_TARGET[change.target];
-    if (contract && !contract.re.test(code)) {
-      findings.push({
-        code: "GENERATED_SOURCE_CONTRACT",
-        message: `Generated source for ${change.target} "${change.name}" does not call ${contract.call}(...).`,
-        target: change.name,
-      });
-    }
-
-    // The generated definition should reference its declared name. A missing name
-    // usually means the AI generated something unrelated or a bare stub. The name
-    // may appear as an identifier or as the definition's `name:` literal, so this
-    // check runs on the comments-stripped (string-preserving) source. Match on a
-    // word boundary so a different name that merely CONTAINS the declared one
-    // (e.g. `do_thing_v2` for `do_thing`) does not satisfy it — `_` is a word
-    // char, so `\bdo_thing\b` won't match inside `do_thing_v2`.
-    const nameRef = new RegExp(`\\b${escapeRegExp(change.name)}\\b`);
-    if (!nameRef.test(noComments)) {
+    const escName = escapeRegExp(change.name);
+    if (contract) {
+      // The define call must be TIED to the declared name (not just present
+      // somewhere alongside the name). Two accepted, REAL-code forms:
+      //   1. `const|let|var <name> = defineAction(`  — binding id == declared name.
+      //      The identifier survives in `code` (strings/comments blanked), so this
+      //      is robust against name-in-string fakes.
+      //   2. `defineAction({ … name: "<name>" … })`  — a real call (keyword in
+      //      code) whose options object names the declared action. The `name:`
+      //      literal lives in a string, so we scan `noComments` (strings kept) but
+      //      confirm the `defineAction` keyword sits in real code via index check.
+      const callName = escapeRegExp(contract.call);
+      const boundByConst = new RegExp(
+        `\\b(?:const|let|var)\\s+${escName}\\s*=\\s*${callName}\\s*\\(`,
+      ).test(code);
+      let boundByName = false;
+      if (!boundByConst) {
+        const callRe = new RegExp(
+          `\\b${callName}\\s*\\(\\s*\\{[\\s\\S]*?\\bname\\s*:\\s*["'\`]${escName}["'\`]`,
+          "g",
+        );
+        for (const m of noComments.matchAll(callRe)) {
+          if (m.index !== undefined && /\S/.test(code[m.index] ?? "")) {
+            boundByName = true;
+            break;
+          }
+        }
+      }
+      if (!boundByConst && !boundByName) {
+        findings.push({
+          code: "GENERATED_SOURCE_CONTRACT",
+          message: `Generated source for ${change.target} "${change.name}" does not define ${contract.call}(...) for "${change.name}".`,
+          target: change.name,
+        });
+      }
+    } else if (!new RegExp(`\\b${escName}\\b`).test(noComments)) {
+      // No known define-call contract for this target (defensive — materialized
+      // changes are `action` today). Fall back to a name-reference check.
       findings.push({
         code: "GENERATED_SOURCE_CONTRACT",
         message: `Generated source for ${change.target} "${change.name}" does not reference its declared name "${change.name}".`,

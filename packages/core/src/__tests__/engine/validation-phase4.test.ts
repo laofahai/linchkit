@@ -56,12 +56,12 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(result.warnings[0]?.target).toBe("do_thing");
   });
 
-  test("flags a missing name reference and a missing core import", () => {
+  test("flags defining the wrong action + a missing core import", () => {
     const result = validatePhase4({
       changes: [
         change({
           name: "deduct_inventory",
-          // calls defineAction but neither references the declared name nor imports core
+          // calls defineAction for a DIFFERENT action and does not import core
           generatedSource: `export const other = defineAction({ name: "other", handler: async () => ({}) });`,
         }),
       ],
@@ -69,9 +69,29 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(result.status).toBe("passed"); // warn-only
     const codes = result.warnings.map((w) => w.message);
     expect(
-      codes.some((m) => m.includes('does not reference its declared name "deduct_inventory"')),
+      codes.some((m) => m.includes('does not define defineAction(...) for "deduct_inventory"')),
     ).toBe(true);
     expect(codes.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
+  });
+
+  test("defineAction for ANOTHER action does not satisfy the declared name (tied check)", () => {
+    // A real defineAction call + the declared name mentioned elsewhere must NOT
+    // pass: the call must be tied to the declared action (codex review hardening).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import { defineAction } from "@linchkit/core";\nexport const do_thing = 1;\nexport const other = defineAction({ name: "other", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) =>
+        e.message.includes('does not define defineAction(...) for "do_thing"'),
+      ),
+    ).toBe(true);
   });
 
   test("comment markers INSIDE string literals are not treated as comments (URL / slash safety)", () => {
@@ -158,8 +178,8 @@ describe("validatePhase4 — generated-source contract", () => {
     });
     expect(result.status).toBe("failed");
     const msgs = result.errors.map((e) => e.message);
-    // Both the call check and the import check must fire despite the mentions.
-    expect(msgs.some((m) => m.includes("does not call defineAction(...)"))).toBe(true);
+    // Both the define check and the import check must fire despite the mentions.
+    expect(msgs.some((m) => m.includes("does not define defineAction(...)"))).toBe(true);
     expect(msgs.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
   });
 
@@ -178,7 +198,7 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(result.status).toBe("failed");
     expect(
       result.errors.some((e) =>
-        e.message.includes('does not reference its declared name "do_thing"'),
+        e.message.includes('does not define defineAction(...) for "do_thing"'),
       ),
     ).toBe(true);
   });
