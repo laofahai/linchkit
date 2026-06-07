@@ -133,6 +133,29 @@ describe("materializeProposalChanges", () => {
     expect(result.proposal.changes[0]?.generatedSource).toBeUndefined();
   });
 
+  test("clears stale generatedSource when a re-materialization fails", async () => {
+    const input = makeProposal([
+      {
+        target: "action",
+        operation: "create",
+        name: "deduct_inventory",
+        generatedSource: "export const STALE = 1;",
+      },
+    ]);
+    const { provider } = makeProvider([BAD]); // every attempt fails the gate
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider,
+      qualityGate: createSyntaxQualityGate(),
+      maxRetries: 2,
+    });
+
+    expect(result.outcomes[0]?.status).toBe("failed");
+    // The stale source must NOT survive a failed re-materialization.
+    expect(result.proposal.changes[0]?.generatedSource).toBeUndefined();
+  });
+
   test("strips a markdown code fence from the generated source", async () => {
     const input = makeProposal([
       { target: "action", operation: "create", name: "deduct_inventory" },

@@ -106,6 +106,10 @@ export async function materializeProposalChanges(
       continue;
     }
 
+    // Clear any pre-existing source up front so a failed (re-)materialization
+    // never leaves STALE code on the change — it is set again only on success.
+    change.generatedSource = undefined;
+
     let lastErrors: string[] = [];
     let materialized = false;
     let attempt = 0;
