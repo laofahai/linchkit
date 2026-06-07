@@ -312,6 +312,12 @@ export async function runEvolutionCycle(
     return { kind: "error", message: "Evolution cycle returned an invalid response" };
   }
 
+  // A `null` body is valid JSON but not a usable envelope — guard before reading
+  // `.data` so this can't throw an unhandled TypeError outside the catch above.
+  if (!json || typeof json !== "object") {
+    return { kind: "error", message: "Evolution cycle returned an invalid response" };
+  }
+
   const data = json.data;
   return {
     kind: "ran",
@@ -385,6 +391,12 @@ export async function graduateProposal(
   try {
     json = (await res.json()) as GraduateWireResponse;
   } catch {
+    return { kind: "error", message: "Graduation returned an invalid response" };
+  }
+
+  // A `null` body is valid JSON but not a usable envelope — guard before reading
+  // `.data` so this can't throw an unhandled TypeError outside the catch above.
+  if (!json || typeof json !== "object") {
     return { kind: "error", message: "Graduation returned an invalid response" };
   }
 

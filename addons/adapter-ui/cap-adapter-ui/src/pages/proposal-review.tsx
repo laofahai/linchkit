@@ -106,16 +106,29 @@ function ProposalCard({
     setBusy(true);
     setActionError(null);
     setGrad(null);
-    const result = await graduateProposal(proposal.id);
-    setGrad(result);
-    setBusy(false);
+    try {
+      // graduateProposal is designed to never throw (it maps every failure to a
+      // discriminated result), but wrap it defensively so an unexpected throw
+      // still surfaces as an error outcome and never leaves the button stuck
+      // disabled. Mirrors handleRunCycle on the Evolution page.
+      const result = await graduateProposal(proposal.id);
+      setGrad(result);
+    } catch (err) {
+      setGrad({
+        kind: "error",
+        message:
+          err instanceof Error ? err.message : t("proposals.graduateFailed", "Graduation failed"),
+      });
+    } finally {
+      setBusy(false);
+    }
     // Do NOT auto-refresh on success: reloading the list would unmount this card
     // (or, under the `approved` filter, remove it entirely / remount it as
     // `committed`) and discard the rendered PR link before the reviewer can open
     // it. The success outcome — including "View PR" — stays visible, and the
     // Graduate button is hidden below to prevent a second submission. The user
     // refreshes the list manually when ready.
-  }, [proposal.id]);
+  }, [proposal.id, t]);
 
   const pending = isPending(proposal.status);
   const graduatable = canGraduate(proposal.status);
