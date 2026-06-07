@@ -89,7 +89,17 @@ export async function materializeProposalChanges(
   options: MaterializeProposalOptions,
 ): Promise<MaterializeProposalResult> {
   const { proposal, provider, qualityGate, context } = options;
-  const maxRetries = Math.max(1, Math.floor(options.maxRetries ?? 3));
+  // Guard a non-finite maxRetries (NaN/Infinity) — Math.floor(NaN) would make the
+  // retry loop skip every attempt and report a spurious failure.
+  const requestedRetries = options.maxRetries;
+  const maxRetries = Math.max(
+    1,
+    Math.floor(
+      typeof requestedRetries === "number" && Number.isFinite(requestedRetries)
+        ? requestedRetries
+        : 3,
+    ),
+  );
 
   // Per-change shallow copies — we only ever set `generatedSource`.
   const changes: ProposalChange[] = proposal.changes.map((c) => ({ ...c }));
@@ -204,11 +214,25 @@ function buildChangePrompt(
   return lines.join("\n");
 }
 
-/** Strip a single leading/trailing markdown code fence the model may add despite instructions. */
-function stripCodeFence(raw: string): string {
+/**
+ * Extract TypeScript source from a model response. Despite the "output only
+ * source" instruction, models sometimes wrap the code in a markdown fence or
+ * surround that fence with conversational prose ("Sure! Here is the code: ...").
+ * Handles all three shapes — bare source, a fenced block, or a fenced block
+ * embedded in prose — and returns "" for a non-string input rather than throwing.
+ */
+function stripCodeFence(raw: unknown): string {
+  if (typeof raw !== "string") return "";
   const trimmed = raw.trim();
-  if (!trimmed.startsWith("```")) return trimmed;
-  // Drop the opening fence line (``` or ```ts / ```typescript) and a trailing fence.
-  const withoutOpen = trimmed.replace(/^```[a-zA-Z]*\n?/, "");
-  return withoutOpen.replace(/\n?```$/, "").trim();
+  // A fenced block anywhere (even wrapped in prose) — take the first block's body.
+  const fenced = trimmed.match(/```[a-zA-Z]*\r?\n([\s\S]*?)```/);
+  if (fenced) return (fenced[1] ?? "").trim();
+  // An opening fence with no closing fence — drop the opener (and a dangling one).
+  if (trimmed.startsWith("```")) {
+    return trimmed
+      .replace(/^```[a-zA-Z]*\r?\n?/, "")
+      .replace(/\r?\n?```$/, "")
+      .trim();
+  }
+  return trimmed;
 }

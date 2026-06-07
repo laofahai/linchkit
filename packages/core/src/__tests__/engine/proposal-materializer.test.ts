@@ -171,6 +171,41 @@ describe("materializeProposalChanges", () => {
     expect(result.proposal.changes[0]?.generatedSource).toBe("export const deduct_inventory = 1;");
   });
 
+  test("extracts a fenced code block wrapped in conversational prose", async () => {
+    const input = makeProposal([
+      { target: "action", operation: "create", name: "deduct_inventory" },
+    ]);
+    const { provider } = makeProvider([
+      "Sure! Here is the code:\n```ts\nexport const deduct_inventory = 1;\n```\nLet me know if you need changes.",
+    ]);
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider,
+      qualityGate: createSyntaxQualityGate(),
+    });
+
+    expect(result.outcomes[0]?.status).toBe("materialized");
+    expect(result.proposal.changes[0]?.generatedSource).toBe("export const deduct_inventory = 1;");
+  });
+
+  test("treats a non-finite maxRetries as the default instead of skipping generation", async () => {
+    const input = makeProposal([
+      { target: "action", operation: "create", name: "deduct_inventory" },
+    ]);
+    const { provider } = makeProvider([GOOD]);
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider,
+      qualityGate: createSyntaxQualityGate(),
+      maxRetries: Number.NaN,
+    });
+
+    expect(result.outcomes[0]?.status).toBe("materialized");
+    expect(result.outcomes[0]?.attempts).toBe(1);
+  });
+
   test("forwards context to the provider as the system message", async () => {
     const input = makeProposal([
       { target: "action", operation: "create", name: "deduct_inventory" },
