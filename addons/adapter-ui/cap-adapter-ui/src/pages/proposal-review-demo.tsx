@@ -21,6 +21,8 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ProposalImpactPreview } from "@/components/proposal-impact-preview";
+import { ProposalValidationFindings } from "@/components/proposal-validation-findings";
+import type { ProposalValidationResult } from "@/lib/proposal-api";
 
 // ── Mock fixtures ──────────────────────────────────────────
 
@@ -181,6 +183,92 @@ const partialFixture: ProposalPreAnalysisResult = {
   },
 };
 
+// ── Validation-findings fixtures (Spec 09 §4.5) ────────────
+//
+// Mirrors the four pre-analysis branches but for the validation result: a
+// proposal that surfaces Phase 3 (compatibility / breaking-reference) warnings
+// in default mode, the same findings as blocking errors under strict mode, a
+// clean pass, and an absent result. Demonstrates every render branch of
+// ProposalValidationFindings against realistic breaking-reference codes.
+
+const findingsWarnFixture: ProposalValidationResult = {
+  passed: true,
+  impactSummary: "1 breaking reference (warning, non-blocking).",
+  phases: [
+    { phase: 1, status: "passed", errors: [], warnings: [], duration: 4 },
+    { phase: 2, status: "passed", errors: [], warnings: [], duration: 6 },
+    {
+      phase: 3,
+      status: "passed",
+      errors: [],
+      warnings: [
+        {
+          code: "BREAKING_FIELD_DELETE",
+          message: "Field 'task.priority' is still referenced by view 'task_board'.",
+          target: "view:task_board",
+          field: "task.priority",
+        },
+        {
+          code: "BREAKING_ENUM_VALUE_REMOVED",
+          message: "Enum value 'urgent' is removed but used by rule 'escalate_urgent'.",
+          target: "rule:escalate_urgent",
+          field: "task.priority",
+        },
+      ],
+      duration: 12,
+    },
+    { phase: 4, status: "skipped", errors: [], warnings: [], duration: 0 },
+  ],
+};
+
+const findingsErrorFixture: ProposalValidationResult = {
+  passed: false,
+  impactSummary: "2 breaking references (strict mode → blocking).",
+  phases: [
+    { phase: 1, status: "passed", errors: [], warnings: [], duration: 3 },
+    {
+      phase: 3,
+      status: "failed",
+      errors: [
+        {
+          code: "BREAKING_ELEMENT_DELETE",
+          message: "Action 'archive_task' is deleted but referenced by flow 'cleanup_flow'.",
+          target: "flow:cleanup_flow",
+        },
+        {
+          code: "BREAKING_FIELD_TYPE_CHANGE",
+          message: "Field 'task.due_at' type changes from date to string (narrowing).",
+          field: "task.due_at",
+        },
+        {
+          code: "BREAKING_REQUIRED_DEFAULT_DROP",
+          message: "Required field 'task.owner' loses its default; existing rows would fail.",
+          field: "task.owner",
+        },
+      ],
+      warnings: [],
+      duration: 15,
+    },
+  ],
+};
+
+const findingsCleanFixture: ProposalValidationResult = {
+  passed: true,
+  impactSummary: "No breaking references.",
+  phases: [
+    { phase: 1, status: "passed", errors: [], warnings: [], duration: 2 },
+    { phase: 2, status: "passed", errors: [], warnings: [], duration: 3 },
+    { phase: 3, status: "passed", errors: [], warnings: [], duration: 5 },
+  ],
+};
+
+const findingsFixtures: Record<string, ProposalValidationResult | null> = {
+  full: findingsWarnFixture,
+  error: findingsErrorFixture,
+  partial: findingsCleanFixture,
+  empty: null,
+};
+
 const fixtures: Fixture[] = [
   {
     id: "full",
@@ -233,6 +321,11 @@ export function ProposalReviewDemoPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Validation findings — Spec 09 §4.5 compatibility checks. READ-ONLY:
+          surfaces breaking-reference errors/warnings for a reviewer; never
+          approves or applies anything. */}
+      <ProposalValidationFindings result={findingsFixtures[activeId] ?? null} />
 
       <ProposalImpactPreview result={active?.result} />
     </div>
