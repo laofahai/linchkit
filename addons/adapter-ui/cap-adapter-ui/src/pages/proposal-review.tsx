@@ -109,9 +109,13 @@ function ProposalCard({
     const result = await graduateProposal(proposal.id);
     setGrad(result);
     setBusy(false);
-    // Only refresh on a successful PR open — the status moves to `committed`.
-    if (result.kind === "ok") onChanged();
-  }, [proposal.id, onChanged]);
+    // Do NOT auto-refresh on success: reloading the list would unmount this card
+    // (or, under the `approved` filter, remove it entirely / remount it as
+    // `committed`) and discard the rendered PR link before the reviewer can open
+    // it. The success outcome — including "View PR" — stays visible, and the
+    // Graduate button is hidden below to prevent a second submission. The user
+    // refreshes the list manually when ready.
+  }, [proposal.id]);
 
   const pending = isPending(proposal.status);
   const graduatable = canGraduate(proposal.status);
@@ -238,23 +242,29 @@ function ProposalCard({
           </div>
         )}
 
-        {/* Approved: graduate → open PR (never merges) */}
+        {/* Approved: graduate → open PR (never merges). Once a PR is opened the
+            button + hint are hidden so the success outcome (with the PR link)
+            survives and a second graduation can't be triggered. */}
         {graduatable && (
           <div className="space-y-2">
-            <Button size="sm" onClick={() => void handleGraduate()} disabled={busy}>
-              {busy ? (
-                <Loader2Icon className="mr-1 size-3.5 animate-spin" />
-              ) : (
-                <GitPullRequestIcon className="mr-1 size-3.5" />
-              )}
-              {t("proposals.graduate", "Graduate → open PR")}
-            </Button>
-            <p className="text-[11px] text-muted-foreground">
-              {t(
-                "proposals.graduateHint",
-                "Writes the definition files and opens a GitHub PR for review. It never merges.",
-              )}
-            </p>
+            {grad?.kind !== "ok" && (
+              <>
+                <Button size="sm" onClick={() => void handleGraduate()} disabled={busy}>
+                  {busy ? (
+                    <Loader2Icon className="mr-1 size-3.5 animate-spin" />
+                  ) : (
+                    <GitPullRequestIcon className="mr-1 size-3.5" />
+                  )}
+                  {t("proposals.graduate", "Graduate → open PR")}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  {t(
+                    "proposals.graduateHint",
+                    "Writes the definition files and opens a GitHub PR for review. It never merges.",
+                  )}
+                </p>
+              </>
+            )}
             {grad && <GraduateOutcome result={grad} t={t} />}
           </div>
         )}
