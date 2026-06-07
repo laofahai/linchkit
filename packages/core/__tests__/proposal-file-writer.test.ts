@@ -138,6 +138,57 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     expect(contents).toContain("Capability:");
   });
 
+  it("writes AI-materialized generatedSource verbatim, not the codegen output (G5)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const GENERATED = [
+      'import { defineAction } from "@linchkit/core";',
+      "export const do_thing = defineAction({",
+      '  name: "do_thing",',
+      "  handler: async () => ({ ok: true }),",
+      "});",
+      "",
+    ].join("\n");
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "action",
+          operation: "create",
+          name: "do_thing",
+          definition: { name: "do_thing" } as never,
+          generatedSource: GENERATED,
+        },
+      ],
+    });
+
+    const [written] = await writer.writeApprovedProposal(proposal);
+    expect(written).toBeDefined();
+    const contents = await readFile(written as string, "utf8");
+    // The materialized handler body lands verbatim — the deterministic codegen
+    // (which would only scaffold a declarative wrapper) is NOT used.
+    expect(contents).toBe(GENERATED);
+    expect(contents).toContain("handler: async () => ({ ok: true })");
+  });
+
+  it("falls back to codegen for an empty generatedSource (never writes a blank file)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "action",
+          operation: "create",
+          name: "do_thing",
+          definition: { name: "do_thing" } as never,
+          generatedSource: "   \n", // whitespace-only → treated as absent
+        },
+      ],
+    });
+
+    const [written] = await writer.writeApprovedProposal(proposal);
+    const contents = await readFile(written as string, "utf8");
+    expect(contents.trim().length).toBeGreaterThan(0); // not blank
+    expect(contents).toContain("defineAction("); // deterministic scaffold used
+  });
+
   it("writes multiple changes in one proposal", async () => {
     const writer = new ProposalFileWriter({ rootDir: tmpDir });
     const proposal = makeApprovedProposal({

@@ -30,6 +30,8 @@ export {
   executeBatch,
   MAX_BATCH_SIZE,
 } from "../../engine/batch-action-engine";
+// G5 code materialization (Phase 2 build gate + Phase 3 materializer).
+export { checkSourceSyntax, createSyntaxQualityGate } from "../../engine/code-quality-gate";
 export {
   type CommandBatchExecuteOptions,
   type CommandContext,
@@ -126,6 +128,13 @@ export {
   type ProposalGitRunner,
 } from "../../engine/proposal-git-committer";
 export {
+  isMaterializable,
+  type MaterializeChangeOutcome,
+  type MaterializeProposalOptions,
+  type MaterializeProposalResult,
+  materializeProposalChanges,
+} from "../../engine/proposal-materializer";
+export {
   createProposalOutcomeRecorder,
   type ProposalOutcomePayload,
   ProposalOutcomeRecorder,
@@ -161,6 +170,10 @@ export {
   validatePhase1,
   validateProposal,
 } from "../../engine/validation-engine";
+export {
+  type ValidatePhase2Options,
+  validatePhase2,
+} from "../../engine/validation-phase2";
 export {
   type ValidatePhase3Options,
   validatePhase3,

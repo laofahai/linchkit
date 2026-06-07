@@ -359,7 +359,20 @@ export class ProposalFileWriter {
       }
 
       const targetPath = await this.resolvePath(proposal, change, groupCache);
-      const rawSource = this.codegen(proposal, change);
+      // Prefer AI-materialized source (G5) when it has real content: the
+      // materializer attaches `generatedSource` for code targets (e.g. an action
+      // handler body) that the deterministic codegen can only scaffold. Without
+      // this, a materialized proposal would graduate to a PR containing a stub,
+      // silently dropping the generated logic. An empty / whitespace
+      // generatedSource is treated as absent so a malformed materialization can
+      // never write a blank file — it falls back to the deterministic scaffold
+      // (Phase 2 also flags the empty source upstream). Declarative changes have
+      // no generatedSource → codegen.
+      const hasGeneratedSource =
+        typeof change.generatedSource === "string" && change.generatedSource.trim().length > 0;
+      const rawSource = hasGeneratedSource
+        ? (change.generatedSource as string)
+        : this.codegen(proposal, change);
       const source = await this.maybeFormat(rawSource, targetPath, proposal);
       await mkdir(dirname(targetPath), { recursive: true });
 
