@@ -43,8 +43,9 @@ describe("validatePhase4 — generated-source contract", () => {
       changes: [
         change({
           name: "do_thing",
-          // syntactically fine, references the name + imports core, but no defineAction()
-          generatedSource: `import { x } from "@linchkit/core";\nexport const do_thing = 1;`,
+          // imports defineAction (so the import check is satisfied) but never calls
+          // it — isolates the missing-define finding.
+          generatedSource: `import { defineAction } from "@linchkit/core";\nexport const do_thing = 1;`,
         }),
       ],
     });
@@ -71,7 +72,9 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(
       codes.some((m) => m.includes('does not define defineAction(...) for "deduct_inventory"')),
     ).toBe(true);
-    expect(codes.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
+    expect(
+      codes.some((m) => m.includes('does not import defineAction from "@linchkit/core"')),
+    ).toBe(true);
   });
 
   test("defineAction for ANOTHER action does not satisfy the declared name (tied check)", () => {
@@ -136,7 +139,9 @@ describe("validatePhase4 — generated-source contract", () => {
     });
     expect(result.status).toBe("failed");
     expect(
-      result.errors.some((e) => e.message.includes('does not import from "@linchkit/core"')),
+      result.errors.some((e) =>
+        e.message.includes('does not import defineAction from "@linchkit/core"'),
+      ),
     ).toBe(true);
   });
 
@@ -155,7 +160,9 @@ describe("validatePhase4 — generated-source contract", () => {
     });
     expect(result.status).toBe("failed");
     expect(
-      result.errors.some((e) => e.message.includes('does not import from "@linchkit/core"')),
+      result.errors.some((e) =>
+        e.message.includes('does not import defineAction from "@linchkit/core"'),
+      ),
     ).toBe(true);
   });
 
@@ -180,7 +187,9 @@ describe("validatePhase4 — generated-source contract", () => {
     const msgs = result.errors.map((e) => e.message);
     // Both the define check and the import check must fire despite the mentions.
     expect(msgs.some((m) => m.includes("does not define defineAction(...)"))).toBe(true);
-    expect(msgs.some((m) => m.includes('does not import from "@linchkit/core"'))).toBe(true);
+    expect(msgs.some((m) => m.includes('does not import defineAction from "@linchkit/core"'))).toBe(
+      true,
+    );
   });
 
   test("a different name that merely CONTAINS the declared name does not satisfy it", () => {
@@ -191,6 +200,47 @@ describe("validatePhase4 — generated-source contract", () => {
         change({
           name: "do_thing",
           generatedSource: `import { defineAction } from "@linchkit/core";\nexport const do_thing_v2 = defineAction({ name: "do_thing_v2", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) =>
+        e.message.includes('does not define defineAction(...) for "do_thing"'),
+      ),
+    ).toBe(true);
+  });
+
+  test("importing a DIFFERENT core helper does not satisfy the import check", () => {
+    // defineEntity is imported, but the source calls defineAction → the helper it
+    // calls is not bound (codex review hardening — helper-specific import).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import { defineEntity } from "@linchkit/core";\nexport const do_thing = defineAction({ name: "do_thing", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) =>
+        e.message.includes('does not import defineAction from "@linchkit/core"'),
+      ),
+    ).toBe(true);
+  });
+
+  test("a name: in unrelated code after the call does not satisfy the tied check", () => {
+    // defineAction defines "other"; the declared name appears only in a separate
+    // object literal → the name match must stay inside the call's own braces
+    // (codex review hardening).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import { defineAction } from "@linchkit/core";\nexport const other = defineAction({ name: "other", handler: async () => ({}) });\nconst metadata = { name: "do_thing" };`,
         }),
       ],
       strictGeneratedContract: true,

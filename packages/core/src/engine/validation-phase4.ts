@@ -213,8 +213,12 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
       ).test(code);
       let boundByName = false;
       if (!boundByConst) {
+        // `[^}]*?` keeps the `name:` match INSIDE the call's own options object —
+        // it cannot cross the first `}` into unrelated later code (e.g. a separate
+        // `const meta = { name: "<declared>" }`). Conservative: a nested object
+        // before `name:` ends the scan early → a false warning, never a false pass.
         const callRe = new RegExp(
-          `\\b${callName}\\s*\\(\\s*\\{[\\s\\S]*?\\bname\\s*:\\s*["'\`]${escName}["'\`]`,
+          `\\b${callName}\\s*\\(\\s*\\{[^}]*?\\bname\\s*:\\s*["'\`]${escName}["'\`]`,
           "g",
         );
         for (const m of noComments.matchAll(callRe)) {
@@ -241,23 +245,33 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
       });
     }
 
-    // Definitions need the define* helpers, which come from @linchkit/core. Match
-    // a real `import …`/`require()` statement (not a re-export, comment, or string)
-    // so nothing fake can satisfy it. We scan the strings-KEPT view (so the
-    // specifier is visible) but confirm each match's keyword sits in REAL CODE by
-    // cross-referencing the same index in the strings-BLANKED view — a fake import
-    // inside a string literal is blanked there, so its index is whitespace.
+    // The define helper must actually be IMPORTED from @linchkit/core. We scan the
+    // strings-KEPT view (so the specifier is visible) but confirm each match's
+    // keyword sits in REAL CODE via index cross-reference against the blanked view
+    // — a fake import inside a string literal is blanked there (whitespace index).
     const importIsReal = (re: RegExp): boolean => {
       for (const m of noComments.matchAll(re)) {
         if (m.index !== undefined && /\S/.test(code[m.index] ?? "")) return true;
       }
       return false;
     };
-    const importsCore = importIsReal(IMPORT_CORE_RE) || importIsReal(REQUIRE_CORE_RE);
+    // When the target has a known helper (e.g. `defineAction`), require THAT helper
+    // in the import clause — `import { defineEntity } from core` must not satisfy a
+    // `defineAction` contract. `require("@linchkit/core")` (destructured) is also
+    // accepted. Without a contract, fall back to any real core import.
+    const helper = contract?.call;
+    const importRe = helper
+      ? new RegExp(
+          `\\bimport\\b[^;]*?\\b${escapeRegExp(helper)}\\b[^;]*?from\\s*["'\`]@linchkit\\/core["'\`]`,
+          "g",
+        )
+      : IMPORT_CORE_RE;
+    const importsCore = importIsReal(importRe) || importIsReal(REQUIRE_CORE_RE);
     if (!importsCore) {
+      const what = helper ? `${helper} from "${CORE_IMPORT}"` : `from "${CORE_IMPORT}"`;
       findings.push({
         code: "GENERATED_SOURCE_CONTRACT",
-        message: `Generated source for ${change.target} "${change.name}" does not import from "${CORE_IMPORT}".`,
+        message: `Generated source for ${change.target} "${change.name}" does not import ${what}.`,
         target: change.name,
       });
     }
