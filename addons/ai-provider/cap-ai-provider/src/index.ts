@@ -45,7 +45,11 @@ export type {
   UsageEvent,
 } from "./anomaly-detector";
 export { AnomalyDetector } from "./anomaly-detector";
-
+// Code generation provider (G5 Phase 1) — implements core's CodeGenerationProvider
+// seam over the configured AIService. Produces candidate source only; never
+// writes/runs code (gated by validation + double human review).
+export type { CodeGenerationProviderOptions } from "./code-generation-provider";
+export { createCodeGenerationProvider } from "./code-generation-provider";
 // Cost Estimator
 export type { ModelPricing } from "./cost-estimator";
 export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
