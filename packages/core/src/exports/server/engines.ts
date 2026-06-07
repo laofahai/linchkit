@@ -43,6 +43,11 @@ export {
   PipelineError,
   type SlotName,
 } from "../../engine/command-layer";
+export {
+  type PersistCycleDraftsOptions,
+  type PersistCycleDraftsResult,
+  persistCycleProposalsAsDrafts,
+} from "../../engine/evolution-cycle-drafts";
 // Generator priority aggregator (Spec 55 §7.7 Phase 3)
 export {
   createGeneratorPriorityAggregator,
