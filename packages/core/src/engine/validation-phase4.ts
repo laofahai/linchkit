@@ -64,7 +64,9 @@ const CONTRACT_BY_TARGET: Partial<Record<ProposalChangeTarget, { call: string; r
 // Pre-compiled core-import detectors (recreating per change/iteration is wasteful).
 // `@linchkit/core` contains no regex metacharacters, so these literals are exact.
 // `[^;]*?` allows a multi-line import clause bounded by the statement terminator.
-const IMPORT_CORE_RE = /(?:import|export)\b[^;]*?from\s*["'`]@linchkit\/core["'`]/;
+// Only `import` (not `export … from`) is accepted: a re-export creates NO local
+// binding, so `defineAction(...)` would have nothing to call.
+const IMPORT_CORE_RE = /\bimport\b[^;]*?from\s*["'`]@linchkit\/core["'`]/;
 const REQUIRE_CORE_RE = /require\(\s*["'`]@linchkit\/core["'`]\s*\)/;
 
 // ── Comment / string stripping ───────────────────────────

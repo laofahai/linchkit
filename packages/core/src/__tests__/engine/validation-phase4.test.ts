@@ -98,6 +98,25 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(result.errors).toEqual([]);
   });
 
+  test("a re-export from core does NOT satisfy the import check (no local binding)", () => {
+    // `export { defineAction } from "@linchkit/core"` re-exports — it creates no
+    // local `defineAction` binding, so calling it would fail. The import check
+    // must require a real `import` (codex review hardening).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `export { defineAction } from "@linchkit/core";\nexport const do_thing = defineAction({ name: "do_thing", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) => e.message.includes('does not import from "@linchkit/core"')),
+    ).toBe(true);
+  });
+
   test("tokens that appear only in comments or strings do NOT satisfy the contract", () => {
     // defineAction( and @linchkit/core appear ONLY inside a comment / string —
     // they must not satisfy the call/import checks (codex review hardening).
