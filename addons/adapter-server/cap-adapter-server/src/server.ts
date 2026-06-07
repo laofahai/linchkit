@@ -52,6 +52,7 @@ import { type GraphQLSchema, NoSchemaIntrospectionCustomRule } from "graphql";
 import { createYoga, type Plugin } from "graphql-yoga";
 import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
+import { mountProposalGraduateAPI } from "./proposal-graduate-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
@@ -457,6 +458,15 @@ export function createServer(
     executionLogger,
     ontology: opts.ontologyRegistry,
     strictCompatibility: environment.features.strictCompatibility,
+  });
+  // Manual, admin-triggered graduation: POST /api/proposals/:id/graduate writes
+  // an approved proposal to disk and opens a PR (Spec 55 §7.6/§7.7). It NEVER
+  // auto-fires on approval and NEVER auto-merges — graduation is human-triggered
+  // and the resulting PR is human-reviewed. Uses the SAME shared governed engine
+  // as mountProposalAPI; config/credentials are sourced from the environment.
+  mountProposalGraduateAPI(app, {
+    commandLayer: opts.commandLayer,
+    resolveRequestActor: opts.resolveRequestActor,
   });
 
   // ── Evolution cycle trigger (Spec 55 §7) ─────────────────────
