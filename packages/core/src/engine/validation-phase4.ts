@@ -50,15 +50,14 @@ export interface ValidatePhase4Options {
 const CORE_IMPORT = "@linchkit/core";
 
 /**
- * Per-materializable-target contract: the `define*()` call its generated source
- * must contain, with a pre-compiled detector regex. Only `action` is
- * materializable today (see the proposal materializer's MATERIALIZABLE_TARGETS);
- * other targets are serialized declaratively and never carry `generatedSource`.
- * A target absent from this map skips the call check (name/import checks still
- * run). `\b...\(` matches a real call after comment/string removal.
+ * Per-materializable-target contract: the `define*()` helper its generated source
+ * must call (and import). Only `action` is materializable today (see the proposal
+ * materializer's MATERIALIZABLE_TARGETS); other targets are serialized
+ * declaratively and never carry `generatedSource`. A target absent from this map
+ * falls back to a bare name-reference check.
  */
-const CONTRACT_BY_TARGET: Partial<Record<ProposalChangeTarget, { call: string; re: RegExp }>> = {
-  action: { call: "defineAction", re: /\bdefineAction\s*\(/ },
+const CONTRACT_BY_TARGET: Partial<Record<ProposalChangeTarget, string>> = {
+  action: "defineAction",
 };
 
 // Pre-compiled core-import detectors (recreating per change/iteration is wasteful).
@@ -198,40 +197,34 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     const contract = CONTRACT_BY_TARGET[change.target];
     const escName = escapeRegExp(change.name);
     if (contract) {
-      // The define call must be TIED to the declared name (not just present
-      // somewhere alongside the name). Two accepted, REAL-code forms:
-      //   1. `const|let|var <name> = defineAction(`  — binding id == declared name.
-      //      The identifier survives in `code` (strings/comments blanked), so this
-      //      is robust against name-in-string fakes.
-      //   2. `defineAction({ … name: "<name>" … })`  — a real call (keyword in
-      //      code) whose options object names the declared action. The `name:`
-      //      literal lives in a string, so we scan `noComments` (strings kept) but
-      //      confirm the `defineAction` keyword sits in real code via index check.
-      const callName = escapeRegExp(contract.call);
-      const boundByConst = new RegExp(
-        `\\b(?:const|let|var)\\s+${escName}\\s*=\\s*${callName}\\s*\\(`,
-      ).test(code);
-      let boundByName = false;
-      if (!boundByConst) {
-        // `[^}]*?` keeps the `name:` match INSIDE the call's own options object —
-        // it cannot cross the first `}` into unrelated later code (e.g. a separate
-        // `const meta = { name: "<declared>" }`). Conservative: a nested object
-        // before `name:` ends the scan early → a false warning, never a false pass.
-        const callRe = new RegExp(
-          `\\b${callName}\\s*\\(\\s*\\{[^}]*?\\bname\\s*:\\s*["'\`]${escName}["'\`]`,
-          "g",
-        );
-        for (const m of noComments.matchAll(callRe)) {
-          if (m.index !== undefined && /\S/.test(code[m.index] ?? "")) {
-            boundByName = true;
-            break;
-          }
+      // The contract is satisfied only by a REAL `defineAction({ … name: "<name>" … })`
+      // call whose OPTIONS-OBJECT name is the declared action. The registered
+      // `ActionDefinition.name` comes from that `name:` literal — NOT from the
+      // variable it's assigned to (`const do_thing = defineAction({ name: "other" })`
+      // registers `other`), so the const-binding name is intentionally NOT trusted.
+      // The `name:` literal lives in a string, so we scan `noComments` (strings
+      // kept) but confirm the `defineAction` keyword sits in real code via the
+      // index cross-reference. `[^}]*?` keeps the match INSIDE the call's own
+      // options object — it cannot cross the first `}` into unrelated later code
+      // (e.g. a separate `const meta = { name: "<declared>" }`). Conservative: a
+      // nested object before `name:` ends the scan early → a false warning, never
+      // a false pass.
+      const callName = escapeRegExp(contract);
+      const callRe = new RegExp(
+        `\\b${callName}\\s*\\(\\s*\\{[^}]*?\\bname\\s*:\\s*["'\`]${escName}["'\`]`,
+        "g",
+      );
+      let definesDeclared = false;
+      for (const m of noComments.matchAll(callRe)) {
+        if (m.index !== undefined && /\S/.test(code[m.index] ?? "")) {
+          definesDeclared = true;
+          break;
         }
       }
-      if (!boundByConst && !boundByName) {
+      if (!definesDeclared) {
         findings.push({
           code: "GENERATED_SOURCE_CONTRACT",
-          message: `Generated source for ${change.target} "${change.name}" does not define ${contract.call}(...) for "${change.name}".`,
+          message: `Generated source for ${change.target} "${change.name}" does not define ${contract}(...) for "${change.name}".`,
           target: change.name,
         });
       }
@@ -259,7 +252,7 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     // in the import clause — `import { defineEntity } from core` must not satisfy a
     // `defineAction` contract. `require("@linchkit/core")` (destructured) is also
     // accepted. Without a contract, fall back to any real core import.
-    const helper = contract?.call;
+    const helper = contract;
     const importRe = helper
       ? new RegExp(
           `\\bimport\\b[^;]*?\\b${escapeRegExp(helper)}\\b[^;]*?from\\s*["'\`]@linchkit\\/core["'\`]`,

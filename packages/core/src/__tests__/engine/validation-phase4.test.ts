@@ -253,6 +253,26 @@ describe("validatePhase4 — generated-source contract", () => {
     ).toBe(true);
   });
 
+  test("the OPTIONS name: is authoritative — a matching variable name does not save a wrong name:", () => {
+    // `const do_thing = defineAction({ name: "other" })` registers action "other"
+    // (the options name:), not "do_thing" (the variable). Must flag (codex review).
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import { defineAction } from "@linchkit/core";\nexport const do_thing = defineAction({ name: "other", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(
+      result.errors.some((e) =>
+        e.message.includes('does not define defineAction(...) for "do_thing"'),
+      ),
+    ).toBe(true);
+  });
+
   test("strictGeneratedContract: findings become errors, status failed", () => {
     const result = validatePhase4({
       changes: [change({ name: "do_thing", generatedSource: `export const do_thing = 1;` })],
