@@ -25,6 +25,7 @@ import type {
 } from "../types/proposal";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
+import { validatePhase2 } from "./validation-phase2";
 import { validatePhase3 } from "./validation-phase3";
 
 // ── Valid field types ────────────────────────────────────
@@ -70,6 +71,13 @@ export interface ValidationContext {
    * Mirrors the `strictValidation` env-feature pattern.
    */
   strictCompatibility?: boolean;
+  /**
+   * Escalate Phase 2 (build/syntax) findings on AI-materialized `generatedSource`
+   * from WARN to BLOCK. Default (false / undefined) → Phase 2 is warn-only and
+   * does NOT affect `passed`. When no change carries generated source, Phase 2 is
+   * skipped regardless. Mirrors the `strictCompatibility` pattern.
+   */
+  strictGeneratedBuild?: boolean;
 }
 
 // ── Phase 1: Static checks ──────────────────────────────
@@ -653,14 +661,14 @@ export function validateProposal(options: {
   // Phase 1: Static checks
   const phase1 = validatePhase1({ changes: proposal.changes, context });
 
-  // Phase 2: Skipped for M1 (build check)
-  const phase2: PhaseResult = {
-    phase: 2,
-    status: "skipped",
-    errors: [],
-    warnings: [],
-    duration: 0,
-  };
+  // Phase 2: Build (syntax) check of any AI-materialized `generatedSource` on the
+  // changes (G5). Warn-only by default; gated to BLOCK via strictGeneratedBuild.
+  // When no change carries generated source, validatePhase2 returns "skipped" —
+  // existing all-declarative callers are unaffected.
+  const phase2 = validatePhase2({
+    changes: proposal.changes,
+    strictGeneratedBuild: context?.strictGeneratedBuild,
+  });
 
   // Phase 3: Compatibility (breaking-reference) check (Spec 09 §4.5).
   // Warn-only by default; gated to BLOCK via context.strictCompatibility. When

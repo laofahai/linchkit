@@ -109,6 +109,16 @@ export interface ProposalChange {
    * a rollback can execute. This field NEVER triggers auto-execution.
    */
   revertSha?: string;
+  /**
+   * AI-materialized TypeScript source for this change (G5 Phase 3).
+   *
+   * Only set for code targets (`action` / `event` / `flow`) whose handler/logic
+   * body cannot be expressed declaratively in `definition`. Produced by the
+   * proposal materializer and build-checked by validation Phase 2. Candidate
+   * source only — it never executes or lands without passing validation and
+   * double human review (draft + graduation PR).
+   */
+  generatedSource?: string;
 }
 
 // ── Impact analysis ──────────────────────────────────────
