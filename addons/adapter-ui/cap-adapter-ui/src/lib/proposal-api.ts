@@ -30,6 +30,37 @@ export interface ProposalImpact {
   migrationRequired: boolean;
 }
 
+/**
+ * A single validation finding (error or warning) surfaced by a validation
+ * phase. Mirrors the core `ValidationError` / `ValidationWarning` shape — kept
+ * local so the UI never imports the server/core runtime. `target` / `field` are
+ * optional context the producer may attach (e.g. the entity/field a breaking
+ * reference points at). Guarded as optional because older payloads omit them.
+ */
+export interface ProposalValidationFinding {
+  code: string;
+  message: string;
+  target?: string;
+  field?: string;
+}
+
+/** One validation phase's outcome (mirrors core `PhaseResult`). */
+export interface ProposalValidationPhase {
+  phase: number;
+  /** "passed" | "failed" | "skipped" — kept as a string for forward-compat. */
+  status: string;
+  errors: ProposalValidationFinding[];
+  warnings: ProposalValidationFinding[];
+  duration: number;
+}
+
+/** Aggregate validation result attached to a proposal (mirrors core). */
+export interface ProposalValidationResult {
+  passed: boolean;
+  phases: ProposalValidationPhase[];
+  impactSummary: string;
+}
+
 export interface Proposal {
   id: string;
   title: string;
@@ -40,17 +71,7 @@ export interface Proposal {
   changes: ProposalChange[];
   impact: ProposalImpact;
   status: string;
-  validationResult?: {
-    passed: boolean;
-    phases: Array<{
-      phase: number;
-      status: string;
-      errors: Array<{ code: string; message: string }>;
-      warnings: Array<{ code: string; message: string }>;
-      duration: number;
-    }>;
-    impactSummary: string;
-  };
+  validationResult?: ProposalValidationResult;
   createdAt: string;
   updatedAt: string;
   validatedAt?: string;

@@ -776,6 +776,17 @@
     "phaseErrors": "{{count}} 个错误",
     "phaseErrors_other": "{{count}} 个错误",
     "defaultRejectReason": "用户拒绝",
+    "findings": {
+      "heading": "校验发现",
+      "phaseTitle": "阶段 {{phase}}",
+      "compatibilityTitle": "阶段 {{phase}}：兼容性",
+      "errorCount": "{{count}} 个错误",
+      "errorCount_other": "{{count}} 个错误",
+      "warningCount": "{{count}} 个警告",
+      "warningCount_other": "{{count}} 个警告",
+      "clean": "校验通过，未发现问题。",
+      "empty": "没有可显示的校验发现。"
+    },
     "preanalysis": {
       "heading": "预分析结果",
       "empty": "该提案暂无预分析结果。",
