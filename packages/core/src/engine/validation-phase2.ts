@@ -51,9 +51,11 @@ export function validatePhase2(options: ValidatePhase2Options): PhaseResult {
   const { changes, strictGeneratedBuild = false } = options;
   const start = Date.now();
 
-  const withSource = changes.filter(
-    (c) => typeof c.generatedSource === "string" && c.generatedSource.length > 0,
-  );
+  // Include EVERY change carrying a string `generatedSource`, even an empty one:
+  // an empty / whitespace materialization is itself a finding (checkSourceSyntax
+  // flags it) and must not bypass Phase 2 by being filtered out here. Changes
+  // with no generatedSource (undefined) are declarative → nothing to build.
+  const withSource = changes.filter((c) => typeof c.generatedSource === "string");
 
   // Nothing materialized → no build surface → skipped (back-compat).
   if (withSource.length === 0) {

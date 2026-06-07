@@ -17,6 +17,16 @@ describe("validatePhase2", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  test("an empty generatedSource is flagged, not skipped", () => {
+    const result = validatePhase2({
+      changes: [change({ name: "empty_action", generatedSource: "" })],
+    });
+    // Empty string is still a materialized-source change → not skipped.
+    expect(result.status).toBe("passed"); // warn-only default
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings[0]?.code).toBe("GENERATED_SOURCE_SYNTAX");
+  });
+
   test("passes when generated source is syntactically valid", () => {
     const result = validatePhase2({
       changes: [change({ generatedSource: "export const x = 1;" })],
