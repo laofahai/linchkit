@@ -12,7 +12,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { CommandLayer, EvolutionRuntime, ProposalDefinition } from "@linchkit/core";
+import type { CommandLayer, ProposalDefinition } from "@linchkit/core";
+import type { EvolutionRuntime } from "@linchkit/core/server";
 import { Elysia } from "elysia";
 import { getSharedProposalEngine } from "../src/proposal-api";
 import { mountEvolutionCycleRoutes } from "../src/routes/evolution-cycle-api";
