@@ -273,6 +273,42 @@ describe("validatePhase4 — generated-source contract", () => {
     ).toBe(true);
   });
 
+  test("a type-only or aliased helper import does not satisfy the import check", () => {
+    // `import type { defineAction }` is erased; `defineAction as da` binds `da`,
+    // not `defineAction` — neither gives a usable defineAction value (codex review).
+    const typeOnly = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import type { defineAction } from "@linchkit/core";\nexport const do_thing = defineAction({ name: "do_thing", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(typeOnly.status).toBe("failed");
+    expect(
+      typeOnly.errors.some((e) =>
+        e.message.includes('does not import defineAction from "@linchkit/core"'),
+      ),
+    ).toBe(true);
+
+    const aliased = validatePhase4({
+      changes: [
+        change({
+          name: "do_thing",
+          generatedSource: `import { defineAction as da } from "@linchkit/core";\nexport const do_thing = da({ name: "do_thing", handler: async () => ({}) });`,
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(aliased.status).toBe("failed");
+    expect(
+      aliased.errors.some((e) =>
+        e.message.includes('does not import defineAction from "@linchkit/core"'),
+      ),
+    ).toBe(true);
+  });
+
   test("strictGeneratedContract: findings become errors, status failed", () => {
     const result = validatePhase4({
       changes: [change({ name: "do_thing", generatedSource: `export const do_thing = 1;` })],

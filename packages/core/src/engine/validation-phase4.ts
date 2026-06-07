@@ -253,10 +253,15 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     // import. Generated definition source is ESM (the materializer prompts for
     // `import … from "@linchkit/core"`), so CommonJS `require` is intentionally
     // not accepted — a require-based file simply gets an (advisory) import warning.
+    // `(?!\s+type\b)` rejects a type-only `import type { … }` (erased at runtime);
+    // `(?!\s+as\b)` after the helper rejects `{ defineAction as da }` (aliased away,
+    // so no local `defineAction` value binding). Deeper shapes (inline `{ type x }`,
+    // namespace `import * as core`) fall through to an advisory warning — the
+    // graduation PR's CI typecheck is the authoritative gate for those.
     const helper = contract;
     const importRe = helper
       ? new RegExp(
-          `\\bimport\\b[^;]*?\\b${escapeRegExp(helper)}\\b[^;]*?from\\s*["'\`]@linchkit\\/core["'\`]`,
+          `\\bimport\\b(?!\\s+type\\b)[^;]*?\\b${escapeRegExp(helper)}\\b(?!\\s+as\\b)[^;]*?from\\s*["'\`]@linchkit\\/core["'\`]`,
           "g",
         )
       : IMPORT_CORE_RE;
