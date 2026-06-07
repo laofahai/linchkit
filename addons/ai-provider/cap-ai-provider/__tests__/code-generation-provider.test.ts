@@ -91,4 +91,38 @@ describe("createCodeGenerationProvider", () => {
     const provider = createCodeGenerationProvider(ai);
     await expect(provider.generateCode("PROMPT")).rejects.toThrow(/not configured/);
   });
+
+  test("throws on an empty prompt; the model is never called", async () => {
+    const { ai, calls } = makeAI();
+    const provider = createCodeGenerationProvider(ai);
+    await expect(provider.generateCode("")).rejects.toThrow(/non-empty string/);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("throws on a whitespace-only prompt; the model is never called", async () => {
+    const { ai, calls } = makeAI();
+    const provider = createCodeGenerationProvider(ai);
+    await expect(provider.generateCode("   \n\t ")).rejects.toThrow(/non-empty string/);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("throws when the completion has no text content", async () => {
+    const ai: AIService = {
+      configured: true,
+      defaultProvider: "glm",
+      providerNames: ["glm"],
+      // Simulate a provider returning a result without usable text content.
+      async complete(): Promise<AICompletionResult> {
+        return {
+          content: undefined as unknown as string,
+          usage: { inputTokens: 1, outputTokens: 0, totalTokens: 1 },
+          model: "glm-4",
+          provider: "glm",
+          duration: 1,
+        };
+      },
+    };
+    const provider = createCodeGenerationProvider(ai);
+    await expect(provider.generateCode("PROMPT")).rejects.toThrow(/no text content/);
+  });
 });

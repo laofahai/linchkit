@@ -55,6 +55,9 @@ export function createCodeGenerationProvider(
           "CodeGenerationProvider: AIService is not configured — cannot generate code.",
         );
       }
+      if (typeof prompt !== "string" || prompt.trim().length === 0) {
+        throw new Error("CodeGenerationProvider: prompt must be a non-empty string.");
+      }
 
       const messages: AIMessage[] = [];
       if (context && context.trim().length > 0) {
@@ -72,6 +75,12 @@ export function createCodeGenerationProvider(
       if (options.tenantId) completion.tenantId = options.tenantId;
 
       const result = await ai.complete(completion);
+      // A completion with no text content is a generation failure, not empty
+      // code — throw so the caller's retry / quality gate surfaces it rather than
+      // silently returning a non-string (the contract is Promise<string>).
+      if (typeof result?.content !== "string") {
+        throw new Error("CodeGenerationProvider: AI returned no text content.");
+      }
       return result.content;
     },
   };
