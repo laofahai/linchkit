@@ -394,7 +394,7 @@ export function mountProposalAPI(
 
 // ── Serialization helper ─────────────────────────────────
 
-function serializeProposal(p: ProposalDefinition): Record<string, unknown> {
+export function serializeProposal(p: ProposalDefinition): Record<string, unknown> {
   return {
     id: p.id,
     title: p.title,

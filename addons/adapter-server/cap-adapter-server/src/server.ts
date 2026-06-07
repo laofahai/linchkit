@@ -53,6 +53,7 @@ import { createYoga, type Plugin } from "graphql-yoga";
 import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
 import { mountProposalGraduateAPI } from "./proposal-graduate-api";
+import { mountProposalMaterializeAPI } from "./proposal-materialize-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
@@ -467,6 +468,15 @@ export function createServer(
   mountProposalGraduateAPI(app, {
     commandLayer: opts.commandLayer,
     resolveRequestActor: opts.resolveRequestActor,
+  });
+  // On-demand AI code materialization: POST /api/proposals/:id/materialize
+  // generates candidate source for a DRAFT proposal's code parts (G5 Phase 4).
+  // It NEVER approves/graduates/writes-files — the candidate enters the same
+  // human review pipeline. Degrades to 503 when no AI provider is configured.
+  mountProposalMaterializeAPI(app, {
+    commandLayer: opts.commandLayer,
+    resolveRequestActor: opts.resolveRequestActor,
+    aiService: opts.aiService,
   });
 
   // ── Evolution cycle trigger (Spec 55 §7) ─────────────────────

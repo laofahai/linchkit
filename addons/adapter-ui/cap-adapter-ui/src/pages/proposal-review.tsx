@@ -24,10 +24,12 @@ import {
   AlertTriangleIcon,
   CheckCircle2Icon,
   ClipboardListIcon,
+  Code2Icon,
   ExternalLinkIcon,
   GitPullRequestIcon,
   Loader2Icon,
   RefreshCwIcon,
+  SparklesIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   XCircleIcon,
@@ -39,7 +41,10 @@ import {
   fetchProposals,
   type GraduateProposalResult,
   graduateProposal,
+  type MaterializeProposalResult,
+  materializeProposal,
   type Proposal,
+  type ProposalChange,
   rejectProposal,
 } from "@/lib/proposal-api";
 import {
@@ -66,6 +71,7 @@ function ProposalCard({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [grad, setGrad] = useState<GraduateProposalResult | null>(null);
+  const [mat, setMat] = useState<MaterializeProposalResult | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const handleApprove = useCallback(async () => {
@@ -130,8 +136,41 @@ function ProposalCard({
     // refreshes the list manually when ready.
   }, [proposal.id, t]);
 
+  const handleMaterialize = useCallback(async () => {
+    setBusy(true);
+    setActionError(null);
+    setMat(null);
+    try {
+      // materializeProposal maps every failure to a discriminated result, but
+      // wrap defensively so an unexpected throw still surfaces and never leaves
+      // the button stuck disabled. Mirrors handleGraduate.
+      const result = await materializeProposal(proposal.id);
+      setMat(result);
+    } catch (err) {
+      setMat({
+        kind: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : t("proposals.materializeFailed", "Materialization failed"),
+      });
+    } finally {
+      setBusy(false);
+    }
+    // Do NOT auto-refresh: the generated source is rendered from the returned
+    // result so the reviewer sees it immediately. The draft stays a draft
+    // server-side (the candidate source is persisted on it); a manual refresh
+    // re-loads it via `proposal.changes`.
+  }, [proposal.id, t]);
+
   const pending = isPending(proposal.status);
   const graduatable = canGraduate(proposal.status);
+  const isDraft = proposal.status === "draft";
+  // Prefer the freshly-materialized proposal's changes (if any) over the prop so
+  // generated source shows immediately after a click without a manual refresh.
+  const sourcedChanges: ProposalChange[] = (
+    (mat?.kind === "ok" && mat.proposal ? mat.proposal.changes : proposal.changes) ?? []
+  ).filter((c) => typeof c.generatedSource === "string" && c.generatedSource.trim().length > 0);
 
   return (
     <Card data-testid="proposal-card">
@@ -252,6 +291,58 @@ function ProposalCard({
                 </Button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Draft: materialize → AI-generate candidate source for the proposal's
+            code parts and attach it to this draft. NEVER approves/applies — the
+            candidate stays on the draft inside the human-gated review pipeline. */}
+        {isDraft && (
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void handleMaterialize()}
+              disabled={busy}
+            >
+              {busy ? (
+                <Loader2Icon className="mr-1 size-3.5 animate-spin" />
+              ) : (
+                <SparklesIcon className="mr-1 size-3.5" />
+              )}
+              {t("proposals.materialize", "Materialize code")}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              {t(
+                "proposals.materializeHint",
+                "Uses AI to generate candidate source for this proposal's code parts and attaches it to the draft for review. It never approves or applies anything.",
+              )}
+            </p>
+            {mat && <MaterializeOutcome result={mat} t={t} />}
+          </div>
+        )}
+
+        {/* Generated candidate source (read-only). Present after materialization;
+            shown for any proposal whose changes carry generatedSource. */}
+        {sourcedChanges.length > 0 && (
+          <div className="space-y-2" data-testid="generated-source">
+            <h5 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Code2Icon className="size-3.5" />
+              {t("proposals.generatedSource", "Generated source (candidate)")}
+            </h5>
+            {sourcedChanges.map((c) => (
+              <details
+                key={`${c.target}:${c.operation}:${c.name}`}
+                className="rounded-md border bg-muted/30"
+              >
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+                  {c.target}/{c.name}
+                </summary>
+                <pre className="overflow-x-auto border-t px-3 py-2 text-[11px] leading-relaxed">
+                  <code>{c.generatedSource}</code>
+                </pre>
+              </details>
+            ))}
           </div>
         )}
 
@@ -379,6 +470,112 @@ function GraduateOutcome({
         <div
           className="flex items-start gap-2 rounded-md bg-destructive/10 p-3"
           data-testid="graduate-error"
+        >
+          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">{result.message}</p>
+        </div>
+      );
+  }
+}
+
+// ── Materialize outcome renderer ──────────────────────────
+
+function MaterializeOutcome({
+  result,
+  t,
+}: {
+  result: MaterializeProposalResult;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  switch (result.kind) {
+    case "ok": {
+      const materialized = result.outcomes.filter((o) => o.status === "materialized").length;
+      const skipped = result.outcomes.filter((o) => o.status === "skipped").length;
+      const failed = result.outcomes.filter((o) => o.status === "failed").length;
+      const ok = result.allMaterialized;
+      return (
+        <div
+          className={`flex items-start gap-2 rounded-md border p-3 ${
+            ok
+              ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30"
+              : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
+          }`}
+          data-testid="materialize-ok"
+        >
+          {ok ? (
+            <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-green-500" />
+          ) : (
+            <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
+          )}
+          <p className="text-sm">
+            {t("proposals.materializeSummary", "Generated {{m}}, skipped {{s}}, failed {{f}}.", {
+              m: materialized,
+              s: skipped,
+              f: failed,
+            })}
+          </p>
+        </div>
+      );
+    }
+
+    case "unavailable":
+      return (
+        <div
+          className="flex items-start gap-2 rounded-md border border-dashed bg-muted/40 p-3"
+          data-testid="materialize-unavailable"
+        >
+          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {result.message ??
+              t("proposals.materializeNotConfigured", "AI code generation is not configured.")}
+          </p>
+        </div>
+      );
+
+    case "denied":
+      return (
+        <div
+          className="flex items-start gap-2 rounded-md bg-destructive/10 p-3"
+          data-testid="materialize-denied"
+        >
+          <XCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">
+            {t("proposals.notAuthorized", "Not authorized.")}
+          </p>
+        </div>
+      );
+
+    case "not_draft":
+      return (
+        <div
+          className="flex items-start gap-2 rounded-md bg-destructive/10 p-3"
+          data-testid="materialize-not-draft"
+        >
+          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">
+            {result.message ?? t("proposals.notDraft", "Proposal is not a draft.")}
+          </p>
+        </div>
+      );
+
+    case "not_found":
+      return (
+        <div
+          className="flex items-start gap-2 rounded-md bg-destructive/10 p-3"
+          data-testid="materialize-not-found"
+        >
+          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">
+            {t("proposals.notFound", "Proposal not found.")}
+          </p>
+        </div>
+      );
+
+    case "error":
+      return (
+        <div
+          className="flex items-start gap-2 rounded-md bg-destructive/10 p-3"
+          data-testid="materialize-error"
         >
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
           <p className="text-sm text-destructive">{result.message}</p>
