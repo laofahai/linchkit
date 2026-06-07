@@ -52,6 +52,7 @@ import { type GraphQLSchema, NoSchemaIntrospectionCustomRule } from "graphql";
 import { createYoga, type Plugin } from "graphql-yoga";
 import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
+import { mountProposalGraduateAPI } from "./proposal-graduate-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
 import { mountAIRoutes } from "./routes/ai-api";
@@ -63,6 +64,7 @@ import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountDeployRoutes } from "./routes/deploy-api";
 import { mountEntityRoutes } from "./routes/entity-api";
+import { mountEvolutionCycleRoutes } from "./routes/evolution-cycle-api";
 import { mountHealthRoutes } from "./routes/health";
 import { mountImportRoutes } from "./routes/import-api";
 import { mountOnchangeRoutes } from "./routes/onchange-api";
@@ -216,6 +218,13 @@ export interface ServerOptions {
    * events and trigger the configured deployment callback.
    */
   deployWebhookHandler?: DeployWebhookHandler;
+  /**
+   * Evolution runtime (Spec 55) — when provided, enables
+   * `POST /api/evolution/run-cycle` to run one on-demand evolution cycle and
+   * persist its proposals as governance `draft`s. No-op (501) when absent.
+   * Running the cycle is strictly on-demand: there is NO scheduler.
+   */
+  evolutionRuntime?: import("@linchkit/core/server").EvolutionRuntime;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -450,6 +459,20 @@ export function createServer(
     ontology: opts.ontologyRegistry,
     strictCompatibility: environment.features.strictCompatibility,
   });
+  // Manual, admin-triggered graduation: POST /api/proposals/:id/graduate writes
+  // an approved proposal to disk and opens a PR (Spec 55 §7.6/§7.7). It NEVER
+  // auto-fires on approval and NEVER auto-merges — graduation is human-triggered
+  // and the resulting PR is human-reviewed. Uses the SAME shared governed engine
+  // as mountProposalAPI; config/credentials are sourced from the environment.
+  mountProposalGraduateAPI(app, {
+    commandLayer: opts.commandLayer,
+    resolveRequestActor: opts.resolveRequestActor,
+  });
+
+  // ── Evolution cycle trigger (Spec 55 §7) ─────────────────────
+  // On-demand: runs one cycle and lands its proposals as governance drafts.
+  // No-op (501) when no evolution runtime is wired. There is NO scheduler.
+  mountEvolutionCycleRoutes(app, opts);
 
   // ── SSE Subscription endpoint (/api/subscribe) ────────────────
   mountSubscriptionRoutes(app, opts);
