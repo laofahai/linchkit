@@ -20,6 +20,11 @@ export interface ProposalChange {
   name: string;
   definition?: unknown;
   diff?: string;
+  /**
+   * AI-generated candidate source for this change's code parts (G5). Present
+   * after materialization on a draft; still gated by validation + human review.
+   */
+  generatedSource?: string;
 }
 
 export interface ProposalImpact {
@@ -223,6 +228,41 @@ export type GraduateProposalResult =
   | { kind: "denied" }
   | { kind: "error"; message: string };
 
+/** Per-change result of a materialization attempt (UI mirror of the wire shape). */
+export interface MaterializeChangeOutcome {
+  changeName: string;
+  target: string;
+  /** `materialized` = source attached; `skipped` = declarative target; `failed` = gate never passed. */
+  status: "materialized" | "skipped" | "failed";
+  attempts: number;
+  errors?: string[];
+}
+
+/**
+ * Discriminated result of `materializeProposal`.
+ *
+ *  - `{ kind: "ok" }` — generation ran; `proposal` carries the candidate source
+ *    on its changes' `generatedSource`. `allMaterialized` is false if any
+ *    materializable change failed the build gate.
+ *  - `{ kind: "not_found" }` — 404 (proposal not found).
+ *  - `{ kind: "not_draft" }` — 422 (proposal is not a draft — materialize is pre-review only).
+ *  - `{ kind: "unavailable" }` — 503 (no AI provider, or no command layer).
+ *  - `{ kind: "denied" }` — 401 / 403 (AUTHZ_DENIED).
+ *  - `{ kind: "error" }` — transport error / 500 / other non-2xx / invalid JSON.
+ */
+export type MaterializeProposalResult =
+  | {
+      kind: "ok";
+      proposal: Proposal | null;
+      outcomes: MaterializeChangeOutcome[];
+      allMaterialized: boolean;
+    }
+  | { kind: "not_found" }
+  | { kind: "not_draft"; message?: string }
+  | { kind: "unavailable"; message?: string }
+  | { kind: "denied" }
+  | { kind: "error"; message: string };
+
 /** Shape of the `run-cycle` JSON envelope. Local mirror of the wire contract. */
 interface RunCycleWireResponse {
   success?: boolean;
@@ -407,5 +447,100 @@ export async function graduateProposal(
     branch: data?.branch ?? "",
     commitSha: data?.commitSha ?? "",
     committed: data?.committed ?? false,
+  };
+}
+
+/** Shape of the `materialize` JSON envelope. Local mirror of the wire contract. */
+interface MaterializeWireResponse {
+  success?: boolean;
+  data?: {
+    proposalId?: string;
+    allMaterialized?: boolean;
+    outcomes?: MaterializeChangeOutcome[];
+    proposal?: Proposal;
+  };
+  error?: { code?: string; message?: string };
+}
+
+/**
+ * Materialize a DRAFT Proposal: ask the server to AI-generate candidate source
+ * for the proposal's code parts (today, action handler bodies) and attach it to
+ * the draft. This NEVER approves, graduates, writes files, or runs code — the
+ * candidate stays on the draft inside the human-gated review pipeline.
+ *
+ * Wire contract (POST /api/proposals/:id/materialize):
+ *   200 → { success: true, data: { proposalId, allMaterialized, outcomes, proposal } }
+ *   404 → not found (mapped to `not_found`)
+ *   422 → not a draft (mapped to `not_draft`)
+ *   503 → AI provider / command layer not configured (mapped to `unavailable`)
+ *   401/403 → AUTHZ_DENIED (mapped to `denied`)
+ *   500 → `error`
+ *
+ * The optional `fetchImpl` lets tests inject a stub `fetch` without leaking a
+ * global mock across the batched suite.
+ */
+export async function materializeProposal(
+  id: string,
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+): Promise<MaterializeProposalResult> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  let res: Response;
+  try {
+    res = await doFetch(`/api/proposals/${encodeURIComponent(id)}/materialize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      signal: opts.signal,
+    });
+  } catch (err) {
+    return {
+      kind: "error",
+      message: err instanceof Error ? err.message : "Materialization failed",
+    };
+  }
+
+  // 401 / 403 — access denied.
+  if (res.status === 401 || res.status === 403) {
+    return { kind: "denied" };
+  }
+
+  // 404 — proposal not found.
+  if (res.status === 404) {
+    return { kind: "not_found" };
+  }
+
+  // 422 — proposal is not in `draft` state.
+  if (res.status === 422) {
+    return { kind: "not_draft", message: await readErrorMessage(res) };
+  }
+
+  // 503 — AI provider or command layer not configured.
+  if (res.status === 503) {
+    return { kind: "unavailable", message: await readErrorMessage(res) };
+  }
+
+  // 500 / other non-2xx — surface a user-friendly error.
+  if (!res.ok) {
+    return { kind: "error", message: (await readErrorMessage(res)) ?? "Materialization failed" };
+  }
+
+  let json: MaterializeWireResponse;
+  try {
+    json = (await res.json()) as MaterializeWireResponse;
+  } catch {
+    return { kind: "error", message: "Materialization returned an invalid response" };
+  }
+
+  // A `null` body is valid JSON but not a usable envelope — guard before reading
+  // `.data` so this can't throw an unhandled TypeError outside the catch above.
+  if (!json || typeof json !== "object") {
+    return { kind: "error", message: "Materialization returned an invalid response" };
+  }
+
+  const data = json.data;
+  return {
+    kind: "ok",
+    proposal: data?.proposal ?? null,
+    outcomes: Array.isArray(data?.outcomes) ? data.outcomes : [],
+    allMaterialized: data?.allMaterialized ?? false,
   };
 }
