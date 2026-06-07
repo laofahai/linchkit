@@ -175,3 +175,225 @@ export async function fetchPendingCount(): Promise<number> {
   const json = await res.json();
   return json.data?.count ?? 0;
 }
+
+// ── Evolution cycle + graduation (governance loop — human-driven) ──────────
+//
+// These two endpoints complete the human-drivable governance loop:
+//   1. `runEvolutionCycle` — runs ONE on-demand evolution cycle and persists
+//      its output as `draft` Proposals (NEVER approves / applies).
+//   2. `graduateProposal` — takes an ALREADY-APPROVED Proposal, writes its
+//      definition files + opens a GitHub PR. It NEVER merges.
+//
+// Both return a discriminated result so the caller can render each outcome
+// distinctly (mirrors `resolveSchemaIntent` in `lib/api.ts`). Each accepts an
+// optional `{ fetchImpl?; signal? }` last param and uses `opts.fetchImpl ?? fetch`
+// — never a global fetch mock, so the batched test suite can inject a stub.
+
+/**
+ * Discriminated result of `runEvolutionCycle`.
+ *
+ *  - `{ kind: "ran" }` — the server ran a cycle and persisted draft proposals.
+ *  - `{ kind: "unavailable" }` — 501 (evolution runtime not configured) OR 503
+ *    (command layer not configured); surface a graceful "not available" state.
+ *  - `{ kind: "denied" }` — 401 / 403 (AUTHZ_DENIED).
+ *  - `{ kind: "error" }` — transport error / other non-2xx / invalid JSON.
+ */
+export type RunEvolutionCycleResult =
+  | { kind: "ran"; created: number; deduped: number; total: number; createdIds: string[] }
+  | { kind: "unavailable"; message?: string }
+  | { kind: "denied" }
+  | { kind: "error"; message: string };
+
+/**
+ * Discriminated result of `graduateProposal`.
+ *
+ *  - `{ kind: "ok" }` — graduation opened a PR (never merged).
+ *  - `{ kind: "not_found" }` — 404 (proposal not found).
+ *  - `{ kind: "not_approved" }` — 422 (proposal is not in `approved` state).
+ *  - `{ kind: "unavailable" }` — 503 (graduation not configured — no GitHub
+ *    token, or no command layer).
+ *  - `{ kind: "denied" }` — 401 / 403 (AUTHZ_DENIED).
+ *  - `{ kind: "error" }` — transport error / 500 / other non-2xx / invalid JSON.
+ */
+export type GraduateProposalResult =
+  | { kind: "ok"; prUrl: string; branch: string; commitSha: string; committed: boolean }
+  | { kind: "not_found" }
+  | { kind: "not_approved"; message?: string }
+  | { kind: "unavailable"; message?: string }
+  | { kind: "denied" }
+  | { kind: "error"; message: string };
+
+/** Shape of the `run-cycle` JSON envelope. Local mirror of the wire contract. */
+interface RunCycleWireResponse {
+  success?: boolean;
+  data?: {
+    created?: number;
+    deduped?: number;
+    total?: number;
+    createdIds?: string[];
+  };
+  error?: { code?: string; message?: string };
+}
+
+/** Shape of the `graduate` JSON envelope. Local mirror of the wire contract. */
+interface GraduateWireResponse {
+  success?: boolean;
+  data?: {
+    prUrl?: string;
+    branch?: string;
+    commitSha?: string;
+    committed?: boolean;
+  };
+  error?: { code?: string; message?: string };
+}
+
+/** Best-effort extraction of the structured error message from a JSON body. */
+async function readErrorMessage(res: Response): Promise<string | undefined> {
+  try {
+    const json = (await res.json()) as { error?: { message?: string }; message?: string };
+    return json.error?.message ?? json.message;
+  } catch {
+    // Body was empty / non-JSON — caller falls back to its own message.
+    return undefined;
+  }
+}
+
+/**
+ * Run ONE on-demand evolution cycle and persist its output as `draft` Proposals.
+ *
+ * Wire contract (POST /api/evolution/run-cycle):
+ *   200 → { success: true, data: { created, deduped, total, createdIds } }
+ *   501 → evolution runtime not configured (mapped to `unavailable`)
+ *   503 → command layer not configured (mapped to `unavailable`)
+ *   401/403 → AUTHZ_DENIED (mapped to `denied`)
+ *   other non-2xx → `error`
+ *
+ * This NEVER approves or applies anything — the persisted proposals stay in the
+ * human-gated review pipeline. The optional `fetchImpl` lets tests inject a stub
+ * `fetch` without leaking a global mock across the batched suite.
+ */
+export async function runEvolutionCycle(
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+): Promise<RunEvolutionCycleResult> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  let res: Response;
+  try {
+    res = await doFetch("/api/evolution/run-cycle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      signal: opts.signal,
+    });
+  } catch (err) {
+    return {
+      kind: "error",
+      message: err instanceof Error ? err.message : "Evolution cycle failed",
+    };
+  }
+
+  // 401 / 403 — access denied.
+  if (res.status === 401 || res.status === 403) {
+    return { kind: "denied" };
+  }
+
+  // 501 (runtime not configured) / 503 (command layer not configured).
+  if (res.status === 501 || res.status === 503) {
+    return { kind: "unavailable", message: await readErrorMessage(res) };
+  }
+
+  // Other non-2xx — surface a user-friendly error.
+  if (!res.ok) {
+    return { kind: "error", message: (await readErrorMessage(res)) ?? "Evolution cycle failed" };
+  }
+
+  let json: RunCycleWireResponse;
+  try {
+    json = (await res.json()) as RunCycleWireResponse;
+  } catch {
+    return { kind: "error", message: "Evolution cycle returned an invalid response" };
+  }
+
+  const data = json.data;
+  return {
+    kind: "ran",
+    created: data?.created ?? 0,
+    deduped: data?.deduped ?? 0,
+    total: data?.total ?? 0,
+    createdIds: Array.isArray(data?.createdIds) ? data.createdIds : [],
+  };
+}
+
+/**
+ * Graduate an ALREADY-APPROVED Proposal: write its definition files + open a
+ * GitHub PR for review. This NEVER merges — graduation only ever opens a PR.
+ *
+ * Wire contract (POST /api/proposals/:id/graduate):
+ *   200 → { success: true, data: { prUrl, branch, commitSha, committed } }
+ *   404 → not found (mapped to `not_found`)
+ *   422 → not approved (mapped to `not_approved`)
+ *   503 → graduation not configured (mapped to `unavailable`)
+ *   401/403 → AUTHZ_DENIED (mapped to `denied`)
+ *   500 → `error`
+ *
+ * The optional `fetchImpl` lets tests inject a stub `fetch` without leaking a
+ * global mock across the batched suite.
+ */
+export async function graduateProposal(
+  id: string,
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+): Promise<GraduateProposalResult> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  let res: Response;
+  try {
+    res = await doFetch(`/api/proposals/${encodeURIComponent(id)}/graduate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      signal: opts.signal,
+    });
+  } catch (err) {
+    return {
+      kind: "error",
+      message: err instanceof Error ? err.message : "Graduation failed",
+    };
+  }
+
+  // 401 / 403 — access denied.
+  if (res.status === 401 || res.status === 403) {
+    return { kind: "denied" };
+  }
+
+  // 404 — proposal not found.
+  if (res.status === 404) {
+    return { kind: "not_found" };
+  }
+
+  // 422 — proposal is not in `approved` state.
+  if (res.status === 422) {
+    return { kind: "not_approved", message: await readErrorMessage(res) };
+  }
+
+  // 503 — graduation not configured (no GitHub token, or no command layer).
+  if (res.status === 503) {
+    return { kind: "unavailable", message: await readErrorMessage(res) };
+  }
+
+  // 500 / other non-2xx — surface a user-friendly error.
+  if (!res.ok) {
+    return { kind: "error", message: (await readErrorMessage(res)) ?? "Graduation failed" };
+  }
+
+  let json: GraduateWireResponse;
+  try {
+    json = (await res.json()) as GraduateWireResponse;
+  } catch {
+    return { kind: "error", message: "Graduation returned an invalid response" };
+  }
+
+  const data = json.data;
+  return {
+    kind: "ok",
+    prUrl: data?.prUrl ?? "",
+    branch: data?.branch ?? "",
+    commitSha: data?.commitSha ?? "",
+    committed: data?.committed ?? false,
+  };
+}
