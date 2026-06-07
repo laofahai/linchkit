@@ -1,12 +1,12 @@
 /**
  * Proposal materializer (G5 Phase 3).
  *
- * Generates the irreducibly-code parts of a proposal — action handler / event
- * handler / flow logic bodies that a declarative `ChangeDefinition` cannot
+ * Generates the irreducibly-code parts of a proposal — today the
+ * `ActionDefinition.handler` body, which a declarative `ChangeDefinition` cannot
  * express — into TypeScript source, attaching it to each change as
- * `generatedSource`. Declarative targets (entity / rule / view / state / event
- * metadata / overlay) are left to deterministic serialization and are skipped
- * here.
+ * `generatedSource`. Declarative targets (entity / rule / view / state / event /
+ * overlay) are left to deterministic serialization and are skipped here. The
+ * materializable set is extensible (see {@link MATERIALIZABLE_TARGETS}).
  *
  * Pipeline per materializable change: build a prompt → `CodeGenerationProvider`
  * generates source → (optional) `QualityGateRunner` build-checks it → on failure
@@ -23,12 +23,15 @@
 import type { CodeGenerationProvider, QualityGateRunner } from "../ai/proposal-code-generator";
 import type { ProposalChange, ProposalChangeTarget, ProposalDefinition } from "../types/proposal";
 
-/** Change targets whose logic must be AI-materialized (cannot be serialized declaratively). */
-const MATERIALIZABLE_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set([
-  "action",
-  "event",
-  "flow",
-]);
+/**
+ * Change targets whose logic must be AI-materialized (cannot be serialized
+ * declaratively). Today only `action` qualifies: `ActionDefinition.handler` is a
+ * real function body. Other current targets are declarative — `entity` / `rule`
+ * / `view` / `state` / `event` (an EventDefinition is name + payload, not logic)
+ * / `overlay` — and `flow` has no `defineFlow` API yet. Adding a target here (and
+ * to {@link TARGET_GUIDANCE}) is all it takes to extend scope when those land.
+ */
+const MATERIALIZABLE_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set(["action"]);
 
 /** True when a change needs AI code generation (a code target, created or updated). */
 export function isMaterializable(change: ProposalChange): boolean {
@@ -149,9 +152,8 @@ export async function materializeProposalChanges(
 // ── Prompt building ──────────────────────────────────────
 
 const TARGET_GUIDANCE: Record<string, string> = {
-  action: "Use defineAction(). Implement the `handler: (ctx) => Promise<...>` body fully.",
-  event: "Use defineEventHandler(). Implement the reactive `handler` body fully.",
-  flow: "Use defineFlow(). Implement each step's logic fully.",
+  action:
+    'Use defineAction() from "@linchkit/core". Implement the `handler: (ctx) => Promise<...>` body fully.',
 };
 
 /** Build the per-change generation prompt (with retry feedback when present). */

@@ -49,10 +49,12 @@ const GOOD = "export const deduct_inventory = 1;";
 const BAD = "export const a = {"; // syntax error
 
 describe("isMaterializable", () => {
-  test("action/event/flow create|update are materializable; declarative + delete are not", () => {
+  test("action create|update is materializable; declarative targets, flow, and delete are not", () => {
     expect(isMaterializable({ target: "action", operation: "create", name: "a" })).toBe(true);
-    expect(isMaterializable({ target: "event", operation: "update", name: "e" })).toBe(true);
-    expect(isMaterializable({ target: "flow", operation: "create", name: "f" })).toBe(true);
+    expect(isMaterializable({ target: "action", operation: "update", name: "a2" })).toBe(true);
+    // event is declarative (name + payload), flow has no defineFlow API yet.
+    expect(isMaterializable({ target: "event", operation: "update", name: "e" })).toBe(false);
+    expect(isMaterializable({ target: "flow", operation: "create", name: "f" })).toBe(false);
     expect(isMaterializable({ target: "entity", operation: "create", name: "x" })).toBe(false);
     expect(isMaterializable({ target: "rule", operation: "create", name: "r" })).toBe(false);
     expect(isMaterializable({ target: "action", operation: "delete", name: "a" })).toBe(false);
