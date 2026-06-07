@@ -165,6 +165,9 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
     onchangeEvaluator,
     overlayRegistry: ctx.overlayRegistry,
     resolveRequestTenantId,
+    // Spec 55 §7 — enable `POST /api/evolution/run-cycle` so an operator can run
+    // one on-demand evolution cycle and land its proposals as governance drafts.
+    evolutionRuntime: ctx.evolutionRuntime,
   });
 
   return {

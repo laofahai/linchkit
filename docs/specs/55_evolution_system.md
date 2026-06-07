@@ -428,6 +428,8 @@ Proposal: {
 }
 ```
 
+> **运行时落地（已实现，on-demand）**：演化回路的 `runCycle()` 通过按需端点 `POST /api/evolution/run-cycle` 触发（权限槽经 CommandLayer，不跳过）；产出的 Proposal 经 `persistCycleProposalsAsDrafts` 持久化为治理引擎中的 `draft`，进入既有人审管线（`GET /api/proposals`），并按 capability + change 名去重避免重复。**仅产 `draft`**——不 submit/approve/落地。自动调度（cadence）与"毕业到代码/PR"（§7.6/§7.7）仍是独立、受控的后续步骤。
+
 ### 7.2 Skill 复用
 
 进化系统在归因和生成 Proposal 时，不只看内部数据——通过复用现有的 Skill/Tool 生态来获取外部上下文：

@@ -368,6 +368,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "noopTracer",
   "overlayStatusEnum",
   "overrideTargetTypeEnum",
+  "persistCycleProposalsAsDrafts",
   "redactContent",
   "redactPromptMessages",
   "registerDoctorCheck",
