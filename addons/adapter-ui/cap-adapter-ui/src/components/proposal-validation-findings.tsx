@@ -22,7 +22,6 @@ import { useTranslation } from "react-i18next";
 import type { ProposalValidationFinding, ProposalValidationResult } from "../lib/proposal-api";
 import {
   type FindingTone,
-  hasAnyFindings,
   type PhaseWithFindings,
   selectPhasesWithFindings,
 } from "./proposal-validation-findings-helpers";
@@ -114,14 +113,14 @@ function PhaseSection({ phase }: { phase: PhaseWithFindings }) {
       <CardContent className="space-y-1.5 pt-0">
         {phase.errors.map((finding) => (
           <FindingRow
-            key={`err-${finding.code}-${finding.message}`}
+            key={`err-${finding.code}-${finding.target ?? ""}-${finding.field ?? ""}-${finding.message}`}
             finding={finding}
             tone="error"
           />
         ))}
         {phase.warnings.map((finding) => (
           <FindingRow
-            key={`warn-${finding.code}-${finding.message}`}
+            key={`warn-${finding.code}-${finding.target ?? ""}-${finding.field ?? ""}-${finding.message}`}
             finding={finding}
             tone="warning"
           />
@@ -143,12 +142,9 @@ export function ProposalValidationFindings({
 
   if (phases.length === 0) {
     if (hideWhenEmpty) return null;
-    // Distinguish "validated, all clean" from "no validation result at all".
-    const messageKey = hasAnyFindings(result)
-      ? "proposals.findings.empty"
-      : result
-        ? "proposals.findings.clean"
-        : "proposals.findings.empty";
+    // No non-skipped phase carries findings here, so distinguish only
+    // "validated, all clean" (a result is present) from "no validation result".
+    const messageKey = result ? "proposals.findings.clean" : "proposals.findings.empty";
     return (
       <div className={`flex items-center gap-2 text-xs text-muted-foreground ${className ?? ""}`}>
         <CheckCircle2Icon className="h-3.5 w-3.5 text-emerald-500" />
