@@ -122,6 +122,26 @@ export interface ProposalChange {
    * PR).
    */
   generatedSource?: string;
+  /**
+   * Durable status of the LAST materialization attempt for this change (G5 Phase 4).
+   *
+   * The materializer stamps this on every MATERIALIZABLE change so a reviewer
+   * reading the PERSISTED proposal (GET /api/proposals/:id) can distinguish a
+   * change that was never materialized (undefined) from one whose generated
+   * source FAILED the build/syntax gate ("failed", reason in
+   * `materializationErrors`) or succeeded ("materialized", source in
+   * `generatedSource`). Unlike the transient POST /materialize `outcomes` array,
+   * this is durable on the change. Declarative / skipped changes leave it
+   * undefined. Candidate signal only — it never auto-advances the proposal.
+   */
+  materializationStatus?: "materialized" | "failed";
+  /**
+   * Build/syntax-gate errors from the final FAILED materialization attempt — set
+   * only when `materializationStatus === "failed"`. Cleared on a successful
+   * (re-)materialization. Lets the human reviewer see WHY a change has no
+   * candidate source without re-running materialization.
+   */
+  materializationErrors?: string[];
 }
 
 // ── Impact analysis ──────────────────────────────────────
