@@ -38,7 +38,7 @@ Five-layer evolution model (Sense → Memory → Awareness → Insight → Propo
 
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
-| [55](./55_evolution_system.md) | Evolution System | Living software: sensors, baselines, importance graph, evidence-chain insights, gradual Proposals | M3–M6+ | Partial |
+| [55](./55_evolution_system.md) | Evolution System | Living software: sensors, baselines, importance graph, evidence-chain insights, gradual Proposals. §7.7 G5 code materialization implemented (CodeGenerationProvider + materializeProposalChanges + Phase-2 build gate + Phase-4 contract check + live `POST /api/proposals/:id/materialize`); sensing/cadence still gated | M3–M6+ | Partial |
 
 ## Runtime Engines
 
@@ -211,6 +211,7 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
+| 2026-06-07 | Spec 55 §7.7 代码物化 added — G5 materialization (provider #494, materializer+build-gate #495, live endpoint+UI #496) documented; old §7.7 反馈回路 renumbered to §7.8. |
 | 2026-06-01 | Spec 45 progress: `schedule` trigger implemented (croner, PR #439) + `_linchkit.watcher_state` debounce persistence (`WatcherStateStore` InMemory default + Drizzle PG backend) — restart-safe `once_until_reset`. Status stays Partial: the watcher admin UI `EntityDefinition` (§7.1) is still deferred. |
 | 2026-06-01 | Spec 63 Phase 2 shipped: GraphQL field-lock introspection (PR #437) + auto-form field-lock UI reusing core's `matchesLockCondition` (PR #441). Status stays Partial — Phase 3 `cap-lock` needs a returning-value hook/slot extension mechanism (design decision) before it can be built. |
 | 2026-06-01 | Spec 56 Step 2c complete: removed the dead 0-byte `automation-engine`/`automation-registry` stubs from core (PR #436); the Detector/Watcher implementations already live in cap-ai-provider. |
