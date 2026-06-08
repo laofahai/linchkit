@@ -12,6 +12,8 @@ import {
   changeTypeBadgeClass,
   isPending,
   PROPOSAL_STATUS_FILTERS,
+  selectFailedMaterializationChanges,
+  selectSourcedChanges,
   statusBadgeClass,
 } from "../src/pages/proposal-review-helpers";
 
@@ -93,5 +95,57 @@ describe("PROPOSAL_STATUS_FILTERS", () => {
       "rejected",
       "committed",
     ]);
+  });
+});
+
+describe("selectSourcedChanges", () => {
+  test("keeps changes whose generatedSource is a non-empty string", () => {
+    const a = { name: "a", generatedSource: "export const x = 1;" };
+    const b = { name: "b", generatedSource: "  " }; // whitespace only → dropped
+    const c = { name: "c", generatedSource: "" }; // empty → dropped
+    const d = { name: "d" }; // undefined → dropped
+    const result = selectSourcedChanges([a, b, c, d]);
+    expect(result).toEqual([a]);
+  });
+
+  test("returns an empty array when nothing is sourced", () => {
+    expect(selectSourcedChanges([{ name: "x" }, { name: "y", generatedSource: "\t\n" }])).toEqual(
+      [],
+    );
+  });
+
+  test("returns an empty array for an empty input", () => {
+    expect(selectSourcedChanges([])).toEqual([]);
+  });
+});
+
+describe("selectFailedMaterializationChanges", () => {
+  test("keeps only changes whose materializationStatus is 'failed'", () => {
+    const failed = {
+      name: "failed_action",
+      materializationStatus: "failed",
+      materializationErrors: ["TS1005: ';' expected", "Build gate rejected output"],
+    };
+    const ok = { name: "ok_action", materializationStatus: "materialized" };
+    const none = { name: "declarative" }; // never materialized → dropped
+    const result = selectFailedMaterializationChanges([failed, ok, none]);
+    expect(result).toEqual([failed]);
+  });
+
+  test("the returned failed change carries its materializationErrors", () => {
+    const errors = ["error one", "error two"];
+    const [only] = selectFailedMaterializationChanges([
+      { name: "f", materializationStatus: "failed", materializationErrors: errors },
+    ]);
+    expect(only?.materializationErrors).toEqual(errors);
+  });
+
+  test("returns an empty array when nothing failed", () => {
+    expect(
+      selectFailedMaterializationChanges([
+        { name: "a", materializationStatus: "materialized" },
+        { name: "b" },
+      ]),
+    ).toEqual([]);
   });
 });

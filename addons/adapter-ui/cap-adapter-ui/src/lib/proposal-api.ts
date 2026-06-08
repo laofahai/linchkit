@@ -29,6 +29,15 @@ export interface ProposalChange {
    * after materialization on a draft; still gated by validation + human review.
    */
   generatedSource?: string;
+  /**
+   * Durable status of the last materialization attempt for this change (UI mirror
+   * of the server wire field). "failed" means the AI-generated source did not pass
+   * the build/syntax gate — the reason is in `materializationErrors` and there is
+   * no `generatedSource`. Undefined for changes never materialized or declarative.
+   */
+  materializationStatus?: "materialized" | "failed";
+  /** Build/syntax-gate errors from the final failed attempt (only when status==="failed"). */
+  materializationErrors?: string[];
 }
 
 export interface ProposalImpact {

@@ -61,3 +61,28 @@ export function changeTypeBadgeClass(changeType: string): string {
   };
   return map[changeType] ?? "";
 }
+
+/**
+ * Changes that carry candidate source (materialized successfully). Mirrors the
+ * inline filter the review page used to do, lifted out so it is unit-testable.
+ * Generic + structural so it never imports the page's wire type.
+ */
+export function selectSourcedChanges<T extends { generatedSource?: string }>(
+  changes: readonly T[],
+): T[] {
+  return changes.filter(
+    (c) => typeof c.generatedSource === "string" && c.generatedSource.trim().length > 0,
+  );
+}
+
+/**
+ * Changes whose materialization FAILED the build gate. This is the durable
+ * signal: such a change has no `generatedSource` but carries
+ * `materializationStatus:"failed"` plus the reason in `materializationErrors`.
+ * Surfacing these tells the reviewer WHICH changes failed code generation and WHY.
+ */
+export function selectFailedMaterializationChanges<
+  T extends { materializationStatus?: string; materializationErrors?: string[] },
+>(changes: readonly T[]): T[] {
+  return changes.filter((c) => c.materializationStatus === "failed");
+}

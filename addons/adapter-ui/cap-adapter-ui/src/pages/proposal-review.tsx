@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FailedMaterializationChanges } from "@/components/proposal-failed-changes";
 import { ProposalImpactPreview } from "@/components/proposal-impact-preview";
 import { GraduateOutcome, MaterializeOutcome } from "@/components/proposal-review-outcomes";
 import {
@@ -52,6 +53,8 @@ import {
   isPending,
   PROPOSAL_STATUS_FILTERS,
   type ProposalStatusFilter,
+  selectFailedMaterializationChanges,
+  selectSourcedChanges,
   statusBadgeClass,
 } from "./proposal-review-helpers";
 
@@ -166,10 +169,12 @@ function ProposalCard({
   const graduatable = canGraduate(proposal.status);
   const isDraft = proposal.status === "draft";
   // Prefer the freshly-materialized proposal's changes (if any) over the prop so
-  // generated source shows immediately after a click without a manual refresh.
-  const sourcedChanges: ProposalChange[] = (
-    (mat?.kind === "ok" && mat.proposal ? mat.proposal.changes : proposal.changes) ?? []
-  ).filter((c) => typeof c.generatedSource === "string" && c.generatedSource.trim().length > 0);
+  // generated source / failure signals show immediately after a click without a
+  // manual refresh.
+  const renderedChanges: ProposalChange[] =
+    (mat?.kind === "ok" && mat.proposal ? mat.proposal.changes : proposal.changes) ?? [];
+  const sourcedChanges = selectSourcedChanges(renderedChanges);
+  const failedChanges = selectFailedMaterializationChanges(renderedChanges);
 
   return (
     <Card data-testid="proposal-card">
@@ -353,6 +358,12 @@ function ProposalCard({
             ))}
           </div>
         )}
+
+        {/* Failed materialization (durable signal). Renders changes that FAILED
+            the build gate — no generatedSource, but a `failed` status + the gate
+            errors — so the reviewer sees WHICH changes failed code generation and
+            WHY. Read-only: it never triggers any mutation. */}
+        <FailedMaterializationChanges changes={failedChanges} t={t} />
 
         {/* Approved: graduate → open PR (never merges). Once a PR is opened the
             button + hint are hidden so the success outcome (with the PR link)
