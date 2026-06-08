@@ -182,6 +182,12 @@ export interface MountProposalAPIOptions {
    * from `detectEnvironment().features.strictCompatibility` (true in prod/staging).
    */
   strictCompatibility?: boolean;
+  /**
+   * Escalate Phase 4 generated-source CONTRACT findings (G5) from WARN to BLOCK.
+   * Sourced from `detectEnvironment().features.strictGeneratedContract` (true in
+   * prod/staging). Lock-step sibling of `strictCompatibility`.
+   */
+  strictGeneratedContract?: boolean;
 }
 
 /**
@@ -206,11 +212,14 @@ export function mountProposalAPI(
     : (options ?? {});
   const executionLogger = opts.executionLogger;
 
-  // ValidationContext threaded into both submit sites so Phase 3 can run.
-  // Built once; when ontology is absent Phase 3 returns "skipped" (unchanged).
+  // ValidationContext threaded into both submit sites so Phase 3 (compatibility)
+  // and Phase 4 (generated-source contract) can run. Built once; when ontology is
+  // absent Phase 3 returns "skipped" and when no change carries generated source
+  // Phase 4 returns "skipped" (both unchanged for existing callers).
   const validationContext: ValidationContext = {
     ontology: opts.ontology,
     strictCompatibility: opts.strictCompatibility,
+    strictGeneratedContract: opts.strictGeneratedContract,
   };
 
   // Run initial pattern scan in background if execution logger is available

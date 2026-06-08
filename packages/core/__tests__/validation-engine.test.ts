@@ -457,4 +457,44 @@ describe("validateProposal", () => {
     expect(result.passed).toBe(false);
     expect(result.impactSummary).toContain("change");
   });
+
+  // Phase 4 (generated-source contract) env→pipeline gating: the server threads
+  // detectEnvironment().features.strictGeneratedContract via ValidationContext into
+  // THIS call, so these tests prove the context flag flips Phase 4 warning→error
+  // end-to-end. The fixture's generatedSource defines "other", not "make_thing".
+  const contractViolatingProposal = {
+    id: "p-gen",
+    title: "Generated Action",
+    status: "draft",
+    changes: [
+      {
+        ...makeActionChange("make_thing"),
+        generatedSource: `import { defineAction } from "@linchkit/core";\nexport const other = defineAction({ name: "other", handler: async () => ({}) });`,
+      },
+    ],
+    author: { type: "human", id: "u1", name: "Alice" },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it("warn-only by default: contract-violating generatedSource does NOT block (passed)", () => {
+    const result = validateProposal({ proposal: contractViolatingProposal as never });
+    const phase4 = result.phases[3];
+    expect(phase4.phase).toBe(4);
+    expect(phase4.status).toBe("passed");
+    expect(phase4.warnings.length).toBeGreaterThan(0);
+    expect(phase4.errors).toEqual([]);
+  });
+
+  it("strictGeneratedContract via ValidationContext blocks: Phase 4 errors → passed=false", () => {
+    const result = validateProposal({
+      proposal: contractViolatingProposal as never,
+      context: { strictGeneratedContract: true },
+    });
+    const phase4 = result.phases[3];
+    expect(phase4.status).toBe("failed");
+    expect(phase4.warnings).toEqual([]);
+    expect(phase4.errors[0]?.code).toBe("GENERATED_SOURCE_CONTRACT");
+    expect(result.passed).toBe(false);
+  });
 });
