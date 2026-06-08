@@ -43,11 +43,40 @@ export function resolveCadenceIntervalMs(
   return Math.floor(n);
 }
 
+/** Env var that scopes cadence to explicit tenant(s) (comma-separated). */
+export const CADENCE_TENANTS_ENV_KEY = "EVOLUTION_CADENCE_TENANT_IDS";
+
+/**
+ * Resolve the tenant ids the cadence should run for, from a comma-separated env
+ * var. Returns `[]` when unset/blank — meaning "run a single cycle in the default
+ * (tenant-less) scope", which is correct for single-tenant / dev deployments.
+ *
+ * MULTI-TENANT deployments MUST set this: a tenant-less cycle would let
+ * tenant-aware sensors read global/cross-tenant data and persist shared drafts.
+ * Setting it makes the tick run once PER tenant with a scoped `SensorContext`.
+ */
+export function resolveCadenceTenantIds(
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  const raw = env[CADENCE_TENANTS_ENV_KEY]?.trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+}
+
 export interface CreateEvolutionCadenceOptions {
   /** The evolution runtime. When absent (or it has no `evolutionCycle`), returns null. */
   evolutionRuntime?: EvolutionRuntime;
   /** Tick interval (ms). Floored by the core scheduler at its MIN_INTERVAL_MS. */
   intervalMs: number;
+  /**
+   * Tenant ids to run the cycle for, each with a scoped `SensorContext`. Empty →
+   * a single tenant-less (default-scope) cycle — correct for single-tenant / dev.
+   * A multi-tenant deployment MUST pass explicit ids to avoid cross-tenant sensing.
+   */
+  tenantIds?: string[];
   /** Override the proposal engine (defaults to the shared governed engine). Tests. */
   engine?: ProposalEngine;
   /** Logger (defaults to the console logger). */
@@ -69,18 +98,26 @@ export function createEvolutionCadence(
   if (!cycle) return null;
   const engine = options.engine ?? getSharedProposalEngine();
   const logger = options.logger ?? consoleLogger;
+  // Empty → one tenant-less (default-scope) run; otherwise one scoped run per tenant.
+  const tenantScopes: Array<string | undefined> =
+    options.tenantIds && options.tenantIds.length > 0 ? options.tenantIds : [undefined];
 
   return createEvolutionScheduler({
     intervalMs: options.intervalMs,
     runImmediately: options.runImmediately ?? false,
     logger,
     tick: async () => {
-      const result = await cycle.runCycle({ timestamp: new Date() });
-      const summary = persistCycleProposalsAsDrafts({ proposals: result.proposals, engine });
-      logger.info(
-        `[EvolutionCadence] ran cycle → ${summary.created} new draft(s), ${summary.deduped} deduped ` +
-          "(DRAFT-only; approval and graduation stay human-gated).",
-      );
+      // Run the cycle once per configured tenant scope, each with its own
+      // SensorContext, so tenant-aware sensors never read across tenants. Scopes
+      // are processed serially within the (non-overlapping) tick.
+      for (const tenantId of tenantScopes) {
+        const result = await cycle.runCycle({ timestamp: new Date(), tenantId });
+        const summary = persistCycleProposalsAsDrafts({ proposals: result.proposals, engine });
+        logger.info(
+          `[EvolutionCadence] tenant=${tenantId ?? "(default)"} → ${summary.created} new draft(s), ` +
+            `${summary.deduped} deduped (DRAFT-only; approval and graduation stay human-gated).`,
+        );
+      }
     },
   });
 }

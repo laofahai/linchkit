@@ -14,8 +14,10 @@ import {
 } from "@linchkit/core/server";
 import {
   CADENCE_ENV_KEY,
+  CADENCE_TENANTS_ENV_KEY,
   createEvolutionCadence,
   resolveCadenceIntervalMs,
+  resolveCadenceTenantIds,
 } from "../src/evolution-scheduler-wiring";
 
 const SILENT = { debug() {}, info() {}, warn() {}, error() {} } as const;
@@ -56,6 +58,18 @@ describe("resolveCadenceIntervalMs", () => {
   test("parses a positive integer (floors floats)", () => {
     expect(resolveCadenceIntervalMs({ [CADENCE_ENV_KEY]: "60000" })).toBe(60_000);
     expect(resolveCadenceIntervalMs({ [CADENCE_ENV_KEY]: "1500.9" })).toBe(1500);
+  });
+});
+
+describe("resolveCadenceTenantIds", () => {
+  test("empty unless set; parses comma-separated, trimmed, non-empty", () => {
+    expect(resolveCadenceTenantIds({})).toEqual([]);
+    expect(resolveCadenceTenantIds({ [CADENCE_TENANTS_ENV_KEY]: "   " })).toEqual([]);
+    expect(resolveCadenceTenantIds({ [CADENCE_TENANTS_ENV_KEY]: "t1, t2 ,, t3," })).toEqual([
+      "t1",
+      "t2",
+      "t3",
+    ]);
   });
 });
 
@@ -101,6 +115,47 @@ describe("createEvolutionCadence", () => {
     expect(drafts[0]?.status).toBe("draft");
     // No proposal ever reached an approved/committed state via the cadence tick.
     expect(engine.listProposals({ status: "approved" }).length).toBe(0);
+  });
+
+  test("with tenantIds, runs one SCOPED cycle per tenant (no cross-tenant sensing)", async () => {
+    const seenTenants: Array<string | undefined> = [];
+    const fakeRuntime = {
+      evolutionCycle: {
+        runCycle: async (ctx?: { tenantId?: string }) => {
+          seenTenants.push(ctx?.tenantId);
+          return { proposals: [] };
+        },
+      },
+    } as unknown as EvolutionRuntime;
+    const scheduler = createEvolutionCadence({
+      evolutionRuntime: fakeRuntime,
+      intervalMs: 1000,
+      tenantIds: ["tenant-a", "tenant-b"],
+      engine: createProposalEngine(),
+      logger: SILENT,
+    });
+    await scheduler?.runOnce();
+    expect(seenTenants).toEqual(["tenant-a", "tenant-b"]);
+  });
+
+  test("without tenantIds, runs a single default-scope (tenant-less) cycle", async () => {
+    const seenTenants: Array<string | undefined> = [];
+    const fakeRuntime = {
+      evolutionCycle: {
+        runCycle: async (ctx?: { tenantId?: string }) => {
+          seenTenants.push(ctx?.tenantId);
+          return { proposals: [] };
+        },
+      },
+    } as unknown as EvolutionRuntime;
+    const scheduler = createEvolutionCadence({
+      evolutionRuntime: fakeRuntime,
+      intervalMs: 1000,
+      engine: createProposalEngine(),
+      logger: SILENT,
+    });
+    await scheduler?.runOnce();
+    expect(seenTenants).toEqual([undefined]);
   });
 
   test("re-running the cadence tick is idempotent (deduped, not duplicated)", async () => {

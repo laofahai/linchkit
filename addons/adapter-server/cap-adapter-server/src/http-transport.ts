@@ -9,7 +9,11 @@
 import type { Actor, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { serverConfig } from "@linchkit/core";
 import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
-import { createEvolutionCadence, resolveCadenceIntervalMs } from "./evolution-scheduler-wiring";
+import {
+  createEvolutionCadence,
+  resolveCadenceIntervalMs,
+  resolveCadenceTenantIds,
+} from "./evolution-scheduler-wiring";
 
 export function resolveRequestTenantId(request: Request, actor?: Actor): string | undefined {
   // Prefer tenant from verified actor (auth middleware already validated the JWT).
@@ -181,6 +185,7 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
       ? createEvolutionCadence({
           evolutionRuntime: ctx.evolutionRuntime,
           intervalMs: cadenceIntervalMs,
+          tenantIds: resolveCadenceTenantIds(),
         })
       : null;
 
