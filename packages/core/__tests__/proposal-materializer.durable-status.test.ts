@@ -207,4 +207,41 @@ describe("materializeProposalChanges — durable materialization status", () => 
     expect(change?.materializationErrors).toBeUndefined();
     expect(change?.generatedSource).toBe(GOOD);
   });
+
+  test("scoped run clears stale source on a NON-materializable out-of-scope change", async () => {
+    // A declarative change carrying STALE materialization artifacts (it was an
+    // action that got materialized, then edited to a declarative target). A
+    // SCOPED materialization of a DIFFERENT change must still clear the stale
+    // source so ProposalFileWriter never writes it at graduation — the scope
+    // protects already-good MATERIALIZABLE candidates, not invalid declarative
+    // state. (Regression for codex R3 on the scoped-materialization PR.)
+    const input = makeProposal([
+      { target: "action", operation: "create", name: "deduct_inventory" },
+      {
+        target: "entity",
+        operation: "create",
+        name: "stale_entity",
+        generatedSource: "export const stale = 1;",
+        materializationStatus: "materialized",
+      },
+    ]);
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider: makeProvider(GOOD),
+      qualityGate: createSyntaxQualityGate(),
+      changeNames: ["deduct_inventory"], // scope to the action only
+    });
+
+    const action = result.proposal.changes.find((c) => c.name === "deduct_inventory");
+    const stale = result.proposal.changes.find((c) => c.name === "stale_entity");
+    expect(action?.materializationStatus).toBe("materialized");
+    // The out-of-scope, now-declarative change had its stale artifacts CLEARED.
+    expect(stale?.generatedSource).toBeUndefined();
+    expect(stale?.materializationStatus).toBeUndefined();
+    expect(stale?.materializationErrors).toBeUndefined();
+    expect(result.outcomes.find((o) => o.changeName === "stale_entity")?.status).toBe("skipped");
+    // The input proposal is never mutated.
+    expect(input.changes[1]?.generatedSource).toBe("export const stale = 1;");
+  });
 });

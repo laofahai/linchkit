@@ -50,6 +50,46 @@ import { resolveActor, resolveStatusCode } from "./routes/shared";
 const MATERIALIZE_COMMAND_NAME = "proposal.materialize";
 
 /**
+ * Parse + sanitize the OPTIONAL request body into a `changeNames` scope.
+ *
+ * NEVER trust client input: a missing/empty/malformed body, or any body that is
+ * not `{ changeNames: string[] }`, yields `undefined` (= materialize ALL, today's
+ * behavior). From a well-formed array we keep ONLY non-empty string entries
+ * (deduped); non-string garbage is dropped. If nothing survives, returns
+ * `undefined` so an all-garbage `changeNames` degrades to "materialize all"
+ * rather than scoping to the empty set (which would skip everything).
+ *
+ * This is STRING sanitation only. Membership against the proposal's ACTUAL
+ * change names is enforced in {@link runProposalMaterialization} once the
+ * proposal is loaded (names matching no change are dropped, and an all-unknown
+ * scope likewise degrades to "materialize all").
+ *
+ * Reading `await request.json()` THROWS on an empty body, so this is fully
+ * try/caught — an empty POST is the common "materialize all" call.
+ */
+async function parseChangeNamesBody(request: Request): Promise<readonly string[] | undefined> {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    // No body / not JSON → materialize all (back-compat).
+    return undefined;
+  }
+  if (typeof body !== "object" || body === null) return undefined;
+  const raw = (body as { changeNames?: unknown }).changeNames;
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    // Drop non-strings and empty/whitespace-only names; dedupe.
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (trimmed.length === 0) continue;
+    seen.add(trimmed);
+  }
+  return seen.size > 0 ? [...seen] : undefined;
+}
+
+/**
  * Upper bound on the ontology Markdown embedded in the generation context. A real
  * project ontology can grow large; an unbounded summary would balloon the prompt
  * (cost + latency + truncation by the model). Past this many characters the
@@ -153,6 +193,14 @@ export interface RunProposalMaterializationDeps {
   context?: string;
   /** Max generation attempts per change (defaults to the materializer's default). */
   maxRetries?: number;
+  /**
+   * Optional scope: when provided (non-empty), ONLY changes whose `name` is in
+   * this list are (re)materialized; every other change is preserved untouched.
+   * When absent/empty, ALL materializable changes are materialized (current
+   * behavior). Lets a reviewer retry one FAILED change without regenerating —
+   * and risking regression of — the already-good ones.
+   */
+  changeNames?: readonly string[];
 }
 
 /**
@@ -191,6 +239,19 @@ export async function runProposalMaterialization(
     return { kind: "not_draft", status: proposal.status };
   }
 
+  // Resolve the effective scope against the loaded proposal's actual change
+  // names. Client `changeNames` is already string-sanitized at the route; here we
+  // additionally DROP names that match no change on THIS proposal (never trust a
+  // client to know the real names). If nothing survives, fall back to `undefined`
+  // so an all-unknown scope degrades to "materialize all" rather than scoping to
+  // a phantom set that would skip every change.
+  let effectiveChangeNames: readonly string[] | undefined;
+  if (deps.changeNames && deps.changeNames.length > 0) {
+    const known = new Set(proposal.changes.map((c) => c.name));
+    const filtered = deps.changeNames.filter((name) => known.has(name));
+    effectiveChangeNames = filtered.length > 0 ? filtered : undefined;
+  }
+
   try {
     const result = await materializeProposalChanges({
       proposal,
@@ -198,6 +259,7 @@ export async function runProposalMaterialization(
       qualityGate: deps.qualityGate,
       context: deps.context,
       maxRetries: deps.maxRetries,
+      changeNames: effectiveChangeNames,
     });
     // Persist the candidate source back onto the draft. `updateProposal` replaces
     // `changes` (recomputing impact) and is draft-only — never approves/graduates.
@@ -270,12 +332,24 @@ export interface MountProposalMaterializeAPIOptions {
 /**
  * Register `POST /api/proposals/:id/materialize` on the given Elysia app.
  *
+ * Request body (OPTIONAL): `{ changeNames?: string[] }`. When a non-empty
+ * `changeNames` is given, ONLY those changes are (re)materialized; every other
+ * change is preserved untouched (its existing `generatedSource` is kept) and
+ * reported as `skipped`. This lets a reviewer retry one FAILED change without
+ * re-calling the AI provider for — and risking regression of — the already-good
+ * ones. A missing/empty/malformed body materializes ALL changes (today's
+ * behavior, byte-for-byte). Client `changeNames` is sanitized: non-string
+ * entries and names that do not match an actual change on the proposal are
+ * dropped (never trusted).
+ *
  * Contract:
  *   - 404 `{ success: false, error }` — proposal not found.
  *   - 422 `{ success: false, error }` — proposal not a draft (draft-only guard).
  *   - 503 `{ success: false, error }` — command layer or AI provider not configured.
  *   - 500 `{ success: false, error }` — unexpected generation failure.
  *   - 200 `{ success: true, data: { proposalId, allMaterialized, outcomes, proposal } }`.
+ *     With a `changeNames` scope, out-of-scope changes appear in `outcomes` with
+ *     status `skipped` and their `generatedSource` on `proposal` is preserved.
  *
  * @param app Elysia app instance
  * @param options Engine + provider overrides (all optional; production uses defaults).
@@ -380,11 +454,19 @@ export function mountProposalMaterializeAPI(
         };
       }
 
+      // Parse the OPTIONAL body AFTER auth + provider preflight so the slot order
+      // (permission FIRST) is preserved and an unauthorized caller's body is never
+      // read. A missing/empty/malformed body → undefined → materialize all
+      // (today's behavior); a sanitized scope restricts (re)materialization to the
+      // named changes, preserving every out-of-scope change untouched.
+      const changeNames = await parseChangeNamesBody(request);
+
       const outcome = await runProposalMaterialization(params.id, {
         engine,
         provider,
         qualityGate,
         context: getContext(),
+        changeNames,
       });
 
       switch (outcome.kind) {
