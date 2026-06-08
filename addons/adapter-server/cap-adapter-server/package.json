@@ -27,7 +27,7 @@
   },
   "peerDependencies": {
     "@linchkit/cap-ai-provider": "^1.0.0",
-    "@linchkit/core": "^0.2.0"
+    "@linchkit/core": ">=0.3.0 <0.4.0"
   },
   "devDependencies": {
     "@linchkit/cap-ai-provider": "workspace:*",
@@ -37,7 +37,7 @@
     "typescript": "^6.0.2"
   },
   "linchkit": {
-    "coreVersion": "^0.2.0",
+    "coreVersion": ">=0.3.0 <0.4.0",
     "type": "adapter",
     "category": "integration"
   }

@@ -9,6 +9,11 @@
 import type { Actor, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { serverConfig } from "@linchkit/core";
 import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
+import {
+  createEvolutionCadence,
+  resolveCadenceIntervalMs,
+  resolveCadenceTenantIds,
+} from "./evolution-scheduler-wiring";
 
 export function resolveRequestTenantId(request: Request, actor?: Actor): string | undefined {
   // Prefer tenant from verified actor (auth middleware already validated the JWT).
@@ -170,6 +175,27 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
     evolutionRuntime: ctx.evolutionRuntime,
   });
 
+  // Spec 55 §7 — OPT-IN autonomous cadence. OFF unless EVOLUTION_CADENCE_INTERVAL_MS
+  // is set to a positive integer (ms). The tick runs one cycle and persists its
+  // proposals as DRAFTS only — approval and graduation stay human-gated. Built
+  // here (un-started); started/stopped with the server lifecycle below.
+  const cadenceIntervalMs = resolveCadenceIntervalMs();
+  const evolutionScheduler =
+    cadenceIntervalMs !== null
+      ? createEvolutionCadence({
+          evolutionRuntime: ctx.evolutionRuntime,
+          intervalMs: cadenceIntervalMs,
+          tenantIds: resolveCadenceTenantIds(),
+        })
+      : null;
+  // The operator opted into cadence but no evolution runtime is wired, so
+  // createEvolutionCadence returned null — warn instead of silently doing nothing.
+  if (cadenceIntervalMs !== null && !evolutionScheduler) {
+    consoleLogger.warn(
+      "[cap-adapter-server] EVOLUTION_CADENCE_INTERVAL_MS is set but no evolution runtime is wired — autonomous cadence will NOT start.",
+    );
+  }
+
   return {
     start: () => {
       app.listen(port);
@@ -177,8 +203,16 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
       console.log(`[cap-adapter-server] HTTP:    http://${displayHost}:${port}`);
       console.log(`[cap-adapter-server] GraphQL: http://${displayHost}:${port}/graphql`);
       console.log(`[cap-adapter-server] Health:  http://${displayHost}:${port}/health`);
+      if (evolutionScheduler) {
+        evolutionScheduler.start();
+        console.log(
+          `[cap-adapter-server] Evolution cadence: ON (every ${cadenceIntervalMs}ms, DRAFT-only)`,
+        );
+      }
     },
     stop: () => {
+      // Stop the opt-in evolution cadence timer (if running).
+      evolutionScheduler?.stop();
       // Stop the subscription manager (heartbeat/idle timers) if present
       const subManager = (app as { __subscriptionManager?: { stop?: () => void } })
         .__subscriptionManager;

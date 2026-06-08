@@ -50,6 +50,13 @@ export {
   type PersistCycleDraftsResult,
   persistCycleProposalsAsDrafts,
 } from "../../engine/evolution-cycle-drafts";
+export {
+  createEvolutionScheduler,
+  type EvolutionScheduler,
+  type EvolutionSchedulerOptions,
+  MAX_INTERVAL_MS,
+  MIN_INTERVAL_MS,
+} from "../../engine/evolution-scheduler";
 // Generator priority aggregator (Spec 55 §7.7 Phase 3)
 export {
   createGeneratorPriorityAggregator,

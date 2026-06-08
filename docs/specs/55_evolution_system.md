@@ -428,7 +428,7 @@ Proposal: {
 }
 ```
 
-> **运行时落地（已实现，on-demand）**：演化回路的 `runCycle()` 通过按需端点 `POST /api/evolution/run-cycle` 触发（权限槽经 CommandLayer，不跳过）；产出的 Proposal 经 `persistCycleProposalsAsDrafts` 持久化为治理引擎中的 `draft`，进入既有人审管线（`GET /api/proposals`），并按 capability + change 名去重避免重复。**仅产 `draft`**——不 submit/approve/落地。自动调度（cadence）与"毕业到代码/PR"（§7.6/§7.7）仍是独立、受控的后续步骤。
+> **运行时落地（已实现，on-demand）**：演化回路的 `runCycle()` 通过按需端点 `POST /api/evolution/run-cycle` 触发（权限槽经 CommandLayer，不跳过）；产出的 Proposal 经 `persistCycleProposalsAsDrafts` 持久化为治理引擎中的 `draft`，进入既有人审管线（`GET /api/proposals`），并按 capability + change 名去重避免重复。**仅产 `draft`**——不 submit/approve/落地。自动调度（cadence）现为**可选 opt-in**：`EVOLUTION_CADENCE_INTERVAL_MS`（毫秒，默认关闭）让这条 runCycle→draft 回路按节奏自动跑（`createEvolutionScheduler`，非重叠 tick）；多租户部署须设 `EVOLUTION_CADENCE_TENANT_IDS`（逗号分隔）按租户传递作用域（每租户一次 scoped 运行；空则只跑默认无租户作用域）——与 on-demand 路径一致地把 `tenantId` 注入 `SensorContext`；**真正的读隔离取决于 runtime 查询助手/传感器是否据此过滤，这是与 on-demand 路径共享的 runtime 级后续项**。cadence 同样**仅自动产 `draft`**，审批与毕业仍全程人审。"毕业到代码/PR"（§7.6/§7.7）仍是独立、受控步骤。
 
 ### 7.2 Skill 复用
 
@@ -595,7 +595,7 @@ CodeGenerationProvider（生成）→ materializeProposalChanges（编排+质量
 - **CommandLayer 权限槽永远先跑、绝不跳过**：在任何 provider 构建之前执行；命令层或 AI provider 未配置 → 503 优雅降级（而不是去调一个会抛"未配置"的 provider）。
 - **仅产出候选源码**，挂在 draft 上；绝不 submit / approve / commit / graduate / 写文件 / 运行生成代码。
 - **候选仍须经验证（Phase 2 构建门 + Phase 4 契约门）+ 双重人审**（draft 审查 + 毕业 PR）才可能落地。
-- **仅按需触发（on-demand）**，无调度器 / cron——自动节奏（cadence）是被搁置的产品决策。
+- **物化仅按需触发（on-demand）**，无物化调度器 / cron——物化绝不自动跑。（注：产 `draft` 的 sense→draft 回路有可选 cadence，见 §7；物化本身仍纯人工触发，与 cadence 解耦。）
 
 ### 7.8 反馈回路
 
