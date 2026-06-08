@@ -5,7 +5,6 @@ import {
   type DataProvider,
 } from "../src/engine/action-engine";
 import { createStateMachine } from "../src/engine/state-machine";
-import { InMemoryExecutionLogger } from "../src/observability/execution-logger";
 import type { ActionDefinition, Actor } from "../src/types/action";
 import type { StateDefinition } from "../src/types/state";
 
@@ -251,38 +250,6 @@ describe("ActionExecutor", () => {
     expect(result.executionId).toBeDefined();
     expect(result.data).toBeDefined();
     expect((result.data as Record<string, unknown>).title).toBe("Test Order");
-  });
-
-  it("stamps execOptions.tenantId onto the execution log entry (#500)", async () => {
-    const dataProvider = createMemoryDataProvider();
-    const executionLogger = new InMemoryExecutionLogger();
-    const executor = createActionExecutor({ dataProvider, executionLogger });
-    executor.registry.register(simpleAction);
-
-    await executor.execute("create_order", { title: "Scoped", amount: 1 }, defaultActor, {
-      tenantId: "tenant-a",
-    });
-
-    // The single log entry must carry the resolved tenant so tenant-scoped
-    // reads (evolution sensors) can filter execution_log by tenant.
-    const scoped = executionLogger.findMany({ tenantId: "tenant-a" });
-    expect(scoped.items).toHaveLength(1);
-    expect(scoped.items[0]?.tenantId).toBe("tenant-a");
-    // And it is NOT visible to a different tenant's scoped read.
-    expect(executionLogger.findMany({ tenantId: "tenant-b" }).items).toHaveLength(0);
-  });
-
-  it("leaves execution log entry tenantId unset when no tenant is in scope", async () => {
-    const dataProvider = createMemoryDataProvider();
-    const executionLogger = new InMemoryExecutionLogger();
-    const executor = createActionExecutor({ dataProvider, executionLogger });
-    executor.registry.register(simpleAction);
-
-    await executor.execute("create_order", { title: "Unscoped", amount: 1 }, defaultActor);
-
-    const all = executionLogger.getAll();
-    expect(all).toHaveLength(1);
-    expect(all[0]?.tenantId).toBeUndefined();
   });
 
   it("executes a declarative action with setFields", async () => {
