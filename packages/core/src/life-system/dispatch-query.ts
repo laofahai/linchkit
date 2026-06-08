@@ -28,6 +28,19 @@ export interface CreateDispatchQueryOptions {
    * paginate explicitly (not yet implemented — see Spec 55 roadmap).
    */
   executionLogPageSize?: number;
+  /**
+   * Tenant scope for ALL reads through the returned query (Spec 55 §7, #500).
+   * When set, business reads pass it as `DataQueryOptions.tenantId` (the
+   * canonical, provider-enforced isolation mechanism — Drizzle adds
+   * `WHERE tenant_id = …` when the table has a tenant column, and no-ops for
+   * tenant-agnostic tables; InMemoryStore filters likewise) and execution_log
+   * reads pass it as `findMany({ tenantId })`. When unset (single-tenant / dev),
+   * reads are unscoped exactly as before — no behavior change.
+   *
+   * Build one dispatch query PER tenant scope (see the runtime's `queryFactory`)
+   * so a per-tenant evolution cycle cannot observe another tenant's data.
+   */
+  tenantId?: string;
 }
 
 const DEFAULT_EXECUTION_LOG_PAGE_SIZE = 1000;
@@ -59,12 +72,20 @@ export function createDispatchQuery(
         action: actionName,
         entity: entityName,
         status: statusVal as ExecutionLogFindOptions["status"],
+        // Tenant-scope the log read when a scope is in effect (#500).
+        tenantId: opts.tenantId,
         pageSize,
       });
       return result.items as T[];
     }
 
-    const rows = await opts.dataProvider.query(schema, filter ?? {});
+    // Pass the tenant scope as DataQueryOptions so the provider enforces
+    // isolation (`WHERE tenant_id = …`); omit options entirely when unscoped.
+    const rows = await opts.dataProvider.query(
+      schema,
+      filter ?? {},
+      opts.tenantId ? { tenantId: opts.tenantId } : undefined,
+    );
     return rows as T[];
   };
 }

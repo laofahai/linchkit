@@ -614,7 +614,10 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
 
   const evolutionRuntime = createEvolutionRuntime({
     sensors,
-    query: createDispatchQuery({ dataProvider: overlayAwareDataProvider, executionLogger }),
+    // Build a fresh dispatch query per cycle, scoped to that cycle's tenant
+    // (#500) — a per-tenant on-demand/cadence cycle reads only its own data.
+    queryFactory: (tenantId) =>
+      createDispatchQuery({ dataProvider: overlayAwareDataProvider, executionLogger, tenantId }),
     ontology: ontologyRegistry,
     translatorRegistry: createDefaultInsightTranslatorRegistry(),
     proposalCapability: "linch-dev",

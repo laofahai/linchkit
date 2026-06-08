@@ -131,6 +131,69 @@ describe("createEvolutionRuntime", () => {
     expect(runtimeQueryCalls).toBe(0);
   });
 
+  test("queryFactory builds a per-tenant scoped query for each cycle (#500)", async () => {
+    // The factory is invoked PER runCycle with that cycle's tenantId, so a
+    // per-tenant cycle reads only its own data. Single-tenant/dev runs pass no
+    // tenantId and the factory receives undefined (unscoped, prior behavior).
+    const factoryTenantIds: Array<string | undefined> = [];
+    const sensor = defineSensor({
+      name: "tenant_sensor",
+      source: "event_bus",
+      detect: async (ctx: SensorContext): Promise<SensorSignal | null> => {
+        await ctx.query?.("execution_log");
+        return null;
+      },
+    });
+
+    const runtime = createEvolutionRuntime({
+      sensors: [sensor],
+      queryFactory: (tenantId) => {
+        factoryTenantIds.push(tenantId);
+        return async () => [];
+      },
+    });
+
+    await runtime.evolutionCycle.runCycle({ timestamp: new Date(), tenantId: "tenant-a" });
+    await runtime.evolutionCycle.runCycle({ timestamp: new Date(), tenantId: "tenant-b" });
+    await runtime.evolutionCycle.runCycle({ timestamp: new Date() }); // no tenant → undefined
+
+    expect(factoryTenantIds).toEqual(["tenant-a", "tenant-b", undefined]);
+  });
+
+  test("caller-supplied ctx.query wins over queryFactory (#500)", async () => {
+    let factoryCalls = 0;
+    let callerCalls = 0;
+    const sensor = defineSensor({
+      name: "factory_override_sensor",
+      source: "event_bus",
+      detect: async (ctx: SensorContext): Promise<SensorSignal | null> => {
+        await ctx.query?.("execution_log");
+        return null;
+      },
+    });
+
+    const runtime = createEvolutionRuntime({
+      sensors: [sensor],
+      queryFactory: () => {
+        factoryCalls++;
+        return async () => [];
+      },
+    });
+
+    await runtime.evolutionCycle.runCycle({
+      timestamp: new Date(),
+      tenantId: "tenant-a",
+      query: async () => {
+        callerCalls++;
+        return [];
+      },
+    });
+
+    expect(callerCalls).toBe(1);
+    // The factory is never consulted when the caller brought its own query.
+    expect(factoryCalls).toBe(0);
+  });
+
   test("works with zero sensors", async () => {
     const runtime = createEvolutionRuntime({ sensors: [] });
     expect(runtime.signalBus.listSensors()).toEqual([]);

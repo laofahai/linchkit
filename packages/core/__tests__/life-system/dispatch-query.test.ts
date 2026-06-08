@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { DataProvider } from "../../src/engine/action-engine";
+import type { DataProvider, DataQueryOptions } from "../../src/engine/action-engine";
 import { createDispatchQuery } from "../../src/life-system/dispatch-query";
 import type {
   ExecutionLogEntry,
@@ -23,6 +23,7 @@ interface ExecutionLoggerCall {
 interface DataProviderCall {
   schema: string;
   filter: Record<string, unknown>;
+  options?: DataQueryOptions;
 }
 
 function makeExecutionLogger(items: ExecutionLogEntry[]): {
@@ -60,8 +61,8 @@ function makeDataProvider(rows: Array<Record<string, unknown>>): {
     async get() {
       throw new Error("not used in test");
     },
-    async query(schema, filter) {
-      calls.push({ schema, filter });
+    async query(schema, filter, options) {
+      calls.push({ schema, filter, options });
       return rows;
     },
     async create() {
@@ -126,10 +127,12 @@ describe("createDispatchQuery", () => {
 
     expect(rows).toEqual([businessRow]);
     expect(providerCalls).toHaveLength(1);
-    expect(providerCalls[0]).toEqual({
+    expect(providerCalls[0]).toMatchObject({
       schema: "purchase_request",
       filter: { status: "draft" },
     });
+    // No tenant scope configured → no DataQueryOptions passed.
+    expect(providerCalls[0]?.options).toBeUndefined();
     expect(loggerCalls).toHaveLength(0);
   });
 
@@ -181,5 +184,54 @@ describe("createDispatchQuery", () => {
     await query("execution_log");
 
     expect(calls[0]?.options?.pageSize).toBe(50);
+  });
+
+  describe("tenant scoping (#500)", () => {
+    test("passes tenantId as DataQueryOptions for business reads when scoped", async () => {
+      const { logger } = makeExecutionLogger([]);
+      const { provider, calls } = makeDataProvider([]);
+      const query = createDispatchQuery({
+        dataProvider: provider,
+        executionLogger: logger,
+        tenantId: "tenant-a",
+      });
+
+      await query("purchase_request", { status: "draft" });
+
+      expect(calls).toHaveLength(1);
+      // Filter is untouched; tenant scope rides DataQueryOptions (the canonical,
+      // provider-enforced isolation mechanism), NOT the equality filter.
+      expect(calls[0]?.filter).toEqual({ status: "draft" });
+      expect(calls[0]?.options).toEqual({ tenantId: "tenant-a" });
+    });
+
+    test("forwards tenantId to ExecutionLogger.findMany when scoped", async () => {
+      const { logger, calls } = makeExecutionLogger([]);
+      const { provider } = makeDataProvider([]);
+      const query = createDispatchQuery({
+        dataProvider: provider,
+        executionLogger: logger,
+        tenantId: "tenant-a",
+      });
+
+      await query("execution_log", { action_name: "reject_purchase_request" });
+
+      expect(calls[0]?.options).toMatchObject({
+        action: "reject_purchase_request",
+        tenantId: "tenant-a",
+      });
+    });
+
+    test("unscoped (no tenantId) leaves both reads un-tenant-scoped", async () => {
+      const { logger, calls: loggerCalls } = makeExecutionLogger([]);
+      const { provider, calls: providerCalls } = makeDataProvider([]);
+      const query = createDispatchQuery({ dataProvider: provider, executionLogger: logger });
+
+      await query("purchase_request", { status: "draft" });
+      await query("execution_log", { action_name: "x" });
+
+      expect(providerCalls[0]?.options).toBeUndefined();
+      expect(loggerCalls[0]?.options?.tenantId).toBeUndefined();
+    });
   });
 });
