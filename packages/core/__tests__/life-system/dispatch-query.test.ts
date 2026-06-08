@@ -222,20 +222,17 @@ describe("createDispatchQuery", () => {
       });
     });
 
-    test("a set-but-empty tenantId scopes (fail-closed), not silently global", async () => {
+    test("rejects a set-but-blank tenantId at construction (fail-closed, not silent global)", () => {
       const { logger } = makeExecutionLogger([]);
-      const { provider, calls } = makeDataProvider([]);
-      const query = createDispatchQuery({
-        dataProvider: provider,
-        executionLogger: logger,
-        tenantId: "",
-      });
-
-      await query("purchase_request", { status: "draft" });
-
-      // "" is keyed on `!== undefined`, so it still scopes (to empty-tenant rows)
-      // instead of falling back to an unscoped global read.
-      expect(calls[0]?.options).toEqual({ tenantId: "" });
+      const { provider } = makeDataProvider([]);
+      // Real providers only scope on a TRUTHY tenantId, so "" / "  " would read
+      // globally. Reject it loudly at construction rather than leak across tenants.
+      expect(() =>
+        createDispatchQuery({ dataProvider: provider, executionLogger: logger, tenantId: "" }),
+      ).toThrow(/non-empty string or undefined/);
+      expect(() =>
+        createDispatchQuery({ dataProvider: provider, executionLogger: logger, tenantId: "  " }),
+      ).toThrow(/non-empty string or undefined/);
     });
 
     test("unscoped (no tenantId) leaves both reads un-tenant-scoped", async () => {

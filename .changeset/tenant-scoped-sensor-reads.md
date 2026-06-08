@@ -18,4 +18,6 @@ fresh, tenant-scoped query for each `runCycle` (consulted lazily — a caller's 
 `ctx.query` still wins). The dev wiring switches to this factory, so per-tenant
 on-demand and cadence cycles read only their own tenant's data. The static
 `query` option remains for backward compatibility; single-tenant / dev runs (no
-`tenantId`) are unscoped exactly as before.
+`tenantId`) are unscoped exactly as before. A set-but-blank `tenantId` is
+rejected at construction (the backends only scope on a truthy value, so a blank
+would silently read globally) — pass `undefined` to run intentionally unscoped.

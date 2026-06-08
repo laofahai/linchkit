@@ -59,6 +59,22 @@ export function createDispatchQuery(
 ): NonNullable<SensorContext["query"]> {
   const pageSize = opts.executionLogPageSize ?? DEFAULT_EXECUTION_LOG_PAGE_SIZE;
 
+  // Reject a set-but-blank tenantId. The real backends (DrizzleDataProvider,
+  // InMemoryStore, execution loggers) apply the tenant filter only when the
+  // value is TRUTHY, so an empty/whitespace tenantId would silently read
+  // GLOBALLY (fail-open) at this security boundary. Real callers never produce
+  // one — resolveRequestTenantId returns undefined for a blank header, and
+  // EVOLUTION_CADENCE_TENANT_IDS trims+drops empties — so this only guards
+  // against a misconfigured custom resolver, failing LOUD instead of leaking.
+  // Pass `undefined` to intentionally run an unscoped (single-tenant/dev) cycle.
+  if (opts.tenantId !== undefined && opts.tenantId.trim() === "") {
+    throw new Error(
+      "createDispatchQuery: tenantId must be a non-empty string or undefined " +
+        "(received an empty/blank value, which would read across all tenants). " +
+        "Pass undefined for an intentionally unscoped single-tenant/dev cycle.",
+    );
+  }
+
   return async <T = unknown>(schema: string, filter?: Record<string, unknown>): Promise<T[]> => {
     if (schema === "execution_log") {
       // Translate the generic equality filter into the logger's typed filter.
@@ -81,9 +97,9 @@ export function createDispatchQuery(
 
     // Pass the tenant scope as DataQueryOptions so the provider enforces
     // isolation (`WHERE tenant_id = …`); omit options entirely when unscoped.
-    // Key on `!== undefined` (NOT truthiness) so a set-but-empty tenantId scopes
-    // rather than silently reading globally — fail-closed, and consistent with
-    // the execution_log path above, which passes `opts.tenantId` through as-is.
+    // `opts.tenantId` is here either undefined (unscoped) or a validated
+    // non-empty string (blank values were rejected at construction), so the
+    // provider's truthy tenant check scopes correctly.
     const rows = await opts.dataProvider.query(
       schema,
       filter ?? {},
