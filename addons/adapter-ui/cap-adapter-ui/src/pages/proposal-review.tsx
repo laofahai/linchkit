@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ProposalImpactPreview } from "@/components/proposal-impact-preview";
 import {
   approveProposal,
   fetchProposals,
@@ -218,6 +219,15 @@ function ProposalCard({
               {t("proposals.impact", "Impact")}
             </h5>
             <p className="text-sm">{proposal.validationResult.impactSummary}</p>
+          </div>
+        )}
+
+        {/* Pre-analysis evidence (Spec 55 §7.3) — dedup / conflict / impact /
+            backtest the AI ran before surfacing this proposal. Decision-support
+            shown BEFORE the approve/reject controls; absent for manual drafts. */}
+        {proposal.analysis && (
+          <div data-testid="proposal-preanalysis">
+            <ProposalImpactPreview result={proposal.analysis} />
           </div>
         )}
 
