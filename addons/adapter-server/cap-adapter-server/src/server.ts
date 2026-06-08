@@ -457,11 +457,10 @@ export function createServer(
   mountDeployRoutes(app, opts.deployWebhookHandler);
 
   // ── Proposal / Evolution / AI Insights endpoints ──────────────
-  // Thread the ontology + the env validation policies so proposal validation
-  // Phase 3 (Spec 09 §4.5) can detect breaking references and Phase 4 (G5) can
-  // gate generated-source contract findings. strictCompatibility /
-  // strictGeneratedContract block such proposals in prod/staging; dev/test stay
-  // warn-only.
+  // Thread the ontology + env validation policies so proposal validation can
+  // detect breaking references (Phase 3, Spec 09 §4.5) and gate generated-source
+  // contract findings (Phase 4, G5). strictCompatibility / strictGeneratedContract
+  // block such proposals in prod/staging; dev/test stay warn-only.
   mountProposalAPI(app, {
     executionLogger,
     ontology: opts.ontologyRegistry,
