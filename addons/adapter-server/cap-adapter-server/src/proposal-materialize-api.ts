@@ -290,20 +290,12 @@ export function mountProposalMaterializeAPI(
   const engine: MaterializeEngine = options?.engine ?? getSharedProposalEngine();
   const qualityGate = options?.qualityGate ?? createSyntaxQualityGate();
   // Effective generation context: explicit override wins, else derive from the
-  // project ontology, else undefined. Memoized once at mount (options are fixed)
-  // so the (potentially large) ontology Markdown is built at most once.
-  let resolvedContext: string | undefined;
-  let contextResolved = false;
-  const getContext = (): string | undefined => {
-    if (!contextResolved) {
-      resolvedContext = resolveMaterializeContext({
-        context: options?.context,
-        ontology: options?.ontology,
-      });
-      contextResolved = true;
-    }
-    return resolvedContext;
-  };
+  // project ontology, else undefined. Resolved PER REQUEST (not memoized at mount)
+  // so a runtime-mutated ontology — overlays, dynamic schema changes, entities a
+  // prior evolution cycle added — is reflected. Materialization is a rare,
+  // AI-bound call, so rebuilding the ontology Markdown each time is negligible.
+  const getContext = (): string | undefined =>
+    resolveMaterializeContext({ context: options?.context, ontology: options?.ontology });
   const resolveProvider =
     options?.resolveProvider ??
     (() => {
