@@ -147,6 +147,10 @@ export function createEvolutionScheduler(options: EvolutionSchedulerOptions): Ev
     ticksStarted += 1;
     const startedAt = new Date();
     lastTickStartedAt = startedAt;
+    // Measure elapsed time with the MONOTONIC clock — `new Date()` deltas can go
+    // backwards (or spike) on NTP syncs / manual clock changes, yielding bogus or
+    // negative durations. `new Date()` is kept only for the wall-clock timestamps.
+    const monotonicStartMs = performance.now();
     try {
       await tick();
       // Success path: clear the error streak so a recovered loop reads "healthy".
@@ -161,9 +165,8 @@ export function createEvolutionScheduler(options: EvolutionSchedulerOptions): Ev
         logger.warn(`[EvolutionScheduler] tick failed: ${lastError}`);
       }
     } finally {
-      const completedAt = new Date();
-      lastTickCompletedAt = completedAt;
-      lastTickDurationMs = completedAt.getTime() - startedAt.getTime();
+      lastTickCompletedAt = new Date();
+      lastTickDurationMs = Math.round(performance.now() - monotonicStartMs);
       ticksCompleted += 1;
       ticking = false;
     }
