@@ -109,14 +109,22 @@ export function createEvolutionCadence(
     tick: async () => {
       // Run the cycle once per configured tenant scope, each with its own
       // SensorContext, so tenant-aware sensors never read across tenants. Scopes
-      // are processed serially within the (non-overlapping) tick.
+      // are processed serially within the (non-overlapping) tick, and each is
+      // isolated: one tenant's failing cycle must not starve the rest.
       for (const tenantId of tenantScopes) {
-        const result = await cycle.runCycle({ timestamp: new Date(), tenantId });
-        const summary = persistCycleProposalsAsDrafts({ proposals: result.proposals, engine });
-        logger.info(
-          `[EvolutionCadence] tenant=${tenantId ?? "(default)"} → ${summary.created} new draft(s), ` +
-            `${summary.deduped} deduped (DRAFT-only; approval and graduation stay human-gated).`,
-        );
+        try {
+          const result = await cycle.runCycle({ timestamp: new Date(), tenantId });
+          const summary = persistCycleProposalsAsDrafts({ proposals: result.proposals, engine });
+          logger.info(
+            `[EvolutionCadence] tenant=${tenantId ?? "(default)"} → ${summary.created} new draft(s), ` +
+              `${summary.deduped} deduped (DRAFT-only; approval and graduation stay human-gated).`,
+          );
+        } catch (err) {
+          logger.warn(
+            `[EvolutionCadence] tenant=${tenantId ?? "(default)"} cycle failed: ` +
+              `${err instanceof Error ? err.message : String(err)} — continuing with remaining tenants.`,
+          );
+        }
       }
     },
   });

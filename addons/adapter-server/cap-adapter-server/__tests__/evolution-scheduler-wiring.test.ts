@@ -158,6 +158,30 @@ describe("createEvolutionCadence", () => {
     expect(seenTenants).toEqual([undefined]);
   });
 
+  test("one tenant's failing cycle does not starve later tenants", async () => {
+    const seenTenants: Array<string | undefined> = [];
+    const fakeRuntime = {
+      evolutionCycle: {
+        runCycle: async (ctx?: { tenantId?: string }) => {
+          seenTenants.push(ctx?.tenantId);
+          if (ctx?.tenantId === "tenant-a") throw new Error("sensor exploded for tenant-a");
+          return { proposals: [] };
+        },
+      },
+    } as unknown as EvolutionRuntime;
+    const scheduler = createEvolutionCadence({
+      evolutionRuntime: fakeRuntime,
+      intervalMs: 1000,
+      tenantIds: ["tenant-a", "tenant-b"],
+      engine: createProposalEngine(),
+      logger: SILENT,
+    });
+    const ran = await scheduler?.runOnce();
+    expect(ran).toBe(true); // the tick completed despite tenant-a failing
+    // tenant-b still ran after tenant-a threw.
+    expect(seenTenants).toEqual(["tenant-a", "tenant-b"]);
+  });
+
   test("re-running the cadence tick is idempotent (deduped, not duplicated)", async () => {
     const fakeRuntime = {
       evolutionCycle: { runCycle: async () => ({ proposals: [cycleProposal()] }) },
