@@ -96,11 +96,12 @@
         "@linchkit/cap-ai-provider": "workspace:*",
         "@linchkit/cap-chatter": "workspace:*",
         "@linchkit/cap-permission": "workspace:*",
+        "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/cap-ai-provider": "^1.0.0",
-        "@linchkit/core": ">=0.3.0 <0.4.0",
+        "@linchkit/core": "^0.2.0",
       },
     },
     "addons/adapter-ui/cap-adapter-ui": {
@@ -115,7 +116,6 @@
         "@linchkit/ui-kit": "workspace:*",
         "@tanstack/react-query": "^5.95.2",
         "@tanstack/react-router": "^1.168.2",
-        "@tanstack/react-table": "^8.21.3",
         "@tiptap/extension-link": "^3.20.5",
         "@tiptap/extension-placeholder": "^3.20.5",
         "@tiptap/pm": "^3.20.5",
