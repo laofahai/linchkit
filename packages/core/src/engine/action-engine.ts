@@ -230,6 +230,11 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Default channel matches the value used by the rest of the executor —
     // also used for stamping `_channel` into meta.
     const channel: ExecutionChannel = execOptions?.channel ?? "internal";
+    // Local wrapper — automatically stamps tenantId on every log entry so new
+    // execution paths can't accidentally omit it.
+    const logExecutionWithTenant = (
+      entry: Omit<ExecutionLogEntry, "completedAt" | "duration"> & { startedAt: Date },
+    ) => logExecution({ tenantId: execOptions?.tenantId, ...entry });
 
     // Resolve execution meta. Spec 65 §9: every execution log entry — success,
     // validation failure, recursion-check rejection, etc. — records the meta
@@ -328,7 +333,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           action: actionName,
           entity: "",
         });
-        await logExecution({
+        await logExecutionWithTenant({
           id: executionId,
           action: actionName,
           actor,
@@ -339,7 +344,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             ...rootSystemDefaults,
             _meta_rejected: { sizeBytes: err.sizeBytes, maxBytes: err.maxBytes },
           },
-          tenantId: execOptions?.tenantId,
           startedAt,
         });
         return {
@@ -359,7 +363,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // Step 0: Recursion depth check
     if (currentDepth > MAX_CHILD_DEPTH) {
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         actor,
@@ -367,7 +371,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: `Maximum child action recursion depth (${MAX_CHILD_DEPTH}) exceeded` },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -416,7 +419,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const idempotencyKeyCodepoints = idempotencyKey ? [...idempotencyKey].length : 0;
     if (idempotencyKey && idempotencyKeyCodepoints > 255) {
       const errMsg = `Idempotency key + meta hash exceeds 255 characters (got ${idempotencyKeyCodepoints}). Shorten the caller-provided idempotency key.`;
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         actor,
@@ -424,7 +427,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: errMsg, code: "core.action.idempotency_key_too_long" },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -463,7 +465,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 1: Look up action
     const action = registry.get(actionName);
     if (!action) {
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         actor,
@@ -471,7 +473,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: `Action "${actionName}" not found` },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -501,7 +502,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     if (!skipExposure) {
       if (!isExposed(action.exposure, channel)) {
         const errorMsg = `Action "${actionName}" is not exposed for channel "${channel}"`;
-        await logExecution({
+        await logExecutionWithTenant({
           id: executionId,
           action: actionName,
           entity: action.entity,
@@ -510,7 +511,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           status: "blocked",
           error: { message: errorMsg },
           meta: metaSnapshot,
-          tenantId: execOptions?.tenantId,
           startedAt,
         });
         return {
@@ -537,7 +537,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // every entry point, including GraphQL and direct executor callers.
     const actorTypeError = checkActorType(action, actor);
     if (actorTypeError) {
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -546,7 +546,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: actorTypeError },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -560,7 +559,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const inputValidation = validateInput(action, input, { strict: strictValidation });
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -569,7 +568,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: "Input validation failed" },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -676,7 +674,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       reason: string;
       suggestion: string;
     }): Promise<ActionResult<T>> => {
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -687,7 +685,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: blocked.reason },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -725,7 +722,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         tenantId: execOptions?.tenantId,
         meta: resolvedMeta.toJSON(),
       });
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -736,7 +733,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "pending_approval",
         error: { message: `Pending approval (${pending.level})` },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return { success: false, data: pending as T, executionId };
@@ -937,7 +933,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       entityName: string,
     ): Promise<ActionResult<T>> {
       const errorMsg = `Cannot verify field locks: record "${failedRecordId}" in entity "${entityName}" could not be read`;
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: entityName,
@@ -946,7 +942,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: errorMsg, code: "validation.field.locked" },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       // Metrics parity with Step 7's catch: declarative-path lock rejects
@@ -1005,7 +1000,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       const isImmutable = primary.type === "immutable";
       const errorCode = isImmutable ? "validation.field.immutable" : "validation.field.locked";
       const errorMsg = "Cannot modify locked fields";
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: entityName,
@@ -1014,7 +1009,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: errorMsg, code: errorCode },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       // Metrics parity with Step 7's catch: declarative-path lock rejects
@@ -1267,7 +1261,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
       const firstError = preValidation.errors?.[0];
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -1276,7 +1270,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: "Validation failed" },
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -1316,7 +1309,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (existingRecordFetchError || !existingRecord) {
           // Record fetch failed — fail closed when state transition is required
           const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
-          await logExecution({
+          await logExecutionWithTenant({
             id: executionId,
             action: actionName,
             entity: action?.entity,
@@ -1325,7 +1318,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             status: "failed",
             error: { message: errorMsg },
             meta: metaSnapshot,
-            tenantId: execOptions?.tenantId,
             startedAt,
           });
           return {
@@ -1341,7 +1333,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Check if current state is in the allowed "from" states
         if (!fromStates.includes(currentState)) {
           const errorMsg = `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`;
-          await logExecution({
+          await logExecutionWithTenant({
             id: executionId,
             action: actionName,
             entity: action?.entity,
@@ -1350,7 +1342,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             status: "blocked",
             error: { message: errorMsg },
             meta: metaSnapshot,
-            tenantId: execOptions?.tenantId,
             startedAt,
           });
           return {
@@ -1375,7 +1366,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (!canTransition(stateMachine, currentState, actionName)) {
           const available = getAvailableActions(stateMachine, currentState);
           const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
-          await logExecution({
+          await logExecutionWithTenant({
             id: executionId,
             action: actionName,
             entity: action?.entity,
@@ -1384,7 +1375,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             status: "blocked",
             error: { message: errorMsg },
             meta: metaSnapshot,
-            tenantId: execOptions?.tenantId,
             startedAt,
           });
           return {
@@ -1630,7 +1620,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         entity: action.entity ?? "",
       });
 
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -1642,7 +1632,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         idempotencyKey,
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
 
@@ -1785,7 +1774,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       });
 
       // On failure, pendingEvents were NOT persisted (transaction rolled back)
-      await logExecution({
+      await logExecutionWithTenant({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -1796,7 +1785,6 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         stateTransition: stateTransitionRecord,
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         meta: metaSnapshot,
-        tenantId: execOptions?.tenantId,
         startedAt,
       });
 
