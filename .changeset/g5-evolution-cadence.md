@@ -13,4 +13,8 @@ DRAFTS only — approval and graduation stay human-gated. Exported from
 
 `@linchkit/cap-adapter-server` wires it as an opt-in server cadence
 (`EVOLUTION_CADENCE_INTERVAL_MS`, off by default; `EVOLUTION_CADENCE_TENANT_IDS`
-to scope per tenant), started/stopped with the server lifecycle.
+to scope per tenant), started/stopped with the server lifecycle. Its
+`@linchkit/core` peer range is also bumped to `>=0.3.0 <0.4.0` — the adapter now
+imports core/server exports (this scheduler, plus the G-series materialize/cycle
+helpers) that only exist from core 0.3.0, so the old `^0.2.0` range would permit
+a broken install against a core that lacks them.
