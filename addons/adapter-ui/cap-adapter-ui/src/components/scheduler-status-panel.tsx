@@ -102,13 +102,23 @@ export function SchedulerStatusPanel({
   const fetchImplRef = useRef(fetchImpl);
   fetchImplRef.current = fetchImpl;
 
+  // Monotonic request id. A poll and a manual refresh (or two slow polls) can be
+  // in flight at once; without this guard they commit in COMPLETION order, so an
+  // older response could overwrite a newer heartbeat. Only the most recently
+  // STARTED request is allowed to commit its result.
+  const requestIdRef = useRef(0);
+
   const load = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     try {
       const next = await fetchSchedulerStatus({ fetchImpl: fetchImplRef.current, signal });
-      if (!signal?.aborted) setResult(next);
+      // Drop a stale response: aborted (unmount/interval change) or superseded by
+      // a newer load() that started after this one.
+      if (signal?.aborted || requestId !== requestIdRef.current) return;
+      setResult(next);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && requestId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
