@@ -53,6 +53,8 @@ describe("resolveCadenceIntervalMs", () => {
     expect(resolveCadenceIntervalMs({ [CADENCE_ENV_KEY]: "abc" })).toBeNull();
     expect(resolveCadenceIntervalMs({ [CADENCE_ENV_KEY]: "0" })).toBeNull();
     expect(resolveCadenceIntervalMs({ [CADENCE_ENV_KEY]: "-5" })).toBeNull();
+    // A sub-1ms fraction floors to 0 → OFF (must not enable at the 1s floor).
+    expect(resolveCadenceIntervalMs({ [CADENCE_ENV_KEY]: "0.5" })).toBeNull();
   });
 
   test("parses a positive integer (floors floats)", () => {

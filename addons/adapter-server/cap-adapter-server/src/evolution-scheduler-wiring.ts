@@ -39,8 +39,12 @@ export function resolveCadenceIntervalMs(
   const raw = env[CADENCE_ENV_KEY]?.trim();
   if (!raw) return null;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.floor(n);
+  if (!Number.isFinite(n)) return null;
+  // Floor BEFORE the positivity check so a sub-1ms fraction (e.g. "0.5" → 0)
+  // leaves cadence OFF instead of enabling it at the scheduler's 1s floor.
+  const floored = Math.floor(n);
+  if (floored <= 0) return null;
+  return floored;
 }
 
 /** Env var that scopes cadence to explicit tenant(s) (comma-separated). */
