@@ -184,6 +184,39 @@ describe("createEvolutionCadence", () => {
     expect(seenTenants).toEqual(["tenant-a", "tenant-b"]);
   });
 
+  test("repeated cadence failures surface in liveness status; a clean tick clears the streak", async () => {
+    // Regression: the per-tenant catch must not SWALLOW failures so completely
+    // that the scheduler reports healthy. After attempting every scope, a tick
+    // with any failure re-throws an aggregate, so getStatus() (→ GET
+    // /api/evolution/scheduler-status) reflects a cadence stuck on errors.
+    let failing = true;
+    const fakeRuntime = {
+      evolutionCycle: {
+        runCycle: async () => {
+          if (failing) throw new Error("sensor exploded");
+          return { proposals: [] };
+        },
+      },
+    } as unknown as EvolutionRuntime;
+    const scheduler = createEvolutionCadence({
+      evolutionRuntime: fakeRuntime,
+      intervalMs: 1000,
+      engine: createProposalEngine(),
+      logger: SILENT,
+    });
+
+    await scheduler?.runOnce();
+    await scheduler?.runOnce();
+    expect(scheduler?.getStatus().consecutiveErrors).toBe(2);
+    expect(scheduler?.getStatus().lastError).toContain("sensor exploded");
+
+    // A subsequent all-green tick clears the streak — the loop recovered.
+    failing = false;
+    await scheduler?.runOnce();
+    expect(scheduler?.getStatus().consecutiveErrors).toBe(0);
+    expect(scheduler?.getStatus().lastError).toBeNull();
+  });
+
   test("re-running the cadence tick is idempotent (deduped, not duplicated)", async () => {
     const fakeRuntime = {
       evolutionCycle: { runCycle: async () => ({ proposals: [cycleProposal()] }) },

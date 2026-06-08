@@ -66,6 +66,7 @@ import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountDeployRoutes } from "./routes/deploy-api";
 import { mountEntityRoutes } from "./routes/entity-api";
 import { mountEvolutionCycleRoutes } from "./routes/evolution-cycle-api";
+import { mountEvolutionStatusRoutes } from "./routes/evolution-status-api";
 import { mountHealthRoutes } from "./routes/health";
 import { mountImportRoutes } from "./routes/import-api";
 import { mountOnchangeRoutes } from "./routes/onchange-api";
@@ -223,9 +224,13 @@ export interface ServerOptions {
    * Evolution runtime (Spec 55) — when provided, enables
    * `POST /api/evolution/run-cycle` to run one on-demand evolution cycle and
    * persist its proposals as governance `draft`s. No-op (501) when absent.
-   * Running the cycle is strictly on-demand: there is NO scheduler.
    */
   evolutionRuntime?: import("@linchkit/core/server").EvolutionRuntime;
+  /**
+   * Opt-in evolution cadence scheduler (Spec 55 §7) — exposes read-only status
+   * via `GET /api/evolution/scheduler-status` (`{ configured: false }` when absent).
+   */
+  evolutionScheduler?: import("@linchkit/core/server").EvolutionScheduler;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -452,11 +457,10 @@ export function createServer(
   mountDeployRoutes(app, opts.deployWebhookHandler);
 
   // ── Proposal / Evolution / AI Insights endpoints ──────────────
-  // Thread the ontology + the env validation policies so proposal validation
-  // Phase 3 (Spec 09 §4.5) can detect breaking references and Phase 4 (G5) can
-  // gate generated-source contract findings. strictCompatibility /
-  // strictGeneratedContract block such proposals in prod/staging; dev/test stay
-  // warn-only.
+  // Thread the ontology + env validation policies so proposal validation can
+  // detect breaking references (Phase 3, Spec 09 §4.5) and gate generated-source
+  // contract findings (Phase 4, G5). strictCompatibility / strictGeneratedContract
+  // block such proposals in prod/staging; dev/test stay warn-only.
   mountProposalAPI(app, {
     executionLogger,
     ontology: opts.ontologyRegistry,
@@ -485,10 +489,9 @@ export function createServer(
     ontology: opts.ontologyRegistry,
   });
 
-  // ── Evolution cycle trigger (Spec 55 §7) ─────────────────────
-  // On-demand: runs one cycle and lands its proposals as governance drafts.
-  // No-op (501) when no evolution runtime is wired. There is NO scheduler.
+  // ── Evolution (Spec 55 §7) — on-demand cycle→drafts + read-only scheduler status.
   mountEvolutionCycleRoutes(app, opts);
+  mountEvolutionStatusRoutes(app, opts);
 
   // ── SSE Subscription endpoint (/api/subscribe) ────────────────
   mountSubscriptionRoutes(app, opts);

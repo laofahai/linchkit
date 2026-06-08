@@ -54,6 +54,7 @@ export {
   createEvolutionScheduler,
   type EvolutionScheduler,
   type EvolutionSchedulerOptions,
+  type EvolutionSchedulerStatus,
   MAX_INTERVAL_MS,
   MIN_INTERVAL_MS,
 } from "../../engine/evolution-scheduler";
