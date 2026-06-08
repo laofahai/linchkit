@@ -2,6 +2,10 @@
  * API client for Proposal / Evolution / AI Insights endpoints.
  */
 
+// Type-only import (erased at compile time — no core runtime reaches the UI),
+// mirroring proposal-impact-preview.tsx which renders this same shape.
+import type { ProposalPreAnalysisResult } from "@linchkit/core";
+
 // ── Auth header helper (reuse from api.ts pattern) ──────
 
 function getAuthHeaders(): Record<string, string> {
@@ -66,6 +70,16 @@ export interface ProposalValidationResult {
   impactSummary: string;
 }
 
+/**
+ * Wire shape of the per-proposal pre-analysis (Spec 55 §7.3). Mirrors the core
+ * `ProposalPreAnalysisResult` but with `analyzedAt` as an ISO **string** — the
+ * server serializes the `Date` before sending it — so consumers never call Date
+ * methods on what is actually a string. `ProposalImpactPreview` accepts this.
+ */
+export type ProposalAnalysis = Omit<ProposalPreAnalysisResult, "analyzedAt"> & {
+  analyzedAt: string;
+};
+
 export interface Proposal {
   id: string;
   title: string;
@@ -77,6 +91,13 @@ export interface Proposal {
   impact: ProposalImpact;
   status: string;
   validationResult?: ProposalValidationResult;
+  /**
+   * Per-proposal pre-analysis (Spec 55 §7.3) — dedup / conflict / impact /
+   * backtest envelopes surfaced to the human reviewer. Present on AI-surfaced
+   * proposals that ran through the pre-analysis pipeline; absent for manual drafts.
+   * `analyzedAt` arrives as an ISO string over the wire (serialized server-side).
+   */
+  analysis?: ProposalAnalysis;
   createdAt: string;
   updatedAt: string;
   validatedAt?: string;
