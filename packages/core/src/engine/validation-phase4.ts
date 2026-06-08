@@ -213,8 +213,17 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
   // it is never in `withSource` — the two loops do not double-count.
   for (const change of failed) {
     let detail = "";
-    if (change.materializationErrors && change.materializationErrors.length > 0) {
-      const joined = change.materializationErrors.join("; ");
+    // Defensively keep only non-empty STRING entries before joining. The field is
+    // typed `string[]`, but it can be rehydrated from persisted JSON, so guard
+    // against a malformed array (empty strings → "a; ; b" / trailing "; ", or a
+    // non-string slipping past the type) producing a malformed finding message.
+    const cleanErrors = Array.isArray(change.materializationErrors)
+      ? change.materializationErrors.filter(
+          (e): e is string => typeof e === "string" && e.trim().length > 0,
+        )
+      : [];
+    if (cleanErrors.length > 0) {
+      const joined = cleanErrors.join("; ");
       // Cap the joined errors so a single finding message stays reasonable.
       const capped = joined.length > 300 ? `${joined.slice(0, 297)}...` : joined;
       detail = ` Build-gate errors: ${capped}`;

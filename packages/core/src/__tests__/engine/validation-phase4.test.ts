@@ -387,6 +387,42 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(msg).not.toContain(longError);
   });
 
+  test("empty / whitespace error entries are filtered out before joining (no malformed detail)", () => {
+    // A malformed errors array (empty + whitespace-only entries) must not produce
+    // "a; ; b" or a trailing "; ". (Regression for the gemini review on the Phase 4 PR.)
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["", "  ", "missing handler", ""],
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed");
+    const msg = result.warnings[0]?.message ?? "";
+    expect(msg).toContain("Build-gate errors: missing handler");
+    // No empty fragments around the real error.
+    expect(msg).not.toContain("; ;");
+    expect(msg).not.toContain(": ;");
+    expect(msg).not.toMatch(/;\s*$/);
+  });
+
+  test("an all-empty error array produces a finding with NO 'Build-gate errors:' detail", () => {
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["", "   "],
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed");
+    expect(result.warnings[0]?.code).toBe("GENERATED_SOURCE_FAILED");
+    expect(result.warnings[0]?.message).not.toContain("Build-gate errors");
+  });
+
   test("declarative-only changes (no source, no failed status) still skip (unchanged)", () => {
     const result = validatePhase4({
       changes: [change({}), change({ target: "rule", name: "r1" })],
