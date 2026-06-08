@@ -106,6 +106,16 @@ export async function materializeProposalChanges(
   const outcomes: MaterializeChangeOutcome[] = [];
 
   for (const change of changes) {
+    // Clear any pre-existing source AND durable quality signal up front — BEFORE
+    // the materializable check — so neither a re-materialization NOR a change
+    // that became non-materializable (its target/operation was edited, e.g.
+    // action→entity or create→delete) ever leaves a STALE source/status/errors
+    // behind. They are set again only as a materializable attempt resolves; a
+    // skipped (declarative) change correctly carries no materialization artifacts.
+    change.generatedSource = undefined;
+    change.materializationStatus = undefined;
+    change.materializationErrors = undefined;
+
     if (!isMaterializable(change)) {
       outcomes.push({
         changeName: change.name,
@@ -115,13 +125,6 @@ export async function materializeProposalChanges(
       });
       continue;
     }
-
-    // Clear any pre-existing source AND durable quality signal up front so a
-    // failed (re-)materialization never leaves STALE code or a stale status on
-    // the change — they are set again only as the attempt resolves.
-    change.generatedSource = undefined;
-    change.materializationStatus = undefined;
-    change.materializationErrors = undefined;
 
     let lastErrors: string[] = [];
     let materialized = false;

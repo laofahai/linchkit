@@ -134,6 +134,37 @@ describe("materializeProposalChanges — durable materialization status", () => 
     expect(change?.materializationErrors).toBeUndefined();
   });
 
+  test("non-materializable change with a STALE signal → skipped, all artifacts cleared", async () => {
+    // A change that was materialized while it was an action (so it carries
+    // generatedSource + a "materialized" status), then edited to a declarative
+    // (non-materializable) target. Re-materialization must CLEAR the stale
+    // source/status/errors even though the change is now skipped — the clear runs
+    // BEFORE the materializable check, so a skipped change never retains stale
+    // materialization artifacts. (Regression for the gemini review on #513.)
+    const input = makeProposal([
+      {
+        target: "entity",
+        operation: "create",
+        name: "invoice",
+        generatedSource: GOOD,
+        materializationStatus: "materialized",
+        materializationErrors: ["stale error"],
+      },
+    ]);
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider: makeProvider(GOOD),
+      qualityGate: createSyntaxQualityGate(),
+    });
+
+    const change = result.proposal.changes[0];
+    expect(result.outcomes[0]?.status).toBe("skipped");
+    expect(change?.generatedSource).toBeUndefined();
+    expect(change?.materializationStatus).toBeUndefined();
+    expect(change?.materializationErrors).toBeUndefined();
+  });
+
   test("input proposal is NOT mutated — durable signal lands only on the returned copy", async () => {
     const input = makeProposal([
       { target: "action", operation: "create", name: "deduct_inventory" },
