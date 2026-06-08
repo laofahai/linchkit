@@ -107,9 +107,13 @@ export function SchedulerStatusPanel({
   // older response could overwrite a newer heartbeat. Only the most recently
   // STARTED request is allowed to commit its result.
   const requestIdRef = useRef(0);
+  // True while a request is outstanding — lets the poll skip a tick instead of
+  // piling up overlapping requests (see the interval below).
+  const inFlightRef = useRef(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const requestId = ++requestIdRef.current;
+    inFlightRef.current = true;
     setLoading(true);
     try {
       const next = await fetchSchedulerStatus({ fetchImpl: fetchImplRef.current, signal });
@@ -118,7 +122,12 @@ export function SchedulerStatusPanel({
       if (signal?.aborted || requestId !== requestIdRef.current) return;
       setResult(next);
     } finally {
-      if (!signal?.aborted && requestId === requestIdRef.current) setLoading(false);
+      // Only the latest request clears the shared flags — an older, superseded
+      // request finishing late must not flip them while the newer one is pending.
+      if (requestId === requestIdRef.current) {
+        inFlightRef.current = false;
+        if (!signal?.aborted) setLoading(false);
+      }
     }
   }, []);
 
@@ -130,7 +139,13 @@ export function SchedulerStatusPanel({
 
     let timer: ReturnType<typeof setInterval> | undefined;
     if (pollIntervalMs > 0) {
-      timer = setInterval(() => void load(controller.signal), pollIntervalMs);
+      timer = setInterval(() => {
+        // Skip this tick if a request is still outstanding. Otherwise, when the
+        // endpoint is slower than the interval, every poll would supersede the
+        // previous one and the panel could never commit a fresh status.
+        if (inFlightRef.current) return;
+        void load(controller.signal);
+      }, pollIntervalMs);
     }
 
     return () => {
