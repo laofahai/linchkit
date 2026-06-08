@@ -227,6 +227,15 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const executionId = generateExecutionId();
     const startedAt = new Date();
     const currentDepth = execOptions?._depth ?? 0;
+    // Stamp the CommandLayer-resolved tenant onto every execution-log entry this
+    // call writes, so tenant-scoped reads (e.g. evolution sensors, #500) see only
+    // their tenant's history. `execOptions.tenantId` is the authoritative resolved
+    // tenant (it covers actor-claim, metadata, and header-derived cases); an entry
+    // that already carries an explicit tenantId keeps it.
+    const logExec = (
+      entry: Omit<ExecutionLogEntry, "completedAt" | "duration"> & { startedAt: Date },
+    ): Promise<void> =>
+      logExecution({ ...entry, tenantId: entry.tenantId ?? execOptions?.tenantId });
     // Default channel matches the value used by the rest of the executor —
     // also used for stamping `_channel` into meta.
     const channel: ExecutionChannel = execOptions?.channel ?? "internal";
@@ -328,7 +337,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           action: actionName,
           entity: "",
         });
-        await logExecution({
+        await logExec({
           id: executionId,
           action: actionName,
           actor,
@@ -358,7 +367,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
 
     // Step 0: Recursion depth check
     if (currentDepth > MAX_CHILD_DEPTH) {
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         actor,
@@ -414,7 +423,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const idempotencyKeyCodepoints = idempotencyKey ? [...idempotencyKey].length : 0;
     if (idempotencyKey && idempotencyKeyCodepoints > 255) {
       const errMsg = `Idempotency key + meta hash exceeds 255 characters (got ${idempotencyKeyCodepoints}). Shorten the caller-provided idempotency key.`;
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         actor,
@@ -460,7 +469,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // Step 1: Look up action
     const action = registry.get(actionName);
     if (!action) {
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         actor,
@@ -497,7 +506,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     if (!skipExposure) {
       if (!isExposed(action.exposure, channel)) {
         const errorMsg = `Action "${actionName}" is not exposed for channel "${channel}"`;
-        await logExecution({
+        await logExec({
           id: executionId,
           action: actionName,
           entity: action.entity,
@@ -532,7 +541,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     // every entry point, including GraphQL and direct executor callers.
     const actorTypeError = checkActorType(action, actor);
     if (actorTypeError) {
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -554,7 +563,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const inputValidation = validateInput(action, input, { strict: strictValidation });
     if (!inputValidation.valid) {
       const firstError = inputValidation.errors?.[0];
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -669,7 +678,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       reason: string;
       suggestion: string;
     }): Promise<ActionResult<T>> => {
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -717,7 +726,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         tenantId: execOptions?.tenantId,
         meta: resolvedMeta.toJSON(),
       });
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -928,7 +937,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       entityName: string,
     ): Promise<ActionResult<T>> {
       const errorMsg = `Cannot verify field locks: record "${failedRecordId}" in entity "${entityName}" could not be read`;
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: entityName,
@@ -995,7 +1004,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       const isImmutable = primary.type === "immutable";
       const errorCode = isImmutable ? "validation.field.immutable" : "validation.field.locked";
       const errorMsg = "Cannot modify locked fields";
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: entityName,
@@ -1256,7 +1265,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
     const preValidation = runPreValidation(action, ctx);
     if (!preValidation.valid) {
       const firstError = preValidation.errors?.[0];
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -1304,7 +1313,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (existingRecordFetchError || !existingRecord) {
           // Record fetch failed — fail closed when state transition is required
           const errorMsg = `Cannot verify state transition: record "${recordId}" not found in entity "${action.entity}"`;
-          await logExecution({
+          await logExec({
             id: executionId,
             action: actionName,
             entity: action?.entity,
@@ -1328,7 +1337,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         // Check if current state is in the allowed "from" states
         if (!fromStates.includes(currentState)) {
           const errorMsg = `State transition not allowed: current state "${currentState}" is not in allowed states [${fromStates.join(", ")}]`;
-          await logExecution({
+          await logExec({
             id: executionId,
             action: actionName,
             entity: action?.entity,
@@ -1361,7 +1370,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         if (!canTransition(stateMachine, currentState, actionName)) {
           const available = getAvailableActions(stateMachine, currentState);
           const errorMsg = `State machine does not allow action "${actionName}" from state "${currentState}"`;
-          await logExecution({
+          await logExec({
             id: executionId,
             action: actionName,
             entity: action?.entity,
@@ -1615,7 +1624,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         entity: action.entity ?? "",
       });
 
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,
@@ -1780,7 +1789,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
       });
 
       // On failure, pendingEvents were NOT persisted (transaction rolled back)
-      await logExecution({
+      await logExec({
         id: executionId,
         action: actionName,
         entity: action.entity,

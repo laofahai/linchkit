@@ -205,7 +205,7 @@ describe("createDispatchQuery", () => {
       expect(calls[0]?.options).toEqual({ tenantId: "tenant-a" });
     });
 
-    test("does NOT tenant-filter execution_log yet (writer lacks tenantId — #503)", async () => {
+    test("forwards tenantId to ExecutionLogger.findMany when scoped", async () => {
       const { logger, calls } = makeExecutionLogger([]);
       const { provider } = makeDataProvider([]);
       const query = createDispatchQuery({
@@ -216,11 +216,12 @@ describe("createDispatchQuery", () => {
 
       await query("execution_log", { action_name: "reject_purchase_request" });
 
-      // The action log writer doesn't populate ExecutionLogEntry.tenantId, so
-      // applying the filter would silently empty the history. Deferred to #503:
-      // the log read stays unscoped (no tenantId forwarded) until the writer is fixed.
-      expect(calls[0]?.options).toMatchObject({ action: "reject_purchase_request" });
-      expect(calls[0]?.options?.tenantId).toBeUndefined();
+      // The action engine stamps execOptions.tenantId onto each log entry, and
+      // both loggers filter findMany by tenantId — so the read is tenant-scoped.
+      expect(calls[0]?.options).toMatchObject({
+        action: "reject_purchase_request",
+        tenantId: "tenant-a",
+      });
     });
 
     test("rejects a set-but-blank tenantId at construction (fail-closed, not silent global)", () => {
