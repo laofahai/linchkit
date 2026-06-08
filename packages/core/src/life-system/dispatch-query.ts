@@ -81,10 +81,13 @@ export function createDispatchQuery(
 
     // Pass the tenant scope as DataQueryOptions so the provider enforces
     // isolation (`WHERE tenant_id = …`); omit options entirely when unscoped.
+    // Key on `!== undefined` (NOT truthiness) so a set-but-empty tenantId scopes
+    // rather than silently reading globally — fail-closed, and consistent with
+    // the execution_log path above, which passes `opts.tenantId` through as-is.
     const rows = await opts.dataProvider.query(
       schema,
       filter ?? {},
-      opts.tenantId ? { tenantId: opts.tenantId } : undefined,
+      opts.tenantId !== undefined ? { tenantId: opts.tenantId } : undefined,
     );
     return rows as T[];
   };
