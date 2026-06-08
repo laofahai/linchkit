@@ -477,6 +477,9 @@ export function createServer(
     commandLayer: opts.commandLayer,
     resolveRequestActor: opts.resolveRequestActor,
     aiService: opts.aiService,
+    // Derive the generation context from the project ontology so generated
+    // candidate source references REAL entities/actions (no explicit override).
+    ontology: opts.ontologyRegistry,
   });
 
   // ── Evolution cycle trigger (Spec 55 §7) ─────────────────────
