@@ -414,5 +414,12 @@ export function serializeProposal(p: ProposalDefinition): Record<string, unknown
     deployedAt: p.deployedAt?.toISOString(),
     approvedBy: p.approvedBy,
     rejectionReason: p.rejectionReason,
+    // Per-proposal pre-analysis (Spec 55 §7.3) — read-only evidence/impact/
+    // backtest rationale surfaced to the human reviewer. Undefined for proposals
+    // created without a pre-analysis (e.g. manual drafts). Serialize its only
+    // Date field (analyzedAt) to ISO for consistency with the rest of the payload.
+    analysis: p.analysis
+      ? { ...p.analysis, analyzedAt: p.analysis.analyzedAt.toISOString() }
+      : undefined,
   };
 }

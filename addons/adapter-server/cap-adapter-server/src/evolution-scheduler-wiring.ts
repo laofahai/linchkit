@@ -126,7 +126,10 @@ export function createEvolutionCadence(
           // Defensive: a runtime whose cycle returns null/undefined (or omits
           // `proposals`) yields an empty batch rather than throwing a TypeError.
           const proposals = result?.proposals ?? [];
-          const summary = persistCycleProposalsAsDrafts({ proposals, engine });
+          // Forward the per-proposal pre-analysis so each created draft carries
+          // its evidence/impact/backtest rationale for the human reviewer.
+          const proposalAnalyses = result?.proposalAnalyses ?? [];
+          const summary = persistCycleProposalsAsDrafts({ proposals, proposalAnalyses, engine });
           logger.info(
             `[EvolutionCadence] tenant=${tenantId ?? "(default)"} → ${summary.created} new draft(s), ` +
               `${summary.deduped} deduped (DRAFT-only; approval and graduation stay human-gated).`,

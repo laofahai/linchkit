@@ -150,8 +150,11 @@ export function mountEvolutionCycleRoutes(app: Elysia, options: ServerOptions): 
       // Persist each cycle proposal as a `draft` in the shared governance
       // engine, deduped against the already-pending set. NEVER submitted /
       // approved here — the helper only calls createProposal (draft status).
+      // The per-proposal pre-analysis is forwarded so each draft carries its
+      // evidence/impact/backtest rationale for the human reviewer (read-only).
       const summary = persistCycleProposalsAsDrafts({
         proposals: result.proposals,
+        proposalAnalyses: result.proposalAnalyses,
         engine: getSharedProposalEngine(),
       });
       const response: RunCycleResponse = {

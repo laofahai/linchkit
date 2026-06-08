@@ -13,6 +13,7 @@
 import { describe, expect, test } from "bun:test";
 import { persistCycleProposalsAsDrafts } from "../../engine/evolution-cycle-drafts";
 import { createProposalEngine } from "../../engine/proposal-engine";
+import type { ProposalPreAnalysisResult } from "../../life-system/proposal-preanalysis/types";
 import type { ProposalDefinition } from "../../types/proposal";
 
 // ── Fixtures ──────────────────────────────────────────────
@@ -46,6 +47,31 @@ function cycleProposal(overrides?: Partial<ProposalDefinition>): ProposalDefinit
     createdAt: now,
     updatedAt: now,
     ...overrides,
+  };
+}
+
+/**
+ * Build a pre-analysis envelope (`EvolutionCycleResult.proposalAnalyses[i]`)
+ * keyed to a given source proposal id.
+ */
+function preAnalysis(proposalId: string): ProposalPreAnalysisResult {
+  return {
+    proposalId,
+    analyzedAt: new Date(),
+    stages: {
+      impact: {
+        stage: "impact",
+        status: "ok",
+        data: {
+          affectedRecordCount: 42,
+          sampleRecordIds: ["r1", "r2"],
+          probedEntities: ["order"],
+        },
+        durationMs: 3,
+      },
+    },
+    allStagesSucceeded: true,
+    totalDurationMs: 3,
   };
 }
 
@@ -219,5 +245,106 @@ describe("persistCycleProposalsAsDrafts", () => {
     const result = persistCycleProposalsAsDrafts({ proposals: [cycleProposal()], engine });
     expect(result.created).toBe(0);
     expect(result.deduped).toBe(1);
+  });
+
+  test("(i) pre-analysis is attached to the created draft when supplied", () => {
+    const engine = createProposalEngine();
+    const source = cycleProposal({ id: "cycle-prop-1" });
+
+    const result = persistCycleProposalsAsDrafts({
+      proposals: [source],
+      proposalAnalyses: [preAnalysis("cycle-prop-1")],
+      engine,
+    });
+
+    expect(result.created).toBe(1);
+    const draft = engine.getProposal(result.createdIds[0] as string);
+    // The analysis envelope rode through onto the draft for the reviewer.
+    expect(draft.analysis).toBeDefined();
+    expect(draft.analysis?.proposalId).toBe("cycle-prop-1");
+    expect(draft.analysis?.stages.impact?.data?.affectedRecordCount).toBe(42);
+    // Status is unchanged — attaching analysis must not alter the gate.
+    expect(draft.status).toBe("draft");
+  });
+
+  test("(j) analysis is matched by proposalId, not array position", () => {
+    const engine = createProposalEngine();
+    const first = cycleProposal({ id: "prop-A" });
+    const second = cycleProposal({
+      id: "prop-B",
+      capability: "invoice",
+      changes: [
+        { target: "rule", operation: "create", name: "invoice_total_positive", diff: ">0" },
+      ],
+    });
+
+    // Analyses supplied in REVERSE order relative to proposals — keying by id
+    // (not index) must still route each envelope to the right draft.
+    const result = persistCycleProposalsAsDrafts({
+      proposals: [first, second],
+      proposalAnalyses: [preAnalysis("prop-B"), preAnalysis("prop-A")],
+      engine,
+    });
+
+    expect(result.created).toBe(2);
+    const drafts = result.createdIds.map((id) => engine.getProposal(id));
+    const draftA = drafts.find((d) => d.capability === "order");
+    const draftB = drafts.find((d) => d.capability === "invoice");
+    expect(draftA?.analysis?.proposalId).toBe("prop-A");
+    expect(draftB?.analysis?.proposalId).toBe("prop-B");
+  });
+
+  test("(k) draft is created without analysis when none is supplied/matches", () => {
+    const engine = createProposalEngine();
+
+    // No proposalAnalyses at all → omitted.
+    const noneResult = persistCycleProposalsAsDrafts({
+      proposals: [cycleProposal({ id: "prop-1" })],
+      engine,
+    });
+    expect(noneResult.created).toBe(1);
+    expect(engine.getProposal(noneResult.createdIds[0] as string).analysis).toBeUndefined();
+
+    // A non-matching analysis id → still omitted (no fabrication).
+    const engine2 = createProposalEngine();
+    const mismatchResult = persistCycleProposalsAsDrafts({
+      proposals: [cycleProposal({ id: "prop-2" })],
+      proposalAnalyses: [preAnalysis("some-other-id")],
+      engine: engine2,
+    });
+    expect(mismatchResult.created).toBe(1);
+    expect(engine2.getProposal(mismatchResult.createdIds[0] as string).analysis).toBeUndefined();
+  });
+
+  test("(l) ProposalEngine.createProposal round-trips the analysis field", () => {
+    const engine = createProposalEngine();
+    const analysis = preAnalysis("direct-create");
+
+    const draft = engine.createProposal({
+      title: "direct",
+      description: "direct create with analysis",
+      author: { type: "ai", id: "x", name: "x" },
+      capability: "order",
+      changeType: "minor",
+      changes: [{ target: "rule", operation: "create", name: "r", diff: "d" }],
+      analysis,
+    });
+
+    expect(draft.analysis).toBe(analysis);
+    expect(draft.status).toBe("draft");
+
+    // It also survives a read-back via getProposal/listProposals.
+    expect(engine.getProposal(draft.id).analysis?.proposalId).toBe("direct-create");
+
+    // Omitting analysis yields no field (backward-compatible).
+    const plain = engine.createProposal({
+      title: "plain",
+      description: "no analysis",
+      author: { type: "ai", id: "x", name: "x" },
+      capability: "order",
+      changeType: "minor",
+      changes: [{ target: "rule", operation: "create", name: "r2", diff: "d" }],
+    });
+    expect(plain.analysis).toBeUndefined();
   });
 });

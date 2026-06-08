@@ -6,6 +6,7 @@
  * AI can never directly modify production — every change must be proposed and validated first.
  */
 
+import type { ProposalPreAnalysisResult } from "../life-system/proposal-preanalysis/types";
 import type { ImpactNode } from "../ontology/impact-analysis";
 import type { ActionDefinition } from "./action";
 import type { EntityDefinition } from "./entity";
@@ -268,4 +269,17 @@ export interface ProposalDefinition {
    * change merges to determine whether the outcome was achieved.
    */
   successMetric?: SuccessMetric;
+
+  /**
+   * Optional pre-analysis envelope for this proposal (Spec 55 §7.3).
+   *
+   * Carries the evolution pipeline's per-proposal pre-analysis — dedup /
+   * conflict / impact / backtest stages — so a human reviewer can see the
+   * "why" (evidence, estimated impact, backtest delta, rationale) behind an
+   * AI-surfaced proposal. This is READ-ONLY metadata attached when a cycle
+   * proposal is persisted as a draft; it never drives submission, approval,
+   * or graduation. Absent when the proposal entered the pipeline without a
+   * pre-analysis (e.g. manual drafts).
+   */
+  analysis?: ProposalPreAnalysisResult;
 }

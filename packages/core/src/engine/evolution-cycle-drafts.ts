@@ -19,6 +19,7 @@
  *    concern (this is an on-demand bridge only).
  */
 
+import type { ProposalPreAnalysisResult } from "../life-system/proposal-preanalysis/types";
 import type { ProposalDefinition } from "../types/proposal";
 import type { CreateProposalOptions, ProposalEngine } from "./proposal-engine";
 
@@ -57,6 +58,16 @@ export interface PersistCycleDraftsOptions {
   proposals: ProposalDefinition[];
   /** Shared governance engine the review UI reads from. */
   engine: ProposalEngine;
+  /**
+   * Optional per-proposal pre-analysis envelopes for this cycle
+   * (`EvolutionCycleResult.proposalAnalyses`). Each entry is matched to its
+   * source proposal by `proposalId` (which equals the cycle proposal's `id` at
+   * analysis time) and attached to the created draft as read-only review
+   * metadata. When omitted — or when no entry matches a given proposal — the
+   * draft is created without an `analysis` field. Attaching analysis NEVER
+   * changes dedup, validation, approval, or graduation behavior.
+   */
+  proposalAnalyses?: ProposalPreAnalysisResult[];
 }
 
 /**
@@ -87,15 +98,28 @@ function dedupKey(capability: string, changeNames: string[]): string {
  * and stamps `status: "draft"` — we never copy the source id or status, so a
  * cycle proposal can only ever ENTER the pipeline as a new draft.
  *
- * Note on pre-analysis: `EvolutionCycleResult.proposalAnalyses` is intentionally
- * NOT attached here — neither `CreateProposalOptions` nor `ProposalDefinition`
- * has a slot for it, and wiring new plumbing for it is out of scope. See the
- * route/spec notes.
+ * Pre-analysis: when `options.proposalAnalyses` is supplied
+ * (`EvolutionCycleResult.proposalAnalyses`), each created draft is enriched with
+ * its matching pre-analysis envelope (dedup / conflict / impact / backtest) so a
+ * human reviewer can see the evidence behind an AI-surfaced proposal. The match
+ * is keyed on `proposalId` (which equals the source cycle proposal's `id` at
+ * analysis time). This is read-only review metadata — it never affects the
+ * draft's status, dedup, or any downstream gate.
  */
 export function persistCycleProposalsAsDrafts(
   options: PersistCycleDraftsOptions,
 ): PersistCycleDraftsResult {
-  const { proposals, engine } = options;
+  const { proposals, engine, proposalAnalyses } = options;
+
+  // Index the pre-analysis envelopes by their `proposalId` for O(1) lookup
+  // against each source cycle proposal's `id`. Built once; empty when no
+  // analyses were supplied so the attach step is a no-op.
+  const analysisById = new Map<string, ProposalPreAnalysisResult>();
+  for (const analysis of proposalAnalyses ?? []) {
+    if (analysis?.proposalId) {
+      analysisById.set(analysis.proposalId, analysis);
+    }
+  }
 
   // Snapshot the engine's currently-pending dedup keys ONCE up front. We then
   // augment this set as we create new drafts so duplicates WITHIN a single
@@ -131,6 +155,11 @@ export function persistCycleProposalsAsDrafts(
       continue;
     }
 
+    // Match this cycle proposal to its pre-analysis envelope by id (the
+    // analysis carries the source proposal's id as `proposalId`). Omitted when
+    // no analyses were supplied or none match.
+    const analysis = analysisById.get(proposal.id);
+
     const createOptions: CreateProposalOptions = {
       title: proposal.title,
       description: proposal.description,
@@ -138,6 +167,7 @@ export function persistCycleProposalsAsDrafts(
       capability: proposal.capability,
       changeType: proposal.changeType,
       changes: proposal.changes,
+      ...(analysis ? { analysis } : {}),
     };
     const draft = engine.createProposal(createOptions);
     createdIds.push(draft.id);
