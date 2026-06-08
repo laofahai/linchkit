@@ -7,11 +7,13 @@ Tenant-scope evolution sensor reads (Spec 55 §7, #500). Both the on-demand
 into the cycle's `SensorContext`, but the runtime query path ignored it — so a
 per-tenant cycle could observe global / cross-tenant data.
 
-`createDispatchQuery` now accepts an optional `tenantId` and applies it through
-the canonical, provider-enforced isolation mechanism: business reads pass it as
+`createDispatchQuery` now accepts an optional `tenantId` and applies it to
+BUSINESS reads through the canonical, provider-enforced isolation mechanism:
 `DataQueryOptions.tenantId` (Drizzle adds `WHERE tenant_id = …` only for tables
-that have a tenant column, and no-ops otherwise; InMemoryStore filters likewise)
-and `execution_log` reads pass it as `findMany({ tenantId })`.
+that have a tenant column, and no-ops otherwise; InMemoryStore filters likewise).
+`execution_log` reads are intentionally NOT tenant-filtered yet — the log writer
+(`ActionEngine.logExecution`) doesn't populate `ExecutionLogEntry.tenantId`, so
+filtering would hand sensors an empty history; that half is deferred to #503.
 
 `createEvolutionRuntime` gains an optional `queryFactory(tenantId?)` that builds a
 fresh, tenant-scoped query for each `runCycle` (consulted lazily — a caller's own

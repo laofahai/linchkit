@@ -29,16 +29,20 @@ export interface CreateDispatchQueryOptions {
    */
   executionLogPageSize?: number;
   /**
-   * Tenant scope for ALL reads through the returned query (Spec 55 §7, #500).
-   * When set, business reads pass it as `DataQueryOptions.tenantId` (the
-   * canonical, provider-enforced isolation mechanism — Drizzle adds
+   * Tenant scope for BUSINESS reads through the returned query (Spec 55 §7, #500).
+   * When set, business reads pass it as `DataQueryOptions.tenantId` — the
+   * canonical, provider-enforced isolation mechanism (Drizzle adds
    * `WHERE tenant_id = …` when the table has a tenant column, and no-ops for
-   * tenant-agnostic tables; InMemoryStore filters likewise) and execution_log
-   * reads pass it as `findMany({ tenantId })`. When unset (single-tenant / dev),
-   * reads are unscoped exactly as before — no behavior change.
+   * tenant-agnostic tables; InMemoryStore filters likewise). When unset
+   * (single-tenant / dev), reads are unscoped exactly as before — no change.
+   *
+   * NOT applied to `execution_log` yet: its writer (ActionEngine.logExecution)
+   * does not populate `ExecutionLogEntry.tenantId`, so filtering would hand
+   * sensors an empty history — deferred to #503. A set-but-blank value is
+   * rejected at construction (it would read globally with current backends).
    *
    * Build one dispatch query PER tenant scope (see the runtime's `queryFactory`)
-   * so a per-tenant evolution cycle cannot observe another tenant's data.
+   * so a per-tenant evolution cycle cannot observe another tenant's business data.
    */
   tenantId?: string;
 }
@@ -84,12 +88,17 @@ export function createDispatchQuery(
       const entityName = typeof filter?.entity_name === "string" ? filter.entity_name : undefined;
       const statusVal = typeof filter?.status === "string" ? filter.status : undefined;
 
+      // NOTE: execution_log is intentionally NOT tenant-filtered yet (#503).
+      // ActionEngine.logExecution does not populate ExecutionLogEntry.tenantId,
+      // so a `findMany({ tenantId })` here would match nothing and silently hand
+      // tenant-scoped sensors an EMPTY action history — worse than the current
+      // (unscoped) read. Scoping execution_log requires first threading the
+      // tenant id onto the log WRITER; tracked in #503. Business reads below ARE
+      // tenant-scoped (their rows carry tenant_id and providers enforce it).
       const result = await opts.executionLogger.findMany({
         action: actionName,
         entity: entityName,
         status: statusVal as ExecutionLogFindOptions["status"],
-        // Tenant-scope the log read when a scope is in effect (#500).
-        tenantId: opts.tenantId,
         pageSize,
       });
       return result.items as T[];
