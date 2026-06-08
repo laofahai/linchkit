@@ -46,7 +46,21 @@ function isSubscriptionError(err: unknown): boolean {
       if (code != null) messages.push(String(code));
       current = (current as { cause?: unknown }).cause;
     } else {
-      messages.push(String(current));
+      // A non-Error throw (e.g. a plain `{ error, status }` object) — stringify it
+      // so its fields are searchable. `String({})` is "[object Object]", which the
+      // regex can't match, so JSON-serialize objects; fall back to String() for
+      // primitives / circular structures.
+      let text: string;
+      if (typeof current === "object") {
+        try {
+          text = JSON.stringify(current);
+        } catch {
+          text = String(current);
+        }
+      } else {
+        text = String(current);
+      }
+      messages.push(text);
       break;
     }
   }
