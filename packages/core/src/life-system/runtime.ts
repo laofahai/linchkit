@@ -58,6 +58,15 @@ export interface EvolutionRuntimeOptions {
    */
   query?: SensorContext["query"];
   /**
+   * Optional tenant-aware query factory (Spec 55 §7, #500). When supplied,
+   * `runCycle(ctx)` builds the sensor query as `queryFactory(ctx.tenantId)` so a
+   * per-tenant cycle reads ONLY that tenant's data. Prefer this over `query`
+   * for multi-tenant deployments: a fixed `query` is built once and cannot scope
+   * per call. A caller-supplied `ctx.query` still wins; if neither a `ctx.query`
+   * nor a `queryFactory` is present, the static `query` (if any) is used.
+   */
+  queryFactory?: (tenantId?: string) => SensorContext["query"];
+  /**
    * Optional MemoryStore. Defaults to {@link InMemoryMemoryStore}, suitable
    * for development and tests. Production deployments should pass a
    * persistent store (e.g. cap-memory-drizzle).
@@ -178,14 +187,25 @@ export function createEvolutionRuntime(opts: EvolutionRuntimeOptions): Evolution
       return innerCycle.awarenessEngine;
     },
     runCycle(ctx?: SensorContext) {
+      // Resolve the sensor query with this precedence:
+      //   1. a query the caller put on its own ctx (explicit override), else
+      //   2. a tenant-scoped query built for THIS cycle's tenant via
+      //      `queryFactory(ctx.tenantId)` (#500 — isolates per-tenant reads), else
+      //   3. the static runtime-default `query`.
+      // The factory is consulted LAZILY (only when the caller didn't bring its
+      // own query) and per call, so every tenant gets its own scope while a
+      // caller override skips it entirely. Single-tenant / dev runs pass no
+      // `tenantId`, so the factory returns an unscoped query (prior behavior).
+      const resolveDefaultQuery = (): SensorContext["query"] =>
+        opts.queryFactory ? opts.queryFactory(ctx?.tenantId) : opts.query;
       // Spread the caller-supplied ctx so any future SensorContext fields
       // (trace IDs, user metadata, etc.) flow through automatically. Then
-      // override timestamp with a default and query with the runtime default
+      // override timestamp with a default and query with the resolved default
       // iff the caller didn't supply its own.
       const merged: SensorContext = {
         ...(ctx ?? { timestamp: new Date() }),
         timestamp: ctx?.timestamp ?? new Date(),
-        query: ctx?.query ?? opts.query,
+        query: ctx?.query ?? resolveDefaultQuery(),
       };
       return innerCycle.runCycle(merged);
     },
