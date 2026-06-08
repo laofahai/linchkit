@@ -64,9 +64,15 @@ describe("serializeProposal", () => {
     const serialized = serializeProposal(makeProposal({ analysis }));
 
     expect(serialized.analysis).toBeDefined();
-    const out = serialized.analysis as ProposalPreAnalysisResult;
+    const out = serialized.analysis as Record<string, unknown>;
     expect(out.proposalId).toBe("prop-1");
-    expect(out.stages.impact?.data?.affectedRecordCount).toBe(42);
+    expect(
+      (out.stages as ProposalPreAnalysisResult["stages"]).impact?.data?.affectedRecordCount,
+    ).toBe(42);
+    // analyzedAt (the only Date field) must be an ISO string, consistent with
+    // the rest of the serialized payload — not a raw Date object.
+    expect(typeof out.analyzedAt).toBe("string");
+    expect(out.analyzedAt).toBe(analysis.analyzedAt.toISOString());
   });
 
   test("omits analysis (undefined) when the proposal has none", () => {
