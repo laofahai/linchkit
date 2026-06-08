@@ -120,6 +120,7 @@ export function createEvolutionCadence(
       // path (tracked in #500), not something this cadence wiring can force.
       // Scopes are processed serially within the (non-overlapping) tick, and each
       // is isolated: one tenant's failing cycle must not starve the rest.
+      const failures: string[] = [];
       for (const tenantId of tenantScopes) {
         try {
           const result = await cycle.runCycle({ timestamp: new Date(), tenantId });
@@ -135,11 +136,23 @@ export function createEvolutionCadence(
               `${summary.deduped} deduped (DRAFT-only; approval and graduation stay human-gated).`,
           );
         } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          failures.push(`${tenantId ?? "(default)"}: ${message}`);
           logger.warn(
             `[EvolutionCadence] tenant=${tenantId ?? "(default)"} cycle failed: ` +
-              `${err instanceof Error ? err.message : String(err)} — continuing with remaining tenants.`,
+              `${message} — continuing with remaining tenants.`,
           );
         }
+      }
+      // Every scope was still attempted (isolation preserved), but if ANY failed
+      // we re-throw an aggregate so the scheduler's liveness counters record it.
+      // Otherwise GET /api/evolution/scheduler-status would report lastError:null
+      // / consecutiveErrors:0 even while every scheduled cycle is failing — exactly
+      // the "stuck on a repeating error" case the status surface exists to catch.
+      if (failures.length > 0) {
+        throw new Error(
+          `Evolution cadence: ${failures.length}/${tenantScopes.length} tenant cycle(s) failed — ${failures.join("; ")}`,
+        );
       }
     },
   });
