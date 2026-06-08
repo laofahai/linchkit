@@ -53,15 +53,19 @@ export function FailedMaterializationChanges({
             </span>
           </div>
           {c.materializationErrors && c.materializationErrors.length > 0 && (
-            <pre className="overflow-x-auto border-t border-red-200 px-3 py-2 text-[11px] leading-relaxed dark:border-red-900">
+            // A <div> (not <pre>) so the JSX indentation between the mapped <code>
+            // elements is not preserved as literal whitespace in the DOM. `font-mono`
+            // keeps the monospace look; `whitespace-pre-wrap` on each line preserves
+            // the error text's own spacing while still wrapping long lines.
+            <div className="overflow-x-auto border-t border-red-200 px-3 py-2 font-mono text-[11px] leading-relaxed dark:border-red-900">
               {c.materializationErrors.map((err, i) => (
                 // Errors have no stable id; index keys are fine for this static list.
                 // biome-ignore lint/suspicious/noArrayIndexKey: gate errors are a static, append-only list with no id
-                <code key={i} className="block">
+                <code key={i} className="block whitespace-pre-wrap">
                   {err}
                 </code>
               ))}
-            </pre>
+            </div>
           )}
         </div>
       ))}
