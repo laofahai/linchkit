@@ -28,6 +28,16 @@ export interface CreateDispatchQueryOptions {
    * paginate explicitly (not yet implemented — see Spec 55 roadmap).
    */
   executionLogPageSize?: number;
+  /**
+   * Tenant id to scope execution_log reads. When set, only log entries
+   * written with a matching tenantId are returned — prevents a sensor
+   * running for tenant A from observing tenant B's execution history.
+   *
+   * Callers running per-tenant evolution cycles should create one
+   * dispatch-query instance per tenant rather than sharing a single
+   * unscoped instance.
+   */
+  tenantId?: string;
 }
 
 const DEFAULT_EXECUTION_LOG_PAGE_SIZE = 1000;
@@ -56,6 +66,7 @@ export function createDispatchQuery(
       const statusVal = typeof filter?.status === "string" ? filter.status : undefined;
 
       const result = await opts.executionLogger.findMany({
+        tenantId: opts.tenantId,
         action: actionName,
         entity: entityName,
         status: statusVal as ExecutionLogFindOptions["status"],

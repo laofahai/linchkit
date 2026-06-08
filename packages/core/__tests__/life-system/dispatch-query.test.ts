@@ -182,4 +182,44 @@ describe("createDispatchQuery", () => {
 
     expect(calls[0]?.options?.pageSize).toBe(50);
   });
+
+  test("passes tenantId from options to ExecutionLogger.findMany", async () => {
+    const { logger, calls } = makeExecutionLogger([]);
+    const { provider } = makeDataProvider([]);
+    const query = createDispatchQuery({
+      dataProvider: provider,
+      executionLogger: logger,
+      tenantId: "tenant-abc",
+    });
+
+    await query("execution_log", { action_name: "test_action" });
+
+    expect(calls[0]?.options?.tenantId).toBe("tenant-abc");
+  });
+
+  test("passes no tenantId to ExecutionLogger when not configured", async () => {
+    const { logger, calls } = makeExecutionLogger([]);
+    const { provider } = makeDataProvider([]);
+    const query = createDispatchQuery({ dataProvider: provider, executionLogger: logger });
+
+    await query("execution_log");
+
+    expect(calls[0]?.options?.tenantId).toBeUndefined();
+  });
+
+  test("does not pass tenantId to DataProvider for business schemas", async () => {
+    const { logger } = makeExecutionLogger([]);
+    const { provider, calls } = makeDataProvider([]);
+    const query = createDispatchQuery({
+      dataProvider: provider,
+      executionLogger: logger,
+      tenantId: "tenant-xyz",
+    });
+
+    await query("purchase_request", { status: "draft" });
+
+    // DataProvider owns its own tenant isolation — dispatch-query must not
+    // inject tenantId into the filter for business schemas.
+    expect(calls[0]?.filter).toEqual({ status: "draft" });
+  });
 });

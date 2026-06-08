@@ -634,3 +634,69 @@ describe("ExecutionLogger — meta redaction (Spec 65 §10.3)", () => {
     expect(entry.meta?._channel).toBe("http");
   });
 });
+
+// ── Tenant isolation in execution log (issue #503) ──────────────────────────
+//
+// The write path must stamp tenantId on log entries; the read path must
+// filter by tenantId so multi-tenant evolution sensors see only their own
+// execution history.
+
+describe("ExecutionLogger — tenant isolation", () => {
+  const baseEntry = {
+    actor: defaultActor,
+    input: {},
+    action: "do_thing",
+    status: "succeeded" as const,
+    duration: 5,
+    startedAt: new Date(),
+    completedAt: new Date(),
+  };
+
+  it("InMemoryExecutionLogger.findMany filters by tenantId", () => {
+    const logger = new InMemoryExecutionLogger();
+    logger.log({ ...baseEntry, id: "e1", tenantId: "tenant-a" });
+    logger.log({ ...baseEntry, id: "e2", tenantId: "tenant-b" });
+    logger.log({ ...baseEntry, id: "e3", tenantId: "tenant-a" });
+    logger.log({ ...baseEntry, id: "e4" }); // no tenant
+
+    const forA = logger.findMany({ tenantId: "tenant-a" });
+    expect(forA.total).toBe(2);
+    expect(forA.items.map((e) => e.id)).toEqual(expect.arrayContaining(["e1", "e3"]));
+
+    const forB = logger.findMany({ tenantId: "tenant-b" });
+    expect(forB.total).toBe(1);
+    expect(forB.items[0]?.id).toBe("e2");
+  });
+
+  it("action executor stamps tenantId on log entries", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+    executor.registry.register(createOrderAction);
+
+    await executor.execute("create_order", { title: "T1" }, defaultActor, {
+      tenantId: "tenant-xyz",
+    });
+
+    const entries = logger.getAll();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.tenantId).toBe("tenant-xyz");
+  });
+
+  it("action executor leaves tenantId undefined when not supplied", async () => {
+    const logger = new InMemoryExecutionLogger();
+    const executor = createActionExecutor({
+      dataProvider: createMockDataProvider(),
+      executionLogger: logger,
+    });
+    executor.registry.register(createOrderAction);
+
+    await executor.execute("create_order", { title: "T1" }, defaultActor);
+
+    const entries = logger.getAll();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.tenantId).toBeUndefined();
+  });
+});

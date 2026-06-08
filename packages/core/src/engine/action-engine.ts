@@ -339,6 +339,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             ...rootSystemDefaults,
             _meta_rejected: { sizeBytes: err.sizeBytes, maxBytes: err.maxBytes },
           },
+          tenantId: execOptions?.tenantId,
           startedAt,
         });
         return {
@@ -366,6 +367,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: `Maximum child action recursion depth (${MAX_CHILD_DEPTH}) exceeded` },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -422,6 +424,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: errMsg, code: "core.action.idempotency_key_too_long" },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -468,6 +471,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: `Action "${actionName}" not found` },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -506,6 +510,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
           status: "blocked",
           error: { message: errorMsg },
           meta: metaSnapshot,
+          tenantId: execOptions?.tenantId,
           startedAt,
         });
         return {
@@ -541,6 +546,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: actorTypeError },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -563,6 +569,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: "Input validation failed" },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -680,6 +687,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: blocked.reason },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -728,6 +736,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "pending_approval",
         error: { message: `Pending approval (${pending.level})` },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return { success: false, data: pending as T, executionId };
@@ -937,6 +946,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: errorMsg, code: "validation.field.locked" },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       // Metrics parity with Step 7's catch: declarative-path lock rejects
@@ -1004,6 +1014,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "blocked",
         error: { message: errorMsg, code: errorCode },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       // Metrics parity with Step 7's catch: declarative-path lock rejects
@@ -1265,6 +1276,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         status: "failed",
         error: { message: "Validation failed" },
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
       return {
@@ -1313,6 +1325,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             status: "failed",
             error: { message: errorMsg },
             meta: metaSnapshot,
+            tenantId: execOptions?.tenantId,
             startedAt,
           });
           return {
@@ -1337,6 +1350,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             status: "blocked",
             error: { message: errorMsg },
             meta: metaSnapshot,
+            tenantId: execOptions?.tenantId,
             startedAt,
           });
           return {
@@ -1370,6 +1384,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
             status: "blocked",
             error: { message: errorMsg },
             meta: metaSnapshot,
+            tenantId: execOptions?.tenantId,
             startedAt,
           });
           return {
@@ -1627,6 +1642,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         idempotencyKey,
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
 
@@ -1780,6 +1796,7 @@ export function createActionExecutor(options: ActionExecutorOptions): ActionExec
         stateTransition: stateTransitionRecord,
         childExecutionIds: childExecutionIds.length > 0 ? childExecutionIds : undefined,
         meta: metaSnapshot,
+        tenantId: execOptions?.tenantId,
         startedAt,
       });
 
