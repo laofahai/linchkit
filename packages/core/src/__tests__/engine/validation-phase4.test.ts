@@ -319,4 +319,194 @@ describe("validatePhase4 — generated-source contract", () => {
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]?.code).toBe("GENERATED_SOURCE_CONTRACT");
   });
+
+  test("a FAILED materialization (no source) is flagged warn-only by default, NOT skipped", () => {
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["syntax error: unexpected token at line 3"],
+          // no generatedSource — cleared on failure
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed"); // warn-only, NOT "skipped"
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.length).toBe(1);
+    expect(result.warnings[0]?.code).toBe("GENERATED_SOURCE_FAILED");
+    expect(result.warnings[0]?.message).toContain("deduct_inventory");
+    expect(result.warnings[0]?.message).toContain("syntax error: unexpected token at line 3");
+    expect(result.warnings[0]?.target).toBe("deduct_inventory");
+  });
+
+  test("a FAILED materialization under strictGeneratedContract becomes a blocking error", () => {
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["syntax error: unexpected token at line 3"],
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    expect(result.warnings).toEqual([]);
+    expect(result.errors.length).toBe(1);
+    expect(result.errors[0]?.code).toBe("GENERATED_SOURCE_FAILED");
+    expect(result.errors[0]?.message).toContain("deduct_inventory");
+  });
+
+  test("a FAILED materialization with no error detail still flags (no crash)", () => {
+    const result = validatePhase4({
+      changes: [change({ name: "deduct_inventory", materializationStatus: "failed" })],
+    });
+    expect(result.status).toBe("passed");
+    expect(result.warnings.length).toBe(1);
+    expect(result.warnings[0]?.code).toBe("GENERATED_SOURCE_FAILED");
+    // no "Build-gate errors:" detail when there are no errors
+    expect(result.warnings[0]?.message).not.toContain("Build-gate errors");
+  });
+
+  test("a very long error list is capped to a reasonable length with an ellipsis", () => {
+    const longError = "x".repeat(500);
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: [longError],
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed");
+    const msg = result.warnings[0]?.message ?? "";
+    expect(msg).toContain("...");
+    // the capped detail must not contain the full 500-char error verbatim
+    expect(msg).not.toContain(longError);
+  });
+
+  test("empty / whitespace error entries are filtered out before joining (no malformed detail)", () => {
+    // A malformed errors array (empty + whitespace-only entries) must not produce
+    // "a; ; b" or a trailing "; ". (Regression for the gemini review on the Phase 4 PR.)
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["", "  ", "missing handler", ""],
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed");
+    const msg = result.warnings[0]?.message ?? "";
+    expect(msg).toContain("Build-gate errors: missing handler");
+    // No empty fragments around the real error.
+    expect(msg).not.toContain("; ;");
+    expect(msg).not.toContain(": ;");
+    expect(msg).not.toMatch(/;\s*$/);
+  });
+
+  test("an all-empty error array produces a finding with NO 'Build-gate errors:' detail", () => {
+    const result = validatePhase4({
+      changes: [
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["", "   "],
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed");
+    expect(result.warnings[0]?.code).toBe("GENERATED_SOURCE_FAILED");
+    expect(result.warnings[0]?.message).not.toContain("Build-gate errors");
+  });
+
+  test("declarative-only changes (no source, no failed status) still skip (unchanged)", () => {
+    const result = validatePhase4({
+      changes: [change({}), change({ target: "rule", name: "r1" })],
+    });
+    expect(result.status).toBe("skipped");
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("a NON-materializable change carrying a stale 'failed' status is NOT flagged (aligned with isMaterializable)", () => {
+    // The change was an action that failed generation (so it carries
+    // materializationStatus:"failed"), then was edited to a declarative target
+    // without re-materializing. It is no longer materializable, so Phase 4 must
+    // not treat it as a failed code generation — reporting it (and blocking
+    // under strict) would be wrong. The failed-filter is guarded by
+    // isMaterializable, so this degrades to "skipped". (Regression for codex on
+    // the Phase 4 PR.)
+    const result = validatePhase4({
+      changes: [
+        change({
+          target: "entity",
+          name: "invoice",
+          materializationStatus: "failed",
+          materializationErrors: ["stale build-gate error"],
+        }),
+      ],
+    });
+    expect(result.status).toBe("skipped");
+    expect(result.warnings).toEqual([]);
+    expect(result.errors).toEqual([]);
+  });
+
+  test("a NON-materializable change with a stale 'failed' status does NOT block under strict", () => {
+    const result = validatePhase4({
+      changes: [
+        change({
+          target: "entity",
+          name: "invoice",
+          materializationStatus: "failed",
+          materializationErrors: ["stale build-gate error"],
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    // No materializable failure → nothing to escalate → not blocking.
+    expect(result.status).toBe("skipped");
+    expect(result.errors).toEqual([]);
+  });
+
+  test("mix: one good source + one failed change → non-strict passes with exactly one FAILED warning", () => {
+    const result = validatePhase4({
+      changes: [
+        change({ name: "do_thing", generatedSource: GOOD }),
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["build gate rejected: missing handler"],
+        }),
+      ],
+    });
+    expect(result.status).toBe("passed");
+    expect(result.errors).toEqual([]);
+    const failedWarnings = result.warnings.filter((w) => w.code === "GENERATED_SOURCE_FAILED");
+    expect(failedWarnings.length).toBe(1);
+    expect(failedWarnings[0]?.target).toBe("deduct_inventory");
+    // the good source produces no contract finding
+    expect(result.warnings.filter((w) => w.code === "GENERATED_SOURCE_CONTRACT")).toEqual([]);
+  });
+
+  test("mix: one good source + one failed change → strict fails on the failed change", () => {
+    const result = validatePhase4({
+      changes: [
+        change({ name: "do_thing", generatedSource: GOOD }),
+        change({
+          name: "deduct_inventory",
+          materializationStatus: "failed",
+          materializationErrors: ["build gate rejected: missing handler"],
+        }),
+      ],
+      strictGeneratedContract: true,
+    });
+    expect(result.status).toBe("failed");
+    const failedErrors = result.errors.filter((e) => e.code === "GENERATED_SOURCE_FAILED");
+    expect(failedErrors.length).toBe(1);
+    expect(failedErrors[0]?.target).toBe("deduct_inventory");
+  });
 });
