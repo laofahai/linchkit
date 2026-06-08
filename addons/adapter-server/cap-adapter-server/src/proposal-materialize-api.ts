@@ -32,6 +32,7 @@ import type {
   Actor,
   AIService,
   CommandLayer,
+  OntologyRegistry,
   ProposalChange,
   ProposalDefinition,
 } from "@linchkit/core";
@@ -47,6 +48,61 @@ import { resolveActor, resolveStatusCode } from "./routes/shared";
 
 /** Synthetic command name for the materialize dispatch (metrics/tracing only). */
 const MATERIALIZE_COMMAND_NAME = "proposal.materialize";
+
+/**
+ * Upper bound on the ontology Markdown embedded in the generation context. A real
+ * project ontology can grow large; an unbounded summary would balloon the prompt
+ * (cost + latency + truncation by the model). Past this many characters the
+ * summary is cut and a clear marker is appended so the model knows it is partial.
+ */
+const ONTOLOGY_CONTEXT_MAX_CHARS = 12_000;
+
+/** Marker appended when the ontology summary is truncated to fit the cap. */
+const ONTOLOGY_TRUNCATION_MARKER = "\n\n… (truncated)";
+
+/**
+ * Fixed preamble of project conventions prepended to the ontology summary. Mirrors
+ * the conventions the materializer already enforces in its prompt so the generated
+ * candidate source references real entities/actions and follows house style.
+ */
+const PROJECT_CONVENTIONS_PREAMBLE =
+  "You are generating LinchKit definition source. Follow these project conventions:\n" +
+  "- Use `defineAction()` for actions; name them `verb_noun` (e.g. `deduct_inventory`).\n" +
+  "- TypeScript strict mode — never use the `any` type.\n" +
+  "- Reference only entities, actions, and fields that exist in the ontology below.\n" +
+  "\nProject ontology (real entities/actions/rules/etc.):\n";
+
+/**
+ * Build the effective generation context for a materialization request.
+ *
+ * Precedence:
+ *   1. An explicit non-empty `context` override wins verbatim (caller knows best).
+ *   2. Otherwise, if an `ontology` is supplied, build a context = a fixed
+ *      conventions preamble + the (size-capped) ontology Markdown summary so the
+ *      model references real project entities/actions instead of guessing.
+ *   3. Otherwise `undefined` (unchanged default behavior — no system context).
+ *
+ * The ontology summary is capped at {@link ONTOLOGY_CONTEXT_MAX_CHARS} characters
+ * to keep the prompt bounded; an overflowing summary is truncated with a marker.
+ */
+function resolveMaterializeContext(opts: {
+  context?: string;
+  ontology?: OntologyRegistry;
+}): string | undefined {
+  // 1. Explicit override wins verbatim.
+  if (typeof opts.context === "string" && opts.context.trim() !== "") {
+    return opts.context;
+  }
+  // 2. Derive from the project ontology when available.
+  if (!opts.ontology) return undefined;
+  let summary = opts.ontology.toMarkdown();
+  if (summary.length > ONTOLOGY_CONTEXT_MAX_CHARS) {
+    summary =
+      summary.slice(0, ONTOLOGY_CONTEXT_MAX_CHARS - ONTOLOGY_TRUNCATION_MARKER.length) +
+      ONTOLOGY_TRUNCATION_MARKER;
+  }
+  return PROJECT_CONVENTIONS_PREAMBLE + summary;
+}
 
 /**
  * Canonical authorization-denied envelope — every 401/403 path returns the SAME
@@ -197,8 +253,18 @@ export interface MountProposalMaterializeAPIOptions {
   resolveProvider?: () => CodeGenerationProvider | null;
   /** Override the build/quality gate (defaults to {@link createSyntaxQualityGate}). */
   qualityGate?: QualityGateRunner;
-  /** Optional project context forwarded to the provider on every attempt. */
+  /**
+   * Explicit project context forwarded to the provider on every attempt. When set
+   * to a non-empty string it wins verbatim over the ontology-derived context.
+   */
   context?: string;
+  /**
+   * Project ontology used to derive the generation context when no explicit
+   * `context` is given. Its `toMarkdown()` summary (size-capped) is prepended with
+   * a conventions preamble so generated candidate source references REAL entities
+   * and actions instead of guessing. Read-only — never mutated here.
+   */
+  ontology?: OntologyRegistry;
 }
 
 /**
@@ -223,7 +289,13 @@ export function mountProposalMaterializeAPI(
   const resolveRequestActor = options?.resolveRequestActor;
   const engine: MaterializeEngine = options?.engine ?? getSharedProposalEngine();
   const qualityGate = options?.qualityGate ?? createSyntaxQualityGate();
-  const context = options?.context;
+  // Effective generation context: explicit override wins, else derive from the
+  // project ontology, else undefined. Resolved PER REQUEST (not memoized at mount)
+  // so a runtime-mutated ontology — overlays, dynamic schema changes, entities a
+  // prior evolution cycle added — is reflected. Materialization is a rare,
+  // AI-bound call, so rebuilding the ontology Markdown each time is negligible.
+  const getContext = (): string | undefined =>
+    resolveMaterializeContext({ context: options?.context, ontology: options?.ontology });
   const resolveProvider =
     options?.resolveProvider ??
     (() => {
@@ -312,7 +384,7 @@ export function mountProposalMaterializeAPI(
         engine,
         provider,
         qualityGate,
-        context,
+        context: getContext(),
       });
 
       switch (outcome.kind) {
