@@ -116,9 +116,12 @@ export async function materializeProposalChanges(
       continue;
     }
 
-    // Clear any pre-existing source up front so a failed (re-)materialization
-    // never leaves STALE code on the change — it is set again only on success.
+    // Clear any pre-existing source AND durable quality signal up front so a
+    // failed (re-)materialization never leaves STALE code or a stale status on
+    // the change — they are set again only as the attempt resolves.
     change.generatedSource = undefined;
+    change.materializationStatus = undefined;
+    change.materializationErrors = undefined;
 
     let lastErrors: string[] = [];
     let materialized = false;
@@ -137,8 +140,18 @@ export async function materializeProposalChanges(
       }
 
       change.generatedSource = source;
+      // Durable success signal: source is attached, errors stay cleared.
+      change.materializationStatus = "materialized";
       materialized = true;
       break;
+    }
+
+    // Durable failure signal: no candidate source survived the gate. Stamp the
+    // status + the final attempt's errors onto the change so a reviewer reading
+    // the PERSISTED proposal sees WHY, independent of the transient outcomes.
+    if (!materialized) {
+      change.materializationStatus = "failed";
+      change.materializationErrors = lastErrors;
     }
 
     outcomes.push(
