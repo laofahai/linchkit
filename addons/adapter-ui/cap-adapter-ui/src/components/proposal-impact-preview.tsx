@@ -54,9 +54,19 @@ import {
 
 // ── Component props ────────────────────────────────────────
 
+/**
+ * View shape of a pre-analysis result. `analyzedAt` may arrive as a `Date`
+ * (in-process / demo data) OR an ISO `string` (serialized over the wire from
+ * `/api/proposals`). The component normalizes it via `new Date(...)`, which
+ * accepts either; otherwise this mirrors the core `ProposalPreAnalysisResult`.
+ */
+export type ProposalPreAnalysisView = Omit<ProposalPreAnalysisResult, "analyzedAt"> & {
+  analyzedAt: string | Date;
+};
+
 export interface ProposalImpactPreviewProps {
   /** Pre-analysis result. Pass null/undefined to render an empty placeholder. */
-  result: ProposalPreAnalysisResult | null | undefined;
+  result: ProposalPreAnalysisView | null | undefined;
   /** Optional className for outer wrapper. */
   className?: string;
 }

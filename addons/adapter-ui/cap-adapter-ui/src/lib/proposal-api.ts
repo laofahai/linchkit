@@ -70,6 +70,16 @@ export interface ProposalValidationResult {
   impactSummary: string;
 }
 
+/**
+ * Wire shape of the per-proposal pre-analysis (Spec 55 §7.3). Mirrors the core
+ * `ProposalPreAnalysisResult` but with `analyzedAt` as an ISO **string** — the
+ * server serializes the `Date` before sending it — so consumers never call Date
+ * methods on what is actually a string. `ProposalImpactPreview` accepts this.
+ */
+export type ProposalAnalysis = Omit<ProposalPreAnalysisResult, "analyzedAt"> & {
+  analyzedAt: string;
+};
+
 export interface Proposal {
   id: string;
   title: string;
@@ -87,7 +97,7 @@ export interface Proposal {
    * proposals that ran through the pre-analysis pipeline; absent for manual drafts.
    * `analyzedAt` arrives as an ISO string over the wire (serialized server-side).
    */
-  analysis?: ProposalPreAnalysisResult;
+  analysis?: ProposalAnalysis;
   createdAt: string;
   updatedAt: string;
   validatedAt?: string;
