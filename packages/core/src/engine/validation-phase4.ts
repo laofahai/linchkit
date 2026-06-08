@@ -9,6 +9,14 @@
  * gate yet are wrong (e.g. an empty scaffold, the wrong target, or a mismatched
  * name) before a human reviews the candidate.
  *
+ * Phase 4 ALSO reports materializable changes whose code generation FAILED the
+ * build/syntax gate (`materializationStatus: "failed"`, no `generatedSource` — the
+ * materializer cleared it). Such a change has no working candidate code, so it
+ * must not pass silently: a finding is emitted (distinct `GENERATED_SOURCE_FAILED`
+ * code) so a reviewer cannot approve + graduate a proposal carrying a change with
+ * no valid code. These findings inherit the SAME warn/error gating as the
+ * contract checks below.
+ *
  * SAFETY — EXECUTION-FREE BY DESIGN ("AI never modifies production directly"):
  * this NEVER `eval`s, `import`s, transpiles-and-runs, or otherwise executes the
  * generated source. It only does static string/structural heuristics. A true
@@ -33,6 +41,7 @@ import type {
   ValidationError,
   ValidationWarning,
 } from "../types/proposal";
+import { isMaterializable } from "./proposal-materializer";
 
 // ── Options ──────────────────────────────────────────────
 
@@ -164,7 +173,8 @@ function escapeRegExp(s: string): string {
  * Run Phase 4 (generated-source contract) validation on a proposal's changes.
  *
  * Returns a PhaseResult:
- *  - no change carries a non-empty `generatedSource` → status "skipped"
+ *  - nothing to report (no non-empty `generatedSource` AND no failed
+ *    materialization) → status "skipped"
  *  - findings + strictGeneratedContract=false → status "passed" with `warnings`
  *  - findings + strictGeneratedContract=true  → status "failed" with `errors`
  */
@@ -179,11 +189,43 @@ export function validatePhase4(options: ValidatePhase4Options): PhaseResult {
     (c) => typeof c.generatedSource === "string" && c.generatedSource.trim().length > 0,
   );
 
-  if (withSource.length === 0) {
+  // Materializable changes whose code generation FAILED the build gate. They
+  // carry no `generatedSource` (cleared on failure) so the contract loop never
+  // sees them — but they must be reported, not skipped: a failed change has no
+  // working candidate code and must block graduation under strict gating.
+  //
+  // Guard with `isMaterializable` (the SAME predicate the materializer uses) so a
+  // change carrying a STALE "failed" status from when it WAS materializable but
+  // since edited to a non-materializable target/operation (e.g. action→entity,
+  // create→delete) is NOT flagged as a failed code generation — it no longer
+  // needs code at all, so reporting it (and blocking under strict) would be wrong.
+  const failed = changes.filter((c) => c.materializationStatus === "failed" && isMaterializable(c));
+
+  // Skip ONLY when there is genuinely nothing to report — neither a contract to
+  // check nor a failed materialization to flag.
+  if (withSource.length === 0 && failed.length === 0) {
     return { phase: 4, status: "skipped", errors: [], warnings: [], duration: Date.now() - start };
   }
 
   const findings: Array<{ code: string; message: string; target?: string }> = [];
+
+  // Failed-materialization findings. A failed change has no `generatedSource`, so
+  // it is never in `withSource` — the two loops do not double-count.
+  for (const change of failed) {
+    let detail = "";
+    if (change.materializationErrors && change.materializationErrors.length > 0) {
+      const joined = change.materializationErrors.join("; ");
+      // Cap the joined errors so a single finding message stays reasonable.
+      const capped = joined.length > 300 ? `${joined.slice(0, 297)}...` : joined;
+      detail = ` Build-gate errors: ${capped}`;
+    }
+    findings.push({
+      code: "GENERATED_SOURCE_FAILED",
+      message: `Materializable ${change.target} "${change.name}" failed code generation — no candidate source passed the build gate; it cannot be safely graduated.${detail}`,
+      target: change.name,
+    });
+  }
+
   for (const change of withSource) {
     const source = change.generatedSource as string;
     // Code with comments+strings removed → a `define*()` call here is a REAL call,
