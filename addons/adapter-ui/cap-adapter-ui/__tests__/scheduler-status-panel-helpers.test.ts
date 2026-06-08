@@ -46,6 +46,15 @@ describe("humanizeMs", () => {
     expect(humanizeMs(3600000)).toBe("1h");
     expect(humanizeMs(5400000)).toBe("1h 30m");
   });
+
+  test("carries rounding at unit boundaries (never '60s' / '59m 60s')", () => {
+    // 59.999s must round up to "1m", not "60s".
+    expect(humanizeMs(59_999)).toBe("1m");
+    // 59m 59.999s must carry all the way to "1h", not "59m 60s".
+    expect(humanizeMs(3_599_999)).toBe("1h");
+    // A sub-second-from-the-minute value still floors cleanly.
+    expect(humanizeMs(119_400)).toBe("1m 59s");
+  });
 });
 
 // ── toSchedulerStatusView ──────────────────────────────────

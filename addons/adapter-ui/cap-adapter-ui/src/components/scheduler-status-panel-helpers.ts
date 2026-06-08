@@ -68,10 +68,17 @@ export function humanizeMs(ms: number | null | undefined): string {
   if (totalSeconds < 60) {
     // Show one decimal for sub-minute, but drop a trailing ".0".
     const rounded = Math.round(totalSeconds * 10) / 10;
-    return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}s`;
+    if (rounded < 60) {
+      return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}s`;
+    }
+    // rounded up to exactly 60.0s → fall through so it renders as "1m", not "60s".
   }
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const remSeconds = Math.round(totalSeconds - totalMinutes * 60);
+  // Round to whole seconds FIRST, then decompose — flooring minutes before
+  // rounding the remainder can carry to 60 and render impossible labels like
+  // "59m 60s" (e.g. 3_599_999ms) or "60s" (e.g. 59_999ms).
+  const roundedSeconds = Math.round(totalSeconds);
+  const totalMinutes = Math.floor(roundedSeconds / 60);
+  const remSeconds = roundedSeconds - totalMinutes * 60;
   if (totalMinutes < 60) {
     return remSeconds > 0 ? `${totalMinutes}m ${remSeconds}s` : `${totalMinutes}m`;
   }
