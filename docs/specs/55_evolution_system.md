@@ -428,7 +428,7 @@ Proposal: {
 }
 ```
 
-> **运行时落地（已实现，on-demand）**：演化回路的 `runCycle()` 通过按需端点 `POST /api/evolution/run-cycle` 触发（权限槽经 CommandLayer，不跳过）；产出的 Proposal 经 `persistCycleProposalsAsDrafts` 持久化为治理引擎中的 `draft`，进入既有人审管线（`GET /api/proposals`），并按 capability + change 名去重避免重复。**仅产 `draft`**——不 submit/approve/落地。自动调度（cadence）现为**可选 opt-in**：`EVOLUTION_CADENCE_INTERVAL_MS`（毫秒，默认关闭）让这条 runCycle→draft 回路按节奏自动跑（`createEvolutionScheduler`，非重叠 tick）；多租户部署须设 `EVOLUTION_CADENCE_TENANT_IDS`（逗号分隔）按租户隔离传感，否则只跑默认（无租户）作用域。cadence 同样**仅自动产 `draft`**，审批与毕业仍全程人审。"毕业到代码/PR"（§7.6/§7.7）仍是独立、受控步骤。
+> **运行时落地（已实现，on-demand）**：演化回路的 `runCycle()` 通过按需端点 `POST /api/evolution/run-cycle` 触发（权限槽经 CommandLayer，不跳过）；产出的 Proposal 经 `persistCycleProposalsAsDrafts` 持久化为治理引擎中的 `draft`，进入既有人审管线（`GET /api/proposals`），并按 capability + change 名去重避免重复。**仅产 `draft`**——不 submit/approve/落地。自动调度（cadence）现为**可选 opt-in**：`EVOLUTION_CADENCE_INTERVAL_MS`（毫秒，默认关闭）让这条 runCycle→draft 回路按节奏自动跑（`createEvolutionScheduler`，非重叠 tick）；多租户部署须设 `EVOLUTION_CADENCE_TENANT_IDS`（逗号分隔）按租户传递作用域（每租户一次 scoped 运行；空则只跑默认无租户作用域）——与 on-demand 路径一致地把 `tenantId` 注入 `SensorContext`；**真正的读隔离取决于 runtime 查询助手/传感器是否据此过滤，这是与 on-demand 路径共享的 runtime 级后续项**。cadence 同样**仅自动产 `draft`**，审批与毕业仍全程人审。"毕业到代码/PR"（§7.6/§7.7）仍是独立、受控步骤。
 
 ### 7.2 Skill 复用
 

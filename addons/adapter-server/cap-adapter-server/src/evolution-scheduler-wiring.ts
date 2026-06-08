@@ -107,10 +107,15 @@ export function createEvolutionCadence(
     runImmediately: options.runImmediately ?? false,
     logger,
     tick: async () => {
-      // Run the cycle once per configured tenant scope, each with its own
-      // SensorContext, so tenant-aware sensors never read across tenants. Scopes
-      // are processed serially within the (non-overlapping) tick, and each is
-      // isolated: one tenant's failing cycle must not starve the rest.
+      // Run the cycle once per configured tenant scope, each carrying its
+      // `tenantId` in the SensorContext — the SAME contract the on-demand
+      // `POST /api/evolution/run-cycle` route uses (it forwards the
+      // CommandLayer-resolved tenant). NOTE: actual read isolation ultimately
+      // depends on the runtime query helper + sensors honoring `ctx.tenantId`;
+      // that enforcement is a runtime-level concern SHARED with the on-demand
+      // path (tracked in #500), not something this cadence wiring can force.
+      // Scopes are processed serially within the (non-overlapping) tick, and each
+      // is isolated: one tenant's failing cycle must not starve the rest.
       for (const tenantId of tenantScopes) {
         try {
           const result = await cycle.runCycle({ timestamp: new Date(), tenantId });
