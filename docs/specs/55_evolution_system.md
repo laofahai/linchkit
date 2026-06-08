@@ -543,7 +543,60 @@ Proposal 验证通过 + successMetric 达标
 
 **半自动毕业**：当某个 Layer 2 覆写被多个租户/用户独立采用时，系统可以建议将其毕业为 Layer 0 的默认值——"这个调整已经被80%的用户采用，要不要变成系统默认？"
 
-### 7.7 反馈回路
+> **声明式产出 vs 逻辑产出**：上表的产出大多是**声明式**的（实体/规则/视图/状态/事件/覆写），确定性序列化即可生成完整 TS。唯一的例外是 Action 的 `handler` 函数体——它是真正的逻辑，无法序列化，确定性路径只能产出脚手架壳。这部分逻辑由 §7.7 的代码物化（Materialization）填充，而非留空 stub。
+
+### 7.7 代码物化（Materialization）：从声明到逻辑（G5）
+
+#### 问题
+
+§7.6 的毕业把声明式 `ChangeDefinition` 序列化为 TS 文件——对实体、规则、视图等**声明式**产出完全够用。但 `ActionDefinition.handler` 是真正的**函数体（逻辑）**，无法被声明式描述：确定性序列化只能产出一个脚手架壳，写不出逻辑。这是"声明 → 代码"路径上最后一段不可序列化的缺口。
+
+#### 方案（G5）
+
+AI 只为**不可声明化的代码部分**生成候选 TypeScript 源码。当前唯一可物化的目标是 `action`——Event 是声明式的 name + payload，`defineFlow` API 尚不存在。三段流水线：
+
+```
+CodeGenerationProvider（生成）→ materializeProposalChanges（编排+质量门）→ Phase 2 构建门（语法校验）
+                                          ↓
+                          候选源码挂到 ProposalChange.generatedSource
+                                          ↓
+                          毕业时 ProposalFileWriter 原样写入（优先于脚手架）
+```
+
+- **CodeGenerationProvider** — `@linchkit/cap-ai-provider` 的 `createCodeGenerationProvider`，跑在配置的 AI provider 上（本仓库为 GLM）。
+- **物化器 `materializeProposalChanges`** — `@linchkit/core`。每个可物化 change：生成 → 去 markdown 代码围栏（`stripCodeFence`，容忍裸源码 / 围栏 / 围栏外夹带散文三种形态）→ 质量门校验 → 失败时把错误反馈喂回下一次重试（默认 `maxRetries` 3 次）。把候选源码挂到 `ProposalChange.generatedSource`，**返回输入的 COPY**，绝不写文件 / 运行代码 / 提交 / 审批 / 毕业。
+- **构建门（Phase 2）`checkSourceSyntax` / `validatePhase2`** — 用 Bun 的转译器做**语法级**校验，不做项目级类型解析（避免对项目内符号引用产生误报；完整类型检查留给毕业 PR 的 CI）。默认 warn-only；`features.strictGeneratedBuild` 为真时升级为阻断（findings → errors）。空白 / 纯空格源码本身就是一条 finding。
+- **毕业消费** — `ProposalFileWriter` 在 change 携带非空 `generatedSource` 时**原样写入**（优先于确定性脚手架）；空白源码视为缺失，回退脚手架生成，绝不写空文件。
+
+#### 实时入口（live）
+
+- `POST /api/proposals/:id/materialize`（`cap-adapter-server`）——按需触发物化。
+- 审查页 `/admin/proposals` 的 **"Materialize code"** 按钮 + 只读候选源码查看器。
+
+#### 元模型目标可否物化
+
+| 元模型目标 | 可否物化 | 说明 |
+|-----------|---------|------|
+| `action` | ✅ 是 | `handler` 是函数体逻辑，AI 物化候选源码 |
+| `entity` | 声明式序列化 | 字段 / 配置可确定性序列化 |
+| `rule` | 声明式序列化 | `defineRule()` 条件 + 效果可序列化 |
+| `view` | 声明式序列化 | `defineView()` 配置可序列化 |
+| `state` | 声明式序列化 | 状态机定义可序列化 |
+| `event` | 声明式序列化 | EventDefinition = name + payload，无逻辑 |
+| `overlay` | 声明式序列化 | 运行时覆写可序列化 |
+| `flow` | 暂无 | `defineFlow` API 尚不存在，目标落地后再纳入 |
+
+#### 安全边界
+
+与 §7.6 及全局原则"AI 绝不直接改生产"一致：
+
+- **仅 draft 可物化**：非 draft 的 Proposal → 422，不产生任何副作用。
+- **CommandLayer 权限槽永远先跑、绝不跳过**：在任何 provider 构建之前执行；命令层或 AI provider 未配置 → 503 优雅降级（而不是去调一个会抛"未配置"的 provider）。
+- **仅产出候选源码**，挂在 draft 上；绝不 submit / approve / commit / graduate / 写文件 / 运行生成代码。
+- **候选仍须经验证（Phase 2 构建门）+ 双重人审**（draft 审查 + 毕业 PR）才可能落地。
+- **仅按需触发（on-demand）**，无调度器 / cron——自动节奏（cadence）是被搁置的产品决策。
+
+### 7.8 反馈回路
 
 用户对 Proposal 的接受/拒绝/效果，反馈回 Memory 层：
 
