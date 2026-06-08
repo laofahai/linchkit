@@ -27,6 +27,7 @@ import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
 import { validatePhase2 } from "./validation-phase2";
 import { validatePhase3 } from "./validation-phase3";
+import { validatePhase4 } from "./validation-phase4";
 
 // ── Valid field types ────────────────────────────────────
 // Relationships are now declared via defineRelation(), not field types
@@ -78,6 +79,14 @@ export interface ValidationContext {
    * skipped regardless. Mirrors the `strictCompatibility` pattern.
    */
   strictGeneratedBuild?: boolean;
+  /**
+   * Escalate Phase 4 (generated-source contract) findings from WARN to BLOCK.
+   * Default (false / undefined) → Phase 4 is warn-only and does NOT affect
+   * `passed`. The checks are heuristic (execution-free static checks that the AI
+   * generated the declared `define*()` target/name), so warn-only is the safe
+   * default. When no change carries generated source, Phase 4 is skipped.
+   */
+  strictGeneratedContract?: boolean;
 }
 
 // ── Phase 1: Static checks ──────────────────────────────
@@ -680,14 +689,16 @@ export function validateProposal(options: {
     strictCompatibility: context?.strictCompatibility,
   });
 
-  // Phase 4: Skipped for M1 (test pass)
-  const phase4: PhaseResult = {
-    phase: 4,
-    status: "skipped",
-    errors: [],
-    warnings: [],
-    duration: 0,
-  };
+  // Phase 4: Generated-source CONTRACT check (G5) — static, EXECUTION-FREE
+  // verification that any AI-materialized `generatedSource` actually defines the
+  // declared target/name (right define*() call, references its name, imports
+  // core). Warn-only by default; gated to BLOCK via strictGeneratedContract. No
+  // generated source → "skipped". A true execution-based dry-run is intentionally
+  // out of scope (it would require a sandbox to run untrusted AI code).
+  const phase4 = validatePhase4({
+    changes: proposal.changes,
+    strictGeneratedContract: context?.strictGeneratedContract,
+  });
 
   const phases = [phase1, phase2, phase3, phase4];
   const passed = phases.filter((p) => p.status !== "skipped").every((p) => p.status === "passed");
