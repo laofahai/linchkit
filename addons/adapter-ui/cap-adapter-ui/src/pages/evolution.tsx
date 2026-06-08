@@ -36,6 +36,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NlRuleDrafter } from "@/components/nl-rule-drafter";
+import { SchedulerStatusPanel } from "@/components/scheduler-status-panel";
 import {
   type EvolutionEntry,
   fetchEvolutionHistory,
@@ -305,6 +306,10 @@ export function EvolutionPage() {
 
   return (
     <div className="p-4 space-y-4">
+      {/* Read-only heartbeat of the autonomous evolution cadence loop. Auto-polls
+          so the operator can see at a glance whether the scheduler is alive. */}
+      <SchedulerStatusPanel pollIntervalMs={15000} />
+
       {/* "说→有" — draft a governed rule from natural language. The draft enters
           the human-gated review pipeline; this surface never approves/applies. */}
       <NlRuleDrafter />
