@@ -21,6 +21,15 @@ export interface EnvironmentFeatureFlags {
    * proposals that break existing references.
    */
   strictCompatibility: boolean;
+  /**
+   * Escalate proposal-validation Phase 4 generated-source CONTRACT findings (G5)
+   * from WARN to BLOCK (default: true in prod/staging). Lock-step sibling of
+   * `strictCompatibility`: the checks are heuristic static verifications that an
+   * AI-materialized `generatedSource` actually defines the declared target/name,
+   * so dev/test stay warn-only while production refuses contract-violating
+   * candidate code.
+   */
+  strictGeneratedContract: boolean;
   /** Enable detailed error messages in responses (default: true in dev/test) */
   detailedErrors: boolean;
   /** Enable hot-reload / watch mode (default: true in dev) */
@@ -98,6 +107,7 @@ function buildConfig(name: EnvironmentName): EnvironmentConfig {
       verboseLogging: isDevelopment || isTest,
       strictValidation: isProduction,
       strictCompatibility: isProduction,
+      strictGeneratedContract: isProduction,
       detailedErrors: isDevelopment || isTest,
       hotReload: isDevelopment,
       requestLogging: isDevelopment,
