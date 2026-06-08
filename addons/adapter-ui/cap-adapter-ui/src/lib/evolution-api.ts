@@ -11,6 +11,11 @@
 // ── Auth header helper (reuse from api.ts / proposal-api.ts pattern) ──────
 
 function getAuthHeaders(): Record<string, string> {
+  // Guard `localStorage` access: it is absent in non-browser contexts (SSR,
+  // loaders, some test runners), where touching it throws a ReferenceError.
+  if (typeof localStorage === "undefined") {
+    return {};
+  }
   const token = localStorage.getItem("linchkit:token");
   if (token) {
     return { Authorization: `Bearer ${token}` };
