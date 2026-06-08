@@ -402,6 +402,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "validatePhase1",
   "validatePhase2",
   "validatePhase3",
+  "validatePhase4",
   "validateProposal",
   "validateProposalExtended",
   "validateRequiredEnvVars",
