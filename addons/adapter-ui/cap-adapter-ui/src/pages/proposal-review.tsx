@@ -3,11 +3,12 @@
  *
  * The real human-gated proposal review surface for the evolution governance
  * loop. Lists governed Proposals, lets a human approve / reject pending ones,
- * and graduate an approved one (write files + open a GitHub PR for review).
+ * graduate an approved one (write files + open a GitHub PR for review), and
+ * materialize / re-generate a draft's AI code candidates.
  *
  * Hard rule ("AI Never Modifies Production Directly"): every mutation here is an
- * EXPLICIT user click. Graduation only ever opens a PR — it NEVER merges. The
- * UI never auto-approves or auto-graduates anything.
+ * EXPLICIT user click. Graduation only ever opens a PR — it NEVER merges. The UI
+ * never auto-approves or auto-graduates anything.
  */
 
 import {
@@ -48,8 +49,10 @@ import {
   rejectProposal,
 } from "@/lib/proposal-api";
 import {
+  buildMaterializeScope,
   canGraduate,
   changeTypeBadgeClass,
+  errorMessage,
   isPending,
   PROPOSAL_STATUS_FILTERS,
   type ProposalStatusFilter,
@@ -74,6 +77,8 @@ function ProposalCard({
   const [reason, setReason] = useState("");
   const [grad, setGrad] = useState<GraduateProposalResult | null>(null);
   const [mat, setMat] = useState<MaterializeProposalResult | null>(null);
+  // Failed change name whose per-change "re-generate" is in flight, if any.
+  const [retryingChange, setRetryingChange] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const handleApprove = useCallback(async () => {
@@ -83,9 +88,7 @@ function ProposalCard({
       await approveProposal(proposal.id);
       onChanged();
     } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : t("proposals.approveFailed", "Approve failed"),
-      );
+      setActionError(errorMessage(err, t("proposals.approveFailed", "Approve failed")));
     } finally {
       setBusy(false);
     }
@@ -102,9 +105,7 @@ function ProposalCard({
       setReason("");
       onChanged();
     } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : t("proposals.rejectFailed", "Reject failed"),
-      );
+      setActionError(errorMessage(err, t("proposals.rejectFailed", "Reject failed")));
     } finally {
       setBusy(false);
     }
@@ -115,17 +116,14 @@ function ProposalCard({
     setActionError(null);
     setGrad(null);
     try {
-      // graduateProposal is designed to never throw (it maps every failure to a
-      // discriminated result), but wrap it defensively so an unexpected throw
-      // still surfaces as an error outcome and never leaves the button stuck
-      // disabled. Mirrors handleRunCycle on the Evolution page.
-      const result = await graduateProposal(proposal.id);
-      setGrad(result);
+      // graduateProposal maps every failure to a discriminated result; wrap
+      // defensively so an unexpected throw still surfaces as an error outcome.
+      // Mirrors handleRunCycle on the Evolution page.
+      setGrad(await graduateProposal(proposal.id));
     } catch (err) {
       setGrad({
         kind: "error",
-        message:
-          err instanceof Error ? err.message : t("proposals.graduateFailed", "Graduation failed"),
+        message: errorMessage(err, t("proposals.graduateFailed", "Graduation failed")),
       });
     } finally {
       setBusy(false);
@@ -143,18 +141,13 @@ function ProposalCard({
     setActionError(null);
     setMat(null);
     try {
-      // materializeProposal maps every failure to a discriminated result, but
-      // wrap defensively so an unexpected throw still surfaces and never leaves
-      // the button stuck disabled. Mirrors handleGraduate.
-      const result = await materializeProposal(proposal.id);
-      setMat(result);
+      // materializeProposal maps every failure to a discriminated result; wrap
+      // defensively so an unexpected throw still surfaces. Mirrors handleGraduate.
+      setMat(await materializeProposal(proposal.id));
     } catch (err) {
       setMat({
         kind: "error",
-        message:
-          err instanceof Error
-            ? err.message
-            : t("proposals.materializeFailed", "Materialization failed"),
+        message: errorMessage(err, t("proposals.materializeFailed", "Materialization failed")),
       });
     } finally {
       setBusy(false);
@@ -164,6 +157,28 @@ function ProposalCard({
     // server-side (the candidate source is persisted on it); a manual refresh
     // re-loads it via `proposal.changes`.
   }, [proposal.id, t]);
+
+  // Re-generate ONE failed change (scope materialize to it); reuse handleMaterialize's
+  // result path. `busy` blocks other actions/retries; `retryingChange` spins this button.
+  const handleRetryChange = useCallback(
+    async (changeName: string) => {
+      setBusy(true);
+      setRetryingChange(changeName);
+      setActionError(null);
+      try {
+        setMat(await materializeProposal(proposal.id, buildMaterializeScope(changeName)));
+      } catch (err) {
+        setMat({
+          kind: "error",
+          message: errorMessage(err, t("proposals.materializeFailed", "Materialization failed")),
+        });
+      } finally {
+        setRetryingChange(null);
+        setBusy(false);
+      }
+    },
+    [proposal.id, t],
+  );
 
   const pending = isPending(proposal.status);
   const graduatable = canGraduate(proposal.status);
@@ -359,11 +374,16 @@ function ProposalCard({
           </div>
         )}
 
-        {/* Failed materialization (durable signal). Renders changes that FAILED
-            the build gate — no generatedSource, but a `failed` status + the gate
-            errors — so the reviewer sees WHICH changes failed code generation and
-            WHY. Read-only: it never triggers any mutation. */}
-        <FailedMaterializationChanges changes={failedChanges} t={t} />
+        {/* Durable failure signal: changes that FAILED the build gate, each with a scoped retry. */}
+        <FailedMaterializationChanges
+          changes={failedChanges}
+          t={t}
+          // Retry calls materialize (DRAFT-ONLY) — only offer it on a draft; disable
+          // all retry buttons while any card action is in flight (`busy`).
+          onRetryChange={isDraft ? handleRetryChange : undefined}
+          retryingChange={retryingChange}
+          disabled={busy}
+        />
 
         {/* Approved: graduate → open PR (never merges). Once a PR is opened the
             button + hint are hidden so the success outcome (with the PR link)

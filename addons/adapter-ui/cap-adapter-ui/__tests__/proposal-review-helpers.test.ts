@@ -8,6 +8,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildMaterializeScope,
   canGraduate,
   changeTypeBadgeClass,
   isPending,
@@ -147,5 +148,25 @@ describe("selectFailedMaterializationChanges", () => {
         { name: "b" },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("buildMaterializeScope", () => {
+  test("scopes the materialize request to exactly the given change name", () => {
+    expect(buildMaterializeScope("submit_request")).toEqual({
+      changeNames: ["submit_request"],
+    });
+  });
+
+  test("never widens the scope — always a single-element list", () => {
+    const scope = buildMaterializeScope("approve_order");
+    expect(scope.changeNames).toHaveLength(1);
+    expect(scope.changeNames[0]).toBe("approve_order");
+  });
+
+  test("preserves the raw change name (no trimming / normalization)", () => {
+    expect(buildMaterializeScope("  weird name ")).toEqual({
+      changeNames: ["  weird name "],
+    });
   });
 });

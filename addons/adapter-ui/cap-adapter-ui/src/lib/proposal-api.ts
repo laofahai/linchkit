@@ -506,20 +506,31 @@ interface MaterializeWireResponse {
  *   401/403 → AUTHZ_DENIED (mapped to `denied`)
  *   500 → `error`
  *
+ * Pass `opts.changeNames` (non-empty) to scope materialization to JUST those
+ * change names — used by the per-failed-change "re-generate" retry so a reviewer
+ * can retry one failed change without regenerating the already-good ones. Omit it
+ * (or pass an empty array) to materialize every materializable change (default).
+ *
  * The optional `fetchImpl` lets tests inject a stub `fetch` without leaking a
  * global mock across the batched suite.
  */
 export async function materializeProposal(
   id: string,
-  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {},
+  opts: { fetchImpl?: typeof fetch; signal?: AbortSignal; changeNames?: string[] } = {},
 ): Promise<MaterializeProposalResult> {
   const doFetch = opts.fetchImpl ?? fetch;
+  // Scope the request to specific change names only when a non-empty list is
+  // given; otherwise send no body so the server materializes all changes (the
+  // pre-existing default behavior).
+  const scopedNames =
+    Array.isArray(opts.changeNames) && opts.changeNames.length > 0 ? opts.changeNames : undefined;
   let res: Response;
   try {
     res = await doFetch(`/api/proposals/${encodeURIComponent(id)}/materialize`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       signal: opts.signal,
+      ...(scopedNames ? { body: JSON.stringify({ changeNames: scopedNames }) } : {}),
     });
   } catch (err) {
     return {

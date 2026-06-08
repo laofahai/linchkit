@@ -12,7 +12,8 @@
  * policy. Purely presentational — it never triggers a mutation.
  */
 
-import { AlertTriangleIcon } from "lucide-react";
+import { Button } from "@linchkit/ui-kit/components";
+import { AlertTriangleIcon, Loader2Icon, RefreshCwIcon } from "lucide-react";
 import type { useTranslation } from "react-i18next";
 import type { ProposalChange } from "@/lib/proposal-api";
 
@@ -21,9 +22,30 @@ type TFn = ReturnType<typeof useTranslation>["t"];
 export function FailedMaterializationChanges({
   changes,
   t,
+  onRetryChange,
+  retryingChange,
+  disabled,
 }: {
   changes: readonly ProposalChange[];
   t: TFn;
+  /**
+   * Optional callback raised when the reviewer clicks "re-generate" on a failed
+   * change. Receives the change's `name`; the parent scopes a materialize to just
+   * that change. When absent, NO retry button renders (back-compat / read-only).
+   */
+  onRetryChange?: (changeName: string) => void;
+  /**
+   * The change name whose re-generate is currently in flight, if any — used to
+   * show a spinner on that change's button while it materializes.
+   */
+  retryingChange?: string | null;
+  /**
+   * When true, ALL retry buttons are disabled — a card-level action (approve /
+   * reject / graduate / materialize, or another retry) is in flight. Prevents
+   * concurrent mutations / overlapping materialize calls. The spinner still
+   * shows only on the change named by `retryingChange`.
+   */
+  disabled?: boolean;
 }) {
   if (changes.length === 0) return null;
 
@@ -48,9 +70,33 @@ export function FailedMaterializationChanges({
             <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-destructive">
               {t("proposals.materializeFailedBadge", "failed")}
             </span>
-            <span className="truncate">
+            <span className="min-w-0 flex-1 truncate">
               {c.target}/{c.name}
             </span>
+            {/* Per-change retry — scopes a materialize to JUST this change so the
+                reviewer can re-generate one failed change without regenerating the
+                already-good ones. Purely raises the callback; the parent calls the
+                API. Absent callback → no button (back-compat / read-only). */}
+            {onRetryChange && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 shrink-0 px-2 text-[11px]"
+                onClick={() => onRetryChange(c.name)}
+                // Disable every retry button while ANY card action or retry is in
+                // flight (`disabled` covers approve/reject/graduate/materialize via
+                // `busy`; `retryingChange` covers a sibling retry). Spinner below
+                // still shows only on the change actually re-generating.
+                disabled={disabled || retryingChange !== null}
+              >
+                {retryingChange === c.name ? (
+                  <Loader2Icon className="mr-1 size-3 animate-spin" />
+                ) : (
+                  <RefreshCwIcon className="mr-1 size-3" />
+                )}
+                {t("proposals.materializeRetryChange", "Re-generate")}
+              </Button>
+            )}
           </div>
           {c.materializationErrors && c.materializationErrors.length > 0 && (
             // A <div> (not <pre>) so the JSX indentation between the mapped <code>

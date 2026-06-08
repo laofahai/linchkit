@@ -86,3 +86,18 @@ export function selectFailedMaterializationChanges<
 >(changes: readonly T[]): T[] {
   return changes.filter((c) => c.materializationStatus === "failed");
 }
+
+/**
+ * Shape the materialize-request scope for a single change-name retry. Returns the
+ * `{ changeNames }` option object that scopes `materializeProposal` to JUST this
+ * change, so re-generating one failed change never regenerates the good ones.
+ * Pure so the request shaping is unit-testable without the React render.
+ */
+export function buildMaterializeScope(changeName: string): { changeNames: string[] } {
+  return { changeNames: [changeName] };
+}
+
+/** Narrow a caught unknown to its message, falling back to a default string. */
+export function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
