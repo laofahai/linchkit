@@ -595,7 +595,7 @@ CodeGenerationProvider（生成）→ materializeProposalChanges（编排+质量
 - **CommandLayer 权限槽永远先跑、绝不跳过**：在任何 provider 构建之前执行；命令层或 AI provider 未配置 → 503 优雅降级（而不是去调一个会抛"未配置"的 provider）。
 - **仅产出候选源码**，挂在 draft 上；绝不 submit / approve / commit / graduate / 写文件 / 运行生成代码。
 - **候选仍须经验证（Phase 2 构建门 + Phase 4 契约门）+ 双重人审**（draft 审查 + 毕业 PR）才可能落地。
-- **仅按需触发（on-demand）**，无调度器 / cron——自动节奏（cadence）是被搁置的产品决策。
+- **物化仅按需触发（on-demand）**，无物化调度器 / cron——物化绝不自动跑。（注：产 `draft` 的 sense→draft 回路有可选 cadence，见 §7；物化本身仍纯人工触发，与 cadence 解耦。）
 
 ### 7.8 反馈回路
 

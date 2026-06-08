@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { createEvolutionScheduler, MIN_INTERVAL_MS } from "../../engine/evolution-scheduler";
+import {
+  createEvolutionScheduler,
+  MAX_INTERVAL_MS,
+  MIN_INTERVAL_MS,
+} from "../../engine/evolution-scheduler";
 
 /** A logger stub that records nothing (keeps test output clean). */
 const SILENT = {
@@ -127,6 +131,26 @@ describe("createEvolutionScheduler", () => {
     });
     s.start();
     expect(s.isRunning()).toBe(true);
+    s.stop();
+  });
+
+  test("an over-large interval is clamped to MAX_INTERVAL_MS (no setInterval 32-bit overflow)", () => {
+    // A delay above 2^31-1 ms overflows setInterval's signed-32-bit field and is
+    // coerced to 1ms — making a "once a month" cadence fire every millisecond.
+    // The ceiling const keeps such a value as "effectively never fires".
+    expect(MAX_INTERVAL_MS).toBe(2_147_483_647);
+    let calls = 0;
+    const s = createEvolutionScheduler({
+      tick: () => {
+        calls += 1;
+      },
+      intervalMs: Number.MAX_SAFE_INTEGER,
+      logger: SILENT,
+    });
+    s.start();
+    expect(s.isRunning()).toBe(true);
+    // The clamped timer must NOT have fired synchronously (no overflow-to-1ms).
+    expect(calls).toBe(0);
     s.stop();
   });
 });

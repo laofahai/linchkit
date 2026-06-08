@@ -123,7 +123,10 @@ export function createEvolutionCadence(
       for (const tenantId of tenantScopes) {
         try {
           const result = await cycle.runCycle({ timestamp: new Date(), tenantId });
-          const summary = persistCycleProposalsAsDrafts({ proposals: result.proposals, engine });
+          // Defensive: a runtime whose cycle returns null/undefined (or omits
+          // `proposals`) yields an empty batch rather than throwing a TypeError.
+          const proposals = result?.proposals ?? [];
+          const summary = persistCycleProposalsAsDrafts({ proposals, engine });
           logger.info(
             `[EvolutionCadence] tenant=${tenantId ?? "(default)"} → ${summary.created} new draft(s), ` +
               `${summary.deduped} deduped (DRAFT-only; approval and graduation stay human-gated).`,

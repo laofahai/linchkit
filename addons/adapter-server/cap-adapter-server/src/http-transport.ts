@@ -188,6 +188,13 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
           tenantIds: resolveCadenceTenantIds(),
         })
       : null;
+  // The operator opted into cadence but no evolution runtime is wired, so
+  // createEvolutionCadence returned null — warn instead of silently doing nothing.
+  if (cadenceIntervalMs !== null && !evolutionScheduler) {
+    consoleLogger.warn(
+      "[cap-adapter-server] EVOLUTION_CADENCE_INTERVAL_MS is set but no evolution runtime is wired — autonomous cadence will NOT start.",
+    );
+  }
 
   return {
     start: () => {

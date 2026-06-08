@@ -232,6 +232,7 @@ const EXPECTED_SERVER_EXPORTS = [
   "InterfaceRegistry",
   "MAX_BATCH_SIZE",
   "MAX_CHAIN_DEPTH",
+  "MAX_INTERVAL_MS",
   "MIN_INTERVAL_MS",
   "MigrationCoordinator",
   "NoopAITraceSink",

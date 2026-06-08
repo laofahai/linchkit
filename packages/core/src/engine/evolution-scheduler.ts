@@ -30,6 +30,15 @@ import type { Logger } from "../types/logger";
  * misconfigurations that would hammer the runtime. */
 export const MIN_INTERVAL_MS = 1000;
 
+/**
+ * Hard ceiling on the tick interval (= 2^31 - 1 ms ≈ 24.8 days). `setInterval`
+ * stores its delay in a signed 32-bit int in both Node and Bun: a delay above
+ * this overflows and is silently coerced to 1ms, which would make a "once a
+ * month" cadence hammer the runtime every millisecond. Clamping keeps an
+ * over-large interval as "effectively never fires" instead of "fires constantly".
+ */
+export const MAX_INTERVAL_MS = 2_147_483_647;
+
 export interface EvolutionSchedulerOptions {
   /**
    * Work to run each tick — typically: run one evolution cycle and persist its
@@ -70,10 +79,16 @@ export interface EvolutionScheduler {
 export function createEvolutionScheduler(options: EvolutionSchedulerOptions): EvolutionScheduler {
   const { tick, runImmediately = false, logger = consoleLogger, onError } = options;
   const requested = options.intervalMs;
-  const intervalMs = Math.max(
-    MIN_INTERVAL_MS,
-    Math.floor(
-      typeof requested === "number" && Number.isFinite(requested) ? requested : MIN_INTERVAL_MS,
+  // Clamp to [MIN, MAX]: the floor guards against hammering the runtime, the
+  // ceiling guards against setInterval's signed-32-bit overflow (a too-large
+  // delay would coerce to 1ms and fire constantly — see MAX_INTERVAL_MS).
+  const intervalMs = Math.min(
+    MAX_INTERVAL_MS,
+    Math.max(
+      MIN_INTERVAL_MS,
+      Math.floor(
+        typeof requested === "number" && Number.isFinite(requested) ? requested : MIN_INTERVAL_MS,
+      ),
     ),
   );
 
