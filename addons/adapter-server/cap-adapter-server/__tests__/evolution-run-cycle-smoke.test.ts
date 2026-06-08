@@ -102,7 +102,7 @@ function uniqueProposal(): ProposalDefinition {
     status: "draft",
     createdAt: now,
     updatedAt: now,
-  } as ProposalDefinition;
+  };
 }
 
 /**
@@ -162,7 +162,17 @@ async function postRunCycle(app: {
   handle: (req: Request) => Promise<Response>;
 }): Promise<{ status: number; json: RunCycleJson }> {
   const res = await app.handle(new Request(`${BASE}/api/evolution/run-cycle`, { method: "POST" }));
-  return { status: res.status, json: (await res.json()) as RunCycleJson };
+  // Read the body as text first: a 500 / assembly crash can return non-JSON
+  // (HTML / plain text), and a bare `res.json()` would throw an opaque
+  // SyntaxError that masks the real failure. Surface the raw body instead.
+  const body = await res.text();
+  let json: RunCycleJson;
+  try {
+    json = JSON.parse(body) as RunCycleJson;
+  } catch {
+    throw new Error(`run-cycle returned non-JSON (status ${res.status}): ${body.slice(0, 300)}`);
+  }
+  return { status: res.status, json };
 }
 
 /** The shared engine the route persists drafts into — read back through it. */
