@@ -154,3 +154,107 @@ describe("createEvolutionScheduler", () => {
     s.stop();
   });
 });
+
+describe("EvolutionScheduler.getStatus", () => {
+  test("a fresh scheduler reports an inert, never-ticked snapshot", () => {
+    const s = createEvolutionScheduler({ tick: () => {}, intervalMs: 60_000, logger: SILENT });
+    const status = s.getStatus();
+    expect(status.running).toBe(false);
+    expect(status.intervalMs).toBe(60_000); // the clamped interval actually in use
+    expect(status.ticksStarted).toBe(0);
+    expect(status.ticksCompleted).toBe(0);
+    expect(status.lastTickStartedAt).toBeNull();
+    expect(status.lastTickCompletedAt).toBeNull();
+    expect(status.lastTickDurationMs).toBeNull();
+    expect(status.lastError).toBeNull();
+    expect(status.consecutiveErrors).toBe(0);
+  });
+
+  test("reports the CLAMPED interval, not the requested one", () => {
+    // Below MIN floors up; above MAX clamps down. getStatus must reflect the
+    // interval actually in use, not the raw requested value.
+    expect(
+      createEvolutionScheduler({ tick: () => {}, intervalMs: 1, logger: SILENT }).getStatus()
+        .intervalMs,
+    ).toBe(MIN_INTERVAL_MS);
+    expect(
+      createEvolutionScheduler({
+        tick: () => {},
+        intervalMs: Number.MAX_SAFE_INTEGER,
+        logger: SILENT,
+      }).getStatus().intervalMs,
+    ).toBe(MAX_INTERVAL_MS);
+  });
+
+  test("after a tick fires, counters increment and timestamps populate", async () => {
+    const s = createEvolutionScheduler({
+      tick: async () => {
+        // A tiny await so the completion timestamp can differ from the start one.
+        await Promise.resolve();
+      },
+      intervalMs: 1000,
+      logger: SILENT,
+    });
+    await s.runOnce();
+
+    const status = s.getStatus();
+    expect(status.ticksStarted).toBe(1);
+    expect(status.ticksCompleted).toBe(1);
+    expect(status.lastTickStartedAt).toBeInstanceOf(Date);
+    expect(status.lastTickCompletedAt).toBeInstanceOf(Date);
+    expect(status.lastTickDurationMs).not.toBeNull();
+    expect(status.lastTickDurationMs).toBeGreaterThanOrEqual(0);
+    expect(status.lastError).toBeNull();
+    expect(status.consecutiveErrors).toBe(0);
+  });
+
+  test("a throwing tick sets lastError + increments consecutiveErrors; a later OK tick resets it", async () => {
+    let shouldThrow = true;
+    const s = createEvolutionScheduler({
+      tick: () => {
+        if (shouldThrow) throw new Error("cycle boom");
+      },
+      intervalMs: 1000,
+      logger: SILENT,
+      onError: () => {}, // swallow — we assert via getStatus
+    });
+
+    // Two consecutive failures.
+    await s.runOnce();
+    await s.runOnce();
+    let status = s.getStatus();
+    expect(status.ticksStarted).toBe(2);
+    expect(status.ticksCompleted).toBe(2); // a thrown tick still "completes"
+    expect(status.lastError).toBe("cycle boom");
+    expect(status.consecutiveErrors).toBe(2);
+
+    // A subsequent OK tick clears the error streak.
+    shouldThrow = false;
+    await s.runOnce();
+    status = s.getStatus();
+    expect(status.lastError).toBeNull();
+    expect(status.consecutiveErrors).toBe(0);
+    expect(status.ticksCompleted).toBe(3);
+  });
+
+  test("getStatus is read-only — mutating the snapshot cannot corrupt internal state", async () => {
+    const s = createEvolutionScheduler({ tick: () => {}, intervalMs: 1000, logger: SILENT });
+    await s.runOnce();
+    const snap = s.getStatus();
+    // Mutate the returned Date and counter.
+    snap.lastTickStartedAt?.setFullYear(1970);
+    snap.ticksStarted = 999;
+    const fresh = s.getStatus();
+    expect(fresh.ticksStarted).toBe(1);
+    expect(fresh.lastTickStartedAt?.getFullYear()).not.toBe(1970);
+  });
+
+  test("running flips true on start() and false on stop()", () => {
+    const s = createEvolutionScheduler({ tick: () => {}, intervalMs: 1000, logger: SILENT });
+    expect(s.getStatus().running).toBe(false);
+    s.start();
+    expect(s.getStatus().running).toBe(true);
+    s.stop();
+    expect(s.getStatus().running).toBe(false);
+  });
+});
