@@ -50,7 +50,14 @@ import { resolveActor, resolveStatusCode } from "./routes/shared";
 const MATERIALIZE_COMMAND_NAME = "proposal.materialize";
 
 /**
- * Parse + sanitize the OPTIONAL request body into a `changeNames` scope.
+ * Sanitize the OPTIONAL, ALREADY-PARSED request body into a `changeNames` scope.
+ *
+ * The body is taken from the Elysia context (`context.body`), NOT re-read from
+ * the raw `Request`. Calling `request.json()` inside the handler would throw
+ * `TypeError: body stream already read` whenever Elysia's own body parser (or any
+ * upstream middleware/plugin/derive hook) has already consumed the body stream —
+ * which is the framework's default. Every other body-reading route in this addon
+ * destructures `body` from the context; this one now follows suit.
  *
  * NEVER trust client input: a missing/empty/malformed body, or any body that is
  * not `{ changeNames: string[] }`, yields `undefined` (= materialize ALL, today's
@@ -63,18 +70,8 @@ const MATERIALIZE_COMMAND_NAME = "proposal.materialize";
  * change names is enforced in {@link runProposalMaterialization} once the
  * proposal is loaded (names matching no change are dropped, and an all-unknown
  * scope likewise degrades to "materialize all").
- *
- * Reading `await request.json()` THROWS on an empty body, so this is fully
- * try/caught — an empty POST is the common "materialize all" call.
  */
-async function parseChangeNamesBody(request: Request): Promise<readonly string[] | undefined> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    // No body / not JSON → materialize all (back-compat).
-    return undefined;
-  }
+function sanitizeChangeNamesBody(body: unknown): readonly string[] | undefined {
   if (typeof body !== "object" || body === null) return undefined;
   const raw = (body as { changeNames?: unknown }).changeNames;
   if (!Array.isArray(raw)) return undefined;
@@ -387,10 +384,15 @@ export function mountProposalMaterializeAPI(
       params,
       set,
       request,
+      body,
     }: {
       params: { id: string };
       set: { status: number };
       request: Request;
+      // Elysia pre-parses the JSON body into the context. Read it from here, NOT
+      // via `request.json()` — the raw stream is already consumed by the time the
+      // handler runs, so re-reading it throws "body stream already read".
+      body: unknown;
     }) => {
       // ── Permission slot (CommandLayer) — run FIRST, before any provider build,
       // engine read, or AI call. Materialization invokes the AI and mutates a
@@ -454,12 +456,12 @@ export function mountProposalMaterializeAPI(
         };
       }
 
-      // Parse the OPTIONAL body AFTER auth + provider preflight so the slot order
-      // (permission FIRST) is preserved and an unauthorized caller's body is never
-      // read. A missing/empty/malformed body → undefined → materialize all
-      // (today's behavior); a sanitized scope restricts (re)materialization to the
-      // named changes, preserving every out-of-scope change untouched.
-      const changeNames = await parseChangeNamesBody(request);
+      // Sanitize the OPTIONAL pre-parsed body AFTER auth + provider preflight so
+      // the slot order (permission FIRST) is preserved. A missing/empty/malformed
+      // body → undefined → materialize all (today's behavior); a sanitized scope
+      // restricts (re)materialization to the named changes, preserving every
+      // out-of-scope change untouched.
+      const changeNames = sanitizeChangeNamesBody(body);
 
       const outcome = await runProposalMaterialization(params.id, {
         engine,
