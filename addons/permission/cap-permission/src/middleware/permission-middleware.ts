@@ -64,6 +64,37 @@ export interface PermissionMiddlewareOptions {
 /** TTL for permission decision cache entries: 10 minutes (spec §4) */
 const PERM_CACHE_TTL_MS = 10 * 60 * 1000;
 
+/** The permission target (capability + action) a grant is matched against. */
+interface PermissionTarget {
+  capability: string;
+  action: string;
+}
+
+/**
+ * Resolve the authoritative permission target for a NON-ACTION dispatch that
+ * carries it in `ctx.meta` rather than an action lookup.
+ *
+ * `command-layer.ts` documents this contract: a `skipActionSlots` dispatch (the
+ * onchange / evolution routes) bypasses the ActionExecutor entirely, so there is
+ * no `ctx.action` to derive a target from. Its synthetic `command` name exists
+ * only for metrics/tracing — the authoritative target is published in `ctx.meta`
+ * (`meta.evolution = { operation }`). Gate on that target so a NATURAL grant
+ * (`grant.evolution.actions.<operation>`) authorizes it, instead of the synthetic
+ * command name which no group would ever grant (→ silent default-deny / admin-only).
+ *
+ * Returns `null` when no recognised meta target is present, leaving the caller on
+ * its normal action-based resolution. Only consulted for non-action dispatches
+ * (`ctx.action` absent), so a real action's authorization is never affected.
+ */
+function resolveMetaTarget(ctx: CommandContext): PermissionTarget | null {
+  const meta = ctx.meta as Record<string, unknown> | undefined;
+  const evolution = meta?.evolution as { operation?: unknown } | undefined;
+  if (evolution && typeof evolution.operation === "string" && evolution.operation.length > 0) {
+    return { capability: "evolution", action: evolution.operation };
+  }
+  return null;
+}
+
 // ── Middleware factory ─────────────────────────────────────
 
 /**
@@ -97,15 +128,27 @@ export function createPermissionMiddleware(
       return;
     }
 
-    // Resolve capability name from action
-    const capabilityName = resolveCapability
-      ? resolveCapability(command, ctx)
-      : (action?.entity ?? command);
+    // Resolve the permission target. A non-action dispatch (`skipActionSlots`,
+    // no `ctx.action`) publishes its target in `ctx.meta` — honour that documented
+    // contract first; otherwise fall back to the action-based resolution. Scoping
+    // the meta lookup to `!action` guarantees a real action's target is unchanged.
+    const metaTarget = action ? null : resolveMetaTarget(ctx);
+    const capabilityName = metaTarget
+      ? metaTarget.capability
+      : resolveCapability
+        ? resolveCapability(command, ctx)
+        : (action?.entity ?? command);
+    // The action name a grant is matched against: the meta target's operation for
+    // a meta-targeted dispatch, else the (synthetic) command name as before.
+    const actionName = metaTarget ? metaTarget.action : command;
 
     // ── Cache lookup ─────────────────────────────────────────
+    // Key on the RESOLVED target (capability + action), not the raw command — a
+    // meta-targeted dispatch reuses a synthetic command name across operations, so
+    // keying on the command alone could collide distinct targets in the cache.
     const tenantId = (ctx.meta?.tenantId as string | undefined) ?? "";
     const schemaKey = action?.entity ?? "";
-    const cacheKey = `perm:${tenantId}:${actor.id}:${command}:${schemaKey}`;
+    const cacheKey = `perm:${tenantId}:${actor.id}:${capabilityName}:${actionName}:${schemaKey}`;
     const cacheTags = [`perm:${tenantId}`, `perm`];
 
     if (cacheManager) {
@@ -135,7 +178,7 @@ export function createPermissionMiddleware(
     }
 
     // ── Step 1: Check action permission ──────────────────────
-    const permResult = checkActionPermission(registry, actor, capabilityName, command);
+    const permResult = checkActionPermission(registry, actor, capabilityName, actionName);
 
     if (!permResult.allowed) {
       // Cache negative result too (prevents repeat lookups for denied actions)
@@ -146,10 +189,10 @@ export function createPermissionMiddleware(
       );
       throw new AuthorizationError({
         code: "authz.action.denied",
-        message: `Permission denied for action "${command}": ${permResult.reason ?? "no matching permission group"}`,
+        message: `Permission denied for action "${actionName}": ${permResult.reason ?? "no matching permission group"}`,
         requiredGroups: actor.groups.length > 0 ? undefined : ["(any)"],
         details: {
-          action: command,
+          action: actionName,
           capability: capabilityName,
           decidedBy: permResult.decidedBy,
         },
