@@ -141,6 +141,8 @@ export type DryRunStatus =
   | "oom"                  // exceeded the memory cap → killed
   | "forbidden_side_effect"// attempted DB/network/fs/env access (recorded, not performed)
   | "malformed_output"     // returned a shape violating the action's output contract
+  | "infra_error"          // the sandbox itself failed (spawn error, missing binary,
+                           // limits unenforceable) — NOT a content verdict; warns, never blocks (§7)
   | "skipped";             // not materializable / no valid source / no runner
 
 export interface AttemptedSideEffect {
@@ -156,6 +158,8 @@ export interface DryRunOutcome {
   peakMemoryBytes?: number;
   attemptedSideEffects?: AttemptedSideEffect[];
   error?: string;          // truncated message if it threw
+  logs?: string;           // captured + truncated child stdout/stderr (stack traces,
+                           // console.*) so the reviewer can debug a failing dry-run in the UI
   inputCaseId?: string;    // which synthetic/historical input produced this (repro)
 }
 
@@ -174,6 +178,8 @@ export interface ExecutionDryRunProvider {
     changeName: string;
     input: unknown;
     inputCaseId: string;
+    tenantId?: string;                   // injected into the shimmed, tenant-scoped context
+    metadata?: Record<string, unknown>;  // ExecutionMeta-like fields the handler may read (Spec 65)
     limits: { timeoutMs: number; memoryBytes: number };
   }): Promise<DryRunOutcome>;
 }
@@ -231,6 +237,6 @@ Each phase follows the standard lifecycle (worktree → gates → cross-model re
 ## 11. Relationship to Existing Specs
 
 - **Spec 55 §7.7** — this is the execution counterpart to G5 static materialization; §7.7 should gain a one-line forward-reference once P2 lands.
-- **Spec 09** — Phase 5 extends the validation pipeline; the "4-stage validation" description becomes "4 static stages + an optional execution dry-run."
+- **Spec 09** — Phase 5 extends the validation pipeline; the "4-stage validation" description becomes "4 static stages + an optional execution dry-run." Implementation note: the `ValidationPhase` union in `packages/core/src/types/proposal.ts` (currently `1 | 2 | 3 | 4`) gains `5`.
 - **Spec 27** — the dry-run is the runtime enforcement point for AI-output safety; prompt-injection payloads that survive generation are caught here behaviorally.
 - **Spec 39** — synthetic-input generation and output-contract checking reuse the Execution Contract's notion of an action's input/output shape.
