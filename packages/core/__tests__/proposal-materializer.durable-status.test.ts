@@ -244,4 +244,76 @@ describe("materializeProposalChanges — durable materialization status", () => 
     // The input proposal is never mutated.
     expect(input.changes[1]?.generatedSource).toBe("export const stale = 1;");
   });
+
+  test("re-materialization clears a stale dry-run signal (Spec 70 P2)", async () => {
+    // A change that was dry-run "passed" against its PRIOR source, then
+    // regenerated. The old dry-run verdict belongs to the old source, so
+    // re-materialization must CLEAR it — otherwise Phase 5 would read a stale
+    // "passed" and wrongly clear `strictExecutionDryRun` for the NEW, never-run
+    // source (or keep blocking on a stale "failed" after the code was fixed).
+    // (Regression for the codex review on the Spec 70 P2 seam.)
+    const input = makeProposal([
+      {
+        target: "action",
+        operation: "create",
+        name: "deduct_inventory",
+        dryRunStatus: "passed",
+        dryRunOutcomes: [{ changeName: "deduct_inventory", target: "action", status: "passed" }],
+      },
+    ]);
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider: makeProvider(GOOD),
+      qualityGate: createSyntaxQualityGate(),
+    });
+
+    const change = result.proposal.changes[0];
+    expect(change?.materializationStatus).toBe("materialized");
+    // The regenerated change carries NO dry-run verdict — the P3 runner re-stamps
+    // it against the new source.
+    expect(change?.dryRunStatus).toBeUndefined();
+    expect(change?.dryRunOutcomes).toBeUndefined();
+  });
+
+  test("scoped retry of A clears A's dry-run but PRESERVES out-of-scope B's (Spec 70 P2)", async () => {
+    // A scoped retry regenerates A (→ its stale dry-run signal is invalidated)
+    // but leaves B untouched — B's source is unchanged, so B's dry-run verdict is
+    // still valid and must be preserved (it is bound to the same source).
+    const input = makeProposal([
+      {
+        target: "action",
+        operation: "create",
+        name: "action_a",
+        dryRunStatus: "failed",
+        dryRunOutcomes: [{ changeName: "action_a", target: "action", status: "threw" }],
+      },
+      {
+        target: "action",
+        operation: "create",
+        name: "action_b",
+        generatedSource: GOOD,
+        materializationStatus: "materialized",
+        dryRunStatus: "passed",
+        dryRunOutcomes: [{ changeName: "action_b", target: "action", status: "passed" }],
+      },
+    ]);
+
+    const result = await materializeProposalChanges({
+      proposal: input,
+      provider: makeProvider(GOOD),
+      qualityGate: createSyntaxQualityGate(),
+      changeNames: ["action_a"], // scope to A only
+    });
+
+    const a = result.proposal.changes.find((c) => c.name === "action_a");
+    const b = result.proposal.changes.find((c) => c.name === "action_b");
+    // A regenerated → its stale dry-run signal cleared.
+    expect(a?.materializationStatus).toBe("materialized");
+    expect(a?.dryRunStatus).toBeUndefined();
+    expect(a?.dryRunOutcomes).toBeUndefined();
+    // B out-of-scope (source untouched) → its dry-run verdict is preserved.
+    expect(b?.dryRunStatus).toBe("passed");
+    expect(b?.dryRunOutcomes?.[0]?.status).toBe("passed");
+  });
 });

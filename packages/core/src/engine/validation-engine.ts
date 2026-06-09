@@ -28,6 +28,7 @@ import type { StateDefinition } from "../types/state";
 import { validatePhase2 } from "./validation-phase2";
 import { validatePhase3 } from "./validation-phase3";
 import { validatePhase4 } from "./validation-phase4";
+import { validatePhase5 } from "./validation-phase5";
 
 // ── Valid field types ────────────────────────────────────
 // Relationships are now declared via defineRelation(), not field types
@@ -87,6 +88,14 @@ export interface ValidationContext {
    * default. When no change carries generated source, Phase 4 is skipped.
    */
   strictGeneratedContract?: boolean;
+  /**
+   * Escalate Phase 5 (execution dry-run) findings from WARN to BLOCK. Default
+   * (false/undefined) → Phase 5 is warn-only. Unlike `strictGeneratedContract`
+   * this is NOT auto-derived from `isProduction` (Spec 70 §7) — it depends on
+   * configured sandbox infra. An `infra_error` dry-run status NEVER blocks, even
+   * when this is true.
+   */
+  strictExecutionDryRun?: boolean;
 }
 
 // ── Phase 1: Static checks ──────────────────────────────
@@ -700,7 +709,20 @@ export function validateProposal(options: {
     strictGeneratedContract: context?.strictGeneratedContract,
   });
 
-  const phases = [phase1, phase2, phase3, phase4];
+  // Phase 5: Execution dry-run SIGNAL (Spec 70 P2) — reads the DURABLE
+  // `dryRunStatus` a sandbox runner stamps on a change (the actual sandboxed
+  // execution runs LATER in a capability, P3, never here). A failing dry-run
+  // (threw/timeout/oom/forbidden_side_effect/malformed_output) becomes a content
+  // finding; `infra_error` is always a non-blocking warning. Warn-only by
+  // default; gated to BLOCK via strictExecutionDryRun (opt-in, NOT derived from
+  // isProduction). No change carries a `dryRunStatus` → "skipped". Stays SYNC —
+  // it executes nothing.
+  const phase5 = validatePhase5({
+    changes: proposal.changes,
+    strictExecutionDryRun: context?.strictExecutionDryRun,
+  });
+
+  const phases = [phase1, phase2, phase3, phase4, phase5];
   const passed = phases.filter((p) => p.status !== "skipped").every((p) => p.status === "passed");
 
   // Generate impact summary

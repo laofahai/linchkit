@@ -212,6 +212,7 @@ Capability definition, extension, composition, and distribution.
 
 | Date | Change |
 |------|--------|
+| 2026-06-09 | Spec 70 **P2 landed** + §5/§7 refined to the **durable-signal** architecture: the async dry-run runs in the (already-async) materialize path and stamps a durable `dryRunStatus`; validation **Phase 5 is synchronous** and only reads it (mirrors Phase 4 reading `materializationStatus`), so `validateProposal`/`submitProposal` stay sync. P2 ships core `dry-run.ts` types + `ExecutionDryRunProvider` seam + `ProposalChange.dryRunStatus`/`dryRunOutcomes` + `ValidationPhase`→`1–5` + `validatePhase5`. |
 | 2026-06-09 | Added Spec 70 (Execution Dry-Run Sandbox — Draft) — designs the deferred execution counterpart to Spec 55 §7.7's static Phase 4: run AI-generated handler source in a hardened Bun-subprocess sandbox as an opt-in, infra-gated validation Phase 5. Threat model + sandbox tech comparison + phased rollout. Stats: Total 72→73, Draft +1. |
 | 2026-06-07 | Spec 55 §7.7 代码物化 added — G5 materialization (provider #494, materializer+build-gate #495, live endpoint+UI #496) documented; old §7.7 反馈回路 renumbered to §7.8. |
 | 2026-06-01 | Spec 45 progress: `schedule` trigger implemented (croner, PR #439) + `_linchkit.watcher_state` debounce persistence (`WatcherStateStore` InMemory default + Drizzle PG backend) — restart-safe `once_until_reset`. Status stays Partial: the watcher admin UI `EntityDefinition` (§7.1) is still deferred. |

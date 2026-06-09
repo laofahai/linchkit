@@ -131,12 +131,15 @@ export async function materializeProposalChanges(
     if (scope && !scope.has(change.name)) {
       // A NON-materializable out-of-scope change (e.g. one edited action→entity
       // since it was last materialized) must NOT retain a stale `generatedSource`
-      // — `ProposalFileWriter` would write it at graduation. Clear it exactly as
-      // the in-scope declarative path does, and report "skipped".
+      // — `ProposalFileWriter` would write it at graduation. Clear it (and its
+      // now-meaningless dry-run signal) exactly as the in-scope declarative path
+      // does, and report "skipped".
       if (!isMaterializable(change)) {
         change.generatedSource = undefined;
         change.materializationStatus = undefined;
         change.materializationErrors = undefined;
+        change.dryRunStatus = undefined;
+        change.dryRunOutcomes = undefined;
         outcomes.push({
           changeName: change.name,
           target: change.target,
@@ -169,15 +172,23 @@ export async function materializeProposalChanges(
       continue;
     }
 
-    // Clear any pre-existing source AND durable quality signal up front — BEFORE
+    // Clear any pre-existing source AND durable quality signals up front — BEFORE
     // the materializable check — so neither a re-materialization NOR a change
     // that became non-materializable (its target/operation was edited, e.g.
     // action→entity or create→delete) ever leaves a STALE source/status/errors
     // behind. They are set again only as a materializable attempt resolves; a
     // skipped (declarative) change correctly carries no materialization artifacts.
+    //
+    // The Spec 70 dry-run signal (`dryRunStatus`/`dryRunOutcomes`) belongs to the
+    // OLD source, so it is cleared here too: a regenerated change must NOT carry a
+    // prior source's dry-run verdict into Phase 5 (a stale "passed" would wrongly
+    // clear `strictExecutionDryRun`; a stale "failed" would wrongly keep blocking
+    // after the code was fixed). The P3 runner re-stamps it against the NEW source.
     change.generatedSource = undefined;
     change.materializationStatus = undefined;
     change.materializationErrors = undefined;
+    change.dryRunStatus = undefined;
+    change.dryRunOutcomes = undefined;
 
     if (!isMaterializable(change)) {
       outcomes.push({
