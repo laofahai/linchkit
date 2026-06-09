@@ -95,12 +95,14 @@
       "devDependencies": {
         "@linchkit/cap-ai-provider": "workspace:*",
         "@linchkit/cap-chatter": "workspace:*",
+        "@linchkit/cap-dry-run": "workspace:*",
         "@linchkit/cap-permission": "workspace:*",
         "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/cap-ai-provider": "^1.0.0",
+        "@linchkit/cap-dry-run": "^0.1.0",
         "@linchkit/core": "^0.2.0",
       },
     },
