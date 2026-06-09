@@ -229,7 +229,7 @@ Each phase follows the standard lifecycle (worktree → gates → cross-model re
 
 ## 10. Open Questions (decisions this spec surfaces for the owner)
 
-1. **v1 sandbox tier** — ship the subprocess + OS-limits tier first (recommended, zero new deps), or require the container/microVM kernel boundary from P3? (Affects whether "no network" is a v1 guarantee or a P5 hardening.)
+1. **v1 sandbox tier** — ship the subprocess + OS-level isolation tier first (recommended, zero new deps), or require the container/microVM kernel boundary from P3? Network-egress denial is a **settled v1 requirement either way** (§3, §4.1) — the open choice is only the *mechanism*: an OS network block (Linux namespace / macOS `sandbox-exec` / `--network none`) wrapping the subprocess, versus a microVM from the start, trading setup cost for a stronger kernel boundary.
 2. **Runner home** — extend `cap-ai-provider`, or a dedicated new `cap-dry-run` addon? (Core stays execution-free either way.)
 3. **Inputs** — synthetic-only for v1, or also replay redacted historical execution-log inputs from P3? (The latter needs tenant-scoped masking work.)
 4. **New dependencies** — any non-trivial choice (`isolated-vm`, a container SDK, a cgroups binding) is gated on explicit approval per CLAUDE.md. Flag now if you want a specific technology rather than the recommended dep-free subprocess.
