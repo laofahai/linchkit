@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 72 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 73 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -39,6 +39,7 @@ Five-layer evolution model (Sense → Memory → Awareness → Insight → Propo
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
 | [55](./55_evolution_system.md) | Evolution System | Living software: sensors, baselines, importance graph, evidence-chain insights, gradual Proposals. §7.7 G5 code materialization implemented (CodeGenerationProvider + materializeProposalChanges + Phase-2 build gate + Phase-4 contract check + live `POST /api/proposals/:id/materialize`); sensing/cadence still gated | M3–M6+ | Partial |
+| [70](./70_execution_dry_run_sandbox.md) | Execution Dry-Run Sandbox | Run AI-generated handler source in a locked-down sandbox (recommended: hardened Bun subprocess) as an opt-in, infra-gated validation Phase 5 — the deferred execution counterpart to Spec 55 §7.7's static Phase 4. Threat model + tech comparison + phased rollout (P2 seam → P5 hardening) | M6–M7+ | Draft |
 
 ## Runtime Engines
 
@@ -204,13 +205,14 @@ Capability definition, extension, composition, and distribution.
 |--------|-------|
 | Done | 51 |
 | Partial | 13 |
-| Draft | 8 |
-| **Total** | **72** unique specs |
+| Draft | 9 |
+| **Total** | **73** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-06-09 | Added Spec 70 (Execution Dry-Run Sandbox — Draft) — designs the deferred execution counterpart to Spec 55 §7.7's static Phase 4: run AI-generated handler source in a hardened Bun-subprocess sandbox as an opt-in, infra-gated validation Phase 5. Threat model + sandbox tech comparison + phased rollout. Stats: Total 72→73, Draft +1. |
 | 2026-06-07 | Spec 55 §7.7 代码物化 added — G5 materialization (provider #494, materializer+build-gate #495, live endpoint+UI #496) documented; old §7.7 反馈回路 renumbered to §7.8. |
 | 2026-06-01 | Spec 45 progress: `schedule` trigger implemented (croner, PR #439) + `_linchkit.watcher_state` debounce persistence (`WatcherStateStore` InMemory default + Drizzle PG backend) — restart-safe `once_until_reset`. Status stays Partial: the watcher admin UI `EntityDefinition` (§7.1) is still deferred. |
 | 2026-06-01 | Spec 63 Phase 2 shipped: GraphQL field-lock introspection (PR #437) + auto-form field-lock UI reusing core's `matchesLockCondition` (PR #441). Status stays Partial — Phase 3 `cap-lock` needs a returning-value hook/slot extension mechanism (design decision) before it can be built. |
