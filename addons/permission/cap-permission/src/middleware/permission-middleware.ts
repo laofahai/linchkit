@@ -157,10 +157,12 @@ export function createPermissionMiddleware(
         if (!cached.allowed) {
           throw new AuthorizationError({
             code: "authz.action.denied",
-            message: `Permission denied for action "${command}": ${cached.reason ?? "no matching permission group"}`,
+            // Use the RESOLVED actionName (not the raw command) so a cached denial
+            // surfaces the same action identifier as the non-cached path above.
+            message: `Permission denied for action "${actionName}": ${cached.reason ?? "no matching permission group"}`,
             requiredGroups: actor.groups.length > 0 ? undefined : ["(any)"],
             details: {
-              action: command,
+              action: actionName,
               capability: capabilityName,
               decidedBy: cached.decidedBy,
             },
