@@ -97,6 +97,14 @@ export {
   resolveDataAccess,
 } from "../../engine/permission-engine";
 export {
+  aggregateDryRunStatus,
+  type DryRunInputCase,
+  type DryRunMaterializedOptions,
+  type DryRunMaterializedResult,
+  dryRunMaterializedChanges,
+  MAX_INPUT_CASES,
+} from "../../engine/proposal-dry-runner";
+export {
   createProposalEffectVerifier,
   type EffectVerificationPayload,
   type EffectVerificationRecord,

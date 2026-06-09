@@ -28,10 +28,12 @@
  */
 
 import { createCodeGenerationProvider } from "@linchkit/cap-ai-provider";
+import { createSubprocessDryRunner } from "@linchkit/cap-dry-run";
 import type {
   Actor,
   AIService,
   CommandLayer,
+  ExecutionDryRunProvider,
   OntologyRegistry,
   ProposalChange,
   ProposalDefinition,
@@ -39,6 +41,7 @@ import type {
 import {
   type CodeGenerationProvider,
   createSyntaxQualityGate,
+  dryRunMaterializedChanges,
   type MaterializeChangeOutcome,
   materializeProposalChanges,
   type QualityGateRunner,
@@ -198,6 +201,15 @@ export interface RunProposalMaterializationDeps {
    * and risking regression of — the already-good ones.
    */
   changeNames?: readonly string[];
+  /**
+   * Optional execution dry-run runner (Spec 70 P3). When supplied, each
+   * FRESHLY-materialized change is run once in the sandbox and its durable
+   * `dryRunStatus`/`dryRunOutcomes` are stamped (validation Phase 5 reads them).
+   * ADVISORY / WARN-ONLY: a dry-run failure NEVER fails materialization — the
+   * candidate source still lands on the draft for human review. Absent → no
+   * dry-run runs (off by default).
+   */
+  dryRunProvider?: ExecutionDryRunProvider;
 }
 
 /**
@@ -258,8 +270,29 @@ export async function runProposalMaterialization(
       maxRetries: deps.maxRetries,
       changeNames: effectiveChangeNames,
     });
-    // Persist the candidate source back onto the draft. `updateProposal` replaces
-    // `changes` (recomputing impact) and is draft-only — never approves/graduates.
+    // Advisory execution dry-run (Spec 70 P3): when a runner is injected, run each
+    // freshly-materialized change in the sandbox and stamp its durable
+    // `dryRunStatus`/`dryRunOutcomes` so validation Phase 5 can read them. This is
+    // WARN-ONLY and must NEVER fail materialization — the candidate source still
+    // enters human review regardless — so it is wrapped to swallow any orchestrator
+    // fault (the per-case provider faults are already contained as `infra_error`).
+    if (deps.dryRunProvider) {
+      try {
+        await dryRunMaterializedChanges({
+          proposal: result.proposal,
+          provider: deps.dryRunProvider,
+          // Mirror the materialization scope: in a scoped retry, only the freshly
+          // (re)materialized changes are dry-run, so an out-of-scope change the
+          // materializer preserved keeps its prior durable dryRunStatus untouched.
+          changeNames: effectiveChangeNames,
+        });
+      } catch {
+        // Advisory signal only — a dry-run fault never wedges materialization.
+      }
+    }
+    // Persist the candidate source (+ any dry-run signal) back onto the draft.
+    // `updateProposal` replaces `changes` (recomputing impact) and is draft-only —
+    // never approves/graduates.
     const updated = deps.engine.updateProposal(proposalId, { changes: result.proposal.changes });
     // Defensive: the engine contract returns the updated `ProposalDefinition`, but
     // a custom/future impl could return null/undefined. Surfacing that as an error
@@ -324,6 +357,16 @@ export interface MountProposalMaterializeAPIOptions {
    * and actions instead of guessing. Read-only — never mutated here.
    */
   ontology?: OntologyRegistry;
+  /**
+   * Override how the execution dry-run runner (Spec 70 P3) is resolved. Return
+   * `null` to disable the dry-run (no `dryRunStatus` is stamped). The default
+   * resolver is OPT-IN and OFF BY DEFAULT: it builds a hardened subprocess runner
+   * ONLY when `process.env.LINCHKIT_EXECUTION_DRY_RUN === "1"`, else returns null.
+   * The dry-run is advisory/warn-only and fail-closed (reports `infra_error` when
+   * no OS sandbox is available), so enabling it never blocks materialization.
+   * Exposed mainly for tests (inject a fake runner without spawning a subprocess).
+   */
+  resolveDryRunProvider?: () => ExecutionDryRunProvider | null;
 }
 
 /**
@@ -377,6 +420,14 @@ export function mountProposalMaterializeAPI(
       if (ai?.configured !== true) return null;
       return createCodeGenerationProvider(ai);
     });
+  // Execution dry-run runner (Spec 70 P3). OFF BY DEFAULT: the default resolver
+  // builds a hardened subprocess runner ONLY when the operator opts in via
+  // `LINCHKIT_EXECUTION_DRY_RUN=1`. Read per request so the flag can be toggled at
+  // runtime; the runner itself fails closed (infra_error) when no OS sandbox is
+  // present, and the dry-run is advisory, so enabling it never blocks the endpoint.
+  const resolveDryRunProvider =
+    options?.resolveDryRunProvider ??
+    (() => (process.env.LINCHKIT_EXECUTION_DRY_RUN === "1" ? createSubprocessDryRunner() : null));
 
   app.post(
     "/api/proposals/:id/materialize",
@@ -469,6 +520,7 @@ export function mountProposalMaterializeAPI(
         qualityGate,
         context: getContext(),
         changeNames,
+        dryRunProvider: resolveDryRunProvider() ?? undefined,
       });
 
       switch (outcome.kind) {
