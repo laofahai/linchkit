@@ -85,9 +85,11 @@ export function FailedMaterializationChanges({
                 onClick={() => onRetryChange(c.name)}
                 // Disable every retry button while ANY card action or retry is in
                 // flight (`disabled` covers approve/reject/graduate/materialize via
-                // `busy`; `retryingChange` covers a sibling retry). Spinner below
-                // still shows only on the change actually re-generating.
-                disabled={disabled || retryingChange !== null}
+                // `busy`; `retryingChange` covers a sibling retry). `!!retryingChange`
+                // (not `!== null`) so an omitted optional prop (undefined) does NOT
+                // disable the button. Spinner below still shows only on the change
+                // actually re-generating.
+                disabled={disabled || !!retryingChange}
               >
                 {retryingChange === c.name ? (
                   <Loader2Icon className="mr-1 size-3 animate-spin" />
