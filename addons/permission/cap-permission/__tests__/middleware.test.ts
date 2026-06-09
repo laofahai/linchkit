@@ -272,3 +272,112 @@ describe("permission middleware — meta.evolution target (skipActionSlots dispa
     expect(nextCalled).toBe(true);
   });
 });
+
+/**
+ * Meta-target permission resolution — `meta.onchange` (Spec 64 onchange route).
+ *
+ * The onchange route dispatches with `skipActionSlots: true`, NO `ctx.action`, and
+ * publishes `meta.onchange = { entity, changedField }`. `command-layer.ts`
+ * documents that the permission middleware should derive an entity-level READ
+ * check from this meta (not look up an action named "onchange"). These tests pin
+ * that the middleware HONOURS it: an actor with READ access to the entity is
+ * allowed, one without is denied, and a stray `meta.onchange` on a real action
+ * dispatch is ignored.
+ */
+describe("permission middleware — meta.onchange target (skipActionSlots dispatch)", () => {
+  /** An onchange-shaped dispatch: synthetic command, no action, meta read target. */
+  function onchangeCtx(actor: CommandContext["actor"]): CommandContext {
+    return {
+      command: "invoice.onchange",
+      input: {},
+      channel: "http",
+      actor,
+      meta: { onchange: { entity: "invoice", changedField: "amount" } },
+      // No `action` — non-action dispatch (skipActionSlots).
+    } as CommandContext;
+  }
+
+  /** A registry whose `invoice_reader` group grants READ access to `invoice`. */
+  function registryWithInvoiceRead(): PermissionRegistry {
+    const registry = new PermissionRegistry();
+    registry.register(
+      definePermissionGroup({
+        name: "invoice_reader",
+        label: "Invoice Reader",
+        grant: { invoice: { data: { read: "all" } } },
+      }),
+    );
+    // A group that exists but grants the WRONG entity, to prove default-deny.
+    registry.register(
+      definePermissionGroup({
+        name: "order_reader",
+        label: "Order Reader",
+        grant: { order: { data: { read: "all" } } },
+      }),
+    );
+    return registry;
+  }
+
+  it("authorizes onchange when the actor can READ the entity (grant.invoice.data.read)", async () => {
+    const middleware = createPermissionMiddleware({ registry: registryWithInvoiceRead() });
+    const ctx = onchangeCtx({ type: "human", id: "reader_1", groups: ["invoice_reader"] });
+    let nextCalled = false;
+
+    await middleware(ctx, async () => {
+      nextCalled = true;
+    });
+
+    expect(nextCalled).toBe(true);
+  });
+
+  it("denies onchange when the actor has no read access to the entity", async () => {
+    const middleware = createPermissionMiddleware({ registry: registryWithInvoiceRead() });
+    // Has read on `order`, NOT `invoice` → default-deny for the invoice onchange.
+    const ctx = onchangeCtx({ type: "human", id: "reader_2", groups: ["order_reader"] });
+
+    await expect(middleware(ctx, async () => {})).rejects.toThrow(AuthorizationError);
+  });
+
+  it("denies onchange when an explicit data.read: none shadows an allow (deny wins)", async () => {
+    const registry = new PermissionRegistry();
+    registry.register(
+      definePermissionGroup({
+        name: "invoice_reader",
+        grant: { invoice: { data: { read: "all" } } },
+      }),
+    );
+    registry.register(
+      definePermissionGroup({
+        name: "invoice_blocked",
+        grant: { invoice: { data: { read: "none" } } },
+      }),
+    );
+    const middleware = createPermissionMiddleware({ registry });
+    const ctx = onchangeCtx({
+      type: "human",
+      id: "reader_3",
+      groups: ["invoice_reader", "invoice_blocked"],
+    });
+
+    await expect(middleware(ctx, async () => {})).rejects.toThrow(AuthorizationError);
+  });
+
+  it("ignores a stray meta.onchange on a real ACTION dispatch (target stays the action)", async () => {
+    // Defensive: the read-target branch is scoped to non-action dispatches. A real
+    // action carrying meta.onchange must still authorize against its action target.
+    const registry = createTestRegistry();
+    const middleware = createPermissionMiddleware({ registry });
+    const ctx = createTestContext({
+      meta: { onchange: { entity: "invoice", changedField: "amount" } },
+    });
+    let nextCalled = false;
+
+    await middleware(ctx, async () => {
+      nextCalled = true;
+    });
+
+    // `editors` grants the `submit_request` ACTION target — the onchange meta was
+    // ignored because `ctx.action` is present.
+    expect(nextCalled).toBe(true);
+  });
+});
