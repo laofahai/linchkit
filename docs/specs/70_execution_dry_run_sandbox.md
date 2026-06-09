@@ -108,23 +108,22 @@ Run the generated TypeScript in a **separate Bun process** spawned by a hardened
 
 ## 5. Architecture and Data Flow
 
-**Core stays execution-free.** Core defines only the *interface* + the validation hook; the concrete runner lives in a capability (extend `cap-ai-provider`, or a new `cap-dry-run` addon — §10 Q2). This mirrors the existing `CodeGenerationProvider` injectable-seam pattern: core declares the seam, a capability supplies the impl, tests inject a fake.
+**Core stays execution-free.** Core defines only the *interface* + a synchronous validation reader; the concrete runner lives in a capability (extend `cap-ai-provider`, or a new `cap-dry-run` addon — §10 Q2). This mirrors the existing `CodeGenerationProvider` injectable-seam pattern: core declares the seam, a capability supplies the impl, tests inject a fake.
+
+**Where the async dry-run runs (durable-signal architecture).** The dry-run executes the handler in a sandbox, which is inherently asynchronous. Rather than make the whole validation pipeline async (`validateProposal` → `submitProposal` → the REST surface), the async run happens in the **already-async materialization path** (`materializeProposalChanges`) right after source is generated + build-gated; it stamps a **durable `dryRunStatus` / `dryRunOutcomes`** on the change — exactly mirroring how G5 stamps `materializationStatus` (Spec 55 §7.7, #513). Validation **Phase 5 then stays SYNCHRONOUS**: it only *reads* the persisted `dryRunStatus`, precisely as Phase 4 reads `materializationStatus: "failed"`. This keeps the entire validate/submit path synchronous and reuses the proven durable-signal + scoped-retry machinery (#513 → #517).
 
 ```
-ProposalChange.generatedSource  ──┐
-(valid, Phase-4 passed)           │
-                                  ▼
-        validation-engine ── Phase 5: execution dry-run (skipped if no runner) ──┐
-           fan out over (change × input case):                                   │
-       ExecutionDryRunProvider.dryRun({ source, input, inputCaseId, limits }) ───┤
-                                  │ (one isolated sandbox per call)               │
-        [capability] createSubprocessDryRunner()                                 │
-          network-denied Bun.spawn(child) → shimmed @linchkit/core → handler(input)│
-          collect { status, durationMs, peakMem, attemptedSideEffects, error }   │
-                                  ▼                                               ▼
-              DryRunOutcome[] (per case) ── aggregate per change ── map to PhaseResult ── warn|block
-                                  │
-                  (optional) persist dryRunStatus on the change → UI + scoped re-run
+materialize (async) per materializable change:                 validate (SYNC):
+  generate source → build-gate → fan out (change × input case):
+    ExecutionDryRunProvider.dryRun({ source, input,                Phase 5 reads
+      inputCaseId, tenantId, metadata, limits })  ─┐               change.dryRunStatus
+      [capability] createSubprocessDryRunner():     │                    │
+        network-denied Bun.spawn(child) →           │                    ▼
+        shimmed @linchkit/core → handler(input)     │           map to PhaseResult
+      collect DryRunOutcome (per case)  ────────────┤           (skipped if none) →
+                                                    ▼           warn | block (per
+   aggregate → STAMP durable dryRunStatus/Outcomes ───────────▶  strictExecutionDryRun)
+   on the change (persisted, like materializationStatus)        infra_error → always warn
 ```
 
 **Synthetic inputs** are derived from the action's declared input schema (a valid sample + a few edge cases). Optionally (§10 Q3) augmented with **historical inputs** from the execution log for that action — read-only, tenant-scoped (reuse the canonical `DataQueryOptions.tenantId` discipline), and field-masked (Spec 41) so no real PII enters the sandbox.
@@ -191,22 +190,24 @@ export interface ExecutionDryRunProvider {
 
 ## 7. Validation Integration and Gating
 
-Add **Phase 5 — Execution dry-run** to `validation-engine.ts`, after Phase 4. It runs only when ALL hold, else `skipped` (the same low-regret degrade as Phase 4):
+Add **Phase 5 — Execution dry-run** to `validation-engine.ts`, after Phase 4. Phase 5 is **synchronous**: it does NOT call the runner — it READS the durable `dryRunStatus` stamped on each materializable change during materialization (§5). It reports `skipped` (the same low-regret degrade as Phase 4) when no in-scope change carries a `dryRunStatus` — i.e. when:
 
-1. an `ExecutionDryRunProvider` is configured/injected, **and**
-2. the proposal has ≥1 materializable change with VALID `generatedSource` (its Phase 4 passed), **and**
-3. opt-in `features.executionDryRun` (or a per-call flag) is on.
+1. no `ExecutionDryRunProvider` was configured during materialization (nothing stamped a status), **or**
+2. no materializable change has a recorded dry-run result, **or**
+3. the dry-run feature (`features.executionDryRun`, consumed by the materialize path) was off, so nothing ran.
+
+Scope is guarded by `isMaterializable` (the same predicate as Phase 4): a change edited to a non-materializable target/operation after a dry-run carries a stale status that Phase 5 ignores.
 
 **Gating (mirrors Phase 2/3/4 low-regret):**
 
 - **DEFAULT — warn-only.** A dry-run failure is a strong signal, but synthetic inputs are imperfect; it must not block by default.
 - **GATED — `features.strictExecutionDryRun` flips warn→block.** Crucially this flag is **opt-in everywhere — NOT derived from `isProduction`** (unlike `strictCompatibility` / `strictGeneratedContract`). The dry-run depends on external sandbox infrastructure; auto-blocking in prod on an un-configured or flaky sandbox would wedge graduation. Blocking is enabled only when an operator has confirmed the sandbox is healthy.
 
-**Infra vs content failures — distinct handling:**
+**Infra vs content failures — distinct handling** (the dry-run stamps the status; Phase 5 reads it):
 
-- runner not configured → phase **skipped** (never blocks).
-- runner itself errors (spawn failure, infra down) → an **INFRA warning**, never a content error, never blocks — don't wedge graduation on a flaky sandbox.
-- sandbox kills the child (timeout/oom) or the handler throws / attempts a forbidden op → a **CONTENT finding** on that change, warn-or-block per the flag.
+- no runner configured during materialization → no `dryRunStatus` → phase **skipped** (never blocks).
+- runner itself failed (spawn failure, infra down, limits unenforceable) → `dryRunStatus: "infra_error"` → an **INFRA warning**, never a content error, never blocks — don't wedge graduation on a flaky sandbox.
+- sandbox killed the child (`timeout`/`oom`) or the handler threw / attempted a forbidden op / returned a bad shape → a **CONTENT finding** on that change, warn-or-block per the flag.
 
 ## 8. Failure and Safety Invariants
 
@@ -220,9 +221,9 @@ Add **Phase 5 — Execution dry-run** to `validation-engine.ts`, after Phase 4. 
 | Phase | Deliverable | Smoke test (real-boot) |
 |---|---|---|
 | **P1** | This spec; lean placeholder issues for P2–P5 | — |
-| **P2** | core `ExecutionDryRunProvider` + `DryRunOutcome` types + Phase 5 hook (skipped when no provider). No real execution. | validation pipeline emits Phase 5 = `skipped` with no runner; a fake provider returning `passed` flows through |
-| **P3** | capability `createSubprocessDryRunner()` (`Bun.spawn` + dropped env + temp cwd + timeout-kill + shimmed core). Warn-only. | a throwing handler → `threw`; an infinite loop → `timeout`; a clean handler → `passed`; **assert NO real side effect** in every case |
-| **P4** | forbidden-op detection (shimmed deps record attempts) + durable `dryRunStatus` on the change + `/admin/proposals` rendering (extends #514) + scoped single-change re-run (extends #517) | a handler that calls `store.create` → `forbidden_side_effect` with the attempt recorded, real store untouched |
+| **P2** ✅ | core `dry-run.ts` types + `ExecutionDryRunProvider` seam (for P3) + durable `dryRunStatus`/`dryRunOutcomes` on `ProposalChange` + `ValidationPhase` `1–4`→`1–5` + a **synchronous** `validatePhase5` that READS the durable signal (mirrors Phase 4). No execution; `validateProposal` stays sync. | `validatePhase5` unit: no status → `skipped`; `passed` → no finding; `threw` → warn (block under `strictExecutionDryRun`); `infra_error` → always warn; stale status on a non-materializable change ignored |
+| **P3** | capability `createSubprocessDryRunner()` (network-denied `Bun.spawn` + dropped env + temp cwd + timeout-kill + shimmed core), invoked from the **async materialize path** to STAMP `dryRunStatus`/`dryRunOutcomes`. Warn-only end-to-end. | a throwing handler → `threw`; an infinite loop → `timeout`; a clean handler → `passed`; **assert NO real side effect**; the stamped status reaches Phase 5 |
+| **P4** | forbidden-op detection (shimmed deps record attempts → `forbidden_side_effect` + `attemptedSideEffects`) + `/admin/proposals` rendering of `dryRunStatus` (extends #514) + scoped single-change re-run (extends #517) | a handler that calls `store.create` → `forbidden_side_effect` with the attempt recorded, real store untouched; UI shows it |
 | **P5** | `strictExecutionDryRun` block flag + microVM/container runner tier + OS resource-limit wrapper | block flag flips a `threw` finding to a blocking validation error; microvm runner parity smoke |
 
 Each phase follows the standard lifecycle (worktree → gates → cross-model review → PR) and keeps core execution-free (the runner is always a capability).

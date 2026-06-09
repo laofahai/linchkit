@@ -22,6 +22,7 @@ export type * from "./cli";
 export type * from "./command";
 export type * from "./config";
 export type * from "./database";
+export type * from "./dry-run";
 export type * from "./entity";
 export type * from "./error";
 // Non-type exports

@@ -5,13 +5,13 @@ import { baseProposalOptions, createTestEngine } from "./proposal-fixtures";
 // ── validateProposal ────────────────────────────────────
 
 describe("validateProposal", () => {
-  it("returns full validation result with all 4 phases", () => {
+  it("returns full validation result with all 5 phases", () => {
     const engine = createTestEngine();
     const proposal = engine.createProposal(baseProposalOptions);
 
     const result = validateProposal({ proposal });
 
-    expect(result.phases).toHaveLength(4);
+    expect(result.phases).toHaveLength(5);
     expect(result.phases[0].phase).toBe(1);
     expect(result.phases[0].status).toBe("passed");
     expect(result.phases[1].phase).toBe(2);
@@ -20,6 +20,10 @@ describe("validateProposal", () => {
     expect(result.phases[2].status).toBe("skipped");
     expect(result.phases[3].phase).toBe(4);
     expect(result.phases[3].status).toBe("skipped");
+    // Phase 5 (execution dry-run signal) — skipped: the base proposal carries no
+    // durable `dryRunStatus` (Spec 70 P2).
+    expect(result.phases[4].phase).toBe(5);
+    expect(result.phases[4].status).toBe("skipped");
     expect(result.impactSummary).toContain("1 change(s)");
   });
 });
