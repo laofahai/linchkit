@@ -164,19 +164,17 @@ export async function dryRunMaterializedChanges(
     if (requested.length > MAX_INPUT_CASES) truncatedChangeNames.push(change.name);
 
     const source = change.generatedSource as string;
-    const outcomes: DryRunOutcome[] = [];
-    for (const inputCase of cases) {
-      outcomes.push(
-        await runOneCase({
-          provider,
-          change,
-          source,
-          inputCase,
-          limits: effectiveLimits,
-          tenantId,
-        }),
-      );
-    }
+    // Run this change's input cases CONCURRENTLY — each is an I/O-bound sandboxed
+    // subprocess on the materialize request's critical path, so awaiting them in
+    // series needlessly serialises the latency. Concurrency is bounded by
+    // `MAX_INPUT_CASES` (the `cases` slice above) and the outer change loop stays
+    // sequential, so at most `MAX_INPUT_CASES` sandboxes run at once. `Promise.all`
+    // preserves input order, so `dryRunOutcomes` keeps the case order.
+    const outcomes: DryRunOutcome[] = await Promise.all(
+      cases.map((inputCase) =>
+        runOneCase({ provider, change, source, inputCase, limits: effectiveLimits, tenantId }),
+      ),
+    );
 
     change.dryRunOutcomes = outcomes;
     change.dryRunStatus = aggregateDryRunStatus(outcomes);
