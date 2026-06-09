@@ -59,6 +59,18 @@ export interface MaterializeProposalOptions {
    * to the provider on every attempt.
    */
   context?: string;
+  /**
+   * When provided (non-empty), ONLY changes whose `name` is in this set are
+   * (re)materialized; every other change is preserved UNTOUCHED (its existing
+   * `generatedSource` / `materializationStatus` / `materializationErrors` are
+   * kept) and reported with outcome status `skipped`. When absent/empty, ALL
+   * materializable changes are materialized (current behavior).
+   *
+   * Use case: retrying a single FAILED change without re-calling the AI provider
+   * for changes that already succeeded — the model is non-deterministic, so
+   * regenerating a good candidate can REGRESS it.
+   */
+  changeNames?: readonly string[];
 }
 
 export interface MaterializeChangeOutcome {
@@ -105,7 +117,58 @@ export async function materializeProposalChanges(
   const changes: ProposalChange[] = proposal.changes.map((c) => ({ ...c }));
   const outcomes: MaterializeChangeOutcome[] = [];
 
+  // Optional scope: when a non-empty `changeNames` is given, only those changes
+  // are (re)materialized. Out-of-scope changes are preserved untouched (their
+  // existing source/status/errors are NOT cleared) so retrying one FAILED change
+  // never regenerates — and risks regressing — the already-good ones.
+  const scope =
+    options.changeNames && options.changeNames.length > 0 ? new Set(options.changeNames) : null;
+
   for (const change of changes) {
+    // Out-of-scope (only when a scope was given): the point of scoping is to NOT
+    // regenerate already-good changes. But a non-materializable change must never
+    // be left with stale materialization artifacts.
+    if (scope && !scope.has(change.name)) {
+      // A NON-materializable out-of-scope change (e.g. one edited action→entity
+      // since it was last materialized) must NOT retain a stale `generatedSource`
+      // — `ProposalFileWriter` would write it at graduation. Clear it exactly as
+      // the in-scope declarative path does, and report "skipped".
+      if (!isMaterializable(change)) {
+        change.generatedSource = undefined;
+        change.materializationStatus = undefined;
+        change.materializationErrors = undefined;
+        outcomes.push({
+          changeName: change.name,
+          target: change.target,
+          status: "skipped",
+          attempts: 0,
+        });
+        continue;
+      }
+      // Materializable + out-of-scope: PRESERVE it untouched (don't regenerate a
+      // good candidate), and report its CARRIED-FORWARD durable status — NOT a
+      // blanket "skipped". A change still `failed` from an earlier pass must
+      // surface as "failed" so it is not hidden from the outcomes/`allMaterialized`
+      // summary (else a scoped retry of A could misreport the proposal as fully
+      // materialized while B is still broken).
+      const carried: MaterializeChangeOutcome["status"] =
+        change.materializationStatus === "failed"
+          ? "failed"
+          : change.materializationStatus === "materialized"
+            ? "materialized"
+            : "skipped";
+      outcomes.push({
+        changeName: change.name,
+        target: change.target,
+        status: carried,
+        attempts: 0,
+        ...(carried === "failed" && change.materializationErrors
+          ? { errors: change.materializationErrors }
+          : {}),
+      });
+      continue;
+    }
+
     // Clear any pre-existing source AND durable quality signal up front — BEFORE
     // the materializable check — so neither a re-materialization NOR a change
     // that became non-materializable (its target/operation was edited, e.g.
@@ -175,7 +238,16 @@ export async function materializeProposalChanges(
     );
   }
 
-  const allMaterialized = outcomes.every((o) => o.status !== "failed");
+  // `allMaterialized` = every MATERIALIZABLE change has successfully-materialized
+  // source. Derived from the durable change state (NOT the per-round outcomes) so
+  // a SCOPED run reports the WHOLE proposal honestly: an out-of-scope
+  // materializable change that is still `failed` OR was NEVER materialized (no
+  // source) keeps this false — only a non-materializable (declarative) change or
+  // a truly materialized one passes. Equivalent to the old outcomes check in the
+  // unscoped case (where every materializable change is attempted every run).
+  const allMaterialized = changes.every(
+    (c) => !isMaterializable(c) || c.materializationStatus === "materialized",
+  );
   return { proposal: { ...proposal, changes }, outcomes, allMaterialized };
 }
 
