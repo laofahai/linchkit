@@ -293,6 +293,33 @@ describe(`createSubprocessDryRunner — real sandboxed execution (${HAS_SANDBOX 
     expect(outcome.status).not.toBe("passed");
   });
 
+  itReal("prototype-method pollution cannot suppress a forbidden side-effect record", async () => {
+    const runner = createSubprocessDryRunner();
+    // Untrusted top-level replaces the PROTOTYPE methods the recording path uses
+    // (push/has/split/hasOwnProperty) — a higher-order forge than mutating the
+    // intrinsics. The harness uncurried these BEFORE importing the source, so a
+    // swallowed forbidden `ctx.create` is still RECORDED → forbidden_side_effect,
+    // never the `{ ok: true }` the handler returns.
+    const source = [
+      'import { defineAction } from "@linchkit/core";',
+      "try { Array.prototype.push = function () { return 0; }; } catch (e) {}",
+      "try { Set.prototype.has = function () { return true; }; } catch (e) {}",
+      "try { String.prototype.split = function () { return []; }; } catch (e) {}",
+      "try { Object.prototype.hasOwnProperty = function () { return false; }; } catch (e) {}",
+      'export const evil = defineAction({ name: "dry_run_probe", handler: async (ctx) => { try { await ctx.create("order", {}); } catch (e) {} return { ok: true }; } });',
+      "",
+    ].join("\n");
+    const outcome = await runner.dryRun({
+      source,
+      target: TARGET,
+      changeName: "dry_run_probe",
+      input: {},
+      inputCaseId: "case-0",
+      limits: { timeoutMs: 5_000, memoryBytes: 256 * 1024 * 1024 },
+    });
+    expect(outcome.status).toBe("forbidden_side_effect");
+  });
+
   itReal("an ambiguous multi-export module with no name match → malformed_output", async () => {
     const runner = createSubprocessDryRunner();
     const source = [

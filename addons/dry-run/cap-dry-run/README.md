@@ -69,7 +69,7 @@ const outcome = await runner.dryRun({
   inputCaseId: "case-0",
   limits: { timeoutMs: 5000, memoryBytes: 256 * 1024 * 1024 },
 });
-// outcome.status ∈ passed | threw | timeout | forbidden_side_effect |
+// outcome.status ∈ passed | threw | timeout | oom | forbidden_side_effect |
 //                  malformed_output | infra_error
 ```
 

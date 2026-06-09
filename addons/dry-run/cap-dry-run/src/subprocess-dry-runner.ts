@@ -23,7 +23,7 @@
 
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { DryRunOutcome, DryRunStatus, ExecutionDryRunProvider } from "@linchkit/core";
 import {
   PRELOAD_FILENAME,
@@ -133,6 +133,19 @@ function infraOutcome(
 }
 
 /**
+ * Resolve the Bun executable to an absolute path. `undefined` → the current
+ * executable; an absolute override is honoured as-is; a relative/bare override is
+ * looked up on PATH and, failing that, falls back to the current executable — so
+ * `dirname(bunPath)` can never resolve to "." (which would bind the caller's CWD
+ * into the bwrap sandbox).
+ */
+function resolveBunPath(provided: string | undefined, env: SandboxEnv): string {
+  if (!provided) return process.execPath;
+  if (isAbsolute(provided)) return provided;
+  return env.which(provided) ?? process.execPath;
+}
+
+/**
  * Create a hardened-subprocess `ExecutionDryRunProvider`. Each `dryRun` call runs
  * in its own throwaway temp dir, sandboxed, and is fully cleaned up afterward.
  */
@@ -140,7 +153,12 @@ export function createSubprocessDryRunner(
   options: SubprocessDryRunnerOptions = {},
 ): ExecutionDryRunProvider {
   const sandboxEnv = options.sandboxEnv ?? defaultSandboxEnv();
-  const bunPath = options.bunPath ?? process.execPath;
+  // Resolve the Bun executable to an ABSOLUTE path. A relative/bare `bunPath`
+  // (e.g. "bun") would make `dirname(bunPath)` in sandbox.ts resolve to "." and
+  // bind the caller's CWD into the bwrap sandbox (leaking arbitrary files), so a
+  // non-absolute override is resolved on PATH, falling back to the current
+  // executable when that fails — the sandbox never exposes an unintended dir.
+  const bunPath = resolveBunPath(options.bunPath, sandboxEnv);
   const defaults = options.defaultLimits ?? {
     timeoutMs: DEFAULT_TIMEOUT_MS,
     memoryBytes: DEFAULT_MEMORY_BYTES,

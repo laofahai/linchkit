@@ -69,8 +69,25 @@ const ProxyCtor = Proxy;
 const SetCtor = Set;
 const DateCtor = Date;
 const StringFn = String;
-const hasOwn = Object.prototype.hasOwnProperty;
 const bunFileText = (p) => Bun.file(p).text();
+
+// Snapshotting the constructors/functions above is not enough: the recording path
+// (\`sideEffects.push\`, \`set.has\`, \`str.split\`, …) runs AFTER importing the untrusted
+// module, which could replace PROTOTYPE methods (\`Array.prototype.push\`,
+// \`Set.prototype.has\`, \`String.prototype.split\`, \`Object.prototype.hasOwnProperty\`) to
+// hijack the harness and forge the verdict. Uncurry each method we call on an instance
+// via the captured \`Function.prototype.call\`/\`bind\` (so even mutating those cannot
+// subvert us) and invoke ONLY these snapshots afterward, never instance methods.
+const fnCall = Function.prototype.call;
+const fnBind = Function.prototype.bind;
+const uncurry = (fn) => fnBind.call(fnCall, fn);
+const arrayPush = uncurry(Array.prototype.push);
+const stringSlice = uncurry(String.prototype.slice);
+const stringSplit = uncurry(String.prototype.split);
+const stringIndexOf = uncurry(String.prototype.indexOf);
+const stringTrim = uncurry(String.prototype.trim);
+const setHas = uncurry(Set.prototype.has);
+const hasOwnFn = uncurry(Object.prototype.hasOwnProperty);
 
 const inputPath = process.argv[2];
 const resultPath = process.argv[3];
@@ -92,7 +109,7 @@ try {
 
 const sideEffects = [];
 function recordEffect(path) {
-  sideEffects.push({ kind: "unknown", detail: StringFn(path).slice(0, 200) });
+  arrayPush(sideEffects, { kind: "unknown", detail: stringSlice(StringFn(path), 0, 200) });
 }
 
 // The known ActionContext I/O surfaces. Anything else a handler reaches for is an
@@ -104,9 +121,9 @@ const KNOWN_CTX_IO = new SetCtor([
   "get", "query", "create", "update", "delete", "execute", "emit", "ai", "config",
 ]);
 function sanitizePath(path) {
-  const parts = StringFn(path).split(".");
+  const parts = stringSplit(StringFn(path), ".");
   const method = parts[1] || "";
-  if (!KNOWN_CTX_IO.has(method)) return "ctx.<redacted>";
+  if (!setHas(KNOWN_CTX_IO, method)) return "ctx.<redacted>";
   return parts.length > 2 ? "ctx." + method + ".<redacted>" : "ctx." + method;
 }
 
@@ -135,16 +152,16 @@ function makeMeta(data) {
   const d = data && typeof data === "object" ? data : {};
   return {
     get(key) { return d[key]; },
-    has(key) { return hasOwn.call(d, key); },
+    has(key) { return hasOwnFn(d, key); },
     require(key) {
-      if (!hasOwn.call(d, key)) {
+      if (!hasOwnFn(d, key)) {
         throw new Error("ExecutionMeta missing required key: " + StringFn(key));
       }
       return d[key];
     },
     toJSON() {
       const out = {};
-      for (const k in d) if (hasOwn.call(d, k)) out[k] = d[k];
+      for (const k in d) if (hasOwnFn(d, k)) out[k] = d[k];
       return out;
     },
   };
@@ -169,7 +186,7 @@ function makeCtx(input, meta) {
     get(t, prop) {
       if (typeof prop === "symbol") return undefined;
       if (prop === "then") return undefined; // not a thenable
-      if (hasOwn.call(t, prop)) return t[prop];
+      if (hasOwnFn(t, prop)) return t[prop];
       return makeForbidden("ctx." + StringFn(prop));
     },
   });
@@ -192,7 +209,7 @@ function selectDef(mod) {
   const defs = [];
   for (let i = 0; i < vals.length; i++) {
     const v = vals[i];
-    if (v && typeof v === "object" && typeof v.handler === "function") defs.push(v);
+    if (v && typeof v === "object" && typeof v.handler === "function") arrayPush(defs, v);
   }
   if (defs.length === 1) return { def: defs[0], count: 1 };
   if (defs.length > 1 && targetName) {
@@ -211,7 +228,7 @@ async function main() {
   // untrusted code can still discover the path via /proc) is ignored.
   let nonce = "";
   try {
-    nonce = (await Bun.stdin.text()).trim();
+    nonce = stringTrim(await Bun.stdin.text());
   } catch (_e) {}
   // Read inputs and BUILD THE CONTEXT before importing untrusted code, so a later
   // top-level mutation of Proxy/etc cannot subvert the recording context.
@@ -263,9 +280,9 @@ async function main() {
     }
   } catch (e) {
     const msg = e && e.message ? StringFn(e.message) : StringFn(e);
-    if (msg.indexOf("FORBIDDEN_SIDE_EFFECT:") === 0) {
+    if (stringIndexOf(msg, "FORBIDDEN_SIDE_EFFECT:") === 0) {
       // The message here is the sanitised forbidden path (no attacker text).
-      outcome = { status: "forbidden_side_effect", error: msg.slice(0, 200), sideEffects };
+      outcome = { status: "forbidden_side_effect", error: stringSlice(msg, 0, 200), sideEffects };
     } else {
       // A thrown message is attacker-controlled (\`throw new Error(secret)\`), and so is
       // a custom \`error.name\`; surface only a BUILT-IN error class name (else "Error"),
@@ -274,7 +291,7 @@ async function main() {
         "Error", "TypeError", "RangeError", "ReferenceError",
         "SyntaxError", "EvalError", "URIError", "AggregateError",
       ]);
-      const name = e && typeof e.name === "string" && builtins.has(e.name) ? e.name : "Error";
+      const name = e && typeof e.name === "string" && setHas(builtins, e.name) ? e.name : "Error";
       outcome = {
         status: "threw",
         error: "Handler threw during dry-run (" + name + "; message withheld)",

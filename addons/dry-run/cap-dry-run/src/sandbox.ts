@@ -147,8 +147,10 @@ export function buildSandboxExecProfile(tempDir: string): string {
     '  (literal "/dev/null")',
     '  (literal "/dev/stdout")',
     '  (literal "/dev/stderr")',
-    '  (literal "/dev/dtracehelper")',
-    '  (literal "/dev/tty"))',
+    // No `/dev/tty`: the child runs with stdout/stderr discarded, so it needs no
+    // controlling terminal — denying tty writes removes a terminal-hijack (escape
+    // sequence injection) vector.
+    '  (literal "/dev/dtracehelper"))',
     "",
   ].join("\n");
 }
