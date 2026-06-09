@@ -148,15 +148,16 @@ export function createPermissionMiddleware(
     // A `read` meta target (the onchange route, Spec 64) is authorized by
     // entity-level READ data access — NOT an action grant. Decide it up front and
     // return: the actor may run the onchange computation iff it can read the entity
-    // (`grant.<entity>.data.read` resolves to anything other than "none").
+    // (`grant.<entity>.data.read` resolves to anything other than "none"). Honour a
+    // custom `resolveCapability` here too (mirroring the action path) so a legacy
+    // `permissions[capability][entity]` grant whose capability differs from the
+    // entity name still resolves; default to the entity name (the canonical
+    // `grant[entity]` source is capability-agnostic, so it is unaffected either way).
     if (metaTarget?.kind === "read") {
-      const read = resolveDataAccess(
-        registry,
-        actor,
-        metaTarget.capability,
-        metaTarget.entity,
-        "read",
-      );
+      const readCapability = resolveCapability
+        ? resolveCapability(command, ctx)
+        : metaTarget.capability;
+      const read = resolveDataAccess(registry, actor, readCapability, metaTarget.entity, "read");
       if (read === "none") {
         throw new AuthorizationError({
           code: "authz.action.denied",
@@ -164,7 +165,7 @@ export function createPermissionMiddleware(
           requiredGroups: actor.groups.length > 0 ? undefined : ["(any)"],
           details: {
             action: command,
-            capability: metaTarget.capability,
+            capability: readCapability,
             entity: metaTarget.entity,
           },
         });
