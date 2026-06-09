@@ -300,6 +300,18 @@
         "@linchkit/core": "workspace:*",
       },
     },
+    "addons/dry-run/cap-dry-run": {
+      "name": "@linchkit/cap-dry-run",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@linchkit/core": "workspace:*",
+        "@linchkit/devtools": "workspace:*",
+        "typescript": "^6.0.2",
+      },
+      "peerDependencies": {
+        "@linchkit/core": "^0.2.0",
+      },
+    },
     "addons/file-storage/cap-file-storage": {
       "name": "@linchkit/cap-file-storage",
       "version": "0.0.1",
@@ -921,6 +933,8 @@
     "@linchkit/cap-chatter": ["@linchkit/cap-chatter@workspace:addons/chatter/cap-chatter"],
 
     "@linchkit/cap-chatter-ui": ["@linchkit/cap-chatter-ui@workspace:addons/chatter/cap-chatter-ui"],
+
+    "@linchkit/cap-dry-run": ["@linchkit/cap-dry-run@workspace:addons/dry-run/cap-dry-run"],
 
     "@linchkit/cap-file-storage": ["@linchkit/cap-file-storage@workspace:addons/file-storage/cap-file-storage"],
 
