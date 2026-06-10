@@ -3,7 +3,10 @@
  *
  * Fetches available transitions from the GraphQL API and displays them
  * as action buttons. Buttons are disabled with tooltip when the actor
- * lacks permission. Clicking an allowed button triggers the transition mutation.
+ * lacks permission. Clicking an allowed button runs the transition's bound
+ * Action (server performs the declarative transition, setFields stamps,
+ * rules/flows); the generic transition mutation is used only when the
+ * transition has no bound action — see lib/transition-dispatch.ts.
  */
 
 import type { StateDefinition, StateMeta } from "@linchkit/core/types";
@@ -19,7 +22,14 @@ import {
 import { ArrowRight, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type AvailableTransition, queryAvailableTransitions, transitionRecord } from "../lib/api";
+import {
+  type AvailableTransition,
+  executeAction,
+  queryAvailableTransitions,
+  queryRecord,
+  transitionRecord,
+} from "../lib/api";
+import { executeTransition } from "../lib/transition-dispatch";
 
 interface TransitionButtonsProps {
   entityName: string;
@@ -29,7 +39,9 @@ interface TransitionButtonsProps {
   /** State machine definitions for label resolution */
   states?: StateDefinition[];
   /** Callback after successful transition */
-  onTransitioned?: (updatedRecord: Record<string, unknown>) => void;
+  /** Fresh record after the transition; undefined when the re-query failed
+   * (the transition itself succeeded — fall back to a full refetch). */
+  onTransitioned?: (updatedRecord?: Record<string, unknown>) => void;
 }
 
 export function TransitionButtons({
@@ -85,12 +97,29 @@ export function TransitionButtons({
     return stateValue;
   }
 
-  async function handleTransition(to: string) {
-    setTransitioning(to);
+  async function handleTransition(transition: AvailableTransition) {
+    setTransitioning(transition.to);
     try {
-      const updated = await transitionRecord(entityName, recordId, to, recordFields);
+      // Dispatch through the bound Action when present (declarative
+      // stateTransition + setFields + rules/flows happen server-side);
+      // raw transition mutation only when no action is bound.
+      const outcome = await executeTransition({
+        entityName,
+        recordId,
+        to: transition.to,
+        boundAction: transition.action || undefined,
+        recordFields,
+        api: { executeAction, transitionRecord, queryRecord },
+      });
+      if (outcome.kind === "failed") {
+        toast.error(outcome.message ?? t("toast.transitionFailed", "Status change failed"));
+        return;
+      }
       toast.success(t("toast.transitionSuccess", "Status changed successfully"));
-      onTransitioned?.(updated as Record<string, unknown>);
+      // updated: null → bound-action re-query failed, but the transition
+      // itself succeeded server-side — notify the parent without a record
+      // so it can fall back to a full refetch instead of going stale.
+      onTransitioned?.(outcome.updated ?? undefined);
       // Refresh available transitions after successful transition
       await fetchTransitions();
     } catch (_err) {
@@ -113,7 +142,7 @@ export function TransitionButtons({
               size="sm"
               variant="outline"
               disabled={isDisabled}
-              onClick={() => handleTransition(tr.to)}
+              onClick={() => handleTransition(tr)}
             >
               {transitioning === tr.to ? (
                 <Loader2 className="mr-1.5 size-3.5 animate-spin" />

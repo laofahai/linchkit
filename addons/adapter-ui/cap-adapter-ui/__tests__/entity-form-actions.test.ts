@@ -14,10 +14,11 @@
  * action-proposal-card.test.ts), so `executeHeaderAction` is exercised through
  * its injected `HeaderActionApi` (same injection style as
  * field-lock-bypass.test.ts). The raw `transitionRecord` client (still the
- * path for transitions invoked WITHOUT a bound action — transition pills,
- * kanban drags) is unchanged by this fix and deliberately NOT covered here:
- * a `globalThis.fetch` swap passes in isolation but breaks under the batched
- * CI run (known skew — inject dependencies instead of mocking globals).
+ * path for transitions invoked WITHOUT a bound action) is unchanged by this
+ * fix and deliberately NOT covered here: a `globalThis.fetch` swap passes in
+ * isolation but breaks under the batched CI run (known skew — inject
+ * dependencies instead of mocking globals). Transition pills and kanban
+ * drags dispatch through the same pattern — see transition-dispatch.test.ts.
  */
 
 import { describe, expect, test } from "bun:test";

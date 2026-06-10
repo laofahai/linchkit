@@ -499,6 +499,10 @@ export async function wireDevEngines(input: WireDevEnginesInput): Promise<WireDe
     flows: flowRegistry,
     handlers: eventHandlerRegistry,
     interfaces: interfaceRegistry,
+    // Raw relation definitions feed the dependency graph / impact analysis
+    // (Spec 67); `links` above only serves relation lookups. Mirrors the
+    // dev-server path (cap-adapter-server/src/dev-app.ts).
+    relationDefs: links,
   });
   consoleLogger.info(`OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
 
