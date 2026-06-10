@@ -11,8 +11,10 @@
  *   breaking — simultaneous incompatible changes; cannot blue-green deploy
  */
 
-import { readdir, readFile } from "node:fs/promises";
-import { join, posix as posixPath, win32 as win32Path } from "node:path";
+// NO top-level node:fs / node:path imports: this module is re-exported by the
+// browser-safe client barrel (exports/client/migration.ts) for its pure SQL
+// analysis, so Node built-ins are loaded lazily inside the two filesystem
+// entry points (checkReleaseCompatibility / analyzeFile) instead.
 import { splitStatements } from "./sql-splitter";
 
 export { splitStatements } from "./sql-splitter";
@@ -25,7 +27,11 @@ export { splitStatements } from "./sql-splitter";
  * Exported for unit tests.
  */
 export function crossPlatformBasename(filePath: string): string {
-  return filePath.includes("\\") ? win32Path.basename(filePath) : posixPath.basename(filePath);
+  // Pure string implementation (no node:path — see module doc): the last
+  // segment after either separator. Migration filenames never contain a
+  // literal backslash, so treating both separators uniformly is safe.
+  const idx = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+  return idx === -1 ? filePath : filePath.slice(idx + 1);
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -334,6 +340,8 @@ export function analyzeMigrationSql(sql: string, fileName = "<inline>"): Migrati
 export async function checkReleaseCompatibility(
   migrationsDir: string,
 ): Promise<ReleaseCompatibilityResult> {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
   let files: string[];
   try {
     const entries = await readdir(migrationsDir);
@@ -363,6 +371,7 @@ export async function checkReleaseCompatibility(
 
 /** Analyze a specific migration file by path. */
 export async function analyzeFile(filePath: string): Promise<MigrationAnalysis> {
+  const { readFile } = await import("node:fs/promises");
   const sql = await readFile(filePath, "utf-8");
   const name = crossPlatformBasename(filePath);
   return analyzeMigrationSql(sql, name);
