@@ -154,11 +154,27 @@ export async function queryRecord<T = Record<string, unknown>>(
 
 // ── Mutations ───────────────────────────────────────────
 
-function toPascalCase(name: string): string {
-  return name
+/** Regex for valid GraphQL names */
+const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
+
+/**
+ * Convert a snake_case/kebab-case entity name to PascalCase for GraphQL names.
+ *
+ * CONSUMER side of the GraphQL naming contract: the server generates type,
+ * mutation, and subscription field names (e.g. `on{Pascal}Created`) with its
+ * own identical helper — addons/adapter-server/cap-adapter-server/src/graphql/naming.ts.
+ * The UI must not import server code (module boundary), so this copy must
+ * stay behaviorally identical: "purchase_request" → "PurchaseRequest".
+ * Pinned by __tests__/subscription-naming.test.ts here and
+ * __tests__/graphql-naming.test.ts on the server.
+ */
+export function toPascalCase(name: string): string {
+  const raw = name
     .split(/[_-]/)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("");
+  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
+  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
 }
 
 /**

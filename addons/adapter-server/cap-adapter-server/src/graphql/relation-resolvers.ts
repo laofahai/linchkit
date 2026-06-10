@@ -30,6 +30,7 @@ import {
   GraphQLString,
 } from "graphql";
 import { cardinalityHandlers } from "./cardinality-handlers";
+import { toCamelCase, toPascalCase } from "./naming";
 import type { RelationDataLoaders } from "./relation-dataloader";
 
 // ── Types ──────────────────────────────────────────────────
@@ -142,23 +143,9 @@ export async function fetchByFK(
 
 // ── Naming helpers ────────────────────────────────────────
 
-const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
-
-/** Convert a snake_case name to PascalCase for GraphQL type names */
-export function toPascalCase(name: string): string {
-  const raw = name
-    .split(/[_-]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
-  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
-}
-
-/** Convert a snake_case name to camelCase for GraphQL field names */
-export function toCamelCase(name: string): string {
-  const pascal = toPascalCase(name);
-  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
-}
+// Re-exported for backwards compatibility — the canonical definitions live
+// in ./naming (single source of truth across the graphql/ modules).
+export { toCamelCase, toPascalCase } from "./naming";
 
 // ── Edge type helpers for M:N with properties ──────────────
 

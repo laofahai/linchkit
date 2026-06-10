@@ -33,6 +33,7 @@ import {
   type GraphQLOutputType,
   GraphQLString,
 } from "graphql";
+import { joinPascal, toPascalCase as toPascalCaseBase } from "./naming";
 import type { RelationResolverContext } from "./relation-resolvers";
 import { buildRelationFields } from "./relation-resolvers";
 
@@ -206,27 +207,16 @@ export function setGraphQLLogger(logger: Logger): void {
   moduleLogger = logger;
 }
 
-/** Regex for valid GraphQL names */
-const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
-
 /**
  * Convert a schema name to PascalCase for GraphQL type naming.
- * Strips illegal characters and validates the result.
+ * Delegates to the shared helper in ./naming and additionally warns when
+ * GraphQL-name sanitization altered the raw PascalCase join.
  * e.g. "order_item" → "OrderItem"
  */
 function toPascalCase(name: string): string {
-  const raw = name
-    .split(/[_-]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
+  const result = toPascalCaseBase(name);
 
-  // Strip characters not allowed in GraphQL names
-  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
-
-  // Ensure name starts with a letter or underscore
-  const result = GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
-
-  if (result !== raw) {
+  if (result !== joinPascal(name)) {
     moduleLogger.warn(
       `[schema-to-graphql] Name "${name}" sanitized to "${result}" for GraphQL compatibility`,
     );

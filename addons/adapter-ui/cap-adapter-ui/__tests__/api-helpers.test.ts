@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { toPascalCase } from "../src/lib/api";
 
 // We test the pure utility functions from api.ts.
-// toCamelCase and toPascalCase are not exported, so we test them indirectly
-// or extract/re-implement the logic for testing.
+// toPascalCase is exported and tested directly; toCamelCase is not exported,
+// so we re-implement its logic for testing.
 // isAuthEnabled and isAiEnabled depend on cachedAppConfig (module state).
 
-// Re-implement the pure functions to test their logic directly
-// (since they are not exported from the module)
 function toCamelCase(name: string): string {
   const parts = name.split(/[_-]/);
   return (
@@ -16,13 +15,6 @@ function toCamelCase(name: string): string {
       .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
       .join("")
   );
-}
-
-function toPascalCase(name: string): string {
-  return name
-    .split(/[_-]/)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join("");
 }
 
 describe("toCamelCase", () => {
