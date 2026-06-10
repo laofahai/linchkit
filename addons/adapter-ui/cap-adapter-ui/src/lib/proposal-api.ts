@@ -18,6 +18,32 @@ function getAuthHeaders(): Record<string, string> {
 
 // ── Types ─────────────────────────────────────────────────
 
+/**
+ * A side-effecting operation the handler ATTEMPTED inside the dry-run sandbox
+ * (recorded, never performed). UI-local mirror of the core `AttemptedSideEffect`
+ * type — kept here so the UI never imports the server/core runtime.
+ */
+export interface AttemptedSideEffect {
+  kind: "db_write" | "db_read" | "network" | "fs" | "env" | "unknown";
+  detail: string;
+}
+
+/**
+ * Outcome of running ONE generated change against ONE input case in the sandbox
+ * (Spec 70 P3/P4). UI-local mirror of core `DryRunOutcome`.
+ */
+export interface DryRunOutcome {
+  changeName: string;
+  target: string;
+  status: string;
+  durationMs?: number;
+  peakMemoryBytes?: number;
+  attemptedSideEffects?: AttemptedSideEffect[];
+  error?: string;
+  logs?: string;
+  inputCaseId?: string;
+}
+
 export interface ProposalChange {
   target: string;
   operation: string;
@@ -38,6 +64,14 @@ export interface ProposalChange {
   materializationStatus?: "materialized" | "failed";
   /** Build/syntax-gate errors from the final failed attempt (only when status==="failed"). */
   materializationErrors?: string[];
+  /**
+   * Durable worst-case dry-run status for this change (Spec 70 P3/P4). Set by the
+   * materialize path when an `ExecutionDryRunProvider` is wired in. Undefined when
+   * the dry-run feature is off or the change was never materialized.
+   */
+  dryRunStatus?: string;
+  /** Per-input-case dry-run outcomes behind the aggregate `dryRunStatus`. */
+  dryRunOutcomes?: DryRunOutcome[];
 }
 
 export interface ProposalImpact {

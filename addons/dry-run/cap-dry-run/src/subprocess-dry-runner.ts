@@ -24,7 +24,12 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
-import type { DryRunOutcome, DryRunStatus, ExecutionDryRunProvider } from "@linchkit/core";
+import type {
+  AttemptedSideEffect,
+  DryRunOutcome,
+  DryRunStatus,
+  ExecutionDryRunProvider,
+} from "@linchkit/core";
 import {
   PRELOAD_FILENAME,
   PRELOAD_SOURCE,
@@ -143,6 +148,24 @@ function resolveBunPath(provided: string | undefined, env: SandboxEnv): string {
   if (!provided) return process.execPath;
   if (isAbsolute(provided)) return provided;
   return env.which(provided) ?? process.execPath;
+}
+
+/** LinchKit ActionContext methods that write to the data store. */
+const CTX_DB_WRITE_OPS = new Set(["ctx.create", "ctx.update", "ctx.delete"]);
+/** LinchKit ActionContext methods that read from the data store. */
+const CTX_DB_READ_OPS = new Set(["ctx.get", "ctx.query"]);
+
+/**
+ * Infer the `AttemptedSideEffect.kind` from the recorded detail string. The child
+ * harness emits details like `"ctx.create.<redacted>()"` or `"ctx.query(...)"` —
+ * a regex captures the `ctx.<method>` prefix regardless of what follows.
+ */
+function inferSideEffectKind(detail: string): AttemptedSideEffect["kind"] {
+  const prefix = detail.match(/^(ctx\.[a-zA-Z0-9_$]+)/)?.[1];
+  if (!prefix) return "unknown";
+  if (CTX_DB_WRITE_OPS.has(prefix)) return "db_write";
+  if (CTX_DB_READ_OPS.has(prefix)) return "db_read";
+  return "unknown";
 }
 
 /**
@@ -379,10 +402,10 @@ export function createSubprocessDryRunner(
         const attempted = Array.isArray(childOutcome.sideEffects)
           ? (childOutcome.sideEffects as Array<{ kind?: string; detail?: string }>)
               .filter((e) => e && typeof e.detail === "string")
-              .map((e) => ({
-                kind: "unknown" as const,
-                detail: String(e.detail).slice(0, 200),
-              }))
+              .map((e) => {
+                const detail = String(e.detail).slice(0, 200);
+                return { kind: inferSideEffectKind(detail), detail };
+              })
           : undefined;
 
         return {

@@ -427,11 +427,22 @@ describe(`createSubprocessDryRunner — real sandboxed execution (${HAS_SANDBOX 
         job(sourceFor('await ctx.create("order", {}); return { ok: true };')),
       );
       expect(outcome.status).toBe("forbidden_side_effect");
-      expect(
-        (outcome.attemptedSideEffects ?? []).some((e) => e.detail.includes("ctx.create")),
-      ).toBe(true);
+      const effects = outcome.attemptedSideEffects ?? [];
+      expect(effects.some((e) => e.detail.includes("ctx.create"))).toBe(true);
+      // P4 kind inference: ctx.create → db_write (Spec 70 P4).
+      expect(effects.find((e) => e.detail.includes("ctx.create"))?.kind).toBe("db_write");
     },
   );
+
+  itReal("ctx.query → db_read kind (P4 kind inference)", async () => {
+    const runner = createSubprocessDryRunner();
+    const outcome = await runner.dryRun(
+      job(sourceFor('await ctx.query("order", {}); return { ok: true };')),
+    );
+    expect(outcome.status).toBe("forbidden_side_effect");
+    const effects = outcome.attemptedSideEffects ?? [];
+    expect(effects.find((e) => e.detail.includes("ctx.query"))?.kind).toBe("db_read");
+  });
 
   itReal(
     "a handler that SWALLOWS a forbidden side-effect error still → forbidden_side_effect",

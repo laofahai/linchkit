@@ -88,6 +88,19 @@ export function selectFailedMaterializationChanges<
 }
 
 /**
+ * Changes that have a recorded dry-run result worth surfacing to the reviewer
+ * (Spec 70 P4). Returns changes whose `dryRunStatus` is present and is NOT
+ * `"skipped"` — i.e. the sandbox actually ran (or tried) and produced a signal.
+ * "skipped" means no runner was configured or the change was not materializable —
+ * nothing for the reviewer to act on.
+ */
+export function selectDryRunChanges<T extends { dryRunStatus?: string }>(
+  changes: readonly T[],
+): T[] {
+  return changes.filter((c) => typeof c.dryRunStatus === "string" && c.dryRunStatus !== "skipped");
+}
+
+/**
  * Shape the materialize-request scope for a single change-name retry. Returns the
  * `{ changeNames }` option object that scopes `materializeProposal` to JUST this
  * change, so re-generating one failed change never regenerates the good ones.

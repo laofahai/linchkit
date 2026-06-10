@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { DryRunOutcomesPanel } from "@/components/dry-run-outcomes";
 import { FailedMaterializationChanges } from "@/components/proposal-failed-changes";
 import { ProposalImpactPreview } from "@/components/proposal-impact-preview";
 import { GraduateOutcome, MaterializeOutcome } from "@/components/proposal-review-outcomes";
@@ -56,6 +57,7 @@ import {
   isPending,
   PROPOSAL_STATUS_FILTERS,
   type ProposalStatusFilter,
+  selectDryRunChanges,
   selectFailedMaterializationChanges,
   selectSourcedChanges,
   statusBadgeClass,
@@ -190,6 +192,7 @@ function ProposalCard({
     (mat?.kind === "ok" && mat.proposal ? mat.proposal.changes : proposal.changes) ?? [];
   const sourcedChanges = selectSourcedChanges(renderedChanges);
   const failedChanges = selectFailedMaterializationChanges(renderedChanges);
+  const dryRunChanges = selectDryRunChanges(renderedChanges);
 
   return (
     <Card data-testid="proposal-card">
@@ -382,6 +385,16 @@ function ProposalCard({
           // all retry buttons while any card action is in flight (`busy`).
           onRetryChange={isDraft ? handleRetryChange : undefined}
           retryingChange={retryingChange}
+          disabled={busy}
+        />
+
+        {/* Durable dry-run signal (Spec 70 P4): sandbox outcomes for materializable changes. */}
+        <DryRunOutcomesPanel
+          changes={dryRunChanges}
+          t={t}
+          // Re-run scopes a fresh materialize (re-gen + re-dry-run) to the one change.
+          onRerunChange={isDraft ? handleRetryChange : undefined}
+          rerunningChange={retryingChange}
           disabled={busy}
         />
 
