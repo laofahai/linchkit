@@ -349,6 +349,32 @@ describe("toAgUiMessages", () => {
     ];
     expect(toAgUiMessages(messages)).toEqual([]);
   });
+
+  test("skips input-available frontend tool calls (no result ever arrives)", () => {
+    // `input-available` is terminal for execute-less frontend tools. Sending
+    // the call without a tool-result message is an invalid conversation for
+    // strict providers, so it must not enter the history.
+    const messages: UIMessage[] = [
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Opening the form." },
+          {
+            type: "tool-openForm",
+            toolCallId: "tc1",
+            state: "input-available",
+            input: { entity: "order" },
+          },
+        ],
+      },
+      { id: "u2", role: "user", parts: [{ type: "text", text: "thanks" }] },
+    ];
+    expect(toAgUiMessages(messages)).toEqual([
+      { id: "a1", role: "assistant", content: "Opening the form." },
+      { id: "u2", role: "user", content: "thanks" },
+    ]);
+  });
 });
 
 // ── Transport end-to-end (DI seam) ──────────────────────────

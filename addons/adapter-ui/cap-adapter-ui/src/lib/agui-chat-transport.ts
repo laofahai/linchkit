@@ -126,12 +126,13 @@ export function toAgUiMessages(messages: UIMessage[]): AgUiMessage[] {
     const toolResults: Extract<AgUiMessage, { role: "tool" }>[] = [];
     for (const part of message.parts ?? []) {
       if (!isToolUIPart(part)) continue;
-      // Only invocations whose input is final belong in the history.
-      if (
-        part.state !== "input-available" &&
-        part.state !== "output-available" &&
-        part.state !== "output-error"
-      ) {
+      // Only invocations whose input is final AND whose result has been
+      // received belong in the history. `input-available` is the terminal
+      // state for execute-less frontend tools (no result is ever fed back),
+      // so treat it like the still-streaming states and skip it — a tool
+      // call without a following tool-result message is an invalid
+      // conversation for strict LLM providers (OpenAI, Anthropic).
+      if (part.state !== "output-available" && part.state !== "output-error") {
         continue;
       }
       toolCalls.push({
