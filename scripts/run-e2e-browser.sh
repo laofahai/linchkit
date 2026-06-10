@@ -36,6 +36,7 @@ kill_tree() {
 }
 
 cleanup() {
+  local exit_code=$?
   local pid
   for pid in "${started_pids[@]:-}"; do
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
@@ -43,6 +44,14 @@ cleanup() {
       kill_tree "$pid"
     fi
   done
+  # Remove the temp log dir on success; keep it for diagnosis on failure.
+  if [ -d "$LOG_DIR" ]; then
+    if [ "$exit_code" -eq 0 ]; then
+      rm -rf "$LOG_DIR"
+    else
+      echo "[e2e] server logs kept at $LOG_DIR (exit $exit_code)"
+    fi
+  fi
 }
 trap cleanup EXIT
 

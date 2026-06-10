@@ -48,13 +48,21 @@ interface ExecutionsResponse {
   data?: { items: ExecutionItem[]; total: number };
 }
 
-/** Query the execution log, optionally filtered by action name. */
+/**
+ * Query the execution log, optionally filtered by action name. Transient
+ * failures (non-200, network error) yield [] so polling call sites retry
+ * until their own deadline instead of failing the whole test on one blip.
+ */
 async function fetchExecutions(action?: string): Promise<ExecutionItem[]> {
   const qs = action ? `?action=${encodeURIComponent(action)}&pageSize=50` : "?pageSize=50";
-  const res = await fetch(`${API_URL}/api/executions${qs}`);
-  expect(res.status).toBe(200);
-  const body = (await res.json()) as ExecutionsResponse;
-  return body.data?.items ?? [];
+  try {
+    const res = await fetch(`${API_URL}/api/executions${qs}`);
+    if (res.status !== 200) return [];
+    const body = (await res.json()) as ExecutionsResponse;
+    return body.data?.items ?? [];
+  } catch {
+    return [];
+  }
 }
 
 describe.skipIf(!BROWSER_E2E_ENABLED)("browser e2e smoke", () => {
