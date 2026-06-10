@@ -56,6 +56,7 @@ import { mountProposalGraduateAPI } from "./proposal-graduate-api";
 import { mountProposalMaterializeAPI } from "./proposal-materialize-api";
 import { mountActionRoutes } from "./routes/action-api";
 import { mountAdminRoutes } from "./routes/admin-api";
+import { mountAgUiRoutes } from "./routes/agui-api";
 import { mountAIRoutes } from "./routes/ai-api";
 import { mountAIByokRoutes } from "./routes/ai-byok";
 import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
@@ -416,6 +417,10 @@ export function createServer(
   mountConfigRoutes(app, opts);
   mountConfigStoreRoutes(app, opts);
   mountAIRoutes(app, opts);
+  // AG-UI protocol run endpoint (#89) — only mounts when cap-adapter-ag-ui
+  // is registered in the capability list. Bridges the same assistant brain
+  // as POST /api/ai/chat onto official AG-UI events over SSE.
+  mountAgUiRoutes(app, opts);
   // Spec 36 M2+ BYOK + usage endpoints (per-tenant key store + meter).
   // Mounted alongside the other AI routes; no-ops when the store /
   // meter are not configured (returns 503 with a structured envelope).

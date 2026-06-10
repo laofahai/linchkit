@@ -33,12 +33,42 @@ import {
   type TextInputContent,
 } from "./protocol";
 
+/** Emit callback handed to a custom agent runner. Drops events after disconnect. */
+export type AgUiEmit = (event: AGUIEvent) => void;
+
+/**
+ * Custom agent runner seam.
+ *
+ * A host server (e.g. cap-adapter-server) injects a runner that executes the
+ * FULL assistant semantics — ontology-aware system prompt, server-side tools,
+ * multi-step agent loop — and emits AG-UI protocol events as it goes. The
+ * endpoint still owns input validation, the RUN_STARTED / RUN_FINISHED frame,
+ * and RUN_ERROR mapping: a runner only emits the events *between* those.
+ * Throwing aborts the run and surfaces as RUN_ERROR.
+ */
+export type AgUiAgentRunner = (options: {
+  /** Validated RunAgentInput (full message history, tools, context). */
+  input: RunAgentInput;
+  /** Emit one protocol event (TEXT_MESSAGE_*, TOOL_CALL_*, ...). */
+  emit: AgUiEmit;
+  /** Aborts when the client disconnects — stop consuming the model. */
+  signal?: AbortSignal;
+  /** Raw HTTP request — for actor / tenant / locale resolution. */
+  request?: Request;
+}) => Promise<void>;
+
 /** Injected dependencies for the AG-UI run endpoint (test seam). */
 export interface AgUiRunDeps {
   /** Same seam as cap-adapter-server's ai-api.ts (`options.aiService`). */
   aiService?: AIService;
   /** Base path the run endpoint is mounted under. @default "/api/agui" */
   basePath?: string;
+  /**
+   * Optional full-assistant runner. When provided it replaces the default
+   * AIService bridge for event production (the availability gate still reads
+   * `aiService.configured` so the 503 contract matches `/api/ai/chat`).
+   */
+  runner?: AgUiAgentRunner;
 }
 
 /** Default base path for the AG-UI HTTP endpoints. */
@@ -122,11 +152,14 @@ export function toAiTools(tools: RunAgentInput["tools"]): AITool[] {
  * frontend tools were requested; otherwise falls back to `aiService.complete`
  * and re-frames the result (text + tool calls) as protocol events.
  */
-function createRunEventStream(
-  aiService: AIService,
-  input: RunAgentInput,
-  signal?: AbortSignal,
-): ReadableStream {
+function createRunEventStream(options: {
+  aiService: AIService;
+  input: RunAgentInput;
+  signal?: AbortSignal;
+  runner?: AgUiAgentRunner;
+  request?: Request;
+}): ReadableStream {
+  const { aiService, input, signal, runner, request } = options;
   const encoder = new TextEncoder();
 
   return new ReadableStream({
@@ -162,6 +195,14 @@ function createRunEventStream(
       emit({ type: EventType.RUN_STARTED, threadId: input.threadId, runId: input.runId });
 
       try {
+        if (runner) {
+          // Host-injected full-assistant runner (system prompt + server-side
+          // tools + multi-step). The endpoint keeps the RUN_* frame.
+          await runner({ input, emit, signal, request });
+          emit({ type: EventType.RUN_FINISHED, threadId: input.threadId, runId: input.runId });
+          return;
+        }
+
         const messages = toAiMessages(input);
         const tools = toAiTools(input.tools);
 
@@ -223,16 +264,35 @@ function createRunEventStream(
 }
 
 /**
- * Mount the AG-UI run route on an existing Elysia app.
- *
- * Reads the request body from the destructured context `body` (never
- * `request.json()` — the stream is already consumed by Elysia).
+ * Structural slice of the Elysia handler context the run handler needs.
+ * Declared structurally so a host server can forward its own Elysia context
+ * without this package appearing in its compile-time route types.
  */
-export function mountAgUiRunRoute(app: Elysia, deps: AgUiRunDeps): Elysia {
-  const basePath = deps.basePath ?? DEFAULT_AG_UI_BASE_PATH;
+export interface AgUiRunHandlerContext {
+  /** Parsed request body (Elysia context `body` — never `request.json()`). */
+  body: unknown;
+  /** Elysia response mutator (`set.status`, `set.headers`). */
+  set: { status?: number | string; headers: Record<string, unknown> };
+  /** Raw request — `request.signal` propagates client disconnects. */
+  request: Request;
+}
+
+/** The AG-UI run route handler produced by {@link createAgUiRunHandler}. */
+export type AgUiRunHandler = (
+  ctx: AgUiRunHandlerContext,
+) => Response | { success: false; error: { message: string } };
+
+/**
+ * Build the AG-UI run handler (validation → availability → SSE stream).
+ *
+ * Exported separately from {@link mountAgUiRunRoute} so host servers (e.g.
+ * cap-adapter-server) can mount the route on their own app under their own
+ * path while reusing the exact endpoint contract.
+ */
+export function createAgUiRunHandler(deps: AgUiRunDeps): AgUiRunHandler {
   const aiService = deps.aiService;
 
-  app.post(`${basePath}/run`, ({ body, set, request }) => {
+  return ({ body, set, request }) => {
     // Validate input first (mirrors ai-api.ts ordering), then availability.
     // RunAgentInputSchema is the official zod-3 schema from @ag-ui/core —
     // used as-is (its own .safeParse), never composed with local zod-4.
@@ -254,14 +314,36 @@ export function mountAgUiRunRoute(app: Elysia, deps: AgUiRunDeps): Elysia {
     }
 
     // request.signal propagates client disconnects into the event stream.
-    return new Response(createRunEventStream(aiService, parsed.data, request.signal), {
-      headers: {
-        "content-type": "text/event-stream",
-        "cache-control": "no-cache",
-        connection: "keep-alive",
+    return new Response(
+      createRunEventStream({
+        aiService,
+        input: parsed.data,
+        signal: request.signal,
+        runner: deps.runner,
+        request,
+      }),
+      {
+        headers: {
+          "content-type": "text/event-stream",
+          "cache-control": "no-cache",
+          connection: "keep-alive",
+        },
       },
-    });
-  });
+    );
+  };
+}
+
+/**
+ * Mount the AG-UI run route on an existing Elysia app.
+ *
+ * Reads the request body from the destructured context `body` (never
+ * `request.json()` — the stream is already consumed by Elysia).
+ */
+export function mountAgUiRunRoute(app: Elysia, deps: AgUiRunDeps): Elysia {
+  const basePath = deps.basePath ?? DEFAULT_AG_UI_BASE_PATH;
+  const handler = createAgUiRunHandler(deps);
+
+  app.post(`${basePath}/run`, ({ body, set, request }) => handler({ body, set, request }));
 
   return app;
 }

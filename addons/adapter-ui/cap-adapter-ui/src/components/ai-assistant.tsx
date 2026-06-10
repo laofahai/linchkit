@@ -35,18 +35,11 @@ import {
   toast,
 } from "@linchkit/ui-kit/components";
 import { useParams } from "@tanstack/react-router";
-import type { UIMessage, UIMessagePart } from "ai";
-import { DefaultChatTransport, getToolName, isToolUIPart } from "ai";
-import {
-  BotIcon,
-  ExternalLinkIcon,
-  Loader2Icon,
-  SendIcon,
-  SparklesIcon,
-  Trash2Icon,
-} from "lucide-react";
+import type { UIMessage } from "ai";
+import { BotIcon, Loader2Icon, SendIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AgUiChatTransport } from "../lib/agui-chat-transport";
 import {
   type ActionResult,
   type IntentResolution,
@@ -55,6 +48,7 @@ import {
   resolveIntent,
 } from "../lib/api";
 import { ActionProposalCard } from "./action-proposal-card";
+import { MessageBubble } from "./ai-message-bubble";
 
 // ── Proposal state ───────────────────────────────────────
 
@@ -132,17 +126,17 @@ export function AIAssistant({
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
   const [isResolvingIntent, setIsResolvingIntent] = useState(false);
 
-  // Create transport with context-aware body (schema + record info + locale sent with each request)
+  // AG-UI transport (#89) — same assistant brain as /api/ai/chat, but over
+  // the official AG-UI protocol via @ag-ui/client. Page context (entity +
+  // record + locale) travels as AG-UI context entries with each run.
   const transport = useMemo(
     () =>
-      new DefaultChatTransport({
-        api: "/api/ai/chat",
-        body: () => ({
-          context: {
-            schema: params.name,
-            recordId: params.id,
-            locale: i18n.language,
-          },
+      new AgUiChatTransport({
+        api: "/api/agui/run",
+        context: () => ({
+          entity: params.name,
+          recordId: params.id,
+          locale: i18n.language,
         }),
       }),
     [params.name, params.id, i18n.language],
@@ -410,96 +404,5 @@ export function AIAssistant({
   );
 }
 
-// ── Message Bubble ────────────────────────────────────────
-
-/**
- * Renders a single message bubble with support for:
- * - Text parts (streamed or complete)
- * - Tool parts (shows tool name + loading indicator or navigation links)
- */
-function MessageBubble({ message }: { message: UIMessage }) {
-  const isUser = message.role === "user";
-
-  return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-        }`}
-      >
-        {message.parts.map((part, index) => {
-          const key = `${message.id}-${index}`;
-          return <MessagePart key={key} part={part} />;
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** Tool display labels for loading indicators */
-const TOOL_LABELS: Record<string, string> = {
-  queryRecords: "Querying records...",
-  getRecord: "Fetching record...",
-  executeAction: "Executing action...",
-  describeSchema: "Loading schema info...",
-  listEntities: "Listing entities...",
-  searchEntities: "Searching entities...",
-};
-
-/**
- * Render a single message part based on its type.
- * AI SDK v6 uses typed parts: text, tool-{name}, dynamic-tool, reasoning, etc.
- */
-// biome-ignore lint/suspicious/noExplicitAny: UIMessagePart generic is complex
-function MessagePart({ part }: { part: UIMessagePart<any, any> }) {
-  // Text parts
-  if (part.type === "text") {
-    return (
-      <p className="whitespace-pre-wrap">
-        {part.text}
-        {part.state === "streaming" && (
-          <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-foreground/50" />
-        )}
-      </p>
-    );
-  }
-
-  // Tool parts (static: tool-{name}, dynamic: dynamic-tool)
-  if (isToolUIPart(part)) {
-    const toolName = getToolName(part);
-    const state = part.state;
-
-    // navigateTo tool with output — render as a clickable link
-    if (toolName === "navigateTo" && state === "input-available") {
-      const input = part.input as { path?: string; label?: string } | undefined;
-      if (input?.path) {
-        return (
-          <a
-            href={input.path}
-            className="mt-1 flex items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
-          >
-            <ExternalLinkIcon className="size-3" />
-            {input.label || input.path}
-          </a>
-        );
-      }
-    }
-
-    // In-progress tool calls — show loading indicator
-    if (state === "input-streaming" || state === "input-available") {
-      return (
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Loader2Icon className="size-3 animate-spin" />
-          <span>{TOOL_LABELS[toolName] ?? `Running ${toolName}...`}</span>
-        </div>
-      );
-    }
-
-    // Tool output/error — the AI will summarize results in its text response,
-    // so we don't render tool outputs inline
-    return null;
-  }
-
-  // Step start, reasoning, source, file parts — skip rendering
-  return null;
-}
+// Message bubble + part rendering live in ai-message-bubble.tsx (extracted
+// to keep this file under the 500-line limit).

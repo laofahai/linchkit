@@ -313,4 +313,57 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("browser e2e smoke", () => {
     },
     TEST_TIMEOUT_MS,
   );
+
+  // ── g. AG-UI run endpoint is mounted on the main server (#89) ──────────
+  // Pins the cap-adapter-ag-ui wiring: the route only exists when the
+  // capability is registered (config/capabilities.ts) AND adapter-server
+  // mounts it (routes/agui-api.ts). The FIRST SSE event must be RUN_STARTED
+  // — it is emitted before any provider call, so this holds even when the
+  // configured AI key cannot complete a run (which would follow as
+  // RUN_ERROR, after the frame this test asserts).
+  test(
+    "POST /api/agui/run streams SSE whose first event is RUN_STARTED",
+    async () => {
+      const res = await fetch(`${API_URL}/api/agui/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: "e2e_thread",
+          runId: "e2e_run",
+          messages: [{ id: "m1", role: "user", content: "Reply with OK only." }],
+          tools: [],
+          context: [],
+        }),
+      });
+      // 404 = route not mounted (capability/wiring gap); 503 = AI not
+      // configured on the dev server. Both are the regressions this pins.
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/event-stream");
+
+      // Read only the first SSE frame, then cancel — no full-run dependency.
+      const reader = res.body?.getReader();
+      expect(reader).toBeDefined();
+      if (!reader) return;
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += new TextDecoder().decode(value);
+        if (buffer.includes("\n\n")) break;
+      }
+      await reader.cancel();
+
+      const firstFrame = buffer.split("\n\n")[0] ?? "";
+      expect(firstFrame.startsWith("data: ")).toBe(true);
+      const firstEvent = JSON.parse(firstFrame.slice("data: ".length)) as {
+        type: string;
+        threadId?: string;
+        runId?: string;
+      };
+      expect(firstEvent.type).toBe("RUN_STARTED");
+      expect(firstEvent.threadId).toBe("e2e_thread");
+      expect(firstEvent.runId).toBe("e2e_run");
+    },
+    TEST_TIMEOUT_MS,
+  );
 });
