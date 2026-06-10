@@ -39,7 +39,7 @@ Five-layer evolution model (Sense → Memory → Awareness → Insight → Propo
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
 | [55](./55_evolution_system.md) | Evolution System | Living software: sensors, baselines, importance graph, evidence-chain insights, gradual Proposals. §7.7 G5 code materialization implemented (CodeGenerationProvider + materializeProposalChanges + Phase-2 build gate + Phase-4 contract check + live `POST /api/proposals/:id/materialize`); sensing/cadence still gated | M3–M6+ | Partial |
-| [70](./70_execution_dry_run_sandbox.md) | Execution Dry-Run Sandbox | Run AI-generated handler source in a locked-down sandbox (recommended: hardened Bun subprocess) as an opt-in, infra-gated validation Phase 5 — the deferred execution counterpart to Spec 55 §7.7's static Phase 4. Threat model + tech comparison + phased rollout (P2 seam → P5 hardening) | M6–M7+ | Draft |
+| [70](./70_execution_dry_run_sandbox.md) | Execution Dry-Run Sandbox | Run AI-generated handler source in a locked-down sandbox as an opt-in, infra-gated validation Phase 5 — the execution counterpart to Spec 55 §7.7's static Phase 4. Fully implemented P2–P5: core seam + durable `dryRunStatus` + sync `validatePhase5` (#523), hardened Bun-subprocess runner (#524) wired into materialize (#526), forbidden-op kinds + UI (#529), `strictExecutionDryRun` opt-in block gate (#530), gVisor microVM tier + `prlimit` memory rlimit (#531) | M6–M7+ | Done |
 
 ## Runtime Engines
 
@@ -203,15 +203,16 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 51 |
+| Done | 52 |
 | Partial | 13 |
-| Draft | 9 |
+| Draft | 8 |
 | **Total** | **73** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-06-10 | Spec 70 **COMPLETE — Draft→Done** (Stats: Done 51→52, Draft 9→8). P3 subprocess sandbox runner `@linchkit/cap-dry-run` (#524) wired into the materialize path behind `LINCHKIT_EXECUTION_DRY_RUN=1` (#526); P4 forbidden-op kind inference + `DryRunOutcomesPanel` UI (#529); P5 `features.strictExecutionDryRun` opt-in block gate — never derived from `isProduction` (#530) + gVisor microVM runner tier (`runner: "subprocess" \| "microvm"`, fail-closed, `docker run --runtime=runsc`) + Linux `prlimit --data` OS memory rlimit (#531). microvm tier is argv-verified; validate on a real gVisor host before production reliance. |
 | 2026-06-09 | Spec 70 **P2 landed** + §5/§7 refined to the **durable-signal** architecture: the async dry-run runs in the (already-async) materialize path and stamps a durable `dryRunStatus`; validation **Phase 5 is synchronous** and only reads it (mirrors Phase 4 reading `materializationStatus`), so `validateProposal`/`submitProposal` stay sync. P2 ships core `dry-run.ts` types + `ExecutionDryRunProvider` seam + `ProposalChange.dryRunStatus`/`dryRunOutcomes` + `ValidationPhase`→`1–5` + `validatePhase5`. |
 | 2026-06-09 | Added Spec 70 (Execution Dry-Run Sandbox — Draft) — designs the deferred execution counterpart to Spec 55 §7.7's static Phase 4: run AI-generated handler source in a hardened Bun-subprocess sandbox as an opt-in, infra-gated validation Phase 5. Threat model + sandbox tech comparison + phased rollout. Stats: Total 72→73, Draft +1. |
 | 2026-06-07 | Spec 55 §7.7 代码物化 added — G5 materialization (provider #494, materializer+build-gate #495, live endpoint+UI #496) documented; old §7.7 反馈回路 renumbered to §7.8. |
