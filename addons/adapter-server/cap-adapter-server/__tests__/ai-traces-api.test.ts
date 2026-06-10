@@ -64,6 +64,29 @@ function spyLayer(): { layer: CommandLayer; calls: number } {
   };
 }
 
+/**
+ * Replace the active sink's READ methods with traps that count + throw, so a
+ * denied request that wrongly consulted the sink is provable: queryCalls would
+ * be > 0 AND the response would become 500 (the throw) instead of the asserted
+ * 403. Proves the permission slot gates BEFORE any sink access.
+ */
+function trapSinkQueries(): { queryCalls: number } {
+  const sink = getAITraceSink() as unknown as {
+    queryTraces: (...a: unknown[]) => unknown;
+    queryTracesPersisted?: (...a: unknown[]) => unknown;
+  };
+  const state = { queryCalls: 0 };
+  sink.queryTraces = () => {
+    state.queryCalls += 1;
+    throw new Error("sink.queryTraces must not be reached on a denied request");
+  };
+  sink.queryTracesPersisted = () => {
+    state.queryCalls += 1;
+    throw new Error("sink.queryTracesPersisted must not be reached on a denied request");
+  };
+  return state;
+}
+
 function mountApp(opts: { commandLayer?: CommandLayer }): Elysia {
   const app = new Elysia();
   mountAITracesRoutes(app, { commandLayer: opts.commandLayer } as unknown as ServerOptions);
@@ -179,6 +202,7 @@ describe("GET /api/ai/traces", () => {
 
   test("unauthorized caller → 403 canonical AUTHZ_DENIED; sink NOT consulted", async () => {
     seedTrace({ traceId: "secret" });
+    const trap = trapSinkQueries();
     const spy = spyLayer();
     const app = mountApp({ commandLayer: spy.layer });
 
@@ -191,6 +215,9 @@ describe("GET /api/ai/traces", () => {
     expect(json.data).toBeUndefined();
     // Permission slot ran (and denied) — exactly one dispatch, no second attempt.
     expect(spy.calls).toBe(1);
+    // The sink's read methods were never reached on the denied path (a query
+    // would have counted here AND turned the 403 into a 500 via the trap throw).
+    expect(trap.queryCalls).toBe(0);
   });
 
   test("denying layer just blocks (separate denyLayer helper) → 403", async () => {
