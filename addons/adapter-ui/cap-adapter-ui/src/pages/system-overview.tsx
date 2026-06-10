@@ -242,8 +242,11 @@ export function SystemOverviewPage() {
   const [configOpen, setConfigOpen] = useState(false);
 
   // GET /health — refetchInterval replaces the manual setInterval polling.
+  // retry: false restores the pre-migration zero-retry behavior — a health
+  // dashboard should reflect failures immediately, not after a retry cycle.
   const healthQuery = useQuery<HealthResponse | null>({
     queryKey: ["health"],
+    retry: false,
     queryFn: async () => {
       const res = await fetch("/health");
       const data: Record<string, unknown> | null = await res.json().catch(() => null);
