@@ -228,48 +228,105 @@ packages/ (核心基础设施 — 发布到 npm):
 
 addons/ (能力分组 — OCA 模型):
   adapter-server/
-    @linchkit/cap-adapter-server  — Elysia + graphql-yoga + REST + CommandLayer
+    @linchkit/cap-adapter-server     — Elysia + graphql-yoga + REST + CommandLayer
   adapter-ui/
-    @linchkit/cap-adapter-ui      — React 19 + Shadcn + TanStack（官方 UI）
+    @linchkit/cap-adapter-ui         — React 19 + Shadcn + TanStack（官方 UI）
   adapter-mcp/
-    @linchkit/cap-adapter-mcp     — MCP 传输（AI 代理接入）
-    @linchkit/cap-mcp-ui          — MCP UI 组件
-  chatter/
-    @linchkit/cap-chatter         — 时间线：消息、审计日志、GraphQL
-    @linchkit/cap-chatter-ui      — Chatter React UI 面板
-  auth/
-    @linchkit/cap-auth            — 认证（JWT、sessions）
-    @linchkit/cap-auth-better-auth — Auth provider（Better Auth）
-  permission/
-    @linchkit/cap-permission      — 权限引擎（RBAC）
+    @linchkit/cap-adapter-mcp        — MCP 传输（AI 代理接入）
+    @linchkit/cap-mcp-ui             — MCP UI 组件
+  adapter-ag-ui/
+    @linchkit/cap-adapter-ag-ui      — AG-UI 协议适配器（agent↔前端事件流）
+  adapter-a2a/
+    @linchkit/cap-adapter-a2a        — A2A（agent 间）协议适配器
   ai-provider/
-    @linchkit/cap-ai-provider     — AI SDK（Anthropic、OpenAI、自定义）
+    @linchkit/cap-ai-provider        — AI SDK providers（Anthropic、OpenAI、zhipu…）
+  auth/
+    @linchkit/cap-auth               — 认证（JWT、sessions）
+    @linchkit/cap-auth-better-auth   — Auth provider（Better Auth）
+  permission/
+    @linchkit/cap-permission         — 权限引擎（RBAC）
+  chatter/
+    @linchkit/cap-chatter            — 时间线：消息、审计日志、GraphQL
+    @linchkit/cap-chatter-ui         — Chatter React UI 面板
+  audit/
+    @linchkit/cap-audit-ui           — 审计日志 UI
   flow-restate/
-    @linchkit/cap-flow-restate    — Restate 持久化执行
+    @linchkit/cap-flow-restate       — Restate 持久化执行
+  dry-run/
+    @linchkit/cap-dry-run            — 沙箱化执行 dry-run 运行器
+  lock/
+    @linchkit/cap-lock               — 能力/字段锁策略（Spec 63）
   migration/
-    @linchkit/cap-migration       — 数据库迁移工具
+    @linchkit/cap-migration          — 数据库迁移工具
+  notification/
+    @linchkit/cap-notification       — 通知投递
+  search/
+    @linchkit/cap-search             — 全文检索
+    @linchkit/cap-search-ui          — 检索 UI
+  file-storage/
+    @linchkit/cap-file-storage       — 文件存储
+  cache-redis/
+    @linchkit/cap-cache-redis        — Redis 缓存 provider
+  vector/
+    @linchkit/cap-vector-pgvector    — pgvector 向量存储
+  observability/
+    @linchkit/cap-observability-otel — OpenTelemetry 链路/指标
+  theme/
+    @linchkit/cap-theme              — 主题
+  keyboard-shortcuts/
+    @linchkit/cap-keyboard-shortcuts — 键盘快捷键
+  view-kanban/
+    @linchkit/cap-view-kanban        — 看板视图
+  view-calendar/
+    @linchkit/cap-view-calendar      — 日历视图
+  view-timeline/
+    @linchkit/cap-view-timeline      — 时间线视图
   demo/
-    @linchkit/cap-purchase-demo   — 演示：采购管理场景
+    @linchkit/cap-life-demo          — 生命系统（Spec 55）演示
+    @linchkit/cap-purchase-demo      — 采购管理演示（私有）
 ```
 
 ---
 
 ## 能力目录
 
-通过 `linch install` 安装官方能力：
+本仓库中的能力（已发布的可通过 `linch install` 安装；demo 及若干进行中的能力为 `private`、尚未发布到 npm — 见 [VERSIONING.md](VERSIONING.md)）：
+
+类型 + 分类是各能力在 `capability.json` / `package.json#linchkit` 中声明的 OCA 值。
 
 | 能力 | 类型 | 分类 | 说明 |
 |------|------|------|------|
-| `@linchkit/cap-adapter-server` | adapter | transport | HTTP/GraphQL 服务端（Elysia + graphql-yoga） |
-| `@linchkit/cap-adapter-ui` | adapter | transport | 官方 React UI（Shadcn + TanStack） |
-| `@linchkit/cap-adapter-mcp` | adapter | transport | MCP 传输（AI 代理接入） |
-| `@linchkit/cap-auth` | standard | auth | 认证（JWT、sessions） |
-| `@linchkit/cap-auth-better-auth` | standard | auth | Auth provider（Better Auth） |
-| `@linchkit/cap-permission` | standard | auth | 权限引擎（RBAC） |
-| `@linchkit/cap-chatter` | standard | collaboration | 时间线：消息、审计日志 |
-| `@linchkit/cap-ai-provider` | standard | ai | AI SDK（Anthropic、OpenAI） |
-| `@linchkit/cap-flow-restate` | standard | workflow | Restate 持久化执行 |
-| `@linchkit/cap-migration` | standard | infrastructure | 数据库迁移工具 |
+| `@linchkit/cap-adapter-server` | adapter | integration | HTTP/GraphQL 服务端（Elysia + graphql-yoga + REST + CommandLayer） |
+| `@linchkit/cap-adapter-ui` | adapter | integration | 官方 React UI（Shadcn + TanStack） |
+| `@linchkit/cap-adapter-mcp` | adapter | integration | MCP 传输（AI 代理接入） |
+| `@linchkit/cap-mcp-ui` | standard | system | MCP UI 组件 |
+| `@linchkit/cap-adapter-ag-ui` | adapter | integration | AG-UI 协议适配器（agent↔前端事件流） |
+| `@linchkit/cap-adapter-a2a` | adapter | integration | A2A（agent 间）协议适配器 |
+| `@linchkit/cap-ai-provider` | adapter | integration | AI SDK providers（Anthropic、OpenAI、zhipu…） |
+| `@linchkit/cap-auth` | standard | system | 认证（JWT、sessions） |
+| `@linchkit/cap-auth-better-auth` | adapter | system | Auth provider（Better Auth） |
+| `@linchkit/cap-permission` | standard | system | 权限引擎（RBAC） |
+| `@linchkit/cap-chatter` | standard | system | 时间线：消息、审计日志、GraphQL |
+| `@linchkit/cap-chatter-ui` | standard | system | Chatter React UI 面板 |
+| `@linchkit/cap-audit-ui` | standard | system | 审计日志 UI |
+| `@linchkit/cap-flow-restate` | standard | infrastructure | Restate 持久化执行 |
+| `@linchkit/cap-dry-run` | adapter | integration | 沙箱化执行 dry-run 运行器 |
+| `@linchkit/cap-lock` | standard | system | 能力/字段锁策略（Spec 63） |
+| `@linchkit/cap-migration` | standard | system | 数据库迁移工具 |
+| `@linchkit/cap-notification` | standard | system | 通知投递 |
+| `@linchkit/cap-file-storage` | standard | system | 文件存储 |
+| `@linchkit/cap-cache-redis` | standard | system | Redis 缓存 provider |
+| `@linchkit/cap-search` | standard | system | 全文检索 |
+| `@linchkit/cap-search-ui` | standard | system | 检索 UI |
+| `@linchkit/cap-vector-pgvector` | standard | system | pgvector 向量存储 |
+| `@linchkit/cap-observability-otel` | standard | system | OpenTelemetry 链路/指标 |
+| `@linchkit/cap-theme` | standard | system | 主题 |
+| `@linchkit/cap-keyboard-shortcuts` | standard | system | 键盘快捷键 |
+| `@linchkit/cap-view-kanban` | standard | view | 看板视图 |
+| `@linchkit/cap-view-calendar` | standard | view | 日历视图 |
+| `@linchkit/cap-view-timeline` | standard | view | 时间线视图 |
+| `@linchkit/cap-life-demo` | standard | system | 生命系统（Spec 55）演示 |
+| `@linchkit/cap-purchase-demo` | standard | business | 采购管理演示（私有） |
 
 第三方能力可通过 PR 提交到能力注册表。
 

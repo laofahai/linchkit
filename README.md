@@ -228,48 +228,105 @@ packages/ (core infrastructure — published to npm):
 
 addons/ (grouped capabilities — OCA model):
   adapter-server/
-    @linchkit/cap-adapter-server  — Elysia + graphql-yoga + REST + CommandLayer
+    @linchkit/cap-adapter-server     — Elysia + graphql-yoga + REST + CommandLayer
   adapter-ui/
-    @linchkit/cap-adapter-ui      — React 19 + Shadcn + TanStack (official UI)
+    @linchkit/cap-adapter-ui         — React 19 + Shadcn + TanStack (official UI)
   adapter-mcp/
-    @linchkit/cap-adapter-mcp     — MCP transport for AI agents
-    @linchkit/cap-mcp-ui          — MCP UI components
-  chatter/
-    @linchkit/cap-chatter         — Timeline: messages, audit log, GraphQL
-    @linchkit/cap-chatter-ui      — Chatter React UI panel
-  auth/
-    @linchkit/cap-auth            — Authentication (JWT, sessions)
-    @linchkit/cap-auth-better-auth — Auth provider (Better Auth)
-  permission/
-    @linchkit/cap-permission      — Permission engine (RBAC)
+    @linchkit/cap-adapter-mcp        — MCP transport for AI agents
+    @linchkit/cap-mcp-ui             — MCP UI components
+  adapter-ag-ui/
+    @linchkit/cap-adapter-ag-ui      — AG-UI protocol adapter (agent↔frontend stream)
+  adapter-a2a/
+    @linchkit/cap-adapter-a2a        — A2A (agent-to-agent) protocol adapter
   ai-provider/
-    @linchkit/cap-ai-provider     — AI SDK (Anthropic, OpenAI, custom)
+    @linchkit/cap-ai-provider        — AI SDK providers (Anthropic, OpenAI, zhipu, …)
+  auth/
+    @linchkit/cap-auth               — Authentication (JWT, sessions)
+    @linchkit/cap-auth-better-auth   — Auth provider (Better Auth)
+  permission/
+    @linchkit/cap-permission         — Permission engine (RBAC)
+  chatter/
+    @linchkit/cap-chatter            — Timeline: messages, audit log, GraphQL
+    @linchkit/cap-chatter-ui         — Chatter React UI panel
+  audit/
+    @linchkit/cap-audit-ui           — Audit-log UI
   flow-restate/
-    @linchkit/cap-flow-restate    — Restate durable execution
+    @linchkit/cap-flow-restate       — Restate durable execution
+  dry-run/
+    @linchkit/cap-dry-run            — Sandboxed execution dry-run runner
+  lock/
+    @linchkit/cap-lock               — Capability/field lock policy (Spec 63)
   migration/
-    @linchkit/cap-migration       — Database migration tooling
+    @linchkit/cap-migration          — Database migration tooling
+  notification/
+    @linchkit/cap-notification       — Notification delivery
+  search/
+    @linchkit/cap-search             — Full-text search
+    @linchkit/cap-search-ui          — Search UI
+  file-storage/
+    @linchkit/cap-file-storage       — File storage
+  cache-redis/
+    @linchkit/cap-cache-redis        — Redis cache provider
+  vector/
+    @linchkit/cap-vector-pgvector    — pgvector vector store
+  observability/
+    @linchkit/cap-observability-otel — OpenTelemetry traces/metrics
+  theme/
+    @linchkit/cap-theme              — Theming
+  keyboard-shortcuts/
+    @linchkit/cap-keyboard-shortcuts — Keyboard shortcuts
+  view-kanban/
+    @linchkit/cap-view-kanban        — Kanban view
+  view-calendar/
+    @linchkit/cap-view-calendar      — Calendar view
+  view-timeline/
+    @linchkit/cap-view-timeline      — Timeline view
   demo/
-    @linchkit/cap-purchase-demo   — Demo: purchase management scenario
+    @linchkit/cap-life-demo          — Life-system (Spec 55) demo
+    @linchkit/cap-purchase-demo      — Purchase management demo (private)
 ```
 
 ---
 
 ## Capability Catalog
 
-Official capabilities available via `linch install`:
+Capabilities in this monorepo (the published ones install via `linch install`; demo and several in-progress capabilities are `private` / not yet on npm — see [VERSIONING.md](VERSIONING.md)):
+
+Type + Category are the OCA values each capability declares (`capability.json` / `package.json#linchkit`).
 
 | Capability | Type | Category | Description |
 |-----------|------|----------|-------------|
-| `@linchkit/cap-adapter-server` | adapter | transport | HTTP/GraphQL server (Elysia + graphql-yoga) |
-| `@linchkit/cap-adapter-ui` | adapter | transport | Official React UI (Shadcn + TanStack) |
-| `@linchkit/cap-adapter-mcp` | adapter | transport | MCP transport for AI agents |
-| `@linchkit/cap-auth` | standard | auth | Authentication (JWT, sessions) |
-| `@linchkit/cap-auth-better-auth` | standard | auth | Auth provider (Better Auth) |
-| `@linchkit/cap-permission` | standard | auth | Permission engine (RBAC) |
-| `@linchkit/cap-chatter` | standard | collaboration | Timeline: messages, audit log |
-| `@linchkit/cap-ai-provider` | standard | ai | AI SDK (Anthropic, OpenAI) |
-| `@linchkit/cap-flow-restate` | standard | workflow | Restate durable execution |
-| `@linchkit/cap-migration` | standard | infrastructure | Database migration tooling |
+| `@linchkit/cap-adapter-server` | adapter | integration | HTTP/GraphQL server (Elysia + graphql-yoga + REST + CommandLayer) |
+| `@linchkit/cap-adapter-ui` | adapter | integration | Official React UI (Shadcn + TanStack) |
+| `@linchkit/cap-adapter-mcp` | adapter | integration | MCP transport for AI agents |
+| `@linchkit/cap-mcp-ui` | standard | system | MCP UI components |
+| `@linchkit/cap-adapter-ag-ui` | adapter | integration | AG-UI protocol adapter (agent↔frontend event stream) |
+| `@linchkit/cap-adapter-a2a` | adapter | integration | A2A (agent-to-agent) protocol adapter |
+| `@linchkit/cap-ai-provider` | adapter | integration | AI SDK providers (Anthropic, OpenAI, zhipu, …) |
+| `@linchkit/cap-auth` | standard | system | Authentication (JWT, sessions) |
+| `@linchkit/cap-auth-better-auth` | adapter | system | Auth provider (Better Auth) |
+| `@linchkit/cap-permission` | standard | system | Permission engine (RBAC) |
+| `@linchkit/cap-chatter` | standard | system | Timeline: messages, audit log, GraphQL |
+| `@linchkit/cap-chatter-ui` | standard | system | Chatter React UI panel |
+| `@linchkit/cap-audit-ui` | standard | system | Audit-log UI |
+| `@linchkit/cap-flow-restate` | standard | infrastructure | Restate durable execution |
+| `@linchkit/cap-dry-run` | adapter | integration | Sandboxed execution dry-run runner |
+| `@linchkit/cap-lock` | standard | system | Capability/field lock policy (Spec 63) |
+| `@linchkit/cap-migration` | standard | system | Database migration tooling |
+| `@linchkit/cap-notification` | standard | system | Notification delivery |
+| `@linchkit/cap-file-storage` | standard | system | File storage |
+| `@linchkit/cap-cache-redis` | standard | system | Redis cache provider |
+| `@linchkit/cap-search` | standard | system | Full-text search |
+| `@linchkit/cap-search-ui` | standard | system | Search UI |
+| `@linchkit/cap-vector-pgvector` | standard | system | pgvector vector store |
+| `@linchkit/cap-observability-otel` | standard | system | OpenTelemetry traces/metrics |
+| `@linchkit/cap-theme` | standard | system | Theming |
+| `@linchkit/cap-keyboard-shortcuts` | standard | system | Keyboard shortcuts |
+| `@linchkit/cap-view-kanban` | standard | view | Kanban view |
+| `@linchkit/cap-view-calendar` | standard | view | Calendar view |
+| `@linchkit/cap-view-timeline` | standard | view | Timeline view |
+| `@linchkit/cap-life-demo` | standard | system | Life-system (Spec 55) demo |
+| `@linchkit/cap-purchase-demo` | standard | business | Purchase management demo (private) |
 
 Third-party capabilities can be contributed via PR to the capability registry.
 
