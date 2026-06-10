@@ -40,10 +40,19 @@ function passLayer(data: Record<string, unknown> = {}): CommandLayer {
   return { execute: async () => ({ success: true, data }) } as unknown as CommandLayer;
 }
 
-/** Denying command layer — simulates the permission slot rejecting the caller. */
+/**
+ * Denying command layer — mirrors the REAL permission-slot rejection shape:
+ * createPermissionMiddleware throws AuthorizationError({ code:"authz.action.denied" }),
+ * which CommandLayer propagates as `{ success:false, data:{ code:"authz.action.denied" } }`.
+ * Using the canonical code (not just an "not allowed" message) exercises the
+ * code→403 path in resolveStatusCode, not its text-matching fallback.
+ */
 function denyLayer(): CommandLayer {
   return {
-    execute: async () => ({ success: false, data: { error: "not allowed" } }),
+    execute: async () => ({
+      success: false,
+      data: { code: "authz.action.denied", error: "not allowed" },
+    }),
   } as unknown as CommandLayer;
 }
 
@@ -53,7 +62,10 @@ function spyLayer(): { layer: CommandLayer; calls: number } {
   const layer = {
     execute: async () => {
       state.calls += 1;
-      return { success: false as const, data: { error: "not allowed" } };
+      return {
+        success: false as const,
+        data: { code: "authz.action.denied", error: "not allowed" },
+      };
     },
   } as unknown as CommandLayer;
   return {

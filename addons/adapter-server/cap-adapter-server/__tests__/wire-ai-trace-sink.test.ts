@@ -79,14 +79,11 @@ describe("wireAITraceSink — boot wiring", () => {
     expect(getAITraceSink()).toBeInstanceOf(InMemoryAITraceStore);
   });
 
-  it("never throws and leaves the previous sink when the provider .db access explodes", async () => {
-    // Seed a known sink, then feed a provider whose `db` getter throws. The helper
-    // must swallow the error and leave the seeded sink untouched (never crash boot).
-    const seeded = new InMemoryAITraceStore();
-    // Use setAITraceSink via wiring a clean InMemory first, then assert it stays.
-    await wireAITraceSink({ dataProvider: new InMemoryStore() });
-    const before = getAITraceSink();
-    expect(before).toBeInstanceOf(InMemoryAITraceStore);
+  it("never throws and leaves the prior (noop) sink when the provider .db access explodes", async () => {
+    // From the Noop default, a provider whose `db` getter throws must be
+    // swallowed — boot never crashes and the sink is left as-is.
+    resetAITraceSink();
+    expect(getAITraceSink()).toBeInstanceOf(NoopAITraceSink);
 
     const explodingProvider = {
       get db() {
@@ -94,14 +91,22 @@ describe("wireAITraceSink — boot wiring", () => {
       },
     } as unknown as InMemoryStore;
 
-    // Should not throw. extractDbHandle reads `.db` inside the try, so the throw
-    // is caught and the prior sink is preserved.
+    // extractDbHandle reads `.db` inside the try, so the throw is caught and the
+    // prior (noop) sink is preserved.
     const result = await wireAITraceSink({ dataProvider: explodingProvider });
     expect(result).toBeUndefined();
-    // Prior sink preserved (still an InMemory store, not swapped to noop/crashed).
-    expect(getAITraceSink()).toBe(before);
-    // `seeded` is unused as the active sink — only asserts construction is cheap.
-    expect(seeded).toBeInstanceOf(InMemoryAITraceStore);
+    expect(getAITraceSink()).toBeInstanceOf(NoopAITraceSink);
+  });
+
+  it("is idempotent — a second call returns the already-wired sink, not a new one", async () => {
+    resetAITraceSink();
+    const first = await wireAITraceSink({ dataProvider: new InMemoryStore() });
+    expect(first).toBeInstanceOf(InMemoryAITraceStore);
+    // A second call must NOT construct a second sink (which would orphan the
+    // first and drop its pending mirror writes) — it returns the existing one.
+    const second = await wireAITraceSink({ dataProvider: new InMemoryStore() });
+    expect(second).toBe(first);
+    expect(getAITraceSink()).toBe(first);
   });
 
   it("extractDbHandle returns undefined for InMemoryStore", () => {

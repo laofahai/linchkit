@@ -20,7 +20,13 @@
 
 import type { DataProvider, Logger } from "@linchkit/core";
 import type { AITraceSink } from "@linchkit/core/server";
-import { consoleLogger, InMemoryAITraceStore, setAITraceSink } from "@linchkit/core/server";
+import {
+  consoleLogger,
+  getAITraceSink,
+  InMemoryAITraceStore,
+  NoopAITraceSink,
+  setAITraceSink,
+} from "@linchkit/core/server";
 
 /**
  * Extract the underlying `PostgresJsDatabase` handle from a DataProvider when it
@@ -72,6 +78,14 @@ export async function wireAITraceSink(
 ): Promise<AITraceSink | undefined> {
   const logger = options.logger ?? consoleLogger;
   try {
+    // Idempotent: if a LIVE sink is already registered (anything other than the
+    // Noop default — a prior wireAITraceSink call, or a test's own
+    // setAITraceSink), leave it in place. Constructing a second sink would
+    // orphan the first and drop its pending mirror writes.
+    const existing = getAITraceSink();
+    if (!(existing instanceof NoopAITraceSink)) {
+      return existing;
+    }
     const db = extractDbHandle(options.dataProvider);
     if (db) {
       // Lazy import so cap-adapter-server does not hard-load cap-ai-provider's
