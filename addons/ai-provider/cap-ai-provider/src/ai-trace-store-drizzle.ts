@@ -173,42 +173,50 @@ export class DrizzleAITraceStore implements AITraceSink {
     const generation = this.memory.recordGeneration(params);
     const parentRow = this.parentTraceRowFor(generation, params);
     this.enqueue("recordGeneration", async () => {
-      await this.db
-        .insert(aiTracesTable)
-        .values(parentRow)
-        .onConflictDoNothing({ target: aiTracesTable.traceId });
-      await this.db.insert(aiGenerationsTable).values({
-        id: generation.id,
-        traceId: generation.traceId,
-        model: generation.model,
-        provider: generation.provider,
-        messages: generation.messages,
-        completion: generation.completion,
-        inputTokens: generation.inputTokens,
-        outputTokens: generation.outputTokens,
-        cost: generation.cost ?? null,
-        latencyMs: generation.latencyMs,
-        temperature: generation.temperature ?? null,
-        responseFormat: generation.responseFormat ?? null,
-        fallbackUsed: generation.fallbackUsed ?? null,
-        cached: generation.cached ?? null,
-        partial: generation.partial ?? null,
-        status: generation.status,
-        error: generation.error ?? null,
-        startedAt: new Date(generation.startedAt),
-        endedAt: new Date(generation.endedAt),
+      // Atomic: parent upsert + generation insert + aggregate rollup must
+      // all-or-nothing. A mid-sequence failure (e.g. the rollup) would leave
+      // generation rows whose tokens/cost were never rolled into the trace
+      // aggregate — a permanently inconsistent durable state. The transaction
+      // throws on any statement failure; the enqueue `.catch()` rolls it back
+      // (Drizzle) AND logs, so the AI path never sees a partial write.
+      await this.db.transaction(async (tx) => {
+        await tx
+          .insert(aiTracesTable)
+          .values(parentRow)
+          .onConflictDoNothing({ target: aiTracesTable.traceId });
+        await tx.insert(aiGenerationsTable).values({
+          id: generation.id,
+          traceId: generation.traceId,
+          model: generation.model,
+          provider: generation.provider,
+          messages: generation.messages,
+          completion: generation.completion,
+          inputTokens: generation.inputTokens,
+          outputTokens: generation.outputTokens,
+          cost: generation.cost ?? null,
+          latencyMs: generation.latencyMs,
+          temperature: generation.temperature ?? null,
+          responseFormat: generation.responseFormat ?? null,
+          fallbackUsed: generation.fallbackUsed ?? null,
+          cached: generation.cached ?? null,
+          partial: generation.partial ?? null,
+          status: generation.status,
+          error: generation.error ?? null,
+          startedAt: new Date(generation.startedAt),
+          endedAt: new Date(generation.endedAt),
+        });
+        // Aggregate rollup as SQL increments — durable + restart-safe (matches
+        // the in-memory rollup, including the status escalation on error).
+        await tx
+          .update(aiTracesTable)
+          .set({
+            inputTokens: sql`${aiTracesTable.inputTokens} + ${generation.inputTokens}`,
+            outputTokens: sql`${aiTracesTable.outputTokens} + ${generation.outputTokens}`,
+            cost: sql`${aiTracesTable.cost} + ${generation.cost ?? 0}`,
+            ...(generation.status === "error" ? { status: "error" as const } : {}),
+          })
+          .where(eq(aiTracesTable.traceId, generation.traceId));
       });
-      // Aggregate rollup as SQL increments — durable + restart-safe (matches
-      // the in-memory rollup, including the status escalation on error).
-      await this.db
-        .update(aiTracesTable)
-        .set({
-          inputTokens: sql`${aiTracesTable.inputTokens} + ${generation.inputTokens}`,
-          outputTokens: sql`${aiTracesTable.outputTokens} + ${generation.outputTokens}`,
-          cost: sql`${aiTracesTable.cost} + ${generation.cost ?? 0}`,
-          ...(generation.status === "error" ? { status: "error" as const } : {}),
-        })
-        .where(eq(aiTracesTable.traceId, generation.traceId));
     });
     return generation;
   }
@@ -232,8 +240,12 @@ export class DrizzleAITraceStore implements AITraceSink {
   clear(): void {
     this.memory.clear();
     this.enqueue("clear", async () => {
-      await this.db.delete(aiGenerationsTable);
-      await this.db.delete(aiTracesTable);
+      // Atomic: wipe both tables together so a failure between the two DELETEs
+      // can't leave orphaned trace rows (generations gone, traces remaining).
+      await this.db.transaction(async (tx) => {
+        await tx.delete(aiGenerationsTable);
+        await tx.delete(aiTracesTable);
+      });
     });
   }
 
@@ -323,26 +335,36 @@ export class DrizzleAITraceStore implements AITraceSink {
     // Drain pending mirror writes so the purge sees a consistent snapshot.
     await this.whenPersisted();
     const cutoff = new Date(Date.now() - days * MS_PER_DAY);
-    const generations = await this.db
-      .delete(aiGenerationsTable)
-      .where(lt(aiGenerationsTable.startedAt, cutoff))
-      .returning({ id: aiGenerationsTable.id });
-    const traces = await this.db
-      .delete(aiTracesTable)
-      .where(
-        and(
-          lt(aiTracesTable.startedAt, cutoff),
-          // Keep an old trace alive while any (newer) generation references it.
-          notExists(
-            this.db
-              .select({ one: sql<number>`1` })
-              .from(aiGenerationsTable)
-              .where(eq(aiGenerationsTable.traceId, aiTracesTable.traceId)),
+    // Atomic: both deletes must commit together. Otherwise a failure after the
+    // generations delete but before the traces delete would leave traces that
+    // the second pass would have purged (now-orphaned), and a partial purge
+    // could also drop generations while leaving their parent — the counts
+    // returned would then mislead callers about what actually happened.
+    // Unlike the mirror-write callbacks this maintenance path DOES surface
+    // errors (its contract throws); the transaction re-throws on rollback, so
+    // a real DB error still propagates to the awaiting caller.
+    return await this.db.transaction(async (tx) => {
+      const generations = await tx
+        .delete(aiGenerationsTable)
+        .where(lt(aiGenerationsTable.startedAt, cutoff))
+        .returning({ id: aiGenerationsTable.id });
+      const traces = await tx
+        .delete(aiTracesTable)
+        .where(
+          and(
+            lt(aiTracesTable.startedAt, cutoff),
+            // Keep an old trace alive while any (newer) generation references it.
+            notExists(
+              tx
+                .select({ one: sql<number>`1` })
+                .from(aiGenerationsTable)
+                .where(eq(aiGenerationsTable.traceId, aiTracesTable.traceId)),
+            ),
           ),
-        ),
-      )
-      .returning({ traceId: aiTracesTable.traceId });
-    return { generations: generations.length, traces: traces.length };
+        )
+        .returning({ traceId: aiTracesTable.traceId });
+      return { generations: generations.length, traces: traces.length };
+    });
   }
 
   // ── Mirror plumbing ────────────────────────────────────

@@ -300,5 +300,194 @@ describe.skipIf(!dbAvailable)("DrizzleAITraceStore (integration)", () => {
       const second = await store.purgeOlderThan();
       expect(second).toEqual({ generations: 0, traces: 0 });
     });
+
+    it("purge leaves generations and traces mutually consistent (no orphans / dangling refs)", async () => {
+      store.clear();
+      await store.whenPersisted();
+
+      const now = Date.now();
+      const oldTime = now - 100 * 86_400_000;
+      const recentTime = now - 1 * 86_400_000;
+
+      const mkGen = (traceId: string, startedAt: number) => ({
+        traceId,
+        model: "m1",
+        provider: "p1",
+        messages: [{ role: "user" as const, content: "x" }],
+        completion: "y",
+        inputTokens: 1,
+        outputTokens: 1,
+        latencyMs: 10,
+        status: "ok" as const,
+        startedAt,
+        endedAt: startedAt + 10,
+        redaction: { mode: "none" } as const,
+      });
+
+      store.startTrace({ traceId: "c-old", name: "old", startedAt: oldTime });
+      store.recordGeneration(mkGen("c-old", oldTime + 1_000));
+      store.startTrace({ traceId: "c-mixed", name: "mixed", startedAt: oldTime });
+      store.recordGeneration(mkGen("c-mixed", oldTime + 2_000));
+      store.recordGeneration(mkGen("c-mixed", recentTime));
+      store.startTrace({ traceId: "c-new", name: "new", startedAt: recentTime });
+      store.recordGeneration(mkGen("c-new", recentTime + 1_000));
+      await store.whenPersisted();
+
+      await store.purgeOlderThan(90);
+
+      // Atomicity invariant: the two deletes committed together. Every surviving
+      // generation still has a surviving parent trace, and no surviving trace
+      // that predates the cutoff was left orphaned (it must still be referenced
+      // by a surviving generation). A partial purge would violate one of these.
+      const traces = await store.queryTracesPersisted();
+      const gens = await store.queryPersisted();
+      const traceIds = new Set(traces.map((t) => t.traceId));
+      // No dangling generation → parent.
+      for (const g of gens) {
+        expect(traceIds.has(g.traceId)).toBe(true);
+      }
+      // No orphaned pre-cutoff trace (every kept trace is still referenced).
+      const referenced = new Set(gens.map((g) => g.traceId));
+      const cutoff = now - 90 * 86_400_000;
+      for (const t of traces) {
+        if (t.startedAt < cutoff) {
+          expect(referenced.has(t.traceId)).toBe(true);
+        }
+      }
+    });
+  });
+
+  // ── 4. recordGeneration atomicity / rollup consistency ─────
+
+  describe("recordGeneration atomicity", () => {
+    it("rolls up aggregates consistently: per-trace sum of generation tokens equals the trace aggregate", async () => {
+      store.clear();
+      await store.whenPersisted();
+
+      const base = Date.now() - 10 * 86_400_000;
+      // Several traces, each with a few generations of varying token counts.
+      // If any recordGeneration transaction had partially applied (generation
+      // inserted but rollup skipped), the per-trace SUM(generation tokens)
+      // would diverge from the trace's rolled-up aggregate.
+      const plan: Array<[string, number, number, number]> = [
+        ["agg-a", 0, 10, 5],
+        ["agg-a", 1, 7, 3],
+        ["agg-a", 2, 4, 9],
+        ["agg-b", 0, 100, 50],
+        ["agg-b", 1, 1, 1],
+        ["agg-c", 0, 42, 8],
+      ];
+      for (const [traceId, idx, inTok, outTok] of plan) {
+        store.recordGeneration({
+          traceId,
+          model: "m1",
+          provider: "p1",
+          messages: [{ role: "user", content: "x" }],
+          completion: "y",
+          inputTokens: inTok,
+          outputTokens: outTok,
+          cost: 0.001 * (idx + 1),
+          latencyMs: 10,
+          status: "ok",
+          startedAt: base + idx,
+          endedAt: base + idx + 5,
+          redaction: { mode: "none" },
+        });
+      }
+      await store.whenPersisted();
+
+      // Compare the durable trace aggregate against the SUM of its generation
+      // rows for every trace. Equality across ALL traces is the all-or-nothing
+      // invariant the transaction guarantees.
+      const traces = await store.queryTracesPersisted();
+      const gens = await store.queryPersisted();
+      const sums = new Map<string, { input: number; output: number }>();
+      for (const g of gens) {
+        const acc = sums.get(g.traceId) ?? { input: 0, output: 0 };
+        acc.input += g.inputTokens;
+        acc.output += g.outputTokens;
+        sums.set(g.traceId, acc);
+      }
+      expect(traces.length).toBe(3);
+      for (const t of traces) {
+        const acc = sums.get(t.traceId) ?? { input: 0, output: 0 };
+        expect(t.inputTokens).toBe(acc.input);
+        expect(t.outputTokens).toBe(acc.output);
+      }
+    });
+
+    it("a failing rollup statement rolls back the whole transaction (no generation row persisted)", async () => {
+      store.clear();
+      await store.whenPersisted();
+
+      // Inject a failure into the rollup (the third statement) by spying the
+      // db.transaction so the tx's `update` throws AFTER the generation insert.
+      // The transaction must roll back: neither the generation row nor the
+      // aggregate change survives. This proves the all-or-nothing guarantee
+      // for the subtle parent-insert + generation-insert + rollup sequence.
+      const liveDb = requireDb();
+      const realTransaction = liveDb.transaction.bind(liveDb);
+      let injected = false;
+      const spied = new DrizzleAITraceStore({
+        db: new Proxy(liveDb, {
+          get(target, prop, receiver) {
+            if (prop === "transaction") {
+              return (
+                cb: (tx: unknown) => Promise<unknown>,
+                ...rest: unknown[]
+              ): Promise<unknown> =>
+                realTransaction(
+                  (tx: unknown) =>
+                    cb(
+                      new Proxy(tx as object, {
+                        get(txTarget, txProp, txReceiver) {
+                          if (txProp === "update" && !injected) {
+                            injected = true;
+                            return () => {
+                              throw new Error("injected rollup failure");
+                            };
+                          }
+                          return Reflect.get(txTarget, txProp, txReceiver);
+                        },
+                      }),
+                    ),
+                  ...(rest as []),
+                );
+            }
+            return Reflect.get(target, prop, receiver);
+          },
+        }) as unknown as PostgresJsDatabase,
+      });
+
+      spied.startTrace({ traceId: "rollback-t", name: "rb", startedAt: Date.now() });
+      await spied.whenPersisted();
+
+      spied.recordGeneration({
+        traceId: "rollback-t",
+        model: "m1",
+        provider: "p1",
+        messages: [{ role: "user", content: "x" }],
+        completion: "y",
+        inputTokens: 99,
+        outputTokens: 7,
+        cost: 0.5,
+        latencyMs: 10,
+        status: "ok",
+        startedAt: Date.now(),
+        endedAt: Date.now() + 5,
+        redaction: { mode: "none" },
+      });
+      // The enqueue `.catch()` swallows the thrown transaction; never rejects.
+      await spied.whenPersisted();
+
+      expect(injected).toBe(true);
+      // No generation row landed — the transaction rolled back atomically.
+      const gens = await store.queryPersisted({ traceId: "rollback-t" });
+      expect(gens).toHaveLength(0);
+      // The parent trace's aggregate was NOT incremented (rollup never committed).
+      const [trace] = await store.queryTracesPersisted({ traceId: "rollback-t" });
+      expect(trace?.inputTokens).toBe(0);
+      expect(trace?.outputTokens).toBe(0);
+    });
   });
 });
