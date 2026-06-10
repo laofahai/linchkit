@@ -52,3 +52,6 @@ superpowers/
 .overstory/worktrees/
 .claude/worktrees/
 worktrees/
+
+# Generated docs snapshot (linch docs output)
+docs/generated/
