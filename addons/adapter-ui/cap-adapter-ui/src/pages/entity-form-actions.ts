@@ -61,8 +61,9 @@ export type HeaderActionOutcome =
  * approval Flow). Routing it through the generic `transitionRecord` mutation
  * bypasses all of that — it degrades to a bare status update. The generic
  * transition mutation remains valid ONLY for raw transitions invoked without
- * a bound action (e.g. transition pills / kanban drags); no such path exists
- * in this dispatcher because it is keyed by action name.
+ * a bound action (transition pills / kanban drags dispatch the same way via
+ * lib/transition-dispatch.ts); no such path exists in this dispatcher
+ * because it is keyed by action name.
  *
  * After a successful transition-bound action the fresh record is re-queried
  * so the form can update local state in place; `updated: null` means the
