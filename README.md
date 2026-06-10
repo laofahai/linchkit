@@ -340,7 +340,7 @@ linch publish           # Publish packages
 docker compose up -d    # PostgreSQL + Restate
 
 bun install             # Install dependencies
-bun test                # Run tests
+bun run test            # Run the full test suite (batched runner)
 bun run dev             # Start dev server (server :3001 + UI :3000)
 bun run dev:server      # Server only
 bun run dev:ui          # UI only (proxies API to :3001)

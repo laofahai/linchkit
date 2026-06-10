@@ -340,7 +340,7 @@ linch publish           # 发布包
 docker compose up -d    # PostgreSQL + Restate
 
 bun install             # 安装依赖
-bun test                # 运行测试
+bun run test            # 运行完整测试套件（批量运行器）
 bun run dev             # 启动开发服务器（服务端 :3001 + UI :3000）
 bun run dev:server      # 仅启动服务端
 bun run dev:ui          # 仅启动 UI（代理 API 到 :3001）

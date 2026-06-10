@@ -123,7 +123,7 @@ Each addon package declares its minimum compatible core version. The general rul
 | 1.x.x       | Only addons built for ^1.0.0 |
 
 **Rule**: Addons MUST declare `@linchkit/core` as a `peerDependency` with a
-caret range (e.g., `"@linchkit/core": "^0.1.0"`). This ensures consumers get
+caret range (e.g., `"@linchkit/core": "^0.2.0"`). This ensures consumers get
 clear warnings when versions are incompatible.
 
 ### Cross-Addon Compatibility
