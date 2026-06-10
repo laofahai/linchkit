@@ -25,12 +25,17 @@ const defaultTranslator: RelativeTimeTranslator = (_key, options) => {
  * Format an ISO timestamp as a relative time string (e.g. "5m ago").
  *
  * Timestamps older than 30 days fall back to the locale date string.
+ * Falsy or unparseable input renders as "" rather than a misleading
+ * epoch date or "Invalid Date".
  */
 export function formatRelativeTime(
-  iso: string,
+  iso: string | null | undefined,
   t: RelativeTimeTranslator = defaultTranslator,
 ): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  if (!iso) return "";
+  const timestamp = new Date(iso).getTime();
+  if (Number.isNaN(timestamp)) return "";
+  const diff = Date.now() - timestamp;
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
   const minutes = Math.floor(seconds / 60);

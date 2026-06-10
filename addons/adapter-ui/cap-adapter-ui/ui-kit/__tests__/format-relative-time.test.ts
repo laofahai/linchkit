@@ -110,4 +110,13 @@ describe("formatRelativeTime (custom translator)", () => {
     expect(formatRelativeTime(iso, t)).toBe(new Date(iso).toLocaleDateString());
     expect(calls).toHaveLength(0);
   });
+
+  test("renders empty string for falsy or unparseable input", () => {
+    const { calls, t } = makeRecorder();
+    expect(formatRelativeTime(null, t)).toBe("");
+    expect(formatRelativeTime(undefined, t)).toBe("");
+    expect(formatRelativeTime("", t)).toBe("");
+    expect(formatRelativeTime("not-a-date", t)).toBe("");
+    expect(calls).toHaveLength(0);
+  });
 });
