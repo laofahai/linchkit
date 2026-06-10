@@ -419,12 +419,16 @@ function checkCoreVersion(root: string): CapabilityLintIssue[] {
   }
 
   let effectiveRange: string;
+  // True when effectiveRange came from the deprecated `minCoreVersion`, which is
+  // a MINIMUM (">="), not an exact pin — used by the satisfaction check below.
+  let effectiveRangeIsMinimum = false;
   if (declared.coreVersion !== undefined) {
     effectiveRange = declared.coreVersion;
   } else {
     // Only the deprecated minCoreVersion is present — accept with a warning.
     // (declared.minCoreVersion is defined here per the guard above.)
     effectiveRange = declared.minCoreVersion as string;
+    effectiveRangeIsMinimum = true;
     issues.push({
       check: "core-version",
       level: "warning",
@@ -458,11 +462,21 @@ function checkCoreVersion(root: string): CapabilityLintIssue[] {
   //    never throw, never fail the lint on resolution failure.
   const localCoreVersion = resolveLocalCoreVersion(root);
   if (localCoreVersion !== undefined) {
+    // minCoreVersion is a MINIMUM (">="), not an exact pin. A BARE value such as
+    // "0.1.0" would otherwise be read as an exact-match comparator by
+    // satisfiesVersionRange, falsely rejecting any newer core (e.g. 0.2.0).
+    // Normalize a bare minimum to ">=x.y.z" for the satisfaction test. A bare
+    // `coreVersion` is intentionally left as exact-match — that field is meant
+    // to be a range, so an exact pin failing a newer core is a real declaration.
+    const satisfactionRange =
+      effectiveRangeIsMinimum && /^\d/.test(effectiveRange)
+        ? `>=${effectiveRange}`
+        : effectiveRange;
     // Check the declared coreVersion/minCoreVersion range unless it is a
     // non-semver workspace protocol specifier.
     if (
-      !WORKSPACE_PROTOCOL_RE.test(effectiveRange) &&
-      !safeSatisfies(localCoreVersion, effectiveRange)
+      !WORKSPACE_PROTOCOL_RE.test(satisfactionRange) &&
+      !safeSatisfies(localCoreVersion, satisfactionRange)
     ) {
       issues.push({
         check: "core-version",

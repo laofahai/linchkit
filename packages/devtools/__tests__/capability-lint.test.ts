@@ -680,6 +680,66 @@ describe("lintCapability", () => {
     expect(cv[0]?.message).toContain("^0.3.0");
   });
 
+  it("treats a bare deprecated minCoreVersion as a '>=' minimum, not an exact pin", () => {
+    const root = makeMonorepoCapDir("0.2.0");
+    // minCoreVersion is a MINIMUM. A bare "0.1.0" must be read as ">=0.1.0", so
+    // a newer local core (0.2.0) satisfies it. The old behavior treated "0.1.0"
+    // as an exact-match comparator and falsely emitted "does not satisfy".
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        // Bare peerDep equal to the bare minCoreVersion → equality check passes;
+        // this isolates the satisfaction-check behavior under test.
+        peerDependencies: { "@linchkit/core": "0.1.0" },
+        linchkit: { type: "standard", category: "business", minCoreVersion: "0.1.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    // No false satisfaction error — 0.2.0 satisfies ">=0.1.0".
+    expect(result.issues.some((i) => /does not satisfy/.test(i.message))).toBe(false);
+    // The deprecation warning still fires (and is non-fatal).
+    expect(
+      result.issues.some(
+        (i) =>
+          i.check === "core-version" && i.level === "warning" && /minCoreVersion/.test(i.message),
+      ),
+    ).toBe(true);
+    expect(result.issues.some((i) => i.check === "core-version" && i.level === "error")).toBe(
+      false,
+    );
+  });
+
+  it("still flags a bare minCoreVersion that the local core is BELOW", () => {
+    const root = makeMonorepoCapDir("0.2.0");
+    // ">=0.3.0" is NOT satisfied by local core 0.2.0 — a real skew, must error.
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "0.3.0" },
+        linchkit: { type: "standard", category: "business", minCoreVersion: "0.3.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(
+      result.issues.some(
+        (i) =>
+          i.check === "core-version" && i.level === "error" && /does not satisfy/.test(i.message),
+      ),
+    ).toBe(true);
+  });
+
   it("skips the satisfaction check when the local core version is unresolvable (no crash, no error)", () => {
     // A plain tmpdir fixture has no ancestor packages/core/package.json and
     // @linchkit/core is not module-resolvable from it, so version resolution
