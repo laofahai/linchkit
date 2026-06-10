@@ -536,12 +536,33 @@ function resolveLocalCoreVersion(root: string): string | undefined {
 
   // 2. Fall back to Node-style module resolution of the installed @linchkit/core
   //    manifest, anchored at the capability dir. Handles a capability installed
-  //    against a published core outside the monorepo.
+  //    against a published core outside the monorepo. We resolve the package
+  //    ENTRY (the "." export) rather than "@linchkit/core/package.json": the
+  //    latter throws ERR_PACKAGE_PATH_NOT_EXPORTED under Node's exports
+  //    enforcement because core ships an `exports` map without a
+  //    `./package.json` entry. From the resolved entry we walk up to the
+  //    package's own manifest, asserting `name === "@linchkit/core"` so a
+  //    nested package.json can't be mistaken for it.
   try {
     const req = createRequire(join(root, "package.json"));
-    const pkgPath = req.resolve("@linchkit/core/package.json");
-    const v = readVersionField(pkgPath);
-    if (v !== undefined) return v;
+    let dir = dirname(req.resolve("@linchkit/core"));
+    for (let i = 0; i < 64; i++) {
+      const candidate = join(dir, "package.json");
+      if (existsSync(candidate)) {
+        const parsed = readJson(candidate);
+        const name =
+          !parsed.error && typeof parsed.value === "object" && parsed.value !== null
+            ? (parsed.value as Record<string, unknown>).name
+            : undefined;
+        if (name === "@linchkit/core") {
+          const v = readVersionField(candidate);
+          if (v !== undefined) return v;
+        }
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break; // reached filesystem root
+      dir = parent;
+    }
   } catch {
     // Module not resolvable from here — fall through to undefined.
   }

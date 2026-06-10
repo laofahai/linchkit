@@ -650,7 +650,10 @@ describe("lintCapability", () => {
 
   it("emits a distinct satisfaction error for a concrete peerDep that differs and fails", () => {
     const root = makeMonorepoCapDir("0.2.0");
-    // coreVersion satisfies local core, but the concrete peerDep range does not.
+    // The declared coreVersion (^0.2.0) DOES satisfy local core 0.2.0, so the
+    // declared-range branch stays clean. The peerDep range (^0.3.0) genuinely
+    // DIFFERS and does NOT satisfy 0.2.0 — this is the only scenario that
+    // exercises the `peerCore !== effectiveRange` distinct-peerDep branch.
     writeFile(
       root,
       "package.json",
@@ -658,7 +661,7 @@ describe("lintCapability", () => {
         name: "@linchkit/cap-cv",
         version: "1.0.0",
         peerDependencies: { "@linchkit/core": "^0.3.0" },
-        linchkit: { type: "standard", category: "business", coreVersion: "^0.3.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.2.0" },
       }),
     );
     writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
@@ -666,13 +669,14 @@ describe("lintCapability", () => {
 
     const result = lintCapability(root);
     expect(result.ok).toBe(false);
-    // peerDep equals coreVersion here, so a single satisfaction error is enough;
-    // assert the declared-range satisfaction error fires for ^0.3.0 vs 0.2.0.
     const cv = result.issues.filter(
       (i) =>
         i.check === "core-version" && i.level === "error" && /does not satisfy/.test(i.message),
     );
-    expect(cv.length).toBeGreaterThan(0);
+    // Exactly one satisfaction error — the distinct peerDep one — fires; the
+    // declared ^0.2.0 range did NOT produce an error (it satisfies 0.2.0).
+    expect(cv.length).toBe(1);
+    expect(cv[0]?.message).toContain('peerDependencies["@linchkit/core"]');
     expect(cv[0]?.message).toContain("^0.3.0");
   });
 
