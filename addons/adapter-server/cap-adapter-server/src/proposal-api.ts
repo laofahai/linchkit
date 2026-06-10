@@ -188,6 +188,15 @@ export interface MountProposalAPIOptions {
    * prod/staging). Lock-step sibling of `strictCompatibility`.
    */
   strictGeneratedContract?: boolean;
+  /**
+   * Escalate Phase 5 execution dry-run CONTENT findings (Spec 70 §7) from WARN
+   * to BLOCK. Sourced from `detectEnvironment().features.strictExecutionDryRun`,
+   * which — unlike the two strict siblings above — is opt-in EVERYWHERE (never
+   * derived from `isProduction`): enabled only via
+   * `LINCHKIT_STRICT_EXECUTION_DRY_RUN=1` once the sandbox is confirmed healthy.
+   * Infra failures (`infra_error`) always stay warnings regardless of this flag.
+   */
+  strictExecutionDryRun?: boolean;
 }
 
 /**
@@ -212,14 +221,17 @@ export function mountProposalAPI(
     : (options ?? {});
   const executionLogger = opts.executionLogger;
 
-  // ValidationContext threaded into both submit sites so Phase 3 (compatibility)
-  // and Phase 4 (generated-source contract) can run. Built once; when ontology is
-  // absent Phase 3 returns "skipped" and when no change carries generated source
-  // Phase 4 returns "skipped" (both unchanged for existing callers).
+  // ValidationContext threaded into both submit sites so Phase 3 (compatibility),
+  // Phase 4 (generated-source contract) and Phase 5 (execution dry-run) can run.
+  // Built once; when ontology is absent Phase 3 returns "skipped", when no change
+  // carries generated source Phase 4 returns "skipped", and when no change carries
+  // a durable `dryRunStatus` Phase 5 returns "skipped" (all unchanged for existing
+  // callers).
   const validationContext: ValidationContext = {
     ontology: opts.ontology,
     strictCompatibility: opts.strictCompatibility,
     strictGeneratedContract: opts.strictGeneratedContract,
+    strictExecutionDryRun: opts.strictExecutionDryRun,
   };
 
   // Run initial pattern scan in background if execution logger is available
