@@ -102,3 +102,21 @@ describe("resolveDisplayLabel", () => {
     }
   });
 });
+
+describe("resolveTranslatableMap false positives (review follow-up)", () => {
+  test("an arbitrary all-string object without locale-shaped keys returns null", () => {
+    expect(resolveDisplayLabel({ code: "ENG", name1: "Engineering" })).toBeNull();
+  });
+
+  test("an id-less object with non-locale keys is not rendered as a locale map", () => {
+    expect(
+      resolveDisplayLabel({ department_code: "ENG", description: "Engineering team" }),
+    ).toBeNull();
+  });
+
+  test("genuine locale maps still resolve after the key-shape guard", () => {
+    expect(resolveDisplayLabel({ en: "Engineering", "zh-CN": "工程部" }, { locale: "zh-CN" })).toBe(
+      "工程部",
+    );
+  });
+});

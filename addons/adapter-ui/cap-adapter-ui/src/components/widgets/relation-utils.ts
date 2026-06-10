@@ -39,10 +39,16 @@ export interface ResolveDisplayLabelOptions {
  * to a single string for the given locale. Returns null when the object is
  * not a pure string-valued locale map.
  */
+/** Keys that plausibly are BCP-47-ish locale codes ("en", "zh-CN", "pt-BR"). */
+const LOCALE_KEY_RE = /^[a-z]{2,3}(?:-[A-Za-z0-9]+)?$/;
+
 function resolveTranslatableMap(map: Record<string, unknown>, locale?: string): string | null {
   const keys = Object.keys(map);
   if (keys.length === 0) return null;
-  if (!keys.every((key) => typeof map[key] === "string")) return null;
+  // Every key must LOOK like a locale code, not merely map to a string —
+  // otherwise arbitrary all-string objects ({ code: "ENG", name: "..." })
+  // would be misread as locale maps and render a meaningless first value.
+  if (!keys.every((key) => LOCALE_KEY_RE.test(key) && typeof map[key] === "string")) return null;
   const values = map as Record<string, string>;
   if (locale) {
     const exact = values[locale];
