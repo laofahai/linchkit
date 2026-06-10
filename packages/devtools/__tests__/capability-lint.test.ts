@@ -51,6 +51,27 @@ function writeCorePackageJson(root: string, coreRange = "^0.2.0"): void {
   );
 }
 
+/**
+ * Build a synthetic monorepo whose root contains `packages/core/package.json`
+ * pinned to `coreVersion`, with a capability nested under
+ * `addons/<group>/<cap>/`. Returns the capability dir so the lint's walk-up
+ * version resolution finds the controllable local core version. Used by the
+ * satisfaction-check tests, which need a resolvable local core version (a plain
+ * tmpdir fixture has none, so the satisfaction check is skipped there).
+ */
+function makeMonorepoCapDir(coreVersion: string): string {
+  const repoRoot = mkdtempSync(join(tmpdir(), "caplint-mono-"));
+  tmpRoots.push(repoRoot);
+  writeFile(
+    repoRoot,
+    "packages/core/package.json",
+    JSON.stringify({ name: "@linchkit/core", version: coreVersion }),
+  );
+  const capDir = join(repoRoot, "addons", "sample", "cap-sample");
+  mkdirSync(join(capDir, "src"), { recursive: true });
+  return capDir;
+}
+
 afterAll(() => {
   for (const root of tmpRoots) {
     rmSync(root, { recursive: true, force: true });
@@ -574,6 +595,110 @@ describe("lintCapability", () => {
     writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
 
     const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "core-version")).toHaveLength(0);
+    expect(result.ok).toBe(true);
+  });
+
+  // -- Check 4 (satisfaction of the LOCAL core version) ----------------
+
+  it("passes when coreVersion ^0.2.0 satisfies the local core 0.2.0", () => {
+    const root = makeMonorepoCapDir("0.2.0");
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.2.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.2.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.issues.filter((i) => i.check === "core-version")).toHaveLength(0);
+    expect(result.ok).toBe(true);
+  });
+
+  it("errors when coreVersion >=0.3.0 <0.4.0 does not satisfy the local core 0.2.0", () => {
+    const root = makeMonorepoCapDir("0.2.0");
+    // The real cap-adapter-server skew: an AND-range that excludes the only
+    // core version that exists. peerDep matches coreVersion (both wrong) so the
+    // equality check passes — only the satisfaction check catches it.
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": ">=0.3.0 <0.4.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: ">=0.3.0 <0.4.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    const cv = result.issues.filter((i) => i.check === "core-version" && i.level === "error");
+    expect(cv.some((i) => /does not satisfy/.test(i.message))).toBe(true);
+    const msg = cv.find((i) => /does not satisfy/.test(i.message))?.message ?? "";
+    expect(msg).toContain(">=0.3.0 <0.4.0");
+    expect(msg).toContain("0.2.0");
+  });
+
+  it("emits a distinct satisfaction error for a concrete peerDep that differs and fails", () => {
+    const root = makeMonorepoCapDir("0.2.0");
+    // coreVersion satisfies local core, but the concrete peerDep range does not.
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": "^0.3.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: "^0.3.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    expect(result.ok).toBe(false);
+    // peerDep equals coreVersion here, so a single satisfaction error is enough;
+    // assert the declared-range satisfaction error fires for ^0.3.0 vs 0.2.0.
+    const cv = result.issues.filter(
+      (i) =>
+        i.check === "core-version" && i.level === "error" && /does not satisfy/.test(i.message),
+    );
+    expect(cv.length).toBeGreaterThan(0);
+    expect(cv[0]?.message).toContain("^0.3.0");
+  });
+
+  it("skips the satisfaction check when the local core version is unresolvable (no crash, no error)", () => {
+    // A plain tmpdir fixture has no ancestor packages/core/package.json and
+    // @linchkit/core is not module-resolvable from it, so version resolution
+    // returns undefined and the satisfaction check is skipped silently — even
+    // for a range that could never satisfy any real core (>=0.3.0 <0.4.0).
+    const root = makeCapDir();
+    writeFile(
+      root,
+      "package.json",
+      JSON.stringify({
+        name: "@linchkit/cap-cv",
+        version: "1.0.0",
+        peerDependencies: { "@linchkit/core": ">=0.3.0 <0.4.0" },
+        linchkit: { type: "standard", category: "business", coreVersion: ">=0.3.0 <0.4.0" },
+      }),
+    );
+    writeFile(root, "src/index.ts", `import { x } from "@linchkit/core";\nexport {};\n`);
+    writeFile(root, "src/a.test.ts", `import { test } from "bun:test";\ntest("a", () => {});\n`);
+
+    const result = lintCapability(root);
+    // No satisfaction error because the local core version could not be resolved.
+    expect(result.issues.some((i) => /does not satisfy/.test(i.message))).toBe(false);
+    // peerDep equals coreVersion → the equality check also passes → fully clean.
     expect(result.issues.filter((i) => i.check === "core-version")).toHaveLength(0);
     expect(result.ok).toBe(true);
   });
