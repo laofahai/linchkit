@@ -157,14 +157,13 @@ const CTX_DB_READ_OPS = new Set(["ctx.get", "ctx.query"]);
 
 /**
  * Infer the `AttemptedSideEffect.kind` from the recorded detail string. The child
- * harness emits details like `"ctx.create.<redacted>()"` — we parse the first two
- * dot-segments (`"ctx.create"`) and map them to the appropriate kind bucket.
+ * harness emits details like `"ctx.create.<redacted>()"` or `"ctx.query(...)"` —
+ * a regex captures the `ctx.<method>` prefix regardless of what follows.
  */
 function inferSideEffectKind(detail: string): AttemptedSideEffect["kind"] {
-  const firstDot = detail.indexOf(".");
-  if (firstDot === -1) return "unknown";
-  const secondDot = detail.indexOf(".", firstDot + 1);
-  const prefix = secondDot === -1 ? detail : detail.slice(0, secondDot);
+  const match = detail.match(/^(ctx\.[a-zA-Z0-9_$]+)/);
+  if (!match) return "unknown";
+  const prefix = match[1];
   if (CTX_DB_WRITE_OPS.has(prefix)) return "db_write";
   if (CTX_DB_READ_OPS.has(prefix)) return "db_read";
   return "unknown";
