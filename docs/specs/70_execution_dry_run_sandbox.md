@@ -10,7 +10,7 @@
 >
 > Tracking milestones: M6 (P1 design + P2 seam), M7 (P3 subprocess runner + P4 durable signal/UI), M7+ (P5 gating + hardening tier).
 
-**Status: Draft (design only — no execution implemented).**
+**Status: Done (P2–P5 implemented: #523, #524, #526, #529, #530, #531).** The microvm tier is argv-verified via host-independent fakes — validate `--memory` semantics and the default `oven/bun:1` image on a real gVisor host before relying on it in production.
 
 ## 1. Background and Motivation
 
