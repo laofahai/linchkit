@@ -235,7 +235,7 @@ addons/ (grouped capabilities — OCA model):
     @linchkit/cap-adapter-mcp        — MCP transport for AI agents
     @linchkit/cap-mcp-ui             — MCP UI components
   adapter-ag-ui/
-    @linchkit/cap-adapter-ag-ui      — AG-UI protocol adapter (agent↔frontend stream)
+    @linchkit/cap-adapter-ag-ui      — AG-UI protocol adapter (agent↔frontend event stream)
   adapter-a2a/
     @linchkit/cap-adapter-a2a        — A2A (agent-to-agent) protocol adapter
   ai-provider/

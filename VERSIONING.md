@@ -156,10 +156,10 @@ must also use `peerDependencies` with caret ranges.
 | `@linchkit/cap-auth` | Authentication capability |
 | `@linchkit/cap-auth-better-auth` | Better Auth provider |
 | `@linchkit/cap-permission` | Permission capability (RBAC) |
-| `@linchkit/cap-chatter` | Record timeline capability |
-| `@linchkit/cap-chatter-ui` | Chatter UI components |
+| `@linchkit/cap-chatter` | Timeline: messages, audit log, GraphQL |
+| `@linchkit/cap-chatter-ui` | Chatter React UI panel |
 | `@linchkit/cap-audit-ui` | Audit-log UI |
-| `@linchkit/cap-flow-restate` | Restate flow engine |
+| `@linchkit/cap-flow-restate` | Restate durable execution |
 | `@linchkit/cap-dry-run` | Sandboxed execution dry-run runner |
 | `@linchkit/cap-lock` | Capability/field lock policy |
 | `@linchkit/cap-migration` | Database migration tooling |
