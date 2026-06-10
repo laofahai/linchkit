@@ -1,3 +1,3 @@
 export * from "./components";
 export * from "./hooks";
-export { cn } from "./lib/utils";
+export { cn, formatRelativeTime, type RelativeTimeTranslator } from "./lib/utils";

@@ -16,6 +16,7 @@ import {
   queryChatterMessages,
 } from "@linchkit/cap-adapter-ui/lib/api";
 import { Badge, Button, Textarea } from "@linchkit/ui-kit/components";
+import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import {
   ArrowRight,
   Edit,
@@ -35,23 +36,6 @@ import { useTranslation } from "react-i18next";
 interface ChatterPanelProps {
   entityName: string;
   recordId: string;
-}
-
-// ── Time formatting ───────────────────────────────────────
-
-type TFunc = ReturnType<typeof useTranslation>["t"];
-
-function formatRelativeTime(iso: string, t: TFunc): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
-  const days = Math.floor(hours / 24);
-  if (days < 30) return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
-  return new Date(iso).toLocaleDateString();
 }
 
 // ── Log entry metadata rendering ──────────────────────────

@@ -53,7 +53,7 @@ function writeViews(entityName: string, views: SavedView[]): void {
 }
 
 function generateId(): string {
-  return `sv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `sv_${crypto.randomUUID()}`;
 }
 
 // ── External store for useSyncExternalStore ──────────────────────

@@ -12,9 +12,9 @@ import type {
   OverlayStore,
 } from "../types/overlay";
 
-/** Generate a simple random ID (good enough for in-memory use) */
+/** Generate a random ID with the overlay prefix */
 function generateId(): string {
-  return `overlay_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  return `overlay_${crypto.randomUUID()}`;
 }
 
 export class InMemoryOverlayStore implements OverlayStore {
