@@ -26,6 +26,7 @@ import type React from "react";
 import { type EditingCell, isFieldTypeEditable } from "../../hooks/use-inline-edit";
 import type { FieldOverlayRecord, OverlayFieldType } from "../../lib/overlay-types";
 import { FieldDisplay } from "../field-renderer";
+import { resolveDisplayLabel } from "../widgets/relation-utils";
 import { InlineEditCell } from "./inline-edit-cell";
 import { StatusBadge } from "./status-badge";
 
@@ -136,7 +137,9 @@ export function buildColumns(opts: BuildColumnsOptions): ColumnDef<DataRow>[] {
         if (fieldDef) {
           return <FieldDisplay field={vf} value={value} fieldDef={fieldDef} />;
         }
-        return String(value ?? "");
+        // No schema field definition — typically a relation resolver field
+        // (e.g. `department { id name }`), whose value is an object or array.
+        return formatSchemalessCellValue(value);
       },
       enableSorting: vf.sortable ?? false,
       size: typeof vf.width === "number" ? vf.width : undefined,
@@ -296,6 +299,29 @@ function resolveOverlayColumnLabel(overlay: FieldOverlayRecord): string {
 }
 
 /**
+ * Format a cell value for a column that has no schema field definition
+ * (typically a relation-generated resolver field such as `department`).
+ *
+ * Objects and arrays are resolved to a human-readable label using the same
+ * title-field logic the detail-view relation widgets use; unresolvable
+ * values fall back to a muted em-dash. This must never render the
+ * `String(object)` form "[object Object]".
+ */
+function formatSchemalessCellValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") {
+    return <span className="text-muted-foreground">&mdash;</span>;
+  }
+  if (typeof value !== "object") {
+    return String(value);
+  }
+  const label = resolveDisplayLabel(value, { locale: i18next.language });
+  if (label !== null && label !== "") {
+    return label;
+  }
+  return <span className="text-muted-foreground">&mdash;</span>;
+}
+
+/**
  * Format an overlay cell value for display based on field type.
  */
 function formatOverlayCellValue(value: unknown, fieldType: OverlayFieldType): React.ReactNode {
@@ -318,7 +344,9 @@ function formatOverlayCellValue(value: unknown, fieldType: OverlayFieldType): Re
         </span>
       );
     default:
-      return String(value);
+      // Guard against object-shaped values sneaking into scalar overlay
+      // columns — never render "[object Object]".
+      return formatSchemalessCellValue(value);
   }
 }
 
