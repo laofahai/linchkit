@@ -20,7 +20,7 @@ import type {
   RunAgentInput,
 } from "@linchkit/cap-adapter-ag-ui";
 import { EventType } from "@linchkit/cap-adapter-ag-ui";
-import type { ModelMessage, TextStreamPart, ToolSet } from "ai";
+import type { jsonSchema, ModelMessage, TextStreamPart, ToolSet } from "ai";
 import type { ServerOptions } from "../server";
 
 // ── Context extraction ──────────────────────────────────────
@@ -39,10 +39,12 @@ export const AG_UI_CONTEXT_KEYS = {
 
 /** Read a well-known context entry from a RunAgentInput. */
 export function agUiContextValue(
-  input: Pick<RunAgentInput, "context">,
+  input: Partial<Pick<RunAgentInput, "context">>,
   description: string,
 ): string | undefined {
-  const entry = input.context.find((c) => c.description === description);
+  // `context` is required by the validated protocol type, but tolerate its
+  // absence — the runner may receive inputs from less strict callers.
+  const entry = input.context?.find((c) => c.description === description);
   return entry?.value || undefined;
 }
 
@@ -51,6 +53,8 @@ export function agUiContextValue(
 /** Extract plain text from an AG-UI user message content (string | parts). */
 function userText(message: AgUiMessage & { role: "user" }): string {
   const value = message.content;
+  // Tolerate undefined/null content from loosely-validated third-party input.
+  if (!value) return "";
   if (typeof value === "string") return value;
   return value
     .filter(
@@ -142,6 +146,61 @@ export function toModelMessagesFromAgUi(messages: AgUiMessage[]): ModelMessage[]
   return out;
 }
 
+// ── AG-UI frontend tools → AI SDK tools ─────────────────────
+
+/**
+ * Translate the AG-UI client-declared frontend tools (`input.tools` —
+ * name/description/JSON-schema parameters) into Vercel AI SDK tools WITHOUT
+ * an `execute` function: the model may call them, the resulting `tool-call`
+ * stream part is forwarded to the client as TOOL_CALL_* events (see
+ * {@link streamPartToAgUiEvents}), and execution happens client-side per the
+ * AG-UI model — never on the server.
+ *
+ * Termination: a step that ends in unexecuted client tool calls produces no
+ * tool results, so `streamText` does not start a follow-up step regardless
+ * of `stopWhen` — the stream completes and the run endpoint emits
+ * RUN_FINISHED (no hang).
+ *
+ * Collision policy: server tools win. An input tool whose name matches a
+ * server-side tool is skipped and reported in `skipped`.
+ *
+ * `toSchema` is the `jsonSchema()` helper from the `ai` package, passed in
+ * by the caller because this module lazy-imports `ai` (and so this helper
+ * stays synchronous and pure for tests).
+ */
+export function buildFrontendToolSet(options: {
+  tools: RunAgentInput["tools"];
+  serverToolNames: ReadonlySet<string>;
+  toSchema: typeof jsonSchema;
+}): { tools: ToolSet; skipped: string[] } {
+  const out: ToolSet = {};
+  const skipped: string[] = [];
+
+  for (const tool of options.tools ?? []) {
+    if (options.serverToolNames.has(tool.name)) {
+      skipped.push(tool.name);
+      continue;
+    }
+    // Upstream `Tool.parameters` is free-form (`z.any()`); only a plain
+    // object is a usable JSON Schema — anything else degrades to "accept
+    // any input" (mirrors the default bridge's toAiTools fallback).
+    const parameters: unknown = tool.parameters;
+    const schema =
+      typeof parameters === "object" && parameters !== null && !Array.isArray(parameters)
+        ? (parameters as Parameters<typeof jsonSchema>[0])
+        : {};
+    out[tool.name] = {
+      // Runtime-declared tool — input/output types unknown at compile time.
+      type: "dynamic",
+      description: tool.description,
+      inputSchema: options.toSchema(schema),
+      // No `execute`: frontend tools are executed by the AG-UI client.
+    };
+  }
+
+  return { tools: out, skipped };
+}
+
 // ── streamText fullStream → AG-UI events ────────────────────
 
 /**
@@ -230,7 +289,7 @@ export function createAssistantAgUiRunner(options: ServerOptions): AgUiAgentRunn
     }
 
     // Lazy imports — mirrors ai-api.ts so heavy deps load on first use only.
-    const { streamText, stepCountIs } = await import("ai");
+    const { streamText, stepCountIs, jsonSchema } = await import("ai");
     const { resolveLanguageModel } = await import("@linchkit/cap-ai-provider");
     const { createTenantAwareDataProvider } = await import("@linchkit/core/server");
     const { buildSystemPrompt, extractLocale } = await import("./system-prompt");
@@ -281,11 +340,21 @@ export function createAssistantAgUiRunner(options: ServerOptions): AgUiAgentRunn
       allowActionExecution: false,
     });
 
+    // Client-declared frontend tools (AG-UI `input.tools`) are exposed to
+    // the model without an execute fn — their calls stream back to the
+    // client as TOOL_CALL_* events. Server tools win on name collision
+    // (colliding input tools are skipped inside buildFrontendToolSet).
+    const { tools: frontendTools } = buildFrontendToolSet({
+      tools: input.tools,
+      serverToolNames: new Set(Object.keys(tools)),
+      toSchema: jsonSchema,
+    });
+
     const result = streamText({
       model,
       system: systemPrompt,
       messages: toModelMessagesFromAgUi(input.messages),
-      tools,
+      tools: { ...frontendTools, ...tools },
       stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
       temperature: assistantConfig?.temperature ?? 0.3,
       abortSignal: signal,

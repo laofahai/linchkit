@@ -14,6 +14,8 @@ import type { UIMessage, UIMessageChunk } from "ai";
 import {
   AgUiChatTransport,
   type AgUiEventSource,
+  parseMaybeJson,
+  serializeToolOutput,
   streamUiMessageChunks,
   toAgUiContext,
   toAgUiMessages,
@@ -199,6 +201,49 @@ describe("streamUiMessageChunks — failures", () => {
   });
 });
 
+// ── Tool output round-trip (serialize → parse) ──────────────
+
+describe("serializeToolOutput / parseMaybeJson round-trip", () => {
+  test("string outputs survive the round-trip without type mutation", () => {
+    // Before the symmetric contract, "123" came back as the number 123 and
+    // "true" as a boolean — every string must round-trip as the SAME string.
+    for (const original of ["123", "true", '{"a":1}']) {
+      expect(parseMaybeJson(serializeToolOutput(original))).toBe(original);
+    }
+  });
+
+  test("object outputs survive the round-trip structurally", () => {
+    const original = { a: 1, nested: { ok: true }, list: [1, "2"] };
+    expect(parseMaybeJson(serializeToolOutput(original))).toEqual(original);
+  });
+
+  test("plain non-JSON text from a foreign agent falls back to the raw string", () => {
+    // Third-party AG-UI agents may send unencoded plain text — the decoder
+    // must tolerate it instead of throwing.
+    expect(parseMaybeJson("plain text from another agent")).toBe("plain text from another agent");
+  });
+
+  test("a string tool output is JSON-encoded on the AG-UI wire", () => {
+    const messages: UIMessage[] = [
+      {
+        id: "a1",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-getRecord",
+            toolCallId: "tc1",
+            state: "output-available",
+            input: { id: "x" },
+            output: "123",
+          },
+        ],
+      },
+    ];
+    const mapped = toAgUiMessages(messages);
+    expect(mapped[1]).toMatchObject({ role: "tool", content: '"123"' });
+  });
+});
+
 // ── UIMessage[] → AG-UI messages ────────────────────────────
 
 describe("toAgUiMessages", () => {
@@ -276,6 +321,14 @@ describe("toAgUiMessages", () => {
       content: "not found",
       error: "not found",
     });
+  });
+
+  test("tolerates messages without parts (persisted/external state)", () => {
+    const messages = [
+      { id: "u1", role: "user" },
+      { id: "a1", role: "assistant" },
+    ] as unknown as UIMessage[];
+    expect(toAgUiMessages(messages)).toEqual([]);
   });
 
   test("skips in-flight tool invocations and empty messages", () => {

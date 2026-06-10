@@ -7,7 +7,7 @@
  * state machine regardless of whether the wire is /api/ai/chat or AG-UI.
  */
 
-import type { UIMessage, UIMessagePart } from "ai";
+import type { UIMessage } from "ai";
 import { getToolName, isToolUIPart } from "ai";
 import { ExternalLinkIcon, Loader2Icon } from "lucide-react";
 
@@ -46,11 +46,21 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 /**
+ * True when `path` is an app-relative URL that is safe to render as a link:
+ * starts with "/", is not protocol-relative ("//host"), and carries no
+ * scheme. Anything else (javascript:, https://, relative paths) must render
+ * as plain text — a model-emitted path is untrusted input and a raw href is
+ * an XSS / open-redirect sink. Exported for tests.
+ */
+export function isAppRelativePath(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//") && !/^[a-z][a-z0-9+.-]*:/i.test(path);
+}
+
+/**
  * Render a single message part based on its type.
  * AI SDK v6 uses typed parts: text, tool-{name}, dynamic-tool, reasoning, etc.
  */
-// biome-ignore lint/suspicious/noExplicitAny: UIMessagePart generic is complex
-function MessagePart({ part }: { part: UIMessagePart<any, any> }) {
+function MessagePart({ part }: { part: UIMessage["parts"][number] }) {
   // Text parts
   if (part.type === "text") {
     return (
@@ -68,18 +78,27 @@ function MessagePart({ part }: { part: UIMessagePart<any, any> }) {
     const toolName = getToolName(part);
     const state = part.state;
 
-    // navigateTo tool with output — render as a clickable link
+    // navigateTo tool with output — render as a clickable link. Only
+    // app-relative paths become an href; anything else (javascript:,
+    // external/protocol-relative URLs) is shown as plain text.
     if (toolName === "navigateTo" && state === "input-available") {
       const input = part.input as { path?: string; label?: string } | undefined;
       if (input?.path) {
+        if (isAppRelativePath(input.path)) {
+          return (
+            <a
+              href={input.path}
+              className="mt-1 flex items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
+            >
+              <ExternalLinkIcon className="size-3" />
+              {input.label || input.path}
+            </a>
+          );
+        }
         return (
-          <a
-            href={input.path}
-            className="mt-1 flex items-center gap-1.5 rounded-md border border-primary/30 bg-background px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/10"
-          >
-            <ExternalLinkIcon className="size-3" />
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             {input.label || input.path}
-          </a>
+          </span>
         );
       }
     }

@@ -9,13 +9,17 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { Message as AgUiMessage } from "@linchkit/cap-adapter-ag-ui";
+import type { AGUIEvent, Message as AgUiMessage } from "@linchkit/cap-adapter-ag-ui";
 import { EventType } from "@linchkit/cap-adapter-ag-ui";
 import type { AIService, AIStreamResult, CapabilityDefinition } from "@linchkit/core";
 import type { TextStreamPart, ToolSet } from "ai";
+import { jsonSchema, stepCountIs, streamText, tool } from "ai";
+import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
 import { Elysia } from "elysia";
+import { z } from "zod";
 import {
   agUiContextValue,
+  buildFrontendToolSet,
   streamPartToAgUiEvents,
   toModelMessagesFromAgUi,
 } from "../../ai/agui-runner";
@@ -186,6 +190,11 @@ describe("toModelMessagesFromAgUi", () => {
     ];
     expect(toModelMessagesFromAgUi(messages)).toEqual([{ role: "user", content: "first\nsecond" }]);
   });
+
+  test("tolerates a user message with missing content (loose third-party input)", () => {
+    const messages = [{ id: "m1", role: "user" }] as unknown as AgUiMessage[];
+    expect(toModelMessagesFromAgUi(messages)).toEqual([]);
+  });
 });
 
 // ── streamText fullStream → AG-UI events ────────────────────
@@ -258,6 +267,133 @@ describe("streamPartToAgUiEvents", () => {
   });
 });
 
+// ── AG-UI frontend tools → SDK tools ────────────────────────
+
+describe("buildFrontendToolSet", () => {
+  test("translates input.tools into execute-less dynamic tools for streamText", () => {
+    const { tools, skipped } = buildFrontendToolSet({
+      tools: [
+        {
+          name: "changeBackground",
+          description: "Change the page background color",
+          parameters: { type: "object", properties: { color: { type: "string" } } },
+        },
+      ],
+      serverToolNames: new Set(["queryRecords"]),
+      toSchema: jsonSchema,
+    });
+
+    expect(skipped).toEqual([]);
+    expect(Object.keys(tools)).toEqual(["changeBackground"]);
+    expect(tools.changeBackground?.type).toBe("dynamic");
+    expect(tools.changeBackground?.description).toBe("Change the page background color");
+    expect(tools.changeBackground?.inputSchema).toBeDefined();
+    // No execute: the AG-UI client runs frontend tools, never the server.
+    expect(tools.changeBackground?.execute).toBeUndefined();
+  });
+
+  test("a name collision prefers the server tool — the input tool is skipped", () => {
+    const serverTools: ToolSet = {
+      queryRecords: tool({
+        description: "server-side query",
+        inputSchema: z.object({}),
+        execute: async () => "server",
+      }),
+    };
+
+    const { tools: frontendTools, skipped } = buildFrontendToolSet({
+      tools: [
+        { name: "queryRecords", description: "client-side imposter" },
+        { name: "clientOnly", description: "client tool" },
+      ],
+      serverToolNames: new Set(Object.keys(serverTools)),
+      toSchema: jsonSchema,
+    });
+
+    expect(skipped).toEqual(["queryRecords"]);
+    expect(Object.keys(frontendTools)).toEqual(["clientOnly"]);
+
+    // Same merge the runner hands to streamText — the server tool survives.
+    const merged: ToolSet = { ...frontendTools, ...serverTools };
+    expect(merged.queryRecords?.description).toBe("server-side query");
+    expect(merged.queryRecords?.execute).toBeDefined();
+  });
+});
+
+// V3 stream-part type, derived from the mock so no direct dependency on
+// @ai-sdk/provider is introduced.
+type V3StreamPart =
+  Awaited<ReturnType<MockLanguageModelV3["doStream"]>>["stream"] extends ReadableStream<infer PART>
+    ? PART
+    : never;
+
+describe("frontend tools through the agent loop (fake model)", () => {
+  test("a client tool call surfaces as TOOL_CALL events and the run terminates", async () => {
+    // Fake model: answers with text, then calls the FRONTEND tool and stops.
+    const chunks: V3StreamPart[] = [
+      { type: "stream-start", warnings: [] },
+      { type: "text-start", id: "t1" },
+      { type: "text-delta", id: "t1", delta: "On it." },
+      { type: "text-end", id: "t1" },
+      {
+        type: "tool-call",
+        toolCallId: "tc9",
+        toolName: "changeBackground",
+        input: '{"color":"red"}',
+      },
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: "tool-calls" },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 },
+        },
+      },
+    ];
+    const model = new MockLanguageModelV3({
+      doStream: { stream: convertArrayToReadableStream(chunks) },
+    });
+
+    const { tools } = buildFrontendToolSet({
+      tools: [
+        {
+          name: "changeBackground",
+          description: "Change the page background color",
+          parameters: { type: "object", properties: { color: { type: "string" } } },
+        },
+      ],
+      serverToolNames: new Set(),
+      toSchema: jsonSchema,
+    });
+
+    const result = streamText({
+      model,
+      messages: [{ role: "user", content: "make it red" }],
+      tools,
+      stopWhen: stepCountIs(5),
+    });
+
+    // Completing this loop is itself an assertion: an unexecuted client tool
+    // call must END the run (no follow-up step despite stopWhen allowing 5),
+    // so the endpoint emits RUN_FINISHED instead of hanging.
+    const events: AGUIEvent[] = [];
+    for await (const part of result.fullStream) {
+      events.push(...streamPartToAgUiEvents(part as TextStreamPart<ToolSet>));
+    }
+
+    expect(events.map((e) => e.type)).toEqual([
+      EventType.TEXT_MESSAGE_START,
+      EventType.TEXT_MESSAGE_CONTENT,
+      EventType.TEXT_MESSAGE_END,
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_ARGS,
+      EventType.TOOL_CALL_END,
+    ]);
+    expect(events[3]).toMatchObject({ toolCallId: "tc9", toolCallName: "changeBackground" });
+    expect(events[4]).toMatchObject({ toolCallId: "tc9", delta: '{"color":"red"}' });
+  });
+});
+
 // ── Context extraction ──────────────────────────────────────
 
 describe("agUiContextValue", () => {
@@ -272,5 +408,7 @@ describe("agUiContextValue", () => {
     expect(agUiContextValue(input, "locale")).toBe("zh-CN");
     expect(agUiContextValue(input, "recordId")).toBeUndefined();
     expect(agUiContextValue({ context: [] }, "entity")).toBeUndefined();
+    // `context` may be absent entirely on loosely-validated inputs.
+    expect(agUiContextValue({}, "entity")).toBeUndefined();
   });
 });

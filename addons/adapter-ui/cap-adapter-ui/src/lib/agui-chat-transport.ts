@@ -76,17 +76,29 @@ function createHttpRunAgent(url: string): AgUiRunAgentFn {
 
 /** Join the text parts of a UIMessage into one string. */
 function textOf(message: UIMessage): string {
-  return message.parts
+  // `parts` is required by the ai-v6 type, but messages can arrive from
+  // persisted state or external callers without it — guard defensively.
+  // (ai v6 has no `content` field on UIMessage to fall back to.)
+  return (message.parts ?? [])
     .filter((part): part is Extract<typeof part, { type: "text" }> => part.type === "text")
     .map((part) => part.text)
     .join("");
 }
 
-/** Serialize a tool output for the AG-UI `tool` message `content` string. */
-function serializeToolOutput(output: unknown): string {
-  if (typeof output === "string") return output;
+/**
+ * Serialize a tool output for the AG-UI `tool` message `content` string.
+ *
+ * Symmetric contract with {@link parseMaybeJson}: ALWAYS JSON-encode (strings
+ * included), so a string output like `"123"` or `"true"` survives the
+ * round-trip as a string instead of mutating into a number/boolean when the
+ * decoder JSON-parses the content. Exported for round-trip tests.
+ */
+export function serializeToolOutput(output: unknown): string {
   try {
-    return JSON.stringify(output ?? null);
+    // JSON.stringify yields undefined for functions/symbols despite its
+    // declared string return type — fall back to String() in that case.
+    const json: string | undefined = JSON.stringify(output ?? null);
+    return json ?? String(output);
   } catch {
     return String(output);
   }
@@ -112,7 +124,7 @@ export function toAgUiMessages(messages: UIMessage[]): AgUiMessage[] {
     // assistant — text + tool invocations
     const toolCalls: AgUiToolCall[] = [];
     const toolResults: Extract<AgUiMessage, { role: "tool" }>[] = [];
-    for (const part of message.parts) {
+    for (const part of message.parts ?? []) {
       if (!isToolUIPart(part)) continue;
       // Only invocations whose input is final belong in the history.
       if (
@@ -162,8 +174,13 @@ export function toAgUiMessages(messages: UIMessage[]): AgUiMessage[] {
 
 // ── AG-UI events → UIMessageChunk ────────────────────────────
 
-/** Parse a string that may contain JSON; fall back to the raw string. */
-function parseMaybeJson(raw: string): unknown {
+/**
+ * Decode a tool output/args string. Symmetric counterpart of
+ * {@link serializeToolOutput}: JSON-parse, falling back to the raw string
+ * ONLY when parsing fails (tolerates third-party agents that send plain,
+ * non-JSON text). Exported for round-trip tests.
+ */
+export function parseMaybeJson(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
