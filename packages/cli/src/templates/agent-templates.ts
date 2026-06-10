@@ -24,7 +24,7 @@ LinchKit AI-Native Software Capability Runtime project.
 \`\`\`bash
 bun install          # Install dependencies
 linch dev            # Start dev server (API on :3001)
-bun run test             # Run tests
+bun run test         # Run tests
 linch db generate    # Generate DB migration from schema changes
 linch db migrate     # Apply pending migrations
 linch create capability <name>  # Scaffold a new capability
