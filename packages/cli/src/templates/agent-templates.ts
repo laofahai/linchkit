@@ -24,7 +24,7 @@ LinchKit AI-Native Software Capability Runtime project.
 \`\`\`bash
 bun install          # Install dependencies
 linch dev            # Start dev server (API on :3001)
-bun test             # Run tests
+bun run test             # Run tests
 linch db generate    # Generate DB migration from schema changes
 linch db migrate     # Apply pending migrations
 linch create capability <name>  # Scaffold a new capability
@@ -153,7 +153,7 @@ When a user asks you to help set up this project, follow this workflow:
 6. **Register in config** — Add capabilities to \`linchkit.config.ts\`
 7. **Read the relevant spec** — If a spec exists for the area being changed, read it before implementation
 8. **Verify** — Run \`linch dev\` and check that everything works
-9. **Quality gates** — Run \`linch validate\`, \`bun run check\`, \`bun run typecheck\`, \`bun test\`
+9. **Quality gates** — Run \`linch validate\`, \`bun run check\`, \`bun run typecheck\`, \`bun run test\`
 
 Ask one question at a time. Use MCP tools (\`linchkit_list_entities\`, \`linchkit_validate_entity\`, etc.) for project introspection.
 

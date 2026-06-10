@@ -34,7 +34,7 @@ Execution order for AI work:
 - Entity naming: snake_case
 - Action naming: verb_noun
 - Comments in English
-- Run quality gates before committing: \`linch validate && bun run check && bun run typecheck && bun test\`
+- Run quality gates before committing: \`linch validate && bun run check && bun run typecheck && bun run test\`
 `;
 }
 
@@ -52,7 +52,7 @@ Key rules:
 - Runtime: Bun (never Node/npx/npm)
 - TypeScript strict mode
 - All definitions use \`defineXxx()\` functions
-- Quality gates: \`linch validate && bun run check && bun run typecheck && bun test\`
+- Quality gates: \`linch validate && bun run check && bun run typecheck && bun run test\`
 `;
 }
 
@@ -73,7 +73,7 @@ Execution order for AI work:
 - Entity naming: snake_case
 - Action naming: verb_noun
 - Comments in English
-- Run quality gates before committing: \`linch validate && bun run check && bun run typecheck && bun test\`
+- Run quality gates before committing: \`linch validate && bun run check && bun run typecheck && bun run test\`
 `;
 }
 
@@ -100,7 +100,7 @@ This project uses LinchKit, an AI-Native Software Capability Runtime.
 1. \`linch validate\` — capability validation
 2. \`bun run check\` — Biome lint + format
 3. \`bun run typecheck\` — TypeScript strict check
-4. \`bun test\` — all tests green
+4. \`bun run test\` — all tests green
 
 Read AGENTS.md for the full meta-model reference and development workflow.
 `;
