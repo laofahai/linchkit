@@ -229,7 +229,11 @@ jobs:
           MONTH=$(date -u +%Y-%m)
           TITLE="AI eval drift detected ${MONTH}"
           # Dedupe: a re-run inside the same month must not file a duplicate.
-          EXISTING=$(gh issue list --state open --search "in:title \"$TITLE\"" \
+          # Use the Issues LIST API (strongly consistent) filtered by the `ai`
+          # label, not `--search` (Search API has seconds-to-minutes indexing
+          # latency, so a quick re-run would miss the just-filed issue and
+          # double-file). Exact-title match happens in jq.
+          EXISTING=$(gh issue list --state open --label "ai" \
             --json title --jq "[.[] | select(.title == \"$TITLE\")] | length")
           if [ "$EXISTING" != "0" ]; then
             echo "Open issue \"$TITLE\" already exists — not filing a duplicate."

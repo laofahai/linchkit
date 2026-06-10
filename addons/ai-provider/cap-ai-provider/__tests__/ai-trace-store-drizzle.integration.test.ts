@@ -49,7 +49,14 @@ async function canConnect(): Promise<boolean> {
     return false;
   } finally {
     // Always release the probe pool so a failed probe never leaks connections.
-    await closeDatabase();
+    // Guard the close itself: a throw here would discard the catch's
+    // `return false` and reject `canConnect()`, crashing the whole module at
+    // the top-level `await` instead of letting `skipIf` skip gracefully.
+    try {
+      await closeDatabase();
+    } catch {
+      // Ignore — the probe connection may already be closed or never opened.
+    }
   }
 }
 
