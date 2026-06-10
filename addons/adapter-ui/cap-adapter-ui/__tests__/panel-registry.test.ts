@@ -7,6 +7,7 @@
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
+import type React from "react";
 import {
   createRecordPanelRegistry,
   type RecordPanelRegistration,
