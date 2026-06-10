@@ -39,7 +39,9 @@ interface TransitionButtonsProps {
   /** State machine definitions for label resolution */
   states?: StateDefinition[];
   /** Callback after successful transition */
-  onTransitioned?: (updatedRecord: Record<string, unknown>) => void;
+  /** Fresh record after the transition; undefined when the re-query failed
+   * (the transition itself succeeded — fall back to a full refetch). */
+  onTransitioned?: (updatedRecord?: Record<string, unknown>) => void;
 }
 
 export function TransitionButtons({
@@ -114,9 +116,10 @@ export function TransitionButtons({
         return;
       }
       toast.success(t("toast.transitionSuccess", "Status changed successfully"));
-      // updated: null → bound-action re-query failed; skip the in-place
-      // record refresh but still refresh the available transitions.
-      if (outcome.updated) onTransitioned?.(outcome.updated);
+      // updated: null → bound-action re-query failed, but the transition
+      // itself succeeded server-side — notify the parent without a record
+      // so it can fall back to a full refetch instead of going stale.
+      onTransitioned?.(outcome.updated ?? undefined);
       // Refresh available transitions after successful transition
       await fetchTransitions();
     } catch (_err) {

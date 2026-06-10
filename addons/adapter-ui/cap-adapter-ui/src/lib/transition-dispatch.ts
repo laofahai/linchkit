@@ -49,10 +49,12 @@ export type TransitionDispatchOutcome =
  * (empty action name) — callers then fall back to the raw transition mutation.
  */
 export function resolveBoundAction(
-  transitions: readonly Transition[],
+  transitions: readonly Transition[] | undefined | null,
   fromState: string,
   toState: string,
 ): string | undefined {
+  // Incomplete state definitions may carry no transitions at all.
+  if (!transitions) return undefined;
   for (const tr of transitions) {
     const fromArr = Array.isArray(tr.from) ? tr.from : [tr.from];
     if (fromArr.includes(fromState) && tr.to === toState) {

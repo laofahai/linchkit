@@ -181,4 +181,9 @@ describe("resolveBoundAction", () => {
   test("returns undefined when the edge declares an empty action name (raw fallback)", () => {
     expect(resolveBoundAction(transitions, "pending", "approved")).toBeUndefined();
   });
+
+  test("returns undefined for missing transitions (incomplete state definition)", () => {
+    expect(resolveBoundAction(undefined, "draft", "pending")).toBeUndefined();
+    expect(resolveBoundAction(null, "draft", "pending")).toBeUndefined();
+  });
 });
