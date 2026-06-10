@@ -15,6 +15,7 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bash scripts/run-tests.sh",
     "test:coverage": "bash scripts/verify-test-coverage.sh",
+    "test:e2e": "bash scripts/run-e2e-browser.sh",
     "build": "bun run --filter '@linchkit/core' build && bun run --filter '@linchkit/devtools' build && bun run --filter '@linchkit/cli' --filter '@linchkit/cap-adapter-ui' build",
     "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui' dev",
     "dev:server": "bun run --filter @linchkit/cap-adapter-server dev",
@@ -31,6 +32,7 @@
     "@changesets/cli": "^2.30.0",
     "bun-types": "latest",
     "drizzle-kit": "^0.31.10",
+    "puppeteer-core": "^25.1.0",
     "tsup": "^8.5.1"
   },
   "dependencies": {
