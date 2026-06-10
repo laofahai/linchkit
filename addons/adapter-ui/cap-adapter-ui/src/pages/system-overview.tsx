@@ -81,10 +81,12 @@ interface HealthResponse {
  * ("health.checks.map is not a function").
  */
 export function normalizeHealthChecks(raw: unknown): HealthCheck[] {
+  const VALID_STATUSES: ReadonlySet<string> = new Set(["healthy", "degraded", "unhealthy"]);
   const toCheck = (name: string, entry: unknown): HealthCheck => {
-    const obj = (entry ?? {}) as Record<string, unknown>;
-    const status =
-      typeof obj.status === "string"
+    const obj: Record<string, unknown> =
+      entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    const status: HealthCheck["status"] =
+      typeof obj.status === "string" && VALID_STATUSES.has(obj.status)
         ? (obj.status as HealthCheck["status"])
         : obj.ok === false
           ? "unhealthy"

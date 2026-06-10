@@ -50,3 +50,17 @@ describe("normalizeHealthChecks", () => {
     expect(normalizeHealthChecks(42)).toEqual([]);
   });
 });
+
+describe("normalizeHealthChecks hardening (review follow-up)", () => {
+  test("an unknown status string falls back to the ok-derived status", () => {
+    expect(normalizeHealthChecks({ db: { status: "weird", ok: false } })).toEqual([
+      { name: "db", status: "unhealthy", durationMs: 0 },
+    ]);
+  });
+
+  test("a primitive entry value yields a healthy default check", () => {
+    expect(normalizeHealthChecks({ process: true })).toEqual([
+      { name: "process", status: "healthy", durationMs: 0 },
+    ]);
+  });
+});
