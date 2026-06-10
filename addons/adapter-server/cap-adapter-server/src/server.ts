@@ -61,6 +61,7 @@ import { mountAIRoutes } from "./routes/ai-api";
 import { mountAIByokRoutes } from "./routes/ai-byok";
 import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
 import { mountResolveSchemaIntentRoute } from "./routes/ai-resolve-schema-intent";
+import { mountAITracesRoutes } from "./routes/ai-traces-api";
 import { mountApprovalRoutes } from "./routes/approval-api";
 import { mountConfigRoutes } from "./routes/config-api";
 import { mountConfigStoreRoutes } from "./routes/config-store-api";
@@ -430,6 +431,9 @@ export function createServer(
   // audit logging) wins routing for `POST /api/ai/resolve-intent` if any
   // legacy handler is left in the file.
   mountResolveIntentRoute(app, opts);
+  // Spec 69 P3 wave 2 — admin read of recent AI traces (`GET /api/ai/traces`),
+  // permission-gated through CommandLayer (`meta.aiObservability`).
+  mountAITracesRoutes(app, opts);
   // Spec 52 "说→有" first slice — NL utterance → governed `add_rule` ProposalDraft.
   mountResolveSchemaIntentRoute(app, opts);
   mountTranslationRoutes(app, opts);

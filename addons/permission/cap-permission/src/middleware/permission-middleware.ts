@@ -88,6 +88,10 @@ type MetaTarget =
  *  - `meta.onchange = { entity }` (Spec 64) → an entity-level READ check. The
  *    onchange route computes form fields for an entity; authorize it as "may this
  *    actor READ this entity" (`grant.<entity>.data.read`), NOT as an action.
+ *  - `meta.aiObservability = { operation }` (Spec 69 P3) → an ACTION grant target.
+ *    Gate AI observability admin reads (e.g. `GET /api/ai/traces`) on a natural
+ *    grant (`grant.ai.actions.<operation>`, e.g. `grant.ai.actions.read_traces`)
+ *    rather than the synthetic command name. Same shape as `meta.evolution`.
  *
  * Returns `null` when no recognised meta target is present, leaving the caller on
  * its normal action-based resolution. Only consulted for non-action dispatches
@@ -102,6 +106,14 @@ function resolveMetaTarget(ctx: CommandContext): MetaTarget | null {
   const onchange = meta?.onchange as { entity?: unknown } | undefined;
   if (onchange && typeof onchange.entity === "string" && onchange.entity.length > 0) {
     return { kind: "read", capability: onchange.entity, entity: onchange.entity };
+  }
+  const aiObservability = meta?.aiObservability as { operation?: unknown } | undefined;
+  if (
+    aiObservability &&
+    typeof aiObservability.operation === "string" &&
+    aiObservability.operation.length > 0
+  ) {
+    return { kind: "action", capability: "ai", action: aiObservability.operation };
   }
   return null;
 }
