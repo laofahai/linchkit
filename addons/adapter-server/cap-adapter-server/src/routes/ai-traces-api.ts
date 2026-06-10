@@ -28,7 +28,7 @@
  */
 
 import type { AITrace, AITraceOrigin, AITraceQueryOptions, AITraceStatus } from "@linchkit/core";
-import { getAITraceSink } from "@linchkit/core/server";
+import { consoleLogger, getAITraceSink } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { ServerOptions } from "../server";
 import { badRequest, resolveActor, resolveStatusCode, serviceUnavailable } from "./shared";
@@ -102,7 +102,10 @@ export function mountAITracesRoutes(app: Elysia, options: ServerOptions): void {
     // (cheap input validation; nothing is leaked because we 400 the same way
     // regardless of authorization — the values aren't tenant data.)
     let limit = DEFAULT_TRACE_LIMIT;
-    if (query.limit !== undefined) {
+    // Treat an absent OR empty (`?limit=` / bare `?limit`) param as "use the
+    // default". Number("") is 0, which would otherwise pass the non-negative
+    // check below and silently return zero traces.
+    if (query.limit !== undefined && String(query.limit).trim() !== "") {
       const parsed = Number(query.limit);
       if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
         return badRequest(set, "Invalid 'limit' — must be a non-negative integer.");
@@ -190,6 +193,11 @@ export function mountAITracesRoutes(app: Elysia, options: ServerOptions): void {
         : sink.queryTraces(queryOptions);
       return { success: true, data: { traces, count: traces.length } };
     } catch (err) {
+      // Always log the real error server-side; only the CLIENT-facing message is
+      // redacted in production (the raw text could leak query/schema detail).
+      consoleLogger.error(
+        `[ai-traces] query failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       const message =
         process.env.NODE_ENV === "production"
           ? "Failed to query AI traces."

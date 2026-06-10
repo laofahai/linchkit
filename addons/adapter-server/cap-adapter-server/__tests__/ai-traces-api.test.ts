@@ -142,6 +142,19 @@ describe("GET /api/ai/traces", () => {
     expect(json.success).toBe(false);
   });
 
+  test("treats an empty ?limit= as 'use the default' (not 0)", async () => {
+    // Number("") is 0; an empty/bare limit param must fall back to the default
+    // page size, not silently return zero traces.
+    seedTrace({ traceId: "a" });
+    seedTrace({ traceId: "b" });
+    const app = mountApp({ commandLayer: passLayer() });
+
+    const { status, json } = await getTraces(app, "?limit=");
+
+    expect(status).toBe(200);
+    expect(json.data?.count).toBe(2);
+  });
+
   test("rejects an invalid ?origin= with 400", async () => {
     const app = mountApp({ commandLayer: passLayer() });
     const { status, json } = await getTraces(app, "?origin=bogus");
