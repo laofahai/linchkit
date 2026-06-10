@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 import { consoleLogger } from "@linchkit/core/server";
 import { assembleDevSchema } from "./assemble-schema";
 import { loadConfig } from "./config-loader";
-import { buildDevOntologyRegistry } from "./dev-app";
+import { buildDevEvolutionRuntime, buildDevOntologyRegistry } from "./dev-app";
 import { createServer } from "./server";
 
 // ── Resolve project root ────────────────────────────────
@@ -115,6 +115,21 @@ const allActions = assembled.allActions;
 const ontologyRegistry = buildDevOntologyRegistry(assembled);
 consoleLogger.info(`OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
 
+// Evolution runtime (Spec 55) — mirrors the `linch dev` boot path
+// (dev-wiring.ts). Without it, POST /api/evolution/run-cycle answers 501
+// "Evolution runtime is not configured" and the Evolution page's
+// "Run Evolution Cycle" button dead-ends. SAFETY: proposals from the live
+// cycle stay DATA-only drafts — no graduation, no file writes, no scheduler.
+const evolutionRuntime = buildDevEvolutionRuntime({
+  capabilities: config.capabilities ?? [],
+  assembled,
+  ontologyRegistry,
+});
+consoleLogger.info(
+  `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered ` +
+    "(insight→proposal translator + pre-analysis pipeline wired)",
+);
+
 const port = config.server?.port ?? 3001;
 const host = config.server?.host ?? "0.0.0.0";
 
@@ -140,6 +155,7 @@ const server = createServer(graphqlSchema, {
   dataProvider: runtime.dataProvider,
   onchangeEvaluator,
   ontologyRegistry,
+  evolutionRuntime,
 });
 
 server.listen(port);
