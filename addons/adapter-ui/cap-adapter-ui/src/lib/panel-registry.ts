@@ -38,22 +38,43 @@ export interface RecordPanelRegistration {
   }>;
 }
 
-const registry: RecordPanelRegistration[] = [];
+/** A record-panel registry instance (register + sorted read). */
+export interface RecordPanelRegistry {
+  register(panel: RecordPanelRegistration): void;
+  getAll(): RecordPanelRegistration[];
+}
+
+/**
+ * Create an isolated panel registry. Unit tests construct their own instance —
+ * NEVER clear the shared module singleton below: capability packages
+ * (cap-chatter-ui, …) register into it at import time and assert on it, and
+ * under bun's batched test run a shared-singleton clear races those
+ * import-time registrations (#539).
+ */
+export function createRecordPanelRegistry(): RecordPanelRegistry {
+  const items: RecordPanelRegistration[] = [];
+  return {
+    register(panel: RecordPanelRegistration): void {
+      if (items.some((p) => p.id === panel.id)) {
+        throw new Error(`Record panel "${panel.id}" is already registered`);
+      }
+      items.push(panel);
+    },
+    getAll(): RecordPanelRegistration[] {
+      return [...items].sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+    },
+  };
+}
+
+/** The shared app-wide registry capability packages register into on import. */
+const defaultRegistry = createRecordPanelRegistry();
 
 /** Register a record-detail panel. Called at import time by capability UI packages. */
 export function registerRecordPanel(panel: RecordPanelRegistration): void {
-  if (registry.some((p) => p.id === panel.id)) {
-    throw new Error(`Record panel "${panel.id}" is already registered`);
-  }
-  registry.push(panel);
+  defaultRegistry.register(panel);
 }
 
 /** Get all registered panels, sorted by order. */
 export function getRecordPanels(): RecordPanelRegistration[] {
-  return [...registry].sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-}
-
-/** Clear all registrations (for testing only). */
-export function clearRecordPanels(): void {
-  registry.length = 0;
+  return defaultRegistry.getAll();
 }

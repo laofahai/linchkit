@@ -26,16 +26,42 @@ export interface AdminRouteRegistration {
   children?: AdminRouteRegistration[];
 }
 
-const registry: AdminRouteRegistration[] = [];
+/** An admin-route registry instance (register + sorted read). */
+export interface AdminRouteRegistry {
+  register(route: AdminRouteRegistration): void;
+  getAll(): AdminRouteRegistration[];
+}
+
+/**
+ * Create an isolated admin-route registry. Unit tests construct their own
+ * instance — NEVER clear the shared module singleton below: capability
+ * packages (cap-adapter-mcp UI, …) register into it at import time and assert
+ * on it, and under bun's batched test run a shared-singleton clear races
+ * those import-time registrations (#539).
+ */
+export function createAdminRouteRegistry(): AdminRouteRegistry {
+  const items: AdminRouteRegistration[] = [];
+  return {
+    register(route: AdminRouteRegistration): void {
+      if (items.some((r) => r.id === route.id)) {
+        throw new Error(`Admin route "${route.id}" is already registered`);
+      }
+      items.push(route);
+    },
+    getAll(): AdminRouteRegistration[] {
+      return [...items].sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+    },
+  };
+}
+
+/** The shared app-wide registry capability packages register into on import. */
+const defaultRegistry = createAdminRouteRegistry();
 
 /**
  * Register an admin route. Throws if a route with the same ID is already registered.
  */
 export function registerAdminRoute(route: AdminRouteRegistration): void {
-  if (registry.some((r) => r.id === route.id)) {
-    throw new Error(`Admin route "${route.id}" is already registered`);
-  }
-  registry.push(route);
+  defaultRegistry.register(route);
 }
 
 /**
@@ -43,13 +69,5 @@ export function registerAdminRoute(route: AdminRouteRegistration): void {
  * Returns a shallow copy to prevent external mutation.
  */
 export function getAdminRoutes(): AdminRouteRegistration[] {
-  return [...registry].sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
-}
-
-/**
- * Clear all registered routes. Only for testing.
- * @internal
- */
-export function _clearAdminRoutes(): void {
-  registry.length = 0;
+  return defaultRegistry.getAll();
 }
