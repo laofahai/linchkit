@@ -33,17 +33,25 @@ import {
   SOURCE_FILENAME,
 } from "./child-harness";
 import {
+  buildMemoryLimitArgv,
+  buildMicrovmArgv,
   buildSandboxArgv,
   buildSandboxExecProfile,
   defaultSandboxEnv,
+  detectMemoryLimitWrapper,
+  detectMicrovmStrategy,
   detectSandboxStrategy,
+  isMicrovmStrategyUsable,
   isSandboxStrategyUsable,
+  type MicrovmStrategy,
   type SandboxEnv,
   type SandboxStrategy,
 } from "./sandbox";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MEMORY_BYTES = 256 * 1024 * 1024;
+/** Default image for the microvm tier — bun must exist inside the container. */
+const DEFAULT_MICROVM_IMAGE = "oven/bun:1";
 /** How often the memory guard samples the process tree's RSS. */
 const MEM_POLL_MS = 250;
 
@@ -107,7 +115,39 @@ interface ChildResult {
   __nonce?: string;
 }
 
+/** Runner tiers (Spec 70 §4): the hardened OS-process default, or the gVisor
+ * kernel-boundary escalation tier. The launcher (harness files + argv) is IDENTICAL;
+ * only the spawn wrapper differs. */
+export type DryRunnerTier = "subprocess" | "microvm";
+
+/** The subset of `Bun.spawn`'s subprocess handle the runner relies on. */
+export interface SpawnedDryRunChild {
+  pid: number;
+  exited: Promise<number>;
+  kill(signal?: number): void;
+}
+
+/** Spawn seam: the runner always passes a fully built argv array (never a shell
+ * string); the default implementation is a detached, output-discarding `Bun.spawn`.
+ * Injectable so tests can record the exact argv without running anything. */
+export type DryRunSpawn = (
+  argv: string[],
+  options: { cwd: string; env: Record<string, string>; stdin: Blob },
+) => SpawnedDryRunChild;
+
+const defaultSpawn: DryRunSpawn = (argv, options) =>
+  // `detached` → process-group leader (whole-tree reaping); stdout/stderr DISCARDED
+  // (captured untrusted output would be an exfiltration channel — see dryRun()).
+  Bun.spawn(argv, { ...options, stdout: "ignore", stderr: "ignore", detached: true });
+
 export interface SubprocessDryRunnerOptions {
+  /**
+   * Which isolation tier wraps the spawn (default `"subprocess"`). A configured
+   * `"microvm"` tier with no usable gVisor mechanism on the host FAILS CLOSED
+   * (`infra_error`, nothing runs) — it never silently degrades to the subprocess
+   * tier, which would report a weaker boundary as the stronger one.
+   */
+  runner?: DryRunnerTier;
   /** Default resource bounds when a job omits them. */
   defaultLimits?: { timeoutMs: number; memoryBytes: number };
   /** Override the sandbox/platform probe (tests). */
@@ -116,7 +156,16 @@ export interface SubprocessDryRunnerOptions {
   tmpRoot?: string;
   /** Absolute path to the Bun executable for the child (defaults to this process's). */
   bunPath?: string;
+  /** Container image for the microvm tier; must provide `bun` (default `oven/bun:1`). */
+  microvmImage?: string;
+  /** Override the microvm usability probe (tests). */
+  microvmProbe?: (strategy: MicrovmStrategy) => boolean;
+  /** Override the spawn (tests record argv instead of running). */
+  spawn?: DryRunSpawn;
 }
+
+/** Preferred options alias now that the factory selects the runner tier. */
+export type DryRunnerOptions = SubprocessDryRunnerOptions;
 
 /** Build the `infra_error` outcome (warn-only; never blocks). */
 function infraOutcome(
@@ -146,13 +195,22 @@ function resolveBunPath(provided: string | undefined, env: SandboxEnv): string {
 }
 
 /**
- * Create a hardened-subprocess `ExecutionDryRunProvider`. Each `dryRun` call runs
- * in its own throwaway temp dir, sandboxed, and is fully cleaned up afterward.
+ * Create a hardened `ExecutionDryRunProvider`. Each `dryRun` call runs in its own
+ * throwaway temp dir, sandboxed, and is fully cleaned up afterward. The isolation
+ * tier is selected by `options.runner` (Spec 70 §4):
+ *
+ *   - `"subprocess"` (default) — OS-sandboxed Bun child (`sandbox-exec`/`bwrap`/
+ *     trusted container), plus an OS-enforced memory rlimit on Linux when
+ *     `prlimit` is available (`prlimit --data -- <sandbox argv>`).
+ *   - `"microvm"` — the IDENTICAL launcher inside a gVisor kernel boundary
+ *     (`docker run --runtime=runsc --network=none --read-only --memory=…`). No
+ *     usable mechanism → FAIL CLOSED, never a silent subprocess fallback.
  */
-export function createSubprocessDryRunner(
-  options: SubprocessDryRunnerOptions = {},
-): ExecutionDryRunProvider {
+export function createDryRunner(options: DryRunnerOptions = {}): ExecutionDryRunProvider {
   const sandboxEnv = options.sandboxEnv ?? defaultSandboxEnv();
+  const tier: DryRunnerTier = options.runner ?? "subprocess";
+  const spawnChild = options.spawn ?? defaultSpawn;
+  const microvmProbe = options.microvmProbe ?? isMicrovmStrategyUsable;
   // Resolve the Bun executable to an ABSOLUTE path. A relative/bare `bunPath`
   // (e.g. "bun") would make `dirname(bunPath)` in sandbox.ts resolve to "." and
   // bind the caller's CWD into the bwrap sandbox (leaking arbitrary files), so a
@@ -176,6 +234,19 @@ export function createSubprocessDryRunner(
     }
     return usable;
   };
+  // Same once-per-runner memo for the microvm mechanism (docker daemon runtime table).
+  const microvmUsableMemo = new Map<MicrovmStrategy, boolean>();
+  const microvmUsable = (strategy: MicrovmStrategy): boolean => {
+    let usable = microvmUsableMemo.get(strategy);
+    if (usable === undefined) {
+      usable = microvmProbe(strategy);
+      microvmUsableMemo.set(strategy, usable);
+    }
+    return usable;
+  };
+  // The OS memory-limit wrapper for the subprocess tier (Linux `prlimit`; `null` on
+  // platforms without one → the RSS-polling guard alone bounds memory there).
+  const memoryLimitWrapper = detectMemoryLimitWrapper(sandboxEnv);
 
   return {
     async dryRun(job): Promise<DryRunOutcome> {
@@ -188,20 +259,42 @@ export function createSubprocessDryRunner(
       // result forged by the untrusted code cannot carry it.
       const nonce = crypto.randomUUID();
 
-      // Fail closed when no OS sandbox can deny network egress on this host, or when
-      // the detected primitive is present but cannot actually apply a sandbox.
-      const strategy = detectSandboxStrategy(sandboxEnv);
-      if (!strategy) {
-        return infraOutcome(
-          base,
-          "No OS sandbox available to deny network egress on this host — failing closed (no untrusted code was run).",
-        );
-      }
-      if (!strategyUsable(strategy)) {
-        return infraOutcome(
-          base,
-          `The '${strategy}' sandbox is present but cannot apply a profile on this host — failing closed (no untrusted code was run).`,
-        );
+      // Resolve the isolation wrapper for the configured tier BEFORE anything is
+      // written or spawned. Each tier fails closed on its own terms; a configured
+      // microvm tier NEVER falls back to the subprocess tier (a stronger configured
+      // boundary silently degrading would misreport the isolation actually applied).
+      let strategy: SandboxStrategy | null = null;
+      let microvm: MicrovmStrategy | null = null;
+      if (tier === "microvm") {
+        microvm = detectMicrovmStrategy(sandboxEnv);
+        if (!microvm) {
+          return infraOutcome(
+            base,
+            "microvm runner unavailable (no gVisor `runsc` + container engine on this host) — failing closed; no untrusted code was run.",
+          );
+        }
+        if (!microvmUsable(microvm)) {
+          return infraOutcome(
+            base,
+            "microvm runner unavailable (`runsc` is present but the container engine has no runsc runtime registered) — failing closed; no untrusted code was run.",
+          );
+        }
+      } else {
+        // Fail closed when no OS sandbox can deny network egress on this host, or when
+        // the detected primitive is present but cannot actually apply a sandbox.
+        strategy = detectSandboxStrategy(sandboxEnv);
+        if (!strategy) {
+          return infraOutcome(
+            base,
+            "No OS sandbox available to deny network egress on this host — failing closed (no untrusted code was run).",
+          );
+        }
+        if (!strategyUsable(strategy)) {
+          return infraOutcome(
+            base,
+            `The '${strategy}' sandbox is present but cannot apply a profile on this host — failing closed (no untrusted code was run).`,
+          );
+        }
       }
 
       const dir = await mkdtemp(join(options.tmpRoot ?? tmpdir(), "linchkit-dryrun-"));
@@ -209,8 +302,26 @@ export function createSubprocessDryRunner(
       // Hoisted so `finally` can reap the child's process group on EVERY path — even a
       // handler that backgrounds a process and then returns normally leaves nothing
       // alive past the dry-run.
-      let proc: ReturnType<typeof Bun.spawn> | undefined;
+      let proc: SpawnedDryRunChild | undefined;
+      // microvm only: the per-run container name, so reaping can `docker kill` it —
+      // killing the attached `docker run` CLIENT does not stop the container.
+      const containerName =
+        tier === "microvm" ? `linchkit-dryrun-${crypto.randomUUID()}` : undefined;
       const reapGroup = (): void => {
+        if (containerName) {
+          // Fire-and-forget; an already-exited `--rm` container makes this a no-op
+          // error we ignore. Goes through the same spawn seam (argv array, no shell).
+          try {
+            const dockerBin = sandboxEnv.which("docker") ?? "docker";
+            spawnChild([dockerBin, "kill", containerName], {
+              cwd: options.tmpRoot ?? tmpdir(),
+              env: { PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin" },
+              stdin: new Blob([]),
+            }).exited.catch(() => {});
+          } catch {
+            /* best effort */
+          }
+        }
         if (!proc) return;
         try {
           // Negative pid targets the whole group (the child is its leader via
@@ -266,7 +377,34 @@ export function createSubprocessDryRunner(
           job.tenantId ?? "dry-run",
           metaPath,
         ];
-        const argv = buildSandboxArgv({ strategy, childArgv, tempDir: dir, profilePath });
+        // Wrapper ordering (outermost → innermost):
+        //   subprocess tier: [prlimit (linux, when present)] → sandbox (bwrap /
+        //     sandbox-exec / bare-in-trusted-container) → bun harness. The rlimit
+        //     inherits across exec into the sandboxed bun, and keeping it outermost
+        //     keeps the limit binary outside the confined filesystem view.
+        //   microvm tier: docker(runsc) → bun harness. The cgroup `--memory` flag IS
+        //     this tier's OS-enforced cap, so no prlimit; the kernel boundary
+        //     subsumes the OS sandbox wrappers.
+        // All layers are argv arrays — nothing is ever shell-interpolated.
+        let argv: string[];
+        if (microvm && containerName) {
+          argv = buildMicrovmArgv({
+            strategy: microvm,
+            childArgv,
+            tempDir: dir,
+            memoryBytes,
+            containerName,
+            image: options.microvmImage ?? DEFAULT_MICROVM_IMAGE,
+          });
+        } else if (strategy) {
+          argv = buildSandboxArgv({ strategy, childArgv, tempDir: dir, profilePath });
+          if (memoryLimitWrapper) {
+            argv = buildMemoryLimitArgv({ wrapper: memoryLimitWrapper, memoryBytes, argv });
+          }
+        } else {
+          // Unreachable: detection above either set a wrapper or failed closed.
+          return infraOutcome(base, "No isolation wrapper resolved — failing closed.");
+        }
         // Resolve the wrapper binary (argv[0]) to an absolute path so spawning does
         // not depend on the child's (minimal) PATH.
         const wrapperBin = argv[0];
@@ -274,29 +412,29 @@ export function createSubprocessDryRunner(
 
         // Minimal env: enough for bun to run, but NO secrets (no inherited
         // DATABASE_URL / API keys / tokens). HOME + TMPDIR point at the throwaway dir.
+        // The microvm tier additionally passes DOCKER_HOST through so the client can
+        // reach a non-default daemon socket (it carries no secret material).
         const env: Record<string, string> = {
           PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin",
           HOME: dir,
           TMPDIR: dir,
           LANG: process.env.LANG ?? "C",
+          ...(microvm && process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}),
         };
 
-        // `detached` makes the child a process-group leader (POSIX `setsid`), so we can
-        // kill the WHOLE group — reaping any subprocess the handler spawned, not just
-        // the sandbox command — and nothing outlives the dry-run.
+        // The default spawn is `detached` (process-group leader, POSIX `setsid`), so we
+        // can kill the WHOLE group — reaping any subprocess the handler spawned, not
+        // just the wrapper command — and nothing outlives the dry-run.
         //
         // stdout/stderr are DISCARDED, not captured: returning the untrusted child's
         // output would be an exfiltration channel (a handler that reads a host file and
         // prints it would surface its contents in the outcome). The verdict comes only
         // from the structured result file the harness writes. Discarding also means no
         // pipe a leaked descendant could hold open to defeat the timeout.
-        proc = Bun.spawn(argv, {
+        proc = spawnChild(argv, {
           cwd: dir,
           env,
           stdin: new Blob([nonce]),
-          stdout: "ignore",
-          stderr: "ignore",
-          detached: true,
         });
 
         // Race the child's exit against the hard timeout and a memory guard.
@@ -410,3 +548,9 @@ export function createSubprocessDryRunner(
     },
   };
 }
+
+/**
+ * Back-compat alias of {@link createDryRunner} — the original Spec 70 P3 export.
+ * Identical behaviour (including the optional `runner` tier selection).
+ */
+export const createSubprocessDryRunner = createDryRunner;
