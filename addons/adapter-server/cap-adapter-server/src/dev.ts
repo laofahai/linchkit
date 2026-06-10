@@ -12,6 +12,7 @@ import { assembleDevSchema } from "./assemble-schema";
 import { loadConfig } from "./config-loader";
 import { buildDevEvolutionRuntime, buildDevOntologyRegistry } from "./dev-app";
 import { createServer } from "./server";
+import { wireAITraceSink } from "./wire-ai-trace-sink";
 
 // ── Resolve project root ────────────────────────────────
 // When run via `bun run --filter` in a workspace, CWD is the package
@@ -129,6 +130,15 @@ consoleLogger.info(
   `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered ` +
     "(insight→proposal translator + pre-analysis pipeline wired)",
 );
+
+// AI trace sink (Spec 69 P3 wave 2) — register a LIVE sink so the AI
+// instrumentation's `getAITraceSink().recordGeneration(...)` calls are actually
+// persisted instead of discarded by the Noop default. DB mode → DrizzleAITraceStore
+// (durable PG mirror); no DATABASE_URL → InMemoryAITraceStore (in-process only).
+// Non-throwing: a wiring failure logs + leaves the prior sink in place, never
+// crashing boot. On the dev path the dataProvider is the in-memory store unless a
+// DATABASE_URL-backed provider was injected, so this is InMemory here by default.
+await wireAITraceSink({ dataProvider: runtime.dataProvider });
 
 const port = config.server?.port ?? 3001;
 const host = config.server?.host ?? "0.0.0.0";

@@ -14,6 +14,7 @@ import {
   resolveCadenceIntervalMs,
   resolveCadenceTenantIds,
 } from "./evolution-scheduler-wiring";
+import { wireAITraceSink } from "./wire-ai-trace-sink";
 
 export function resolveRequestTenantId(request: Request, actor?: Actor): string | undefined {
   // Prefer tenant from verified actor (auth middleware already validated the JWT).
@@ -63,6 +64,15 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
         executionLogger: ctx.executionLogger,
       })
     : undefined;
+
+  // AI trace sink (Spec 69 P3 wave 2) — register a LIVE sink so the AI
+  // instrumentation's `getAITraceSink().recordGeneration(...)` calls are actually
+  // persisted in the real serving path (NOT dev-only). When `ctx.dataProvider` is a
+  // DrizzleDataProvider (DATABASE_URL set) its db handle is reused for a durable
+  // DrizzleAITraceStore; otherwise (InMemoryStore fallback) an InMemoryAITraceStore
+  // is wired. Non-throwing: a wiring failure logs + leaves the prior sink in place,
+  // never aborting transport startup.
+  await wireAITraceSink({ dataProvider: ctx.dataProvider });
 
   // Generate CRUD actions for each business schema (skip internal)
   const crudOpts = ctx.derivedPropertyEngine

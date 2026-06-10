@@ -54,27 +54,13 @@ import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
 import { mountProposalGraduateAPI } from "./proposal-graduate-api";
 import { mountProposalMaterializeAPI } from "./proposal-materialize-api";
-import { mountActionRoutes } from "./routes/action-api";
-import { mountAdminRoutes } from "./routes/admin-api";
-import { mountAgUiRoutes } from "./routes/agui-api";
-import { mountAIRoutes } from "./routes/ai-api";
-import { mountAIByokRoutes } from "./routes/ai-byok";
-import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
-import { mountResolveSchemaIntentRoute } from "./routes/ai-resolve-schema-intent";
-import { mountApprovalRoutes } from "./routes/approval-api";
-import { mountConfigRoutes } from "./routes/config-api";
-import { mountConfigStoreRoutes } from "./routes/config-store-api";
 import { mountDeployRoutes } from "./routes/deploy-api";
-import { mountEntityRoutes } from "./routes/entity-api";
 import { mountEvolutionCycleRoutes } from "./routes/evolution-cycle-api";
 import { mountEvolutionStatusRoutes } from "./routes/evolution-status-api";
-import { mountHealthRoutes } from "./routes/health";
-import { mountImportRoutes } from "./routes/import-api";
-import { mountOnchangeRoutes } from "./routes/onchange-api";
+import { mountCoreRoutes } from "./routes/mount-core-routes";
 import { mountOverlayRoutes } from "./routes/overlay-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
-import { mountTranslationRoutes } from "./routes/translation-api";
 
 export interface ServerOptions {
   /** Server port (default: 3001) */
@@ -405,35 +391,11 @@ export function createServer(
   const opts = options ?? {};
 
   // ── Mount route modules ────────────────────────────────────
-  mountAdminRoutes(app, opts, serverStartedAt);
-  // Mounted AFTER admin so the canonical, minimal `/health` (Spec 12 — liveness)
-  // overrides any duplicate handler in admin-api.ts. `/ready` is exclusive to
-  // this module.
-  mountHealthRoutes(app, opts);
-  mountEntityRoutes(app, opts);
-  mountActionRoutes(app, opts);
-  mountImportRoutes(app, opts);
-  mountApprovalRoutes(app, opts);
-  mountConfigRoutes(app, opts);
-  mountConfigStoreRoutes(app, opts);
-  mountAIRoutes(app, opts);
-  // AG-UI protocol run endpoint (#89) — only mounts when cap-adapter-ag-ui
-  // is registered in the capability list. Bridges the same assistant brain
-  // as POST /api/ai/chat onto official AG-UI events over SSE.
-  mountAgUiRoutes(app, opts);
-  // Spec 36 M2+ BYOK + usage endpoints (per-tenant key store + meter).
-  // Mounted alongside the other AI routes; no-ops when the store /
-  // meter are not configured (returns 503 with a structured envelope).
-  mountAIByokRoutes(app, opts);
-  // Spec 52 §2.6 canonical intent-resolution endpoint. Mounted AFTER
-  // mountAIRoutes so the canonical handler (with permission scoping +
-  // audit logging) wins routing for `POST /api/ai/resolve-intent` if any
-  // legacy handler is left in the file.
-  mountResolveIntentRoute(app, opts);
-  // Spec 52 "说→有" first slice — NL utterance → governed `add_rule` ProposalDraft.
-  mountResolveSchemaIntentRoute(app, opts);
-  mountTranslationRoutes(app, opts);
-  mountOnchangeRoutes(app, opts, opts.onchangeEvaluator);
+  // Order-sensitive, closure-free core mounts live in mount-core-routes.ts
+  // (keeps this entrypoint under the 500-line ceiling). The mounts BELOW close
+  // over server-local state (overlay → schema hot-reload, graphql-yoga, deploy,
+  // proposal / evolution / subscription) and stay inline.
+  mountCoreRoutes(app, opts, serverStartedAt);
 
   // Mount overlay management endpoints when overlay registry is available
   if (options?.overlayRegistry) {

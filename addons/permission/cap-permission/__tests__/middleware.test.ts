@@ -381,3 +381,96 @@ describe("permission middleware — meta.onchange target (skipActionSlots dispat
     expect(nextCalled).toBe(true);
   });
 });
+
+/**
+ * Meta-target permission resolution — `meta.aiObservability` (Spec 69 P3 wave 2).
+ *
+ * The AI trace read route (`GET /api/ai/traces`) dispatches with
+ * `skipActionSlots: true`, NO `ctx.action`, and publishes
+ * `meta.aiObservability = { operation }`. The middleware should derive an ACTION
+ * grant target (`grant.ai.actions.<operation>`) — companion to `meta.evolution`.
+ * These tests pin that: a natural grant authorizes, a missing grant denies, the
+ * synthetic command name alone never authorizes, and a stray meta on a real action
+ * dispatch is ignored.
+ */
+describe("permission middleware — meta.aiObservability target (skipActionSlots dispatch)", () => {
+  /** A trace-read-shaped dispatch: synthetic command, no action, meta target. */
+  function readTracesCtx(actor: CommandContext["actor"]): CommandContext {
+    return {
+      command: "ai.read_traces",
+      input: {},
+      channel: "http",
+      actor,
+      meta: { aiObservability: { operation: "read_traces" } },
+      // No `action` — non-action dispatch (skipActionSlots).
+    } as CommandContext;
+  }
+
+  function registryWithAiReadGrant(): PermissionRegistry {
+    const registry = new PermissionRegistry();
+    registry.register(
+      definePermissionGroup({
+        name: "ai_observer",
+        label: "AI Observer",
+        // The NATURAL grant shape a human would author for the read-traces target.
+        grant: { ai: { actions: { read_traces: true } } },
+      }),
+    );
+    return registry;
+  }
+
+  it("authorizes read-traces via grant.ai.actions.read_traces (the documented target)", async () => {
+    const middleware = createPermissionMiddleware({ registry: registryWithAiReadGrant() });
+    const ctx = readTracesCtx({ type: "human", id: "obs_1", groups: ["ai_observer"] });
+    let nextCalled = false;
+
+    await middleware(ctx, async () => {
+      nextCalled = true;
+    });
+
+    expect(nextCalled).toBe(true);
+  });
+
+  it("denies read-traces when the actor's groups grant no ai observability target", async () => {
+    const middleware = createPermissionMiddleware({ registry: registryWithAiReadGrant() });
+    const ctx = readTracesCtx({ type: "human", id: "stranger", groups: ["some_unrelated_group"] });
+
+    await expect(middleware(ctx, async () => {})).rejects.toThrow(AuthorizationError);
+  });
+
+  it("denies read-traces when only the synthetic command name was granted (regression)", async () => {
+    // The target is the meta operation, NOT the synthetic command name. Granting
+    // the command name must not authorize — guards against command-name gating.
+    const registry = new PermissionRegistry();
+    registry.register(
+      definePermissionGroup({
+        name: "command_name_only",
+        label: "Command-name grant (wrong shape)",
+        grant: { "ai.read_traces": { actions: { "ai.read_traces": true } } },
+      }),
+    );
+    const middleware = createPermissionMiddleware({ registry });
+    const ctx = readTracesCtx({ type: "human", id: "obs_2", groups: ["command_name_only"] });
+
+    await expect(middleware(ctx, async () => {})).rejects.toThrow(AuthorizationError);
+  });
+
+  it("ignores a stray meta.aiObservability on a real ACTION dispatch (target stays the action)", async () => {
+    // Defensive: meta-target resolution is scoped to non-action dispatches. A real
+    // action carrying meta.aiObservability must still authorize against its action target.
+    const registry = createTestRegistry();
+    const middleware = createPermissionMiddleware({ registry });
+    const ctx = createTestContext({
+      meta: { aiObservability: { operation: "read_traces" } },
+    });
+    let nextCalled = false;
+
+    await middleware(ctx, async () => {
+      nextCalled = true;
+    });
+
+    // `editors` grants the `submit_request` ACTION target — the ai meta was ignored
+    // because `ctx.action` is present.
+    expect(nextCalled).toBe(true);
+  });
+});
