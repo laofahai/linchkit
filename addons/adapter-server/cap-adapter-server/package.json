@@ -29,7 +29,7 @@
     "@linchkit/cap-adapter-ag-ui": "workspace:*",
     "@linchkit/cap-ai-provider": "^1.0.0",
     "@linchkit/cap-dry-run": "^0.1.0",
-    "@linchkit/core": ">=0.3.0 <0.4.0"
+    "@linchkit/core": "^0.2.0"
   },
   "peerDependenciesMeta": {
     "@linchkit/cap-adapter-ag-ui": {
@@ -46,7 +46,7 @@
     "typescript": "^6.0.2"
   },
   "linchkit": {
-    "coreVersion": ">=0.3.0 <0.4.0",
+    "coreVersion": "^0.2.0",
     "type": "adapter",
     "category": "integration"
   }

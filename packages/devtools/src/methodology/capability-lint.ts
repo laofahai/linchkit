@@ -19,6 +19,11 @@
  *     peerDependency and a core-version range must be declared (`coreVersion`,
  *     preferred over the deprecated `minCoreVersion`); when the peerDep pins a
  *     concrete range it must equal the declared core version (Spec 21 §10.1).
+ *     Additionally, when the local `@linchkit/core` version can be resolved, the
+ *     declared range (and any concrete peerDep range) MUST satisfy it — a range
+ *     that excludes the only core version that exists is a skew bug. Version
+ *     resolution is best-effort: if it cannot be determined, the satisfaction
+ *     check is skipped silently.
  *
  * Filesystem access uses node:fs/node:path only; import scanning is a simple
  * line/regex scan (no TS AST) to match the existing methodology approach.
@@ -28,8 +33,9 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
-import { validateCapabilityMetadata } from "@linchkit/core";
+import { satisfiesVersionRange, validateCapabilityMetadata } from "@linchkit/core";
 
 // -- Types ---------------------------------------------------------------
 
@@ -342,6 +348,12 @@ const WORKSPACE_PROTOCOL_RE = /^workspace:/;
  *  - When the peerDep is a concrete semver range AND a coreVersion is declared,
  *    they MUST be equal → error on mismatch. A `workspace:*` peerDep skips the
  *    equality check (only presence of a coreVersion is required).
+ *  - When the local `@linchkit/core` version is resolvable, the declared
+ *    `coreVersion` range (and any concrete peerDep range) MUST SATISFY it →
+ *    error otherwise. This catches a range that excludes the only core version
+ *    that exists (e.g. `>=0.3.0 <0.4.0` against a published 0.2.0). The check is
+ *    best-effort: if the local core version cannot be resolved it is skipped
+ *    silently (e.g. when a capability is linted standalone outside the monorepo).
  */
 function checkCoreVersion(root: string): CapabilityLintIssue[] {
   const issues: CapabilityLintIssue[] = [];
@@ -407,12 +419,16 @@ function checkCoreVersion(root: string): CapabilityLintIssue[] {
   }
 
   let effectiveRange: string;
+  // True when effectiveRange came from the deprecated `minCoreVersion`, which is
+  // a MINIMUM (">="), not an exact pin — used by the satisfaction check below.
+  let effectiveRangeIsMinimum = false;
   if (declared.coreVersion !== undefined) {
     effectiveRange = declared.coreVersion;
   } else {
     // Only the deprecated minCoreVersion is present — accept with a warning.
     // (declared.minCoreVersion is defined here per the guard above.)
     effectiveRange = declared.minCoreVersion as string;
+    effectiveRangeIsMinimum = true;
     issues.push({
       check: "core-version",
       level: "warning",
@@ -424,11 +440,9 @@ function checkCoreVersion(root: string): CapabilityLintIssue[] {
 
   // 3. Equality check — only when the peerDep is a concrete range. workspace:*
   //    resolves locally and cannot be compared, so it is skipped.
-  if (
-    typeof peerCore === "string" &&
-    peerCore.length > 0 &&
-    !WORKSPACE_PROTOCOL_RE.test(peerCore)
-  ) {
+  const peerIsConcrete =
+    typeof peerCore === "string" && peerCore.length > 0 && !WORKSPACE_PROTOCOL_RE.test(peerCore);
+  if (peerIsConcrete) {
     if (peerCore !== effectiveRange) {
       issues.push({
         check: "core-version",
@@ -439,7 +453,145 @@ function checkCoreVersion(root: string): CapabilityLintIssue[] {
     }
   }
 
+  // 4. Satisfaction check — best-effort. When the local @linchkit/core version
+  //    is resolvable, every declared SEMVER range MUST satisfy it; a range that
+  //    excludes the only core version that exists is a skew bug (Spec 21 §10.1).
+  //    A `workspace:*` range resolves locally and is not a comparable semver, so
+  //    it is skipped (mirrors the equality check). If the version cannot be
+  //    resolved (e.g. linted standalone outside the monorepo), skip silently —
+  //    never throw, never fail the lint on resolution failure.
+  const localCoreVersion = resolveLocalCoreVersion(root);
+  if (localCoreVersion !== undefined) {
+    // minCoreVersion is a MINIMUM (">="), not an exact pin. A BARE value such as
+    // "0.1.0" would otherwise be read as an exact-match comparator by
+    // satisfiesVersionRange, falsely rejecting any newer core (e.g. 0.2.0).
+    // Normalize a bare minimum to ">=x.y.z" for the satisfaction test. A bare
+    // `coreVersion` is intentionally left as exact-match — that field is meant
+    // to be a range, so an exact pin failing a newer core is a real declaration.
+    const satisfactionRange =
+      effectiveRangeIsMinimum && /^\d/.test(effectiveRange)
+        ? `>=${effectiveRange}`
+        : effectiveRange;
+    // Check the declared coreVersion/minCoreVersion range unless it is a
+    // non-semver workspace protocol specifier.
+    if (
+      !WORKSPACE_PROTOCOL_RE.test(satisfactionRange) &&
+      !safeSatisfies(localCoreVersion, satisfactionRange)
+    ) {
+      issues.push({
+        check: "core-version",
+        level: "error",
+        message: `Declared coreVersion range "${effectiveRange}" does not satisfy the current @linchkit/core version "${localCoreVersion}". Update the range to include it (Spec 21 §10.1).`,
+        file: "package.json",
+      });
+    }
+    // Also check the concrete peerDep range. When it equals the declared range
+    // (the common case) the check above already covered it, so only emit a
+    // distinct issue when the peerDep range differs and itself fails.
+    if (
+      peerIsConcrete &&
+      peerCore !== effectiveRange &&
+      !safeSatisfies(localCoreVersion, peerCore)
+    ) {
+      issues.push({
+        check: "core-version",
+        level: "error",
+        message: `peerDependencies["@linchkit/core"] range "${peerCore}" does not satisfy the current @linchkit/core version "${localCoreVersion}". Update the range to include it (Spec 21 §10.1).`,
+        file: "package.json",
+      });
+    }
+  }
+
   return issues;
+}
+
+/**
+ * Apply {@link satisfiesVersionRange} defensively. A malformed range must never
+ * crash the lint; on any thrown error treat the range as NON-satisfying is too
+ * aggressive (it would flag a clean addon on a parser quirk), so a throw is
+ * treated as "cannot determine" → satisfied (no error). This keeps the check
+ * best-effort and false-positive-averse.
+ */
+function safeSatisfies(version: string, range: string): boolean {
+  try {
+    return satisfiesVersionRange(version, range);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Resolve the concrete local `@linchkit/core` version (e.g. "0.2.0"), best-effort.
+ *
+ * Strategy (in order):
+ *  1. Walk up from the capability dir to the monorepo root — the nearest ancestor
+ *     containing `packages/core/package.json` — and read its `.version`. This is
+ *     the authoritative source when the lint runs on an in-repo capability.
+ *  2. Fall back to Node-style module resolution of `@linchkit/core/package.json`
+ *     from the capability dir (handles a capability installed against a published
+ *     core outside the monorepo).
+ *
+ * Returns `undefined` when neither yields a usable version string. Never throws.
+ */
+function resolveLocalCoreVersion(root: string): string | undefined {
+  // 1. Walk up to the monorepo root (dir with packages/core/package.json).
+  let dir = root;
+  // Bound the walk by directory depth; resolve("/", "..") === "/" terminates it.
+  for (let i = 0; i < 64; i++) {
+    const candidate = join(dir, "packages", "core", "package.json");
+    if (existsSync(candidate)) {
+      const v = readVersionField(candidate);
+      if (v !== undefined) return v;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+  }
+
+  // 2. Fall back to Node-style module resolution of the installed @linchkit/core
+  //    manifest, anchored at the capability dir. Handles a capability installed
+  //    against a published core outside the monorepo. We resolve the package
+  //    ENTRY (the "." export) rather than "@linchkit/core/package.json": the
+  //    latter throws ERR_PACKAGE_PATH_NOT_EXPORTED under Node's exports
+  //    enforcement because core ships an `exports` map without a
+  //    `./package.json` entry. From the resolved entry we walk up to the
+  //    package's own manifest, asserting `name === "@linchkit/core"` so a
+  //    nested package.json can't be mistaken for it.
+  try {
+    const req = createRequire(join(root, "package.json"));
+    let dir = dirname(req.resolve("@linchkit/core"));
+    for (let i = 0; i < 64; i++) {
+      const candidate = join(dir, "package.json");
+      if (existsSync(candidate)) {
+        const parsed = readJson(candidate);
+        const name =
+          !parsed.error && typeof parsed.value === "object" && parsed.value !== null
+            ? (parsed.value as Record<string, unknown>).name
+            : undefined;
+        if (name === "@linchkit/core") {
+          const v = readVersionField(candidate);
+          if (v !== undefined) return v;
+        }
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break; // reached filesystem root
+      dir = parent;
+    }
+  } catch {
+    // Module not resolvable from here — fall through to undefined.
+  }
+
+  return undefined;
+}
+
+/** Read and return the `.version` string field of a package.json, or undefined. */
+function readVersionField(packageJsonPath: string): string | undefined {
+  const parsed = readJson(packageJsonPath);
+  if (parsed.error || typeof parsed.value !== "object" || parsed.value === null) {
+    return undefined;
+  }
+  const version = (parsed.value as Record<string, unknown>).version;
+  return typeof version === "string" && version.length > 0 ? version : undefined;
 }
 
 interface DeclaredCoreVersion {
