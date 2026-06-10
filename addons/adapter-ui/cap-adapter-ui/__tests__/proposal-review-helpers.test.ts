@@ -13,6 +13,7 @@ import {
   changeTypeBadgeClass,
   isPending,
   PROPOSAL_STATUS_FILTERS,
+  selectDryRunChanges,
   selectFailedMaterializationChanges,
   selectSourcedChanges,
   statusBadgeClass,
@@ -148,6 +149,38 @@ describe("selectFailedMaterializationChanges", () => {
         { name: "b" },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("selectDryRunChanges", () => {
+  test("keeps changes with a non-skipped dryRunStatus", () => {
+    const passed = { name: "a", dryRunStatus: "passed" };
+    const threw = { name: "b", dryRunStatus: "threw" };
+    const forbidden = { name: "c", dryRunStatus: "forbidden_side_effect" };
+    const infra = { name: "d", dryRunStatus: "infra_error" };
+    const result = selectDryRunChanges([passed, threw, forbidden, infra]);
+    expect(result).toEqual([passed, threw, forbidden, infra]);
+  });
+
+  test("drops changes with dryRunStatus 'skipped'", () => {
+    const skipped = { name: "a", dryRunStatus: "skipped" };
+    const none = { name: "b" }; // undefined → no signal
+    expect(selectDryRunChanges([skipped, none])).toEqual([]);
+  });
+
+  test("drops changes where dryRunStatus is undefined", () => {
+    const noStatus = { name: "x" };
+    expect(selectDryRunChanges([noStatus])).toEqual([]);
+  });
+
+  test("returns an empty array for an empty input", () => {
+    expect(selectDryRunChanges([])).toEqual([]);
+  });
+
+  test("timeout and oom are surfaced (not skipped)", () => {
+    const timeout = { name: "a", dryRunStatus: "timeout" };
+    const oom = { name: "b", dryRunStatus: "oom" };
+    expect(selectDryRunChanges([timeout, oom])).toEqual([timeout, oom]);
   });
 });
 
