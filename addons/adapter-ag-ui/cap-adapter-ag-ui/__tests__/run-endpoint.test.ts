@@ -273,6 +273,105 @@ describe("POST /api/agui/run — failure mid-run", () => {
   });
 });
 
+describe("POST /api/agui/run — injected full-assistant runner", () => {
+  const historyInput = {
+    threadId: "thread_r",
+    runId: "run_r",
+    messages: [
+      { id: "m1", role: "system", content: "You are LinchKit." },
+      { id: "m2", role: "user", content: "List my orders" },
+      {
+        id: "m3",
+        role: "assistant",
+        content: "Looking it up.",
+        toolCalls: [
+          {
+            id: "tc_1",
+            type: "function",
+            function: { name: "queryRecords", arguments: '{"entity":"order"}' },
+          },
+        ],
+      },
+      { id: "m4", role: "tool", toolCallId: "tc_1", content: '[{"id":"o1"}]' },
+      { id: "m5", role: "user", content: "And the first one?" },
+    ],
+    tools: [],
+    context: [{ description: "entity", value: "order" }],
+  };
+
+  test("runner replaces the AIService bridge and its events are RUN_* framed", async () => {
+    const seen: { messages: number; context: string | undefined }[] = [];
+    const app = await createAgUiApp({
+      aiService: fakeCompleteService(),
+      runner: async ({ input, emit }) => {
+        seen.push({ messages: input.messages.length, context: input.context[0]?.description });
+        const messageId = "rm_1";
+        emit({ type: EventType.TEXT_MESSAGE_START, messageId, role: "assistant" });
+        emit({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: "Order o1" });
+        emit({ type: EventType.TEXT_MESSAGE_END, messageId });
+        emit({ type: EventType.TOOL_CALL_START, toolCallId: "tc_2", toolCallName: "getRecord" });
+        emit({ type: EventType.TOOL_CALL_ARGS, toolCallId: "tc_2", delta: '{"id":"o1"}' });
+        emit({ type: EventType.TOOL_CALL_END, toolCallId: "tc_2" });
+        emit({
+          type: EventType.TOOL_CALL_RESULT,
+          messageId: "rm_2",
+          toolCallId: "tc_2",
+          content: '{"id":"o1"}',
+          role: "tool",
+        });
+      },
+    });
+
+    const res = await postRun(app, historyInput);
+    expect(res.status).toBe(200);
+
+    const events = parseSseEvents(await res.text());
+    expect(eventTypes(events)).toEqual([
+      "RUN_STARTED",
+      "TEXT_MESSAGE_START",
+      "TEXT_MESSAGE_CONTENT",
+      "TEXT_MESSAGE_END",
+      "TOOL_CALL_START",
+      "TOOL_CALL_ARGS",
+      "TOOL_CALL_END",
+      "TOOL_CALL_RESULT",
+      "RUN_FINISHED",
+    ]);
+
+    // The runner received the FULL validated history (all 5 messages,
+    // including assistant tool calls and the tool result) plus context.
+    expect(seen).toEqual([{ messages: 5, context: "entity" }]);
+  });
+
+  test("a throwing runner surfaces as RUN_ERROR (no RUN_FINISHED)", async () => {
+    const app = await createAgUiApp({
+      aiService: fakeCompleteService(),
+      runner: async ({ emit, input }) => {
+        emit({ type: EventType.TEXT_MESSAGE_START, messageId: "rm", role: "assistant" });
+        throw new Error(`assistant exploded for ${input.runId}`);
+      },
+    });
+
+    const res = await postRun(app, historyInput);
+    const events = parseSseEvents(await res.text());
+    expect(eventTypes(events)).toEqual(["RUN_STARTED", "TEXT_MESSAGE_START", "RUN_ERROR"]);
+    expect(events.at(-1)).toMatchObject({ message: "assistant exploded for run_r" });
+  });
+
+  test("availability gate still reads aiService.configured when a runner is set", async () => {
+    let runnerCalls = 0;
+    const app = await createAgUiApp({
+      runner: async () => {
+        runnerCalls += 1;
+      },
+    });
+
+    const res = await postRun(app, historyInput);
+    expect(res.status).toBe(503);
+    expect(runnerCalls).toBe(0);
+  });
+});
+
 describe("custom base path", () => {
   test("mounts the run route under the provided basePath", async () => {
     const app = await createAgUiApp({ aiService: fakeCompleteService(), basePath: "/agui-v2" });

@@ -39,10 +39,17 @@ export type {
   ToolCallStartEvent,
 } from "./protocol";
 export { EventType, encodeSseEvent, RunAgentInputSchema } from "./protocol";
-// Run endpoint (test seam: inject a fake AIService)
-export type { AgUiRunDeps } from "./run-endpoint";
+// Run endpoint (test seams: inject a fake AIService or a custom runner)
+export type {
+  AgUiAgentRunner,
+  AgUiEmit,
+  AgUiRunDeps,
+  AgUiRunHandler,
+  AgUiRunHandlerContext,
+} from "./run-endpoint";
 export {
   createAgUiApp,
+  createAgUiRunHandler,
   DEFAULT_AG_UI_BASE_PATH,
   mountAgUiRunRoute,
   toAiMessages,
