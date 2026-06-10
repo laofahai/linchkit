@@ -355,12 +355,13 @@ export function useEntitySubscription(
 
         const parser = createParser({
           onEvent(event) {
-            if (!event.data) return;
-
-            // Track last event ID for reconnection replay
+            // Track last event ID for reconnection replay BEFORE the data
+            // check — per the SSE spec the id buffer advances even on
+            // data-less events (e.g. id-only heartbeats).
             if (event.id) {
               lastEventIdRef.current = event.id;
             }
+            if (!event.data) return;
 
             try {
               const parsed = JSON.parse(event.data);
