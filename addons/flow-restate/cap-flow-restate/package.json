@@ -13,7 +13,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@restatedev/restate-sdk": "1.14.4"
+    "@restatedev/restate-sdk": "1.14.5"
   },
   "peerDependencies": {
     "@linchkit/core": "^0.2.0"
