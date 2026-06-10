@@ -63,7 +63,16 @@ function createHttpRunAgent(url: string): AgUiRunAgentFn {
     // One agent per run: `useChat` owns conversation state, so the stateful
     // `runAgent()` orchestration is bypassed in favor of the raw `run()`
     // Observable. `abortRun()` aborts the underlying fetch.
-    const agent = new HttpAgent({ url, threadId: input.threadId });
+    // HttpAgent stores the fetch impl and invokes it as `this.fetch(...)`;
+    // an unbound window.fetch then runs with the agent as `this`, which
+    // browsers reject ("Illegal invocation"). Wrap it so the call resolves
+    // `globalThis.fetch` lazily (respecting late mocks/polyfills) and always
+    // invokes it with `globalThis` as the receiver.
+    const agent = new HttpAgent({
+      url,
+      threadId: input.threadId,
+      fetch: (req, init) => globalThis.fetch(req, init),
+    });
     if (abortSignal) {
       if (abortSignal.aborted) agent.abortRun();
       else abortSignal.addEventListener("abort", () => agent.abortRun(), { once: true });

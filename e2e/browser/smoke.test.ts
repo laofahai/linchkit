@@ -366,4 +366,55 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("browser e2e smoke", () => {
     },
     TEST_TIMEOUT_MS,
   );
+
+  // ── h. assistant panel sends chat over AG-UI from a real browser ───────
+  // Pins the CLIENT half of the AG-UI switch (#550) where unit tests are
+  // blind: the transport runs inside a real browser. Caught live: HttpAgent
+  // invokes its fetch as `this.fetch(...)`, so an unbound window.fetch threw
+  // "Illegal invocation" — the POST to /api/agui/run never fired, while
+  // useChat swallowed the error (zero uncaught page errors, green tests).
+  // Asserting the request actually leaves the browser is the regression net.
+  test(
+    "assistant panel dispatches its chat request to /api/agui/run",
+    async () => {
+      const { page, pageErrors } = await newTrackedPage(browser);
+      try {
+        await page.goto(UI_URL, { waitUntil: "networkidle2" });
+
+        // Open the assistant sheet via the sparkles header button.
+        await page.waitForSelector("button svg.lucide-sparkles", { timeout: 20_000 });
+        await page.click("button:has(svg.lucide-sparkles)");
+
+        // Type into the sheet's textarea and send with Enter.
+        const textareaSelector = '[role="dialog"] textarea';
+        await page.waitForSelector(textareaSelector, { timeout: 10_000 });
+        await page.type(textareaSelector, "Reply with OK only.");
+
+        // Arm the request wait BEFORE the keystroke that triggers it. The
+        // transport must actually emit the HTTP request — a broken fetch
+        // binding throws before any network I/O, so this rejects on timeout.
+        const aguiRequest = page
+          .waitForRequest((req) => req.url().includes("/api/agui/run"), { timeout: 15_000 })
+          .catch(() => null);
+        await page.keyboard.press("Enter");
+        expect(
+          await aguiRequest,
+          "no POST to /api/agui/run left the browser — transport failed before network I/O",
+        ).not.toBeNull();
+
+        // The chat surface must not show the unbound-fetch failure either.
+        const illegalInvocation = await page.evaluate(() =>
+          document.body.innerText.includes("Illegal invocation"),
+        );
+        expect(illegalInvocation).toBe(false);
+
+        expect(pageErrors, `uncaught page errors: ${describePageErrors(pageErrors)}`).toHaveLength(
+          0,
+        );
+      } finally {
+        await page.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
 });
