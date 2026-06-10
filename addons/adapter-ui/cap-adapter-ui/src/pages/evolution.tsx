@@ -16,6 +16,7 @@ import {
   CardTitle,
   Skeleton,
 } from "@linchkit/ui-kit/components";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   AlertTriangleIcon,
@@ -33,7 +34,7 @@ import {
   UserIcon,
   XCircleIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NlRuleDrafter } from "@/components/nl-rule-drafter";
 import { SchedulerStatusPanel } from "@/components/scheduler-status-panel";
@@ -264,45 +265,39 @@ function RunCycleOutcome({
 
 export function EvolutionPage() {
   const { t } = useTranslation();
-  const [entries, setEntries] = useState<EvolutionEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [runResult, setRunResult] = useState<RunEvolutionCycleResult | null>(null);
 
-  const loadHistory = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchEvolutionHistory();
-      setEntries(data);
-    } catch {
-      setEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // History load failures render the same empty-timeline card as "no history"
+  // (the manual loader swallowed errors into an empty list).
+  const historyQuery = useQuery<EvolutionEntry[]>({
+    queryKey: ["evolution-history"],
+    queryFn: fetchEvolutionHistory,
+  });
+  const entries = historyQuery.data ?? [];
+  const loading = historyQuery.isLoading;
 
-  const handleRunCycle = useCallback(async () => {
+  const runCycleMutation = useMutation<RunEvolutionCycleResult>({
+    mutationFn: async () => {
+      try {
+        return await runEvolutionCycle();
+      } catch (err) {
+        // runEvolutionCycle maps transport errors internally; this defensive catch
+        // keeps an unexpected throw from becoming an unhandled mutation error.
+        return {
+          kind: "error",
+          message: err instanceof Error ? err.message : "Evolution cycle failed",
+        };
+      }
+    },
+  });
+  const running = runCycleMutation.isPending;
+  // Hide the previous outcome while a new cycle is in flight (the manual
+  // handler reset the result to null before each run).
+  const runResult = running ? null : (runCycleMutation.data ?? null);
+
+  const handleRunCycle = () => {
     if (running) return;
-    setRunning(true);
-    setRunResult(null);
-    try {
-      const result = await runEvolutionCycle();
-      setRunResult(result);
-    } catch (err) {
-      // runEvolutionCycle maps transport errors internally; this defensive catch
-      // keeps an unexpected throw from becoming an unhandled rejection.
-      setRunResult({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Evolution cycle failed",
-      });
-    } finally {
-      setRunning(false);
-    }
-  }, [running]);
-
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+    runCycleMutation.mutate();
+  };
 
   return (
     <div className="p-4 space-y-4">
@@ -315,7 +310,7 @@ export function EvolutionPage() {
       <NlRuleDrafter />
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button size="sm" onClick={() => void handleRunCycle()} disabled={running}>
+        <Button size="sm" onClick={handleRunCycle} disabled={running}>
           {running ? (
             <Loader2Icon className="mr-1 size-3.5 animate-spin" />
           ) : (
@@ -326,7 +321,7 @@ export function EvolutionPage() {
         <Button
           variant="outline"
           size="icon-sm"
-          onClick={loadHistory}
+          onClick={() => void historyQuery.refetch()}
           aria-label={t("common.refresh", "Refresh")}
         >
           <RefreshCwIcon className="h-4 w-4" />
