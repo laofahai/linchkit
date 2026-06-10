@@ -98,12 +98,12 @@ description: "Full capability development workflow from discovery to quality gat
 2. **Design** — Define the data structures first. Use \`defineEntity()\` for each model, \`defineRelation()\` for connections.
 3. **Validate** — Run \`linch validate\` to check definitions against the meta-model.
 4. **Implement** — Write action handlers, rule effects, and event handlers.
-5. **Test** — Write tests using \`bun test\`. Cover entity CRUD, action execution, rule triggering, and state transitions.
+5. **Test** — Write tests using \`bun run test\`. Cover entity CRUD, action execution, rule triggering, and state transitions.
 6. **Quality Gates** — All four must pass:
    - \`linch validate\`
    - \`bun run check\`
    - \`bun run typecheck\`
-   - \`bun test\`
+   - \`bun run test\`
 
 ## MCP Tools
 
@@ -396,7 +396,7 @@ Runs \`tsc --noEmit\` in strict mode. No \`any\` types allowed.
 
 ## 4. Tests
 \`\`\`bash
-bun test
+bun run test
 \`\`\`
 All tests must pass. Write tests alongside implementation.
 
@@ -512,7 +512,7 @@ All four checks MUST pass:
 linch validate
 bun run check
 bun run typecheck
-bun test
+bun run test
 \`\`\`
 
 ## Guidelines

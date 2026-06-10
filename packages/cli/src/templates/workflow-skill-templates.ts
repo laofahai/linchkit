@@ -93,7 +93,7 @@ Follow-up commits on unchanged code don't need re-runs; commits after any of the
 linch validate        # Meta-model validation (manual — run when touching definitions)
 bun run check         # Biome lint + format (hook-tracked, fresh-gated)
 bun run typecheck     # TypeScript strict check (hook-tracked, fresh-gated)
-bun test              # Full test suite (hook-tracked, fresh-gated — must be exact \`bun test\`, not filtered)
+bun run test          # Full test suite (hook-tracked, fresh-gated — runs the project's test script)
 \`\`\`
 
 ## Step 5: Cross-Model Review
