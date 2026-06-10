@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { consoleLogger } from "@linchkit/core/server";
 import { assembleDevSchema } from "./assemble-schema";
 import { loadConfig } from "./config-loader";
+import { buildDevOntologyRegistry } from "./dev-app";
 import { createServer } from "./server";
 
 // ── Resolve project root ────────────────────────────────
@@ -107,6 +108,13 @@ if (runtime.dataProvider instanceof InMemoryStore) {
 const allEntities = assembled.allEntities;
 const allActions = assembled.allActions;
 
+// Unified semantic layer over the assembled registries — mirrors the
+// `linch dev` boot path (dev-wiring.ts). Without it, ontology-dependent
+// endpoints (e.g. POST /api/ai/resolve-schema-intent) answer 503 and Phase 3
+// compatibility validation silently skips.
+const ontologyRegistry = buildDevOntologyRegistry(assembled);
+consoleLogger.info(`OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
+
 const port = config.server?.port ?? 3001;
 const host = config.server?.host ?? "0.0.0.0";
 
@@ -122,11 +130,16 @@ const server = createServer(graphqlSchema, {
   capabilities: config.capabilities,
   rules: capContributions.rules,
   aiService: runtime.ai,
+  // The assistant + model-resolving AI routes gate on BOTH aiService AND
+  // aiConfig (ai-api.ts) — without this the boot summary says "AI: zhipu"
+  // while POST /api/ai/assistant answers 503 "AI service is not configured".
+  aiConfig: config.ai,
   linchKitConfig: config,
   states: capContributions.states,
   flows: [],
   dataProvider: runtime.dataProvider,
   onchangeEvaluator,
+  ontologyRegistry,
 });
 
 server.listen(port);

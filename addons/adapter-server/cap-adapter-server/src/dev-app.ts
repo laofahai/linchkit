@@ -18,7 +18,12 @@
  * so the boot smoke test and the real dev server share one wiring path.
  */
 
-import type { CapabilityDefinition } from "@linchkit/core";
+import type { CapabilityDefinition, OntologyRegistry } from "@linchkit/core";
+import {
+  createFlowRegistry,
+  createOntologyRegistry,
+  createRelationRegistry,
+} from "@linchkit/core/server";
 import {
   type AssembleDevSchemaOptions,
   type AssembledDevSchema,
@@ -55,8 +60,55 @@ export interface CreateDevAppOptions
         | "eventBus"
         | "dataProvider"
         | "onchangeEvaluator"
+        | "ontologyRegistry"
       >
     > {}
+
+/**
+ * Build the unified OntologyRegistry over an assembled dev schema.
+ *
+ * Mirrors the `linch dev` boot path's `createOntologyRegistry({...})` call
+ * (packages/cli/src/commands/dev-wiring.ts) so the dev-server entry exposes
+ * the same semantic layer. Without it, ontology-dependent endpoints (e.g.
+ * `POST /api/ai/resolve-schema-intent`) answer 503 "Ontology registry is not
+ * available" and Phase 3 compatibility validation silently skips.
+ *
+ * Inputs reuse what the assembly already has in scope: the runtime's
+ * EntityRegistry + the executor's ActionRegistry, plus the flattened
+ * capability contributions (rules/states/views). Relation and flow registries
+ * are built here from the contributed definitions — registration mirrors the
+ * CLI's build-registries.ts, so an invalid relation fails loud at boot on
+ * both paths. `handlers`/`interfaces` registries are not assembled on this
+ * DB-free path; both deps are optional and omitted.
+ */
+export function buildDevOntologyRegistry(
+  assembled: Pick<AssembledDevSchema, "runtime" | "contributions">,
+): OntologyRegistry {
+  const { runtime, contributions } = assembled;
+
+  const relationRegistry = createRelationRegistry();
+  for (const relation of contributions.relations) {
+    relationRegistry.register(relation);
+  }
+
+  const flowRegistry = createFlowRegistry();
+  for (const flow of contributions.flows) {
+    flowRegistry.register(flow);
+  }
+
+  return createOntologyRegistry({
+    schemas: runtime.entityRegistry,
+    actions: runtime.executor.registry,
+    rules: contributions.rules,
+    states: contributions.states,
+    views: contributions.views,
+    links: relationRegistry,
+    flows: flowRegistry,
+    // Raw relation definitions feed the dependency graph / impact analysis
+    // (Spec 67); `links` above only serves relation lookups.
+    relationDefs: contributions.relations,
+  });
+}
 
 /** Result of {@link createDevApp}: the Elysia app plus the assembled schema. */
 export interface DevApp {
@@ -93,6 +145,10 @@ export function createDevApp(
   const assembled = assembleDevSchema(capabilities, { aiService });
   const { schema, runtime, contributions, onchangeEvaluator } = assembled;
 
+  // Unified semantic layer — same construction as dev.ts and the `linch dev`
+  // boot path, so ontology-dependent routes work on the in-process app too.
+  const ontologyRegistry = buildDevOntologyRegistry(assembled);
+
   // Forward caller-supplied ServerOptions first, then the fields this factory
   // derives from the assembled runtime — which always win (and are excluded
   // from CreateDevAppOptions so callers cannot override them). This mirrors
@@ -123,6 +179,7 @@ export function createDevApp(
     eventBus: runtime.eventBus,
     dataProvider: runtime.dataProvider,
     onchangeEvaluator,
+    ontologyRegistry,
   });
 
   return { app, assembled };

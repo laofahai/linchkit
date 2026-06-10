@@ -31,6 +31,7 @@ import { describe, expect, it } from "bun:test";
 import { capChatter } from "@linchkit/cap-chatter";
 import type {
   ActionDefinition,
+  AIService,
   CapabilityDefinition,
   EntityDefinition,
   RelationDefinition,
@@ -264,5 +265,51 @@ describe("dev-server HTTP boot (in-process, DB-free, port-free)", () => {
     // State machine + relation contributed by the synthetic capability are bundled.
     expect(body.data.states.some((s) => s.name === "smoke_project_lifecycle")).toBe(true);
     expect(body.data.relations.some((r) => r.name === "smoke_project_to_milestones")).toBe(true);
+  });
+
+  it("wires the OntologyRegistry into ontology-dependent AI routes", async () => {
+    // Regression guard: `dev.ts`/`createDevApp` never built an OntologyRegistry
+    // (only the `linch dev` boot path did), so `POST /api/ai/resolve-schema-intent`
+    // answered 503 "Ontology registry is not available — …" on `bun run dev:server`.
+    //
+    // The route checks AI availability BEFORE the ontology gate, so a
+    // configured-but-deterministic AI stub is needed to reach (and prove past)
+    // that gate — no real LLM is called: the stub returns a canned `no_match`
+    // resolution, mirroring `ai-resolve-schema-intent.test.ts`'s fake service.
+    const stubAi = {
+      configured: true,
+      defaultProvider: "fake",
+      providerNames: ["fake"],
+      complete: async () => ({
+        content: JSON.stringify({
+          kind: "no_match",
+          explanation: "Deterministic stub — no rule drafted.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: "fake-model",
+        provider: "fake",
+        duration: 1,
+      }),
+    } as unknown as AIService;
+
+    const app = createDevApp(configuredCapabilities(), { cors: false, aiService: stubAi }).app;
+    const res = await app.handle(
+      new Request("http://local.test/api/ai/resolve-schema-intent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "Block archiving projects that still have milestones" }),
+      }),
+    );
+
+    const body = (await res.json()) as {
+      outcome?: string;
+      error?: { message?: string };
+    };
+    // Before the fix: 503 + "Ontology registry is not available — schema intent
+    // resolution requires the unified Ontology layer." With the registry wired,
+    // the resolver runs end-to-end and returns a resolved outcome (200).
+    expect(body.error?.message ?? "").not.toContain("Ontology registry is not available");
+    expect(res.status).toBe(200);
+    expect(body.outcome).toBe("no_match");
   });
 });
