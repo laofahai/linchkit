@@ -174,7 +174,9 @@ export function buildDevEvolutionRuntime(
   // collected from the raw capability list here.
   const sensors: Sensor[] = [];
   for (const cap of capabilities) {
-    if (cap.extensions?.sensors) sensors.push(...cap.extensions.sensors);
+    // Array.isArray guard: capability configs are user-authored and may
+    // bypass strict typing at runtime (e.g. a plain object by mistake).
+    if (Array.isArray(cap.extensions?.sensors)) sensors.push(...cap.extensions.sensors);
   }
 
   // Real impact provider: the impact analyzer's narrow ImpactDataProvider
@@ -199,10 +201,13 @@ export function buildDevEvolutionRuntime(
         ...(filter ?? {}),
         limit: safeLimit,
       });
+      // A failing or stubbed provider may return a non-array despite the
+      // typed contract; treat that as "no sample" rather than throwing.
+      if (!Array.isArray(rows)) return [];
       return rows
         .slice(0, safeLimit)
         .map((row) =>
-          row && typeof row === "object" && "id" in row
+          row && typeof row === "object" && !Array.isArray(row) && "id" in row
             ? String((row as { id?: unknown }).id ?? "")
             : "",
         )
