@@ -29,6 +29,10 @@ describe("cap-adapter-ag-ui capability", () => {
   test("declares network:outbound system permission", () => {
     expect(capAdapterAgUi.systemPermissions).toContain("network:outbound");
   });
+
+  test("is opt-in (autoInstall: false)", () => {
+    expect(capAdapterAgUi.autoInstall).toBe(false);
+  });
 });
 
 describe("createCapAdapterAgUi", () => {
@@ -55,7 +59,7 @@ describe("capAdapterAgUiConfig", () => {
     const parsed = capAdapterAgUiConfig.schema.parse({});
 
     expect(parsed.enabled).toBe(false);
-    expect(parsed.basePath).toBe("/ag-ui");
+    expect(parsed.basePath).toBe("/api/agui");
     expect(parsed.port).toBe(3003);
   });
 });
