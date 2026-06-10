@@ -104,6 +104,9 @@ export function buildDevOntologyRegistry(
     views: contributions.views,
     links: relationRegistry,
     flows: flowRegistry,
+    // Raw relation definitions feed the dependency graph / impact analysis
+    // (Spec 67); `links` above only serves relation lookups.
+    relationDefs: contributions.relations,
   });
 }
 
