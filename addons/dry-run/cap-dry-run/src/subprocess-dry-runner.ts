@@ -161,9 +161,8 @@ const CTX_DB_READ_OPS = new Set(["ctx.get", "ctx.query"]);
  * a regex captures the `ctx.<method>` prefix regardless of what follows.
  */
 function inferSideEffectKind(detail: string): AttemptedSideEffect["kind"] {
-  const match = detail.match(/^(ctx\.[a-zA-Z0-9_$]+)/);
-  if (!match) return "unknown";
-  const prefix = match[1];
+  const prefix = detail.match(/^(ctx\.[a-zA-Z0-9_$]+)/)?.[1];
+  if (!prefix) return "unknown";
   if (CTX_DB_WRITE_OPS.has(prefix)) return "db_write";
   if (CTX_DB_READ_OPS.has(prefix)) return "db_read";
   return "unknown";
