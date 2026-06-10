@@ -21,7 +21,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { EventHandlerDefinition } from "@linchkit/core";
+import type { EventHandlerDefinition, RelationDefinition } from "@linchkit/core";
 import { ConfigRegistry, defineEntity } from "@linchkit/core";
 import {
   ActionRegistry,
@@ -42,20 +42,38 @@ const order = defineEntity({
   },
 });
 
+const department = defineEntity({
+  name: "department",
+  label: "Department",
+  fields: {
+    name: { type: "text", label: "Name" },
+  },
+});
+
 /**
  * Build a minimal `WireDevEnginesInput` with no capabilities, no flows,
  * no middleware. Just enough to drive `wireDevEngines` so the overlay
  * registry construction path is exercised.
  */
 function buildInput(
-  opts: { dataProvider?: InMemoryStore; eventHandlers?: EventHandlerDefinition[] } = {},
+  opts: {
+    dataProvider?: InMemoryStore;
+    eventHandlers?: EventHandlerDefinition[];
+    links?: RelationDefinition[];
+  } = {},
 ) {
   const dataProvider = opts.dataProvider ?? new InMemoryStore();
   const entityRegistry = new EntityRegistry();
   entityRegistry.register(order);
+  entityRegistry.register(department);
 
   const actionRegistry = new ActionRegistry();
   const relationRegistry = createRelationRegistry();
+  // Mirror build-registries.ts: collected relations are registered on the
+  // RelationRegistry AND threaded through as raw definitions (`links`).
+  for (const relation of opts.links ?? []) {
+    relationRegistry.register(relation);
+  }
   const interfaceRegistry = createInterfaceRegistry();
   const permissionRegistry = new PermissionRegistry();
 
@@ -68,11 +86,11 @@ function buildInput(
     relationRegistry,
     interfaceRegistry,
     permissionRegistry,
-    entities: [order],
+    entities: [order, department],
     actions: [],
     views: [],
     states: [],
-    links: [],
+    links: opts.links ?? [],
     rules: [],
     eventHandlers: opts.eventHandlers ?? [],
     middlewares: [],
@@ -192,5 +210,46 @@ describe("wireDevEngines — capability event handler registration", () => {
     const ontology = transportCtx.ontologyRegistry;
     if (!ontology) throw new Error("ontologyRegistry undefined");
     expect(ontology.handlersFor("order")).toEqual([]);
+  });
+});
+
+describe("wireDevEngines — relation definitions in the OntologyRegistry", () => {
+  // Regression: the CLI boot path passed `links: relationRegistry` (relation
+  // lookups) but omitted `relationDefs` when building the OntologyRegistry,
+  // so collected `defineRelation()` definitions never fed the dependency DAG
+  // / impact analysis (Spec 67). The dev-server path (cap-adapter-server
+  // dev-app.ts buildDevOntologyRegistry) wires both; this pins the CLI path
+  // to the same behavior.
+  const orderDepartment: RelationDefinition = {
+    name: "order_department",
+    from: "order",
+    to: "department",
+    cardinality: "many_to_one",
+    fromName: "department",
+    toName: "orders",
+  };
+
+  test("collected relations surface in the dependency graph", async () => {
+    const { transportCtx } = await wireDevEngines(buildInput({ links: [orderDepartment] }));
+    const ontology = transportCtx.ontologyRegistry;
+    if (!ontology) throw new Error("ontologyRegistry undefined");
+
+    // The relation→entity edges only exist when raw relation definitions are
+    // passed as `relationDefs` — the `links` registry alone does not feed the
+    // DAG. Without the fix this graph contains only the root node.
+    const graph = ontology.dependencyGraph({ type: "relation", name: "order_department" });
+    const nodeNames = graph.nodes.map((n) => n.name);
+    expect(nodeNames).toContain("order");
+    expect(nodeNames).toContain("department");
+  });
+
+  test("entity impact analysis sees the dependent relation", async () => {
+    const { transportCtx } = await wireDevEngines(buildInput({ links: [orderDepartment] }));
+    const ontology = transportCtx.ontologyRegistry;
+    if (!ontology) throw new Error("ontologyRegistry undefined");
+
+    const layers = ontology.impactAnalysis({ type: "entity", name: "order" });
+    const dependentNames = layers.flat().map((r) => r.name);
+    expect(dependentNames).toContain("order_department");
   });
 });
