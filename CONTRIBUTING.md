@@ -12,7 +12,7 @@ Thank you for your interest in contributing to LinchKit! This guide will help yo
 
 ```bash
 # Clone the repository
-git clone https://github.com/anthropic-ai/linchkit.git
+git clone https://github.com/laofahai/linchkit.git
 cd linchkit
 
 # Install dependencies

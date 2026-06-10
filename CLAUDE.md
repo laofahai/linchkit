@@ -32,8 +32,8 @@ If a spec exists for the area you're touching → read the spec first. Specs: `d
 | ORM | Drizzle (PostgreSQL via drizzle-kit, InMemoryStore fallback) |
 | Frontend | React 19 + Vite |
 | UI | Shadcn + Radix + Lucide + Tailwind |
-| Flow Engine | Restate (`@restatedev/restate-sdk` v1.11.1) — durable execution |
-| Testing | bun test |
+| Flow Engine | Restate (`@restatedev/restate-sdk` v1.14.5) — durable execution |
+| Testing | bun run test |
 
 ## Constraints
 

@@ -123,7 +123,7 @@ Each addon package declares its minimum compatible core version. The general rul
 | 1.x.x       | Only addons built for ^1.0.0 |
 
 **Rule**: Addons MUST declare `@linchkit/core` as a `peerDependency` with a
-caret range (e.g., `"@linchkit/core": "^0.1.0"`). This ensures consumers get
+caret range (e.g., `"@linchkit/core": "^0.2.0"`). This ensures consumers get
 clear warnings when versions are incompatible.
 
 ### Cross-Addon Compatibility
@@ -145,25 +145,43 @@ must also use `peerDependencies` with caret ranges.
 
 | Package | Description |
 |---------|-------------|
-| `@linchkit/cap-adapter-server` | Elysia + GraphQL + REST server |
-| `@linchkit/cap-adapter-ui` | React UI adapter |
+| `@linchkit/cap-adapter-server` | Elysia + graphql-yoga + REST + CommandLayer server |
+| `@linchkit/cap-adapter-ui` | React 19 UI adapter (Shadcn + TanStack) |
 | `@linchkit/ui-kit` | Shared UI components (Shadcn) |
 | `@linchkit/cap-adapter-mcp` | MCP transport adapter |
 | `@linchkit/cap-mcp-ui` | MCP management UI |
+| `@linchkit/cap-adapter-ag-ui` | AG-UI protocol adapter (agent↔frontend stream) |
+| `@linchkit/cap-adapter-a2a` | A2A (agent-to-agent) protocol adapter |
+| `@linchkit/cap-ai-provider` | AI provider capability (Anthropic, OpenAI, zhipu, …) |
 | `@linchkit/cap-auth` | Authentication capability |
 | `@linchkit/cap-auth-better-auth` | Better Auth provider |
-| `@linchkit/cap-permission` | Permission capability |
-| `@linchkit/cap-ai-provider` | AI provider capability |
-| `@linchkit/cap-chatter` | Record timeline capability |
-| `@linchkit/cap-chatter-ui` | Chatter UI components |
-| `@linchkit/cap-flow-restate` | Restate flow engine |
-| `@linchkit/cap-migration` | Legacy system migration |
+| `@linchkit/cap-permission` | Permission capability (RBAC) |
+| `@linchkit/cap-chatter` | Timeline: messages, audit log, GraphQL |
+| `@linchkit/cap-chatter-ui` | Chatter React UI panel |
+| `@linchkit/cap-audit-ui` | Audit-log UI |
+| `@linchkit/cap-flow-restate` | Restate durable execution |
+| `@linchkit/cap-dry-run` | Sandboxed execution dry-run runner |
+| `@linchkit/cap-lock` | Capability/field lock policy |
+| `@linchkit/cap-migration` | Database migration tooling |
+| `@linchkit/cap-search-ui` | Search UI |
+| `@linchkit/cap-theme` | Theming |
+| `@linchkit/cap-keyboard-shortcuts` | Keyboard shortcuts |
+| `@linchkit/cap-view-kanban` | Kanban view |
+| `@linchkit/cap-view-calendar` | Calendar view |
+| `@linchkit/cap-view-timeline` | Timeline view |
 
 ### Private (not published)
 
 | Package | Description |
 |---------|-------------|
-| `@linchkit/cap-purchase-demo` | Demo capability |
+| `@linchkit/cap-cache-redis` | Redis cache provider |
+| `@linchkit/cap-file-storage` | File storage |
+| `@linchkit/cap-notification` | Notification delivery |
+| `@linchkit/cap-observability-otel` | OpenTelemetry traces/metrics |
+| `@linchkit/cap-search` | Full-text search |
+| `@linchkit/cap-vector-pgvector` | pgvector vector store |
+| `@linchkit/cap-life-demo` | Life-system (Spec 55) demo |
+| `@linchkit/cap-purchase-demo` | Purchase management demo |
 
 ## Migration Guide Template
 

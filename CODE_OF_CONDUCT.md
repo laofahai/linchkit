@@ -22,7 +22,7 @@ Examples of unacceptable behavior:
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at **conduct@linchkit.dev**.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported privately by contacting the repository owner [@laofahai](https://github.com/laofahai) directly (via the contact details on their GitHub profile). The project does not yet operate a dedicated conduct mailbox; reports go straight to the maintainer.
 
 All complaints will be reviewed and investigated promptly and fairly.
 

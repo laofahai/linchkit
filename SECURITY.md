@@ -4,13 +4,13 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 0.2.x   | Yes       |
 
 ## Reporting a Vulnerability
 
 **Do not report security vulnerabilities through public GitHub issues.**
 
-Please report vulnerabilities by emailing **security@linchkit.dev**.
+Please report vulnerabilities privately via [GitHub Security Advisories](https://github.com/laofahai/linchkit/security/advisories/new) ("Report a vulnerability"). This keeps the report confidential until a fix is released.
 
 Include:
 - Description of the vulnerability
