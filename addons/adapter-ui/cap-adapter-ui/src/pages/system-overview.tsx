@@ -71,6 +71,51 @@ interface HealthResponse {
   system?: SystemInfo;
 }
 
+/**
+ * Normalize the server's `/health` checks into the rich HealthCheck[] this
+ * page renders. The endpoint has three live shapes (routes/health.ts):
+ *   - rich registry: [{ name, status, durationMs, ... }]   → passthrough
+ *   - probe list:    [{ name, ok, detail? }]               → ok ⇒ status
+ *   - minimal map:   { process: { ok: true } }             → entries ⇒ checks
+ * Rendering `.map` directly on the raw value crashed on the minimal map
+ * ("health.checks.map is not a function").
+ */
+export function normalizeHealthChecks(raw: unknown): HealthCheck[] {
+  const VALID_STATUSES: ReadonlySet<string> = new Set(["healthy", "degraded", "unhealthy"]);
+  const toCheck = (name: string, entry: unknown): HealthCheck => {
+    const obj: Record<string, unknown> =
+      entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    const status: HealthCheck["status"] =
+      typeof obj.status === "string" && VALID_STATUSES.has(obj.status)
+        ? (obj.status as HealthCheck["status"])
+        : obj.ok === false
+          ? "unhealthy"
+          : "healthy";
+    return {
+      name,
+      status,
+      ...(typeof obj.message === "string"
+        ? { message: obj.message }
+        : typeof obj.detail === "string"
+          ? { message: obj.detail }
+          : {}),
+      durationMs: typeof obj.durationMs === "number" ? obj.durationMs : 0,
+    };
+  };
+  if (Array.isArray(raw)) {
+    return raw.map((entry, i) => {
+      const name = (entry as Record<string, unknown>)?.name;
+      return toCheck(typeof name === "string" ? name : `check_${i}`, entry);
+    });
+  }
+  if (raw && typeof raw === "object") {
+    return Object.entries(raw as Record<string, unknown>).map(([name, entry]) =>
+      toCheck(name, entry),
+    );
+  }
+  return [];
+}
+
 interface SettingsGeneral {
   version: string;
   uptime: number;
@@ -209,7 +254,10 @@ export function SystemOverviewPage() {
       const res = await fetch("/health");
       const data = await res.json().catch(() => null);
       if (data?.checks) {
-        setHealth(data as HealthResponse);
+        setHealth({
+          ...(data as Omit<HealthResponse, "checks">),
+          checks: normalizeHealthChecks(data.checks),
+        });
         setLastRefresh(new Date());
         return;
       }
