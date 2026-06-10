@@ -379,11 +379,6 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("browser e2e smoke", () => {
     async () => {
       const { page, pageErrors } = await newTrackedPage(browser);
       try {
-        const aguiRequests: string[] = [];
-        page.on("request", (req) => {
-          if (req.url().includes("/api/agui/run")) aguiRequests.push(req.url());
-        });
-
         await page.goto(UI_URL, { waitUntil: "networkidle2" });
 
         // Open the assistant sheet via the sparkles header button.
@@ -394,18 +389,18 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("browser e2e smoke", () => {
         const textareaSelector = '[role="dialog"] textarea';
         await page.waitForSelector(textareaSelector, { timeout: 10_000 });
         await page.type(textareaSelector, "Reply with OK only.");
-        await page.keyboard.press("Enter");
 
-        // The transport must actually emit the HTTP request — a broken fetch
-        // binding throws before any network I/O and this stays empty forever.
-        const deadline = Date.now() + 15_000;
-        while (Date.now() < deadline && aguiRequests.length === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
+        // Arm the request wait BEFORE the keystroke that triggers it. The
+        // transport must actually emit the HTTP request — a broken fetch
+        // binding throws before any network I/O, so this rejects on timeout.
+        const aguiRequest = page
+          .waitForRequest((req) => req.url().includes("/api/agui/run"), { timeout: 15_000 })
+          .catch(() => null);
+        await page.keyboard.press("Enter");
         expect(
-          aguiRequests.length,
+          await aguiRequest,
           "no POST to /api/agui/run left the browser — transport failed before network I/O",
-        ).toBeGreaterThan(0);
+        ).not.toBeNull();
 
         // The chat surface must not show the unbound-fetch failure either.
         const illegalInvocation = await page.evaluate(() =>

@@ -65,11 +65,13 @@ function createHttpRunAgent(url: string): AgUiRunAgentFn {
     // Observable. `abortRun()` aborts the underlying fetch.
     // HttpAgent stores the fetch impl and invokes it as `this.fetch(...)`;
     // an unbound window.fetch then runs with the agent as `this`, which
-    // browsers reject ("Illegal invocation"). Pass a bound fetch explicitly.
+    // browsers reject ("Illegal invocation"). Wrap it so the call resolves
+    // `globalThis.fetch` lazily (respecting late mocks/polyfills) and always
+    // invokes it with `globalThis` as the receiver.
     const agent = new HttpAgent({
       url,
       threadId: input.threadId,
-      fetch: globalThis.fetch.bind(globalThis),
+      fetch: (req, init) => globalThis.fetch(req, init),
     });
     if (abortSignal) {
       if (abortSignal.aborted) agent.abortRun();
