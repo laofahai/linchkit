@@ -3,8 +3,9 @@
  *
  * AG-UI (Agent-User Interaction) protocol adapter — CopilotKit open standard for
  * bidirectional, real-time agent ↔ frontend communication over SSE (Spec 15 §6.5).
- * Phase 1 (#89): in-house protocol types + the `POST <basePath>/run` endpoint
- * bridging the assistant AIService seam to AG-UI events.
+ * Phase 1 (#89): canonical protocol types from `@ag-ui/core` (re-exported via
+ * `./protocol`) + the `POST <basePath>/run` endpoint bridging the assistant
+ * AIService seam to AG-UI events.
  */
 
 export type { TransportAdapterDefinition } from "@linchkit/core";
@@ -15,9 +16,9 @@ export { capAdapterAgUi } from "./capability";
 export { capAdapterAgUiConfig } from "./config";
 export type { CapAdapterAgUiOptions } from "./factory";
 export { createCapAdapterAgUi } from "./factory";
-// In-house AG-UI protocol types + RunAgentInput schema
+// Canonical AG-UI protocol types (re-exported from @ag-ui/core) + SSE framing
 export type {
-  AgUiEvent,
+  AGUIEvent,
   BaseEvent,
   Context,
   CustomEvent,
@@ -37,7 +38,7 @@ export type {
   ToolCallEndEvent,
   ToolCallStartEvent,
 } from "./protocol";
-export { EventType, encodeSseEvent, runAgentInputSchema } from "./protocol";
+export { EventType, encodeSseEvent, RunAgentInputSchema } from "./protocol";
 // Run endpoint (test seam: inject a fake AIService)
 export type { AgUiRunDeps } from "./run-endpoint";
 export {

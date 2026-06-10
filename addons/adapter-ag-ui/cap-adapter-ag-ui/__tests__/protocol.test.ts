@@ -1,9 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { EventType, encodeSseEvent, runAgentInputSchema } from "../src/protocol";
+import { EventType, encodeSseEvent, RunAgentInputSchema } from "../src/protocol";
 
-describe("runAgentInputSchema", () => {
-  test("accepts a minimal input and fills array defaults", () => {
-    const parsed = runAgentInputSchema.parse({ threadId: "thread_1", runId: "run_1" });
+describe("RunAgentInputSchema (official @ag-ui/core schema)", () => {
+  test("rejects a minimal input missing the required arrays", () => {
+    // Upstream requires `messages`, `tools` and `context` — no defaults.
+    const result = RunAgentInputSchema.safeParse({ threadId: "thread_1", runId: "run_1" });
+    expect(result.success).toBe(false);
+  });
+
+  test("accepts an input with explicit (empty) required arrays", () => {
+    const parsed = RunAgentInputSchema.parse({
+      threadId: "thread_1",
+      runId: "run_1",
+      messages: [],
+      tools: [],
+      context: [],
+    });
 
     expect(parsed.threadId).toBe("thread_1");
     expect(parsed.runId).toBe("run_1");
@@ -13,7 +25,7 @@ describe("runAgentInputSchema", () => {
   });
 
   test("accepts a full input with messages, tools and context", () => {
-    const parsed = runAgentInputSchema.parse({
+    const parsed = RunAgentInputSchema.parse({
       threadId: "thread_1",
       runId: "run_1",
       state: { counter: 1 },
@@ -45,26 +57,43 @@ describe("runAgentInputSchema", () => {
     expect(parsed.context[0]?.value).toBe("/orders");
   });
 
+  test("accepts multimodal user content (InputContent[] text parts)", () => {
+    const parsed = RunAgentInputSchema.parse({
+      threadId: "thread_1",
+      runId: "run_1",
+      messages: [
+        { id: "msg_1", role: "user", content: [{ type: "text", text: "Hello from a part" }] },
+      ],
+      tools: [],
+      context: [],
+    });
+    expect(parsed.messages).toHaveLength(1);
+  });
+
   test("rejects missing threadId / runId", () => {
-    expect(runAgentInputSchema.safeParse({ runId: "run_1" }).success).toBe(false);
-    expect(runAgentInputSchema.safeParse({ threadId: "thread_1" }).success).toBe(false);
-    expect(runAgentInputSchema.safeParse({ threadId: "", runId: "run_1" }).success).toBe(false);
+    const arrays = { messages: [], tools: [], context: [] };
+    expect(RunAgentInputSchema.safeParse({ runId: "run_1", ...arrays }).success).toBe(false);
+    expect(RunAgentInputSchema.safeParse({ threadId: "thread_1", ...arrays }).success).toBe(false);
   });
 
   test("rejects messages with an unknown role", () => {
-    const result = runAgentInputSchema.safeParse({
+    const result = RunAgentInputSchema.safeParse({
       threadId: "thread_1",
       runId: "run_1",
       messages: [{ id: "msg_1", role: "alien", content: "hi" }],
+      tools: [],
+      context: [],
     });
     expect(result.success).toBe(false);
   });
 
-  test("rejects user messages without string content", () => {
-    const result = runAgentInputSchema.safeParse({
+  test("rejects user messages with non-string, non-part content", () => {
+    const result = RunAgentInputSchema.safeParse({
       threadId: "thread_1",
       runId: "run_1",
       messages: [{ id: "msg_1", role: "user", content: 42 }],
+      tools: [],
+      context: [],
     });
     expect(result.success).toBe(false);
   });
@@ -90,16 +119,17 @@ describe("encodeSseEvent", () => {
 
 describe("EventType", () => {
   test("uses the exact protocol string values", () => {
-    expect(EventType.RUN_STARTED).toBe("RUN_STARTED");
-    expect(EventType.RUN_FINISHED).toBe("RUN_FINISHED");
-    expect(EventType.RUN_ERROR).toBe("RUN_ERROR");
-    expect(EventType.TEXT_MESSAGE_START).toBe("TEXT_MESSAGE_START");
-    expect(EventType.TEXT_MESSAGE_CONTENT).toBe("TEXT_MESSAGE_CONTENT");
-    expect(EventType.TEXT_MESSAGE_END).toBe("TEXT_MESSAGE_END");
-    expect(EventType.TOOL_CALL_START).toBe("TOOL_CALL_START");
-    expect(EventType.TOOL_CALL_ARGS).toBe("TOOL_CALL_ARGS");
-    expect(EventType.TOOL_CALL_END).toBe("TOOL_CALL_END");
-    expect(EventType.STATE_SNAPSHOT).toBe("STATE_SNAPSHOT");
-    expect(EventType.CUSTOM).toBe("CUSTOM");
+    // String() unwraps the upstream enum so we compare wire values.
+    expect(String(EventType.RUN_STARTED)).toBe("RUN_STARTED");
+    expect(String(EventType.RUN_FINISHED)).toBe("RUN_FINISHED");
+    expect(String(EventType.RUN_ERROR)).toBe("RUN_ERROR");
+    expect(String(EventType.TEXT_MESSAGE_START)).toBe("TEXT_MESSAGE_START");
+    expect(String(EventType.TEXT_MESSAGE_CONTENT)).toBe("TEXT_MESSAGE_CONTENT");
+    expect(String(EventType.TEXT_MESSAGE_END)).toBe("TEXT_MESSAGE_END");
+    expect(String(EventType.TOOL_CALL_START)).toBe("TOOL_CALL_START");
+    expect(String(EventType.TOOL_CALL_ARGS)).toBe("TOOL_CALL_ARGS");
+    expect(String(EventType.TOOL_CALL_END)).toBe("TOOL_CALL_END");
+    expect(String(EventType.STATE_SNAPSHOT)).toBe("STATE_SNAPSHOT");
+    expect(String(EventType.CUSTOM)).toBe("CUSTOM");
   });
 });

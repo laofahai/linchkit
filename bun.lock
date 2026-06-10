@@ -10,7 +10,7 @@
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
         "@modelcontextprotocol/sdk": "1.29.0",
-        "@restatedev/restate-sdk": "1.14.4",
+        "@restatedev/restate-sdk": "1.14.5",
         "@tanstack/react-table": "^8.21.3",
         "ai": "^6.0.134",
         "dataloader": "^2.2.3",
@@ -41,6 +41,11 @@
     "addons/adapter-ag-ui/cap-adapter-ag-ui": {
       "name": "@linchkit/cap-adapter-ag-ui",
       "version": "1.0.0",
+      "dependencies": {
+        "@ag-ui/core": "~0.0.56",
+        "elysia": "^1.4.28",
+        "zod": "^4.3.6",
+      },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
         "@linchkit/devtools": "workspace:*",
@@ -97,13 +102,12 @@
         "@linchkit/cap-chatter": "workspace:*",
         "@linchkit/cap-dry-run": "workspace:*",
         "@linchkit/cap-permission": "workspace:*",
-        "@linchkit/core": "workspace:*",
         "typescript": "^6.0.2",
       },
       "peerDependencies": {
         "@linchkit/cap-ai-provider": "^1.0.0",
         "@linchkit/cap-dry-run": "^0.1.0",
-        "@linchkit/core": "^0.2.0",
+        "@linchkit/core": ">=0.3.0 <0.4.0",
       },
     },
     "addons/adapter-ui/cap-adapter-ui": {
@@ -118,6 +122,7 @@
         "@linchkit/ui-kit": "workspace:*",
         "@tanstack/react-query": "^5.95.2",
         "@tanstack/react-router": "^1.168.2",
+        "@tanstack/react-table": "^8.21.3",
         "@tiptap/extension-link": "^3.20.5",
         "@tiptap/extension-placeholder": "^3.20.5",
         "@tiptap/pm": "^3.20.5",
@@ -329,7 +334,7 @@
       "name": "@linchkit/cap-flow-restate",
       "version": "1.0.0",
       "dependencies": {
-        "@restatedev/restate-sdk": "1.14.4",
+        "@restatedev/restate-sdk": "1.14.5",
       },
       "devDependencies": {
         "@linchkit/core": "workspace:*",
@@ -590,6 +595,8 @@
     },
   },
   "packages": {
+    "@ag-ui/core": ["@ag-ui/core@0.0.56", "https://registry.npmmirror.com/@ag-ui/core/-/core-0.0.56.tgz", { "dependencies": { "zod": "^3.22.4" } }, "sha512-PD26s7qk8dG6/TOGmOv23ByTaGwJs2Wzm53OwsM40jSjio3xmswGZzDaFpjMNP6FsASNGovCPB8xICAyWhYx8A=="],
+
     "@ai-sdk/anthropic": ["@ai-sdk/anthropic@3.0.63", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.21" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-SiLosFr0FfKfrNpAAj8mD/i3S5YBB/z5orb1DH3pN1yATuBNjjPMLnRE4P3Dn7Y5cQsro0uzw5g5117hkShWoQ=="],
 
     "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.77", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.21", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-UdwIG2H2YMuntJQ5L+EmED5XiwnlvDT3HOmKfVFxR4Nq/RSLFA/HcchhwfNXHZ5UJjyuL2VO0huLbWSZ9ijemQ=="],
@@ -1224,9 +1231,9 @@
 
     "@repeaterjs/repeater": ["@repeaterjs/repeater@3.0.6", "https://registry.npmmirror.com/@repeaterjs/repeater/-/repeater-3.0.6.tgz", {}, "sha512-Javneu5lsuhwNCryN+pXH93VPQ8g0dBX7wItHFgYiwQmzE1sVdg5tWHiOgHywzL2W21XQopa7IwIEnNbmeUJYA=="],
 
-    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.14.4", "", { "dependencies": { "@restatedev/restate-sdk-core": "1.14.4" } }, "sha512-H3nqBlHvNwDgfYdAqTe7+fgvkRoNrOOKVKwPB2/ucDyLZUx15yr3FU5aKWQCuM0TVvkSE3bwYWvLIXoVUpEbtw=="],
+    "@restatedev/restate-sdk": ["@restatedev/restate-sdk@1.14.5", "https://registry.npmmirror.com/@restatedev/restate-sdk/-/restate-sdk-1.14.5.tgz", { "dependencies": { "@restatedev/restate-sdk-core": "1.14.5" } }, "sha512-RvuJU/Ji9MSgLkRBN1pLeGm/AdrpFl380SZZ0sPk/NWC9jpZyX2fntJx7NbIqfQ4PfoTm1/zPH8/gn7AQGuSaQ=="],
 
-    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.14.4", "", {}, "sha512-q1ukObKmcwRSznuOt73TST6kvh8mjQaWU9dmHhbWCbx2xddUsj4LiGD2MkuTfMhl42SFNCdbp6Lvew1Wy+7IlQ=="],
+    "@restatedev/restate-sdk-core": ["@restatedev/restate-sdk-core@1.14.5", "https://registry.npmmirror.com/@restatedev/restate-sdk-core/-/restate-sdk-core-1.14.5.tgz", {}, "sha512-MvlRhyFhnNMDLFRz2t5TbhebIkIAI8oN2reRgoAj9OMADK0xn7mOuBbWHwGF+8MsFfBXmV1HrNqpAXltEeNzqg=="],
 
     "@rolldown/binding-android-arm64": ["@rolldown/binding-android-arm64@1.0.0-rc.10", "https://registry.npmmirror.com/@rolldown/binding-android-arm64/-/binding-android-arm64-1.0.0-rc.10.tgz", { "os": "android", "cpu": "arm64" }, "sha512-jOHxwXhxmFKuXztiu1ORieJeTbx5vrTkcOkkkn2d35726+iwhrY1w/+nYY/AGgF12thg33qC3R1LMBF5tHTZHg=="],
 
@@ -2707,6 +2714,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.1", "https://registry.npmmirror.com/zod-to-json-schema/-/zod-to-json-schema-3.25.1.tgz", { "peerDependencies": { "zod": "^3.25 || ^4" } }, "sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA=="],
 
     "zustand": ["zustand@4.5.7", "", { "dependencies": { "use-sync-external-store": "^1.2.2" }, "peerDependencies": { "@types/react": ">=16.8", "immer": ">=9.0.6", "react": ">=16.8" }, "optionalPeers": ["@types/react", "immer", "react"] }, "sha512-CHOUy7mu3lbD6o6LJLfllpjkzhHXSBlX8B9+qPddUsIfeF5S/UZ5q0kmCsnRqT1UHFQZchNFDDzMbQsuesHWlw=="],
+
+    "@ag-ui/core/zod": ["zod@3.25.76", "https://registry.npmmirror.com/zod/-/zod-3.25.76.tgz", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@ai-sdk/react/ai": ["ai@6.0.138", "", { "dependencies": { "@ai-sdk/gateway": "3.0.80", "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.21", "@opentelemetry/api": "1.9.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-49OfPe0f5uxJ6jUdA5BBXjIinP6+ZdYfAtpF2aEH64GA5wPcxH2rf/TBUQQ0bbamBz/D+TLMV18xilZqOC+zaA=="],
 

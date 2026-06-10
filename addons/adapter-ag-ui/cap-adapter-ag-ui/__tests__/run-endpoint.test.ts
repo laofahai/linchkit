@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "bun:test";
 import type { AICompletionResult, AIService, AIStreamResult } from "@linchkit/core";
-import type { AgUiEvent } from "../src/protocol";
+import { type AGUIEvent, EventType } from "../src/protocol";
 import { createAgUiApp } from "../src/run-endpoint";
 
 const RUN_URL = "http://local.test/api/agui/run";
@@ -24,15 +24,20 @@ function postRun(app: { handle: (request: Request) => Promise<Response> }, body:
 }
 
 /** Parse an SSE body (`data: <json>\n\n` frames) into protocol events. */
-function parseSseEvents(text: string): AgUiEvent[] {
+function parseSseEvents(text: string): AGUIEvent[] {
   return text
     .split("\n\n")
     .map((frame) => frame.trim())
     .filter((frame) => frame.length > 0)
     .map((frame) => {
       expect(frame.startsWith("data: ")).toBe(true);
-      return JSON.parse(frame.slice("data: ".length)) as AgUiEvent;
+      return JSON.parse(frame.slice("data: ".length)) as AGUIEvent;
     });
+}
+
+/** Event type discriminators as plain wire strings (enum-free comparisons). */
+function eventTypes(events: AGUIEvent[]): string[] {
+  return events.map((e) => String(e.type));
 }
 
 const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
@@ -138,6 +143,16 @@ describe("POST /api/agui/run — input validation", () => {
     expect(res.status).toBe(400);
   });
 
+  test("rejects input missing the required messages/tools/context arrays with 400", async () => {
+    // The official @ag-ui/core RunAgentInputSchema requires all three arrays.
+    const app = await createAgUiApp({ aiService: fakeCompleteService() });
+    const res = await postRun(app, { threadId: "thread_1", runId: "run_1" });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { success: boolean; error: { message: string } };
+    expect(body.error.message).toContain("Invalid RunAgentInput");
+  });
+
   test("validation runs before the availability check (400 wins over 503)", async () => {
     const app = await createAgUiApp({});
     const res = await postRun(app, { nonsense: true });
@@ -155,7 +170,7 @@ describe("POST /api/agui/run — happy path (text + tool call)", () => {
     expect(res.headers.get("content-type")).toContain("text/event-stream");
 
     const events = parseSseEvents(await res.text());
-    expect(events.map((e) => e.type)).toEqual([
+    expect(eventTypes(events)).toEqual([
       "RUN_STARTED",
       "TEXT_MESSAGE_START",
       "TEXT_MESSAGE_CONTENT",
@@ -194,7 +209,7 @@ describe("POST /api/agui/run — happy path (text + tool call)", () => {
     const res = await postRun(app, validInput);
 
     const events = parseSseEvents(await res.text());
-    expect(events.map((e) => e.type)).toEqual([
+    expect(eventTypes(events)).toEqual([
       "RUN_STARTED",
       "TOOL_CALL_START",
       "TOOL_CALL_ARGS",
@@ -207,11 +222,17 @@ describe("POST /api/agui/run — happy path (text + tool call)", () => {
 describe("POST /api/agui/run — streaming path (no tools)", () => {
   test("uses completeStream and emits one TEXT_MESSAGE_CONTENT per chunk", async () => {
     const app = await createAgUiApp({ aiService: fakeStreamingService(["Hel", "lo", "!"]) });
-    const res = await postRun(app, { threadId: "thread_2", runId: "run_2" });
+    const res = await postRun(app, {
+      threadId: "thread_2",
+      runId: "run_2",
+      messages: [{ id: "msg_1", role: "user", content: "Say hello" }],
+      tools: [],
+      context: [],
+    });
 
     expect(res.status).toBe(200);
     const events = parseSseEvents(await res.text());
-    expect(events.map((e) => e.type)).toEqual([
+    expect(eventTypes(events)).toEqual([
       "RUN_STARTED",
       "TEXT_MESSAGE_START",
       "TEXT_MESSAGE_CONTENT",
@@ -221,7 +242,7 @@ describe("POST /api/agui/run — streaming path (no tools)", () => {
       "RUN_FINISHED",
     ]);
     const deltas = events
-      .filter((e) => e.type === "TEXT_MESSAGE_CONTENT")
+      .filter((e) => e.type === EventType.TEXT_MESSAGE_CONTENT)
       .map((e) => (e as { delta: string }).delta);
     expect(deltas.join("")).toBe("Hello!");
   });
@@ -238,10 +259,16 @@ describe("POST /api/agui/run — failure mid-run", () => {
       },
     };
     const app = await createAgUiApp({ aiService: failing });
-    const res = await postRun(app, { threadId: "thread_3", runId: "run_3" });
+    const res = await postRun(app, {
+      threadId: "thread_3",
+      runId: "run_3",
+      messages: [],
+      tools: [],
+      context: [],
+    });
 
     const events = parseSseEvents(await res.text());
-    expect(events.map((e) => e.type)).toEqual(["RUN_STARTED", "RUN_ERROR"]);
+    expect(eventTypes(events)).toEqual(["RUN_STARTED", "RUN_ERROR"]);
     expect(events[1]).toMatchObject({ message: "provider exploded" });
   });
 });
@@ -253,12 +280,40 @@ describe("custom base path", () => {
       new Request("http://local.test/agui-v2/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ threadId: "t", runId: "r" }),
+        body: JSON.stringify({ threadId: "t", runId: "r", messages: [], tools: [], context: [] }),
       }),
     );
 
     expect(res.status).toBe(200);
     const events = parseSseEvents(await res.text());
-    expect(events[0]?.type).toBe("RUN_STARTED");
+    expect(events[0]?.type).toBe(EventType.RUN_STARTED);
+  });
+
+  test("an already-aborted request yields an empty stream and never calls the AI service", async () => {
+    let aiCalls = 0;
+    const base = fakeCompleteService();
+    const counted: AIService = {
+      ...base,
+      complete: async (...args) => {
+        aiCalls += 1;
+        return base.complete(...args);
+      },
+    };
+    const app = await createAgUiApp({ aiService: counted });
+
+    const controller = new AbortController();
+    controller.abort();
+    const res = await app.handle(
+      new Request(RUN_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(validInput),
+        signal: controller.signal,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("");
+    expect(aiCalls).toBe(0);
   });
 });
