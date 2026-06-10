@@ -35,6 +35,7 @@ import type {
   CapabilityDefinition,
   EntityDefinition,
   RelationDefinition,
+  Sensor,
   StateDefinition,
 } from "@linchkit/core";
 import { defineCapability, defineRelation } from "@linchkit/core";
@@ -311,5 +312,79 @@ describe("dev-server HTTP boot (in-process, DB-free, port-free)", () => {
     expect(body.error?.message ?? "").not.toContain("Ontology registry is not available");
     expect(res.status).toBe(200);
     expect(body.outcome).toBe("no_match");
+  });
+
+  it("wires the Evolution runtime into POST /api/evolution/run-cycle", async () => {
+    // Regression guard: `dev.ts`/`createDevApp` never built an EvolutionRuntime
+    // (only the `linch dev` boot path did), so `POST /api/evolution/run-cycle`
+    // answered 501 "Evolution runtime is not configured — on-demand cycle
+    // execution is unavailable" on `bun run dev:server`.
+    //
+    // A synthetic detection-style sensor is contributed via `extensions.sensors`
+    // — the same channel the purchase demo uses — so this also proves the
+    // sensors a capability registers actually reach the SignalBus and RUN
+    // during the on-demand cycle, with the dispatch query injected (routing
+    // `execution_log` reads to the in-memory ExecutionLogger, DB-free).
+    // No AI is involved: the cycle's translator registry is structural.
+    let sensorRuns = 0;
+    let sawDispatchQuery = false;
+    const smokeSensor: Sensor = {
+      name: "smoke_cycle_sensor",
+      source: "server",
+      async detect(ctx) {
+        sensorRuns += 1;
+        // The runtime's queryFactory must inject a dispatch query; reading the
+        // execution_log proves it routes to the ExecutionLogger without a DB.
+        const rows = await ctx.query?.("execution_log");
+        sawDispatchQuery = Array.isArray(rows);
+        // Quiet observation: no deviation surfaced, so the cycle completes
+        // without needing awareness promotion thresholds tuned for a test.
+        return {
+          sensor: "smoke_cycle_sensor",
+          source: "server",
+          timestamp: ctx.timestamp,
+          value: 0,
+          baseline: 0,
+          deviation: 0,
+          confidence: 1,
+          context: {},
+        };
+      },
+    };
+    const capSmokeSensor: CapabilityDefinition = defineCapability({
+      name: "cap-smoke-sensor",
+      label: "Smoke Sensor",
+      description: "Synthetic capability contributing one detection-style sensor (Spec 55 §3.3)",
+      type: "standard",
+      category: "business",
+      version: "0.1.0",
+      extensions: { sensors: [smokeSensor] },
+    });
+
+    const app = createDevApp([...configuredCapabilities(), capSmokeSensor], {
+      cors: false,
+    }).app;
+    const res = await app.handle(
+      new Request("http://local.test/api/evolution/run-cycle", { method: "POST" }),
+    );
+
+    const body = (await res.json()) as {
+      success?: boolean;
+      data?: { created: number; deduped: number; total: number; createdIds: string[] };
+      error?: { message?: string };
+    };
+    // Before the fix: 501 + "Evolution runtime is not configured — on-demand
+    // cycle execution is unavailable." With the runtime wired, the cycle runs
+    // end-to-end (sense → insight → proposal translation → draft persistence)
+    // and returns the draft-persistence summary.
+    expect(body.error?.message ?? "").not.toContain("Evolution runtime is not configured");
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(typeof body.data?.created).toBe("number");
+    expect(typeof body.data?.total).toBe("number");
+    // The capability-contributed sensor actually ran inside the cycle, with
+    // the dispatch query injected.
+    expect(sensorRuns).toBe(1);
+    expect(sawDispatchQuery).toBe(true);
   });
 });

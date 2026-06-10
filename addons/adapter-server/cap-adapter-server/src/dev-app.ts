@@ -18,8 +18,24 @@
  * so the boot smoke test and the real dev server share one wiring path.
  */
 
-import type { CapabilityDefinition, OntologyRegistry } from "@linchkit/core";
+import type {
+  CapabilityDefinition,
+  ImpactDataProvider,
+  OntologyRegistry,
+  PendingProposalStore,
+  ProposalDefinition,
+  Sensor,
+} from "@linchkit/core";
 import {
+  createDedupAnalyzer,
+  createDefaultInsightTranslatorRegistry,
+  createImpactAnalyzer,
+  createPreAnalysisPipeline,
+} from "@linchkit/core";
+import type { EvolutionRuntime } from "@linchkit/core/server";
+import {
+  createDispatchQuery,
+  createEvolutionRuntime,
   createFlowRegistry,
   createOntologyRegistry,
   createRelationRegistry,
@@ -61,6 +77,7 @@ export interface CreateDevAppOptions
         | "dataProvider"
         | "onchangeEvaluator"
         | "ontologyRegistry"
+        | "evolutionRuntime"
       >
     > {}
 
@@ -110,6 +127,122 @@ export function buildDevOntologyRegistry(
   });
 }
 
+/** Options for {@link buildDevEvolutionRuntime}. */
+export interface BuildDevEvolutionRuntimeOptions {
+  /**
+   * Capabilities to scan for detection-style sensor contributions
+   * (`cap.extensions.sensors`, Spec 55 §3.3). The assembled contributions
+   * bucket does not collect sensors, so the raw capability list is taken here
+   * — mirroring the CLI's collect-capabilities.ts.
+   */
+  capabilities: CapabilityDefinition[];
+  /** Assembled dev schema providing the dataProvider + executionLogger. */
+  assembled: Pick<AssembledDevSchema, "runtime">;
+  /** The unified semantic layer built by {@link buildDevOntologyRegistry}. */
+  ontologyRegistry: OntologyRegistry;
+}
+
+/**
+ * Build the Evolution runtime (Spec 55) for the dev-server boot path.
+ *
+ * Mirrors the `linch dev` boot path's `createEvolutionRuntime({...})` call
+ * (packages/cli/src/commands/dev-wiring.ts) so the on-demand cycle endpoint
+ * (`POST /api/evolution/run-cycle`) works on `bun run dev:server` too.
+ * Without it, the Evolution page's "Run Evolution Cycle" button answers 501
+ * "Evolution runtime is not configured".
+ *
+ * The dispatch query routes `execution_log` reads to the ExecutionLogger and
+ * all other schemas to the DataProvider; the runtime also receives the
+ * ontology + the default structural translator registry so surfaced insights
+ * translate into proposals (Spec 55 §7), plus a pre-analysis pipeline so every
+ * proposal arrives with a reviewer envelope (dedup + impact) attached.
+ *
+ * SAFETY (Spec 55, non-negotiable): this produces proposals as DATA only.
+ * The run-cycle endpoint persists them as governance `draft`s — no graduation
+ * is wired here: no ProposalFileWriter, no GitCommitter, no cadence scheduler.
+ * The cycle runs ON-DEMAND only.
+ */
+export function buildDevEvolutionRuntime(
+  options: BuildDevEvolutionRuntimeOptions,
+): EvolutionRuntime {
+  const { capabilities, assembled, ontologyRegistry } = options;
+  const { dataProvider, executionLogger } = assembled.runtime;
+
+  // Collect detection-style sensors contributed via `extensions.sensors` —
+  // the same extraction the CLI's collect-capabilities.ts performs. The
+  // dev-server's extractCapabilities does not surface sensors, so they are
+  // collected from the raw capability list here.
+  const sensors: Sensor[] = [];
+  for (const cap of capabilities) {
+    if (cap.extensions?.sensors) sensors.push(...cap.extensions.sensors);
+  }
+
+  // Real impact provider: the impact analyzer's narrow ImpactDataProvider
+  // contract (countRecords / sampleRecordIds) maps directly onto the
+  // DataProvider already in scope, so dev proposals get true first-order
+  // record counts instead of stubbed zeros.
+  const impactDataProvider: ImpactDataProvider = {
+    async countRecords(entity, filter) {
+      return dataProvider.count(entity, filter);
+    },
+    async sampleRecordIds(entity, limit, filter) {
+      // Guard against NaN/Infinity/fractional limits: Math.max(0, NaN) is NaN,
+      // which would slip past a `=== 0` check and reach the query/slice.
+      const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0;
+      if (safeLimit === 0) return [];
+      // Push the limit into the query so the provider fetches only the sample
+      // rows. Both DrizzleDataProvider and InMemoryStore honor the `limit`
+      // filter key, so this avoids scanning + materializing a whole table just
+      // to return a handful of ids. The post-fetch slice stays as a defensive
+      // cap in case a provider ignores the hint.
+      const rows = await dataProvider.query(entity, {
+        ...(filter ?? {}),
+        limit: safeLimit,
+      });
+      return rows
+        .slice(0, safeLimit)
+        .map((row) =>
+          row && typeof row === "object" && "id" in row
+            ? String((row as { id?: unknown }).id ?? "")
+            : "",
+        )
+        .filter((id) => id.length > 0);
+    },
+  };
+
+  // Empty pending-proposal store: the dedup analyzer needs a pending set to
+  // compare against, but on this path the run-cycle ENDPOINT already dedups
+  // against the shared governance ProposalEngine when persisting drafts
+  // (persistCycleProposalsAsDrafts). The analyzer-level store stays empty —
+  // same shape as the CLI boot path (dev-wiring.ts) — so the pipeline still
+  // executes and reports an empty similar list.
+  const pendingProposalStore: PendingProposalStore = {
+    async listPending(): Promise<ProposalDefinition[]> {
+      return [];
+    },
+  };
+
+  const proposalPreAnalysisPipeline = createPreAnalysisPipeline({
+    analyzers: [
+      createDedupAnalyzer({ store: pendingProposalStore }),
+      createImpactAnalyzer({ dataProvider: impactDataProvider }),
+    ],
+  });
+
+  return createEvolutionRuntime({
+    sensors,
+    // Build a fresh dispatch query per cycle, scoped to that cycle's tenant
+    // (#500) — a per-tenant on-demand cycle reads only its own data.
+    queryFactory: (tenantId) => createDispatchQuery({ dataProvider, executionLogger, tenantId }),
+    ontology: ontologyRegistry,
+    translatorRegistry: createDefaultInsightTranslatorRegistry(),
+    // Capability label stamped onto every translated proposal — identifies
+    // the dev-server boot path as the origin (the CLI path uses "linch-dev").
+    proposalCapability: "dev-server",
+    proposalPreAnalysisPipeline,
+  });
+}
+
 /** Result of {@link createDevApp}: the Elysia app plus the assembled schema. */
 export interface DevApp {
   /**
@@ -149,6 +282,15 @@ export function createDevApp(
   // boot path, so ontology-dependent routes work on the in-process app too.
   const ontologyRegistry = buildDevOntologyRegistry(assembled);
 
+  // Evolution runtime (Spec 55) — same construction as dev.ts and the
+  // `linch dev` boot path, so `POST /api/evolution/run-cycle` works on the
+  // in-process app too. On-demand only; proposals stay DATA-only drafts.
+  const evolutionRuntime = buildDevEvolutionRuntime({
+    capabilities,
+    assembled,
+    ontologyRegistry,
+  });
+
   // Forward caller-supplied ServerOptions first, then the fields this factory
   // derives from the assembled runtime — which always win (and are excluded
   // from CreateDevAppOptions so callers cannot override them). This mirrors
@@ -180,6 +322,7 @@ export function createDevApp(
     dataProvider: runtime.dataProvider,
     onchangeEvaluator,
     ontologyRegistry,
+    evolutionRuntime,
   });
 
   return { app, assembled };
