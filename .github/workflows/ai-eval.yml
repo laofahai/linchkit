@@ -1,12 +1,16 @@
 name: AI Eval (prompt-quality)
 
-# Implements spec 69's two-tier regression strategy:
+# Implements spec 69's three-tier regression strategy (§9.1):
 #   • §9.2 — every PR touching prompt/eval surface runs offline REPLAY against
 #     the committed canonical baseline. Zero LLM cost, zero secrets required.
 #     This is the gate that actually blocks merges.
 #   • §9.3 — LIVE eval against the real LLM is gated behind workflow_dispatch
 #     so maintainers explicitly opt in (and pay the cost / consume the
 #     model quota). Same-repo only; fork PRs are skipped (secrets policy).
+#   • §9.4 — monthly provider-drift cron reuses the live path on a schedule;
+#     a >5pp strict-hit-rate drop vs the committed canonical baseline files a
+#     GitHub issue (non-blocking). A missing provider secret fails the
+#     scheduled job loudly instead of silently passing.
 #
 # Why this split: not every repo has provider secrets configured. The repo
 # default provider (zhipu/GLM here, per config/linchkit.config.ts) requires
@@ -41,6 +45,11 @@ on:
         required: true
         default: '5'
         type: string
+  schedule:
+    # Monthly provider-drift cron (spec 69 §9.1 tier 3): 03:17 UTC on the 3rd.
+    # Runs the live eval against the committed canonical baseline and files an
+    # issue on a >5pp drop (§9.4). Off-peak minute to dodge cron congestion.
+    - cron: '17 3 3 * *'
 
 jobs:
   # Tier-1: offline replay — no secrets, runs on every relevant PR.
@@ -81,12 +90,17 @@ jobs:
             ai-eval-report.json
           retention-days: 30
 
-  # Tier-2: live eval against real LLM. Manual trigger only.
-  # Requires the active provider's API key in repo secrets (see step 1 below).
+  # Tier-2: live eval against real LLM — manual trigger, plus the tier-3
+  # monthly drift cron (spec 69 §9.4) which reuses the exact same eval path.
+  # Requires the active provider's API key in repo secrets (see step 1 below);
+  # on scheduled runs a missing key fails the key-verification step loudly.
   intent-eval-live:
-    name: Intent Eval (live, manual)
-    if: github.event_name == 'workflow_dispatch'
+    name: Intent Eval (live / monthly drift)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # drift cron files an issue on a >5pp drop (spec 69 §9.4)
     env:
       # Forward every provider key the project might be configured to use.
       # The CLI picks the active provider from config/linchkit.config.ts;
@@ -142,6 +156,14 @@ jobs:
         # `AI_EVAL_LIVE=1 bun run ai:eval --scenario intent --refresh-baseline`
         # and committed alongside the prompt change. This prevents CI from
         # silently moving the regression bar (spec 69 §6.3, §9.2).
+        #
+        # On SCHEDULED (drift-cron) runs the eval's own regression gate must
+        # not kill the job before the drift step below inspects the report —
+        # spec 69 §9.4: the cron files an issue, it does not block anything.
+        # The drift step still fails the job loudly when no report/diff was
+        # produced at all (infra failure ≠ measured drift).
+        id: live-eval
+        continue-on-error: ${{ github.event_name == 'schedule' }}
         shell: bash
         run: |
           set -o pipefail
@@ -162,3 +184,77 @@ jobs:
             ai-eval-report.md
             ai-eval-report.json
           retention-days: 30
+
+      # Tier-3 drift gate (scheduled runs only) — spec 69 §9.4: a scenario
+      # dropping more than 5 percentage points vs the committed canonical
+      # baseline files a GitHub issue; the cron never blocks merges. The
+      # report JSON carries the diff in BOTH outcomes: success-path full
+      # RunReport and the RegressionError path ({ diff }) both expose
+      # `.diff.summary.deltaPp` (see packages/devtools/src/ai-eval/cli.ts).
+      - name: Detect provider drift and file issue (scheduled runs)
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVAL_OUTCOME: ${{ steps.live-eval.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # Fail LOUDLY when the eval produced no machine-readable report at
+          # all (crash, missing secret slipping past verification, …) — a
+          # silent green here would defeat the whole point of the cron.
+          if [ ! -f ai-eval-report.json ]; then
+            echo "::error::Scheduled drift run produced no ai-eval-report.json (eval outcome: ${EVAL_OUTCOME}) — failing loudly."
+            exit 1
+          fi
+
+          DELTA_PP=$(jq -r '.diff.summary.deltaPp // empty' ai-eval-report.json)
+          if [ -z "$DELTA_PP" ]; then
+            if [ "$EVAL_OUTCOME" != "success" ]; then
+              echo "::error::Live eval failed before a baseline diff was computed — failing loudly."
+              exit 1
+            fi
+            echo "Report has no baseline diff (no prior canonical baseline?) — nothing to compare."
+            exit 0
+          fi
+          echo "Strict hit-rate delta vs committed canonical baseline: ${DELTA_PP}pp"
+
+          DRIFTED=$(jq -r '.diff.summary.deltaPp < -5' ai-eval-report.json)
+          if [ "$DRIFTED" != "true" ]; then
+            echo "Drift within tolerance (threshold: >5pp drop). No issue filed."
+            exit 0
+          fi
+
+          MONTH=$(date -u +%Y-%m)
+          TITLE="AI eval drift detected ${MONTH}"
+          # Dedupe: a re-run inside the same month must not file a duplicate.
+          # Use the Issues LIST API (strongly consistent) filtered by the `ai`
+          # label, not `--search` (Search API has seconds-to-minutes indexing
+          # latency, so a quick re-run would miss the just-filed issue and
+          # double-file). Exact-title match happens in jq.
+          EXISTING=$(gh issue list --state open --label "ai" \
+            --json title --jq "[.[] | select(.title == \"$TITLE\")] | length")
+          if [ "$EXISTING" != "0" ]; then
+            echo "Open issue \"$TITLE\" already exists — not filing a duplicate."
+            exit 0
+          fi
+
+          SCENARIO=$(jq -r '.scenario // "intent"' ai-eval-report.json)
+          MODEL=$(jq -r '.modelId // .diff.current.modelId // "unknown"' ai-eval-report.json)
+          {
+            echo "The monthly provider-drift cron (spec 69 §9.1 tier 3 / §9.4) measured a strict hit-rate drop of **${DELTA_PP}pp** vs the committed canonical baseline — beyond the 5pp threshold."
+            echo
+            echo "- Scenario: \`${SCENARIO}\`"
+            echo "- Model: \`${MODEL}\`"
+            echo "- Workflow run: ${RUN_URL}"
+            echo "- Report artifact: \`ai-eval-live-report-${{ github.run_id }}\`"
+            echo
+            echo "Per spec 69 §9.4 this is **non-blocking**. Investigate provider/model drift; if the new behavior is accepted, refresh the canonical baseline locally (\`AI_EVAL_LIVE=1 bun run ai:eval --scenario ${SCENARIO} --refresh-baseline\`) and commit it."
+          } > "${RUNNER_TEMP}/drift-issue-body.md"
+          gh issue create \
+            --title "$TITLE" \
+            --label "ai" \
+            --label "P1: High" \
+            --body-file "${RUNNER_TEMP}/drift-issue-body.md"
+          echo "Filed drift issue: $TITLE"
