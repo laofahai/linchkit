@@ -165,6 +165,14 @@ describe("GET /api/ai/traces", () => {
     expect(json.success).toBe(false);
   });
 
+  test("rejects ?limit=0 with 400 (must be positive, never silently zero rows)", async () => {
+    seedTrace({ traceId: "a" });
+    const app = mountApp({ commandLayer: passLayer() });
+    const { status, json } = await getTraces(app, "?limit=0");
+    expect(status).toBe(400);
+    expect(json.success).toBe(false);
+  });
+
   test("treats an empty ?limit= as 'use the default' (not 0)", async () => {
     // Number("") is 0; an empty/bare limit param must fall back to the default
     // page size, not silently return zero traces.

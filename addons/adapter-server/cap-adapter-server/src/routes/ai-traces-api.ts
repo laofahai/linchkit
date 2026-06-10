@@ -103,12 +103,14 @@ export function mountAITracesRoutes(app: Elysia, options: ServerOptions): void {
     // regardless of authorization — the values aren't tenant data.)
     let limit = DEFAULT_TRACE_LIMIT;
     // Treat an absent OR empty (`?limit=` / bare `?limit`) param as "use the
-    // default". Number("") is 0, which would otherwise pass the non-negative
-    // check below and silently return zero traces.
+    // default". A provided value must be a POSITIVE integer: `limit < 1` is
+    // rejected (400) — including `?limit=0`, which would otherwise pass and
+    // silently return zero traces (Number("") is also 0, already short-circuited
+    // by the empty-string check above).
     if (query.limit !== undefined && String(query.limit).trim() !== "") {
       const parsed = Number(query.limit);
-      if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) {
-        return badRequest(set, "Invalid 'limit' — must be a non-negative integer.");
+      if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+        return badRequest(set, "Invalid 'limit' — must be a positive integer.");
       }
       limit = Math.min(parsed, MAX_TRACE_LIMIT);
     }
