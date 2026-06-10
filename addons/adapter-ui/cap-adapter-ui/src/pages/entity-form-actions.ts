@@ -123,6 +123,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
     availableTransitions,
     navigate,
     fetchRecord,
+    refetchTransitions,
     t,
   } = opts;
 
@@ -338,7 +339,11 @@ export function useFormActions(opts: UseFormActionsOptions) {
             return outcome.updated;
           }
           // Re-query failed or returned nothing — fall back to a full refetch.
+          // Returning undefined means the caller skips its own refetch of the
+          // transition permissions, so refresh them here too: the transition
+          // DID succeed and the available actions have changed.
           await fetchRecord();
+          await refetchTransitions();
           return undefined;
         }
 
@@ -373,7 +378,7 @@ export function useFormActions(opts: UseFormActionsOptions) {
         setSaving(false);
       }
     },
-    [recordId, entityName, availableTransitions, recordFields, fetchRecord, t],
+    [recordId, entityName, availableTransitions, recordFields, fetchRecord, refetchTransitions, t],
   );
 
   const executeDeleteAction = useCallback(async () => {
