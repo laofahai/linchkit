@@ -130,6 +130,10 @@ const server = createServer(graphqlSchema, {
   capabilities: config.capabilities,
   rules: capContributions.rules,
   aiService: runtime.ai,
+  // The assistant + model-resolving AI routes gate on BOTH aiService AND
+  // aiConfig (ai-api.ts) — without this the boot summary says "AI: zhipu"
+  // while POST /api/ai/assistant answers 503 "AI service is not configured".
+  aiConfig: config.ai,
   linchKitConfig: config,
   states: capContributions.states,
   flows: [],
