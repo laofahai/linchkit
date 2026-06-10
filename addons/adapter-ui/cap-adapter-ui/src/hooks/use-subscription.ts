@@ -8,7 +8,9 @@
  * Both support automatic reconnection with exponential backoff.
  */
 
+import { createParser } from "eventsource-parser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toPascalCase } from "../lib/api";
 
 // ═══════════════════════════════════════════════════════════════
 // GraphQL Subscription (existing — unchanged)
@@ -123,42 +125,34 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
         setError(null);
         reconnectAttemptRef.current = 0;
 
-        // Read the SSE stream
+        // Read the SSE stream — frame parsing delegated to eventsource-parser
         reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
+        let completed = false;
 
-        while (!aborted) {
+        const parser = createParser({
+          onEvent(event) {
+            if (event.event === "complete") {
+              // Server signaled completion (graphql-yoga SSE protocol)
+              completed = true;
+              return;
+            }
+            if (!event.data) return;
+            try {
+              const parsed = JSON.parse(event.data);
+              if (parsed.data && onDataRef.current) {
+                onDataRef.current(parsed.data);
+              }
+            } catch {
+              // Ignore malformed JSON
+            }
+          },
+        });
+
+        while (!aborted && !completed) {
           const { done, value } = await reader.read();
           if (done || aborted) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // Parse SSE events from the buffer
-          const lines = buffer.split("\n");
-          // Keep the last potentially incomplete line in the buffer
-          buffer = lines.pop() ?? "";
-
-          let eventData = "";
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              eventData += line.slice(6);
-            } else if (line.startsWith("event: complete")) {
-              // Server signaled completion
-              return;
-            } else if (line === "" && eventData) {
-              // Empty line = end of event, parse accumulated data
-              try {
-                const parsed = JSON.parse(eventData);
-                if (parsed.data && onDataRef.current) {
-                  onDataRef.current(parsed.data);
-                }
-              } catch {
-                // Ignore malformed JSON
-              }
-              eventData = "";
-            }
-          }
+          parser.feed(decoder.decode(value, { stream: true }));
         }
       } catch (err) {
         if (aborted) return;
@@ -199,12 +193,12 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
  *
  * Subscribes to created, updated, and deleted events for a given entity.
  * The subscription field names follow the pattern: on{PascalName}Created, etc.
+ * The server generates those field names in
+ * addons/adapter-server/cap-adapter-server/src/graphql/build-subscriptions.ts —
+ * both sides must derive the identical PascalCase name (see toPascalCase).
  */
 export function buildEntitySubscriptionQuery(entityName: string): string {
-  const pascal = entityName
-    .split(/[_-]/)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join("");
+  const pascal = toPascalCase(entityName);
 
   // Subscribe to all three event types using GraphQL subscription aliases
   return `
@@ -354,60 +348,43 @@ export function useEntitySubscription(
 
         reconnectAttemptRef.current = 0;
 
-        // Read the SSE stream
+        // Read the SSE stream — frame parsing delegated to eventsource-parser
+        // (SSE comments such as keepalives are skipped by the parser itself)
         reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
+
+        const parser = createParser({
+          onEvent(event) {
+            if (!event.data) return;
+
+            // Track last event ID for reconnection replay
+            if (event.id) {
+              lastEventIdRef.current = event.id;
+            }
+
+            try {
+              const parsed = JSON.parse(event.data);
+
+              if (event.event === "connected") {
+                setConnected(true);
+                setError(null);
+                setConnectionId(parsed.connectionId ?? null);
+              } else if (event.event === "error") {
+                setError(parsed.error ?? "Subscription error");
+              } else if (onEventRef.current) {
+                // Deliver the subscription event
+                onEventRef.current(parsed as SubscriptionEvent);
+              }
+            } catch {
+              // Ignore malformed JSON
+            }
+          },
+        });
 
         while (!aborted) {
           const { done, value } = await reader.read();
           if (done || aborted) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          let currentEventType = "";
-          let currentEventId = "";
-          let eventData = "";
-
-          for (const line of lines) {
-            if (line.startsWith("id: ")) {
-              currentEventId = line.slice(4).trim();
-            } else if (line.startsWith("event: ")) {
-              currentEventType = line.slice(7).trim();
-            } else if (line.startsWith("data: ")) {
-              eventData += line.slice(6);
-            } else if (line.startsWith(":")) {
-              // SSE comment (e.g. keepalive) — ignore
-            } else if (line === "" && eventData) {
-              // End of event — track last event ID for reconnection
-              if (currentEventId) {
-                lastEventIdRef.current = currentEventId;
-              }
-
-              try {
-                const parsed = JSON.parse(eventData);
-
-                if (currentEventType === "connected") {
-                  setConnected(true);
-                  setError(null);
-                  setConnectionId(parsed.connectionId ?? null);
-                } else if (currentEventType === "error") {
-                  setError(parsed.error ?? "Subscription error");
-                } else if (onEventRef.current) {
-                  // Deliver the subscription event
-                  onEventRef.current(parsed as SubscriptionEvent);
-                }
-              } catch {
-                // Ignore malformed JSON
-              }
-              eventData = "";
-              currentEventType = "";
-              currentEventId = "";
-            }
-          }
+          parser.feed(decoder.decode(value, { stream: true }));
         }
       } catch (err) {
         if (aborted) return;

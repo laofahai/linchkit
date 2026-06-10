@@ -48,13 +48,12 @@ import { buildSubscriptionFields, createEventBusPubSub } from "./build-subscript
 import { buildEventsGraphQLExtension } from "./events";
 import { buildFieldMetaList, getFieldMetaType } from "./field-meta";
 import { safeParseJSON } from "./json-arg";
+import { GRAPHQL_NAME_RE, toCamelCase, toPascalCase } from "./naming";
 import {
   generateActionInputType,
   generateGraphQLInputType,
   generateGraphQLObjectType,
 } from "./schema-to-graphql";
-
-const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
 
 /**
  * Sanitize an arbitrary identifier to a valid GraphQL field-name component
@@ -66,32 +65,6 @@ const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
 export function sanitizeGraphQLFieldName(name: string): string {
   const replaced = name.replace(/[^_0-9A-Za-z]/g, "_");
   return GRAPHQL_NAME_RE.test(replaced) ? replaced : `_${replaced}`;
-}
-
-/**
- * Convert a schema name to PascalCase with GraphQL name sanitization.
- * e.g. "purchase_request" -> "PurchaseRequest"
- */
-function toPascalCase(name: string): string {
-  const raw = name
-    .split(/[_-]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-
-  // Strip characters not allowed in GraphQL names
-  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
-
-  // Ensure name starts with a letter or underscore
-  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
-}
-
-/**
- * Convert a schema name to camelCase.
- * e.g. "purchase_request" -> "purchaseRequest"
- */
-function toCamelCase(name: string): string {
-  const pascal = toPascalCase(name);
-  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }
 
 /** GraphQL resolver context — carries actor, tenant isolation, locale, and data access */
