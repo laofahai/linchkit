@@ -319,8 +319,9 @@ export function buildMicrovmArgv(args: {
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
     "--pids-limit=128",
-    `--memory=${memoryBytes}`,
-    `--memory-swap=${memoryBytes}`,
+    // Floored: a fractional byte count would fail Docker's CLI size parsing.
+    `--memory=${Math.floor(memoryBytes)}`,
+    `--memory-swap=${Math.floor(memoryBytes)}`,
     "-v",
     `${tempDir}:${tempDir}`,
     "-w",
@@ -384,5 +385,6 @@ export function buildMemoryLimitArgv(args: {
   memoryBytes: number;
   argv: readonly string[];
 }): string[] {
-  return ["prlimit", `--data=${args.memoryBytes}`, "--", ...args.argv];
+  // Floored: prlimit rejects fractional limit values.
+  return ["prlimit", `--data=${Math.floor(args.memoryBytes)}`, "--", ...args.argv];
 }

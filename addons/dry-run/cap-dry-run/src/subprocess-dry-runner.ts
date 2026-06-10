@@ -315,7 +315,7 @@ export function createDryRunner(options: DryRunnerOptions = {}): ExecutionDryRun
             const dockerBin = sandboxEnv.which("docker") ?? "docker";
             spawnChild([dockerBin, "kill", containerName], {
               cwd: options.tmpRoot ?? tmpdir(),
-              env: { PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin" },
+              env: { PATH: sandboxEnv.getEnv("PATH") ?? "/usr/bin:/bin:/usr/local/bin" },
               stdin: new Blob([]),
             }).exited.catch(() => {});
           } catch {
@@ -414,12 +414,13 @@ export function createDryRunner(options: DryRunnerOptions = {}): ExecutionDryRun
         // DATABASE_URL / API keys / tokens). HOME + TMPDIR point at the throwaway dir.
         // The microvm tier additionally passes DOCKER_HOST through so the client can
         // reach a non-default daemon socket (it carries no secret material).
+        const dockerHost = sandboxEnv.getEnv("DOCKER_HOST");
         const env: Record<string, string> = {
-          PATH: process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin",
+          PATH: sandboxEnv.getEnv("PATH") ?? "/usr/bin:/bin:/usr/local/bin",
           HOME: dir,
           TMPDIR: dir,
-          LANG: process.env.LANG ?? "C",
-          ...(microvm && process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}),
+          LANG: sandboxEnv.getEnv("LANG") ?? "C",
+          ...(microvm && dockerHost ? { DOCKER_HOST: dockerHost } : {}),
         };
 
         // The default spawn is `detached` (process-group leader, POSIX `setsid`), so we
