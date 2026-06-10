@@ -20,7 +20,6 @@ import {
   executeAction,
   queryRecord,
   queryStateTransitions,
-  transitionRecord,
   updateRecord,
 } from "../lib/api";
 import { CLONE_STRIP_FIELDS, getMutationReturnFields } from "../lib/entity-form-utils";
@@ -29,6 +28,72 @@ import { CLONE_STRIP_FIELDS, getMutationReturnFields } from "../lib/entity-form-
 export interface TransitionInfo {
   action: string;
   to: string;
+}
+
+// ── Header-action dispatch (dependency-injected for tests) ──────────────────
+
+/** Minimal API surface consumed by executeHeaderAction — injectable in tests. */
+export interface HeaderActionApi {
+  executeAction: (
+    actionName: string,
+    input: Record<string, unknown>,
+  ) => Promise<{ success: boolean }>;
+  queryRecord: (
+    schema: string,
+    id: string,
+    fields: string[],
+  ) => Promise<Record<string, unknown> | null>;
+}
+
+/** Structured outcome of a header-action click; the hook maps it to toasts/refreshes. */
+export type HeaderActionOutcome =
+  | { kind: "transition_success"; updated: Record<string, unknown> | null }
+  | { kind: "action_success" }
+  | { kind: "failed" };
+
+/**
+ * Execute a header action click.
+ *
+ * A header action bound to a state transition (`transition.action === actionName`)
+ * MUST run through the Action itself: the server-side action performs the
+ * declarative `stateTransition`, stamps `setFields`, and fires rules/flows
+ * (e.g. `submit_purchase_request` stamps `submitted_at` and triggers the
+ * approval Flow). Routing it through the generic `transitionRecord` mutation
+ * bypasses all of that — it degrades to a bare status update. The generic
+ * transition mutation remains valid ONLY for raw transitions invoked without
+ * a bound action (e.g. transition pills / kanban drags); no such path exists
+ * in this dispatcher because it is keyed by action name.
+ *
+ * After a successful transition-bound action the fresh record is re-queried
+ * so the form can update local state in place; `updated: null` means the
+ * re-query failed or returned nothing and the caller should fall back to a
+ * full record refetch.
+ */
+export async function executeHeaderAction(opts: {
+  actionName: string;
+  entityName: string;
+  recordId: string;
+  recordFields: string[];
+  availableTransitions: TransitionInfo[];
+  api: HeaderActionApi;
+}): Promise<HeaderActionOutcome> {
+  const { actionName, entityName, recordId, recordFields, availableTransitions, api } = opts;
+  const transition = availableTransitions.find((tr) => tr.action === actionName);
+
+  const result = await api.executeAction(actionName, { id: recordId });
+  if (!result.success) return { kind: "failed" };
+
+  if (!transition) return { kind: "action_success" };
+
+  // Transition-bound action succeeded — re-query the record (status, setFields
+  // stamps, derived fields) so the form refresh keeps working.
+  let updated: Record<string, unknown> | null = null;
+  try {
+    updated = await api.queryRecord(entityName, recordId, recordFields);
+  } catch {
+    updated = null;
+  }
+  return { kind: "transition_success", updated };
 }
 
 export interface UseFormActionsOptions {
@@ -254,21 +319,30 @@ export function useFormActions(opts: UseFormActionsOptions) {
       try {
         if (!recordId) return;
 
-        // If it's a transition action, use transitionRecord instead of executeAction
-        const transition = availableTransitions.find((tr) => tr.action === actionName);
-        if (transition) {
-          const updated = await transitionRecord(
-            entityName ?? "",
-            recordId,
-            transition.to,
-            recordFields,
-          );
+        // Transition-bound header actions run through the bound Action (NOT
+        // the generic transition mutation) — see executeHeaderAction docs.
+        const outcome = await executeHeaderAction({
+          actionName,
+          entityName: entityName ?? "",
+          recordId,
+          recordFields,
+          availableTransitions,
+          api: { executeAction, queryRecord },
+        });
+
+        if (outcome.kind === "transition_success") {
           toast.success(t("toast.transitionSuccess", "Status changed successfully"));
-          return updated as Record<string, unknown>;
+          if (outcome.updated) {
+            // Hand the fresh record to the caller so it can update local
+            // state and refetch transition permissions.
+            return outcome.updated;
+          }
+          // Re-query failed or returned nothing — fall back to a full refetch.
+          await fetchRecord();
+          return undefined;
         }
 
-        const result = await executeAction(actionName, { id: recordId });
-        if (result.success) {
+        if (outcome.kind === "action_success") {
           toast.success(t("toast.actionSuccess", "Action executed successfully"));
           pushNotification({
             type: "action_success",
