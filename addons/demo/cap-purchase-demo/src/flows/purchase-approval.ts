@@ -38,10 +38,15 @@ import { MANAGER_APPROVAL_THRESHOLD } from "../rules/manager-approval-threshold"
  *   2. Low tier (<= threshold) → auto-approve via approve_purchase_request
  *   3. High tier (>  threshold) → flag for manager review, stays pending
  *
- * Step ordering: auto_approve (index 1) → flag_for_review (index 2, last).
- * - Then path: jumps to auto_approve (1), falls through to flag_for_review (2) = end.
- *   The flag step harmlessly adds an audit note to the already-approved record.
- * - Else path: jumps to flag_for_review (2) = end. Record stays pending.
+ * Step ordering: auto_approve (index 1) → record_routing_note (index 2, last).
+ * - Then path: jumps to auto_approve (1), falls through to the note step (2) = end.
+ * - Else path: jumps to the note step (2) = end. Record stays pending.
+ *
+ * Because SyncFlowEngine action steps cannot jump or terminate a branch early
+ * (only condition steps branch; an omitted `else` just falls through), BOTH
+ * paths execute the final note step. Its text is therefore a PATH-NEUTRAL
+ * policy statement — true for an auto-approved record and for one awaiting a
+ * manager — never a per-path claim that would be false on the other path.
  */
 export const purchaseApprovalFlow: FlowDefinition = {
   name: "purchase_approval",
@@ -83,18 +88,22 @@ export const purchaseApprovalFlow: FlowDefinition = {
       input: { id: "$input.id" },
     },
 
-    // Step 2: Flag for manager review (else target, also natural end for then path).
+    // Step 2: Record the routing policy (else target, also natural end for the
+    // then path — see the header comment on why both paths run this step).
     // Calls the real `flag_purchase_for_review` action declared by this
     // capability — no longer the undefined `update_purchase_request`.
     {
       id: "flag_for_review",
       type: "action",
-      name: "Record Approval Decision",
-      description: "Write audit trail note recording the approval routing decision",
+      name: "Record Approval Routing Policy",
+      description: "Write an audit note documenting the threshold routing policy applied",
       actionName: "flag_purchase_for_review",
       input: {
         id: "$input.id",
-        audit_notes: `Routed by approval flow. Manual manager approval required for amounts over ${MANAGER_APPROVAL_THRESHOLD}.`,
+        // PATH-NEUTRAL: this text must stay true on BOTH paths (auto-approved
+        // and awaiting-manager) because the engine cannot skip this step on
+        // the then path. State the policy, not a per-record outcome.
+        audit_notes: `Routed by approval flow: amounts over ${MANAGER_APPROVAL_THRESHOLD} require manual manager approval; amounts at or under the threshold auto-approve.`,
       },
     },
   ],

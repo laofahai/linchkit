@@ -175,6 +175,13 @@ describe("Purchase Approval Flow — auto-approval routing", () => {
     const updated = await store.get("purchase_request", record.id);
     expect(updated.status).toBe("approved");
     expect(updated.approved_by).toBe("system:auto-approval");
+    // The final note step runs on BOTH paths (SyncFlowEngine action steps
+    // cannot terminate a branch early), so its text must be a path-neutral
+    // POLICY statement — assert it stays truthful for an auto-approved record
+    // (a per-path claim like "manual manager approval required" would be a
+    // lie in the audit trail here).
+    expect(String(updated.audit_notes)).toContain("auto-approve");
+    expect(String(updated.audit_notes)).not.toContain("required for this request");
   });
 
   test(`large purchase (>${MANAGER_APPROVAL_THRESHOLD}): flagged for review, stays pending`, async () => {

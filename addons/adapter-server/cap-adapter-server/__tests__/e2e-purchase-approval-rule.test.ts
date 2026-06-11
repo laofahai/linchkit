@@ -115,7 +115,15 @@ async function createPending(amount: number): Promise<string> {
     requester_email: "user@example.com",
   });
   const id = (body.data as Record<string, unknown>).id as string;
-  await restAction("submit_purchase_request", { id });
+  // Fail LOUDLY on a setup failure — a silently-draft record would make every
+  // downstream test fail with a confusing state-machine error instead of the
+  // rule behavior under test.
+  const { status: submitStatus, body: submitBody } = await restAction("submit_purchase_request", {
+    id,
+  });
+  if (submitStatus !== 200 || !submitBody.success) {
+    throw new Error(`createPending: submit_purchase_request failed: ${JSON.stringify(submitBody)}`);
+  }
   return id;
 }
 

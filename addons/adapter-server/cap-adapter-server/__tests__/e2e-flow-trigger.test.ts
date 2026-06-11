@@ -22,6 +22,7 @@ import {
   InMemoryExecutionLogger,
   InMemoryStore,
 } from "@linchkit/core/server";
+import { flagForReviewAction } from "../../../demo/cap-purchase-demo/src/actions/flag-for-review";
 import { purchaseApprovalFlow } from "../../../demo/cap-purchase-demo/src/flows/purchase-approval";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
 import { createServer } from "../src/server";
@@ -78,28 +79,11 @@ const approveAction: ActionDefinition = {
   },
 };
 
-// Real action the approval flow's `flag_for_review` step calls — records an
-// audit note WITHOUT changing state (request stays pending). Mirrors the
-// capability's declarative `flag_purchase_for_review`; defined as a handler
-// here to match this test's handler-style action wiring.
-const flagForReviewAction: ActionDefinition = {
-  name: "flag_purchase_for_review",
-  entity: "purchase_request",
-  label: "Flag for Review",
-  policy: { mode: "sync", transaction: true },
-  // Mirrors the capability action's internal-only exposure: a flow-step helper,
-  // not callable from external channels. The flow engine runs it on the
-  // default "internal" channel.
-  exposure: { http: false, mcp: false, cli: false, ui: false, internal: true },
-  handler: async (ctx) => {
-    const id = ctx.input.id as string;
-    return ctx.update("purchase_request", id, {
-      audit_notes: ctx.input.audit_notes as string,
-    });
-  },
-};
-
 // ── Setup: wire real runtime ────────────────────────────
+// The flow's `flag_for_review` step runs the capability's REAL declarative
+// `flag_purchase_for_review` action (setFields path) — not a handler stub —
+// so this e2e exercises the production `$input.audit_notes` template
+// resolution through the declarative write engine.
 
 const store = new InMemoryStore();
 const executionLogger = new InMemoryExecutionLogger();
@@ -107,7 +91,13 @@ const entityRegistry = new EntityRegistry();
 entityRegistry.register(purchaseRequestSchema);
 
 const { bus: eventBus } = createEventBus();
-const executor = createActionExecutor({ dataProvider: store, executionLogger, eventBus });
+const executor = createActionExecutor({
+  dataProvider: store,
+  executionLogger,
+  eventBus,
+  // Required for the declarative setFields write path of the real action.
+  entityRegistry,
+});
 
 const allActions = [
   ...generateCrudActions(purchaseRequestSchema),
