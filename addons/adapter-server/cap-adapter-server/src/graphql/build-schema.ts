@@ -26,7 +26,12 @@ import type {
 } from "@linchkit/core";
 import { normalizeTranslatableRow, resolveTranslatableRow } from "@linchkit/core";
 import type { CacheManager, OnchangeEvaluator, OverlayRegistry } from "@linchkit/core/server";
-import { createStateMachine, getAvailableTransitions, maskRecord } from "@linchkit/core/server";
+import {
+  createStateMachine,
+  getAvailableTransitions,
+  isExposed,
+  maskRecord,
+} from "@linchkit/core/server";
 
 export { type GenerateCrudActionsOptions, generateCrudActions } from "./build-crud-actions";
 
@@ -921,7 +926,13 @@ export function buildGraphQLSchema(
   }
 
   // ── Custom action typed mutations ────────────────────────
-  const customActions = options?.actions ?? [];
+  // Actions not exposed for the http channel get NO mutation at all: the
+  // executor would reject calls anyway (channel "http"), but generating the
+  // field would still leak the action's existence and input shape through
+  // GraphQL introspection.
+  const customActions = (options?.actions ?? []).filter((action) =>
+    isExposed(action.exposure, "http"),
+  );
   for (const action of customActions) {
     const mutationName = toCamelCase(action.name);
     const actionName = action.name;

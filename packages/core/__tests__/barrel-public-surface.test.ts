@@ -364,6 +364,9 @@ const EXPECTED_SERVER_EXPORTS = [
   "getDoctorChecks",
   "getObservability",
   "getTraceDepth",
+  // Exposure helper for transports (omit non-exposed actions from published
+  // schemas, e.g. GraphQL introspection) — added with the procurement P1 PR.
+  "isExposed",
   "isMaterializable",
   "linchkitSchema",
   "livenessCheck",

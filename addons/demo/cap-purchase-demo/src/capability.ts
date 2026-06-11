@@ -12,6 +12,7 @@
 
 import { defineCapability } from "@linchkit/core";
 import { approveAction } from "./actions/approve";
+import { flagForReviewAction } from "./actions/flag-for-review";
 import { rejectAction } from "./actions/reject";
 import { submitAction } from "./actions/submit";
 import {
@@ -27,6 +28,7 @@ import i18nEn from "./i18n/en.json";
 import i18nZhCN from "./i18n/zh-CN.json";
 import { auditableInterface } from "./interfaces/auditable";
 import { requestToDepartment, requestToItems } from "./relations";
+import { managerApprovalThresholdRule } from "./rules/manager-approval-threshold";
 import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 import { purchaseRejectionPattern } from "./sensors/purchase-rejection-pattern";
 import { purchaseRequestState } from "./states/purchase-request";
@@ -46,7 +48,8 @@ export const capPurchaseDemo = defineCapability({
 
   interfaces: [auditableInterface],
   entities: [purchaseRequestEntity, departmentEntity, purchaseItemEntity],
-  actions: [submitAction, approveAction, rejectAction],
+  actions: [submitAction, approveAction, rejectAction, flagForReviewAction],
+  rules: [managerApprovalThresholdRule],
   states: [purchaseRequestState],
   views: [purchaseRequestListView, purchaseRequestFormView, departmentListView],
   relations: [requestToDepartment, requestToItems],

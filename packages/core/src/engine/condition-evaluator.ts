@@ -19,6 +19,22 @@ export interface ConditionContext {
   actor: { type: string; id: string; groups: string[] };
   /** Current execution meta — resolves `meta.*` field paths (Spec 65 §6). */
   meta?: ExecutionMeta;
+  /**
+   * The PERSISTED record, untouched by caller input — `target` is
+   * `{ ...record, ...input }` (input wins), so authority/guard rules that must
+   * not trust caller-supplied values resolve `record.*` paths instead.
+   * Undefined when no stored row exists (create-shaped input, absent record).
+   *
+   * CAUTION: for `block` / `require_approval` effects gated on numeric
+   * thresholds (`gt` / `gte` / `lt` / `lte`), prefer a `CodeCondition` with an
+   * explicit fail-closed branch: when `record` is absent (or the field is
+   * unset), the path resolves to `undefined`, the numeric operator's typeof
+   * guard returns `false`, and the condition silently does NOT trigger — the
+   * guard fails OPEN. Declarative `record.*` is safe for informational/enrich
+   * rules and for `eq` / `neq` / `is_null`, whose semantics on `undefined` are
+   * unambiguous.
+   */
+  record?: Record<string, unknown>;
 }
 
 /**
@@ -94,7 +110,8 @@ const DANGEROUS_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"
  *   progressively shorter prefixes with the unresolved suffix walked as
  *   nested object access. Missing meta or missing key returns `undefined`
  *   (no throw).
- * - Otherwise — walks `ctx` (e.g. `target.department.name` -> `ctx.target.department.name`).
+ * - Otherwise — walks `ctx` (e.g. `target.department.name` -> `ctx.target.department.name`;
+ *   `record.amount` -> the persisted value on `ctx.record`, immune to input spoofing).
  *
  * Dangerous segments (`__proto__`, `constructor`, `prototype`) short-circuit
  * to `undefined` to prevent prototype-chain probing.

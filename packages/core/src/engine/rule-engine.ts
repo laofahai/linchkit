@@ -81,6 +81,13 @@ export interface RuleEvalInput {
   context?: Record<string, unknown>;
   /** Current execution meta — resolves `meta.*` field paths in conditions (Spec 65 §6). */
   meta?: ExecutionMeta;
+  /**
+   * The PERSISTED record backing `target` (which merges caller input over it,
+   * input winning). Guard rules read trustworthy stored values from here —
+   * via `ctx.record` in code conditions or `record.*` paths in declarative
+   * ones. Undefined when no stored row exists.
+   */
+  record?: Record<string, unknown>;
 }
 
 export interface RuleEvalOutput {
@@ -196,6 +203,7 @@ export async function evaluateConditions(
     context: input.context ?? {},
     actor: input.actor,
     meta: input.meta,
+    record: input.record,
   };
 
   for (const rule of rules) {
@@ -224,6 +232,7 @@ export async function evaluateConditions(
           context: ctx.context,
           actor: ctx.actor,
           meta: ctx.meta,
+          record: ctx.record,
           signal: controller?.signal,
         });
 
