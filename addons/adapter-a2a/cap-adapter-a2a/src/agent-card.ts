@@ -9,7 +9,7 @@
  *   - action.name          → skill.id
  *   - action.label         → skill.name
  *   - action.description   → skill.description
- *   - action.entity        → skill.tags[0]
+ *   - action.entity        → skill.tags (single-element when set, [] when falsy)
  *
  * Filtering: actions with `exposure.a2a === false` or `exposure.internal ===
  * true` are excluded. All other actions (including those with no exposure

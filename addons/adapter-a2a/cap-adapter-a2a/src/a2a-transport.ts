@@ -48,7 +48,7 @@ export const a2aTransport: TransportAdapterDefinition = {
         console.log(
           `[cap-adapter-a2a] AgentCard generated: "${card.name}" v${card.version} ` +
             `with ${card.skills.length} skill(s). ` +
-            `HTTP endpoint (${cfg.basePath}/.well-known/agent-card.json) deferred to next slice.`,
+            `HTTP endpoint (/.well-known/agent-card.json) deferred to next slice.`,
         );
       },
       stop: async () => {
