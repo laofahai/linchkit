@@ -27,34 +27,28 @@
  */
 
 import type {
-  ActionDefinition,
   Actor,
   AIService,
-  FieldDefinition,
-  OntologyRegistry,
-  PermissionRegistry,
   ProposalChange,
   ProposalDefinition,
   RuleDefinition,
 } from "@linchkit/core";
-import type {
-  Proposal,
-  SchemaIntentEntity,
-  SchemaIntentOntology,
-  SchemaIntentOutcome,
-  SchemaIntentProposalDraft,
-  SchemaIntentRule,
-} from "@linchkit/core/ai";
-import { ProposalEngine, resolveSchemaIntent } from "@linchkit/core/ai";
+import type { Proposal, SchemaIntentOutcome, SchemaIntentProposalDraft } from "@linchkit/core/ai";
 import {
-  checkActionPermission,
-  type ProposalEngine as GovernedProposalEngine,
-} from "@linchkit/core/server";
+  ProposalEngine,
+  REQUIRES_CODE_CHANGE_MARKER,
+  resolveSchemaIntent,
+} from "@linchkit/core/ai";
+import type { ProposalEngine as GovernedProposalEngine } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import { z } from "zod";
 import { getSharedProposalEngine } from "../proposal-api";
 import type { ServerOptions } from "../server";
+import { buildSchemaIntentOntology } from "./ai-schema-intent-ontology";
 import { resolveActor, serviceUnavailable } from "./shared";
+
+// Re-export so existing consumers/tests keep importing from the route module.
+export { buildSchemaIntentOntology } from "./ai-schema-intent-ontology";
 
 // ── Request shape (Zod) ──────────────────────────────────────
 
@@ -67,128 +61,6 @@ const resolveSchemaIntentRequestSchema = z
     prompt: z.string().min(1, "prompt must be a non-empty string"),
   })
   .strict();
-
-// ── Permission-scoped Ontology snapshot ─────────────────────
-
-/**
- * Build the structural `SchemaIntentOntology` the resolver consumes from the
- * full `OntologyRegistry`, scoped to entities the calling actor can act on.
- *
- * An entity is exposed only when the actor can execute at least one of its
- * actions (matching the permission convention in `permission-middleware.ts`:
- * the action's `entity` is the capability name). When no `permissionRegistry`
- * is wired in (typical dev runs) we pass everything through — same permissive
- * default as `ai-resolve-intent.ts`.
- *
- * Exported for unit testing the permission gate in isolation (both
- * `listEntities` and `describeEntity` must enforce it).
- */
-export function buildSchemaIntentOntology(opts: {
-  base: OntologyRegistry;
-  permissionRegistry?: PermissionRegistry;
-  actor: Actor;
-}): SchemaIntentOntology {
-  const { base, permissionRegistry, actor } = opts;
-
-  const allowedActions = (entityName: string): ActionDefinition[] => {
-    const all = base.actionsFor(entityName);
-    if (!permissionRegistry) return all;
-    const allowed: ActionDefinition[] = [];
-    for (const action of all) {
-      const result = checkActionPermission(permissionRegistry, actor, action.entity, action.name);
-      if (result.allowed) allowed.push(action);
-    }
-    return allowed;
-  };
-
-  const visibleEntities = (): string[] => {
-    const out: string[] = [];
-    for (const name of base.listEntities()) {
-      // With no permission registry, every entity is visible. Otherwise an
-      // entity is visible only if the actor can run at least one of its
-      // actions — there is nothing to attach a rule trigger to otherwise.
-      if (!permissionRegistry || allowedActions(name).length > 0) out.push(name);
-    }
-    return out;
-  };
-
-  // Project a registered RuleDefinition into the resolver's rule snapshot.
-  // A CODE condition (a TypeScript function) is NEVER serialized — only its
-  // kind + the rule's description are exposed, so the AI cannot pretend to
-  // edit source it cannot see. Declarative conditions are structured data
-  // and travel whole.
-  const toSchemaIntentRule = (rule: RuleDefinition): SchemaIntentRule => {
-    const isCode = typeof rule.condition === "function";
-    const triggerActions =
-      "action" in rule.trigger
-        ? Array.isArray(rule.trigger.action)
-          ? rule.trigger.action
-          : [rule.trigger.action]
-        : undefined;
-    return {
-      name: rule.name,
-      label: rule.label,
-      description: rule.description,
-      ...(triggerActions ? { triggerActions } : {}),
-      effectType: rule.effect.type,
-      conditionKind: isCode ? "code" : "declarative",
-      ...(isCode ? {} : { condition: rule.condition as SchemaIntentRule["condition"] }),
-    };
-  };
-
-  // Permission gate for rules, mirroring `actionNames`: an action-triggered
-  // rule is visible only when the actor can run at least one of its trigger
-  // actions. Rules with non-action triggers (state/event/schedule) ride on
-  // the entity-level gate, which already passed by the time this runs.
-  const visibleRules = (entityName: string, rules: RuleDefinition[]): SchemaIntentRule[] => {
-    if (!permissionRegistry) return rules.map(toSchemaIntentRule);
-    const allowedNames = new Set(allowedActions(entityName).map((a) => a.name));
-    return rules
-      .filter((rule) => {
-        if (!("action" in rule.trigger)) return true;
-        const actions = Array.isArray(rule.trigger.action)
-          ? rule.trigger.action
-          : [rule.trigger.action];
-        return actions.some((name) => allowedNames.has(name));
-      })
-      .map(toSchemaIntentRule);
-  };
-
-  return {
-    listEntities: () => visibleEntities(),
-    describeEntity: (entityName: string): SchemaIntentEntity | undefined => {
-      // Enforce the SAME permission gate the visible-entity list uses. Without
-      // this, calling describeEntity() directly with an entity the actor cannot
-      // act on would leak its full description (least-privilege violation) —
-      // listEntities() filters, but describeEntity() must too.
-      if (permissionRegistry && allowedActions(entityName).length === 0) {
-        return undefined;
-      }
-      const descriptor = base.describe(entityName);
-      if (!descriptor) return undefined;
-      const fields: SchemaIntentEntity["fields"] = [];
-      for (const [name, raw] of Object.entries(descriptor.fields)) {
-        const field = raw as FieldDefinition;
-        fields.push({
-          name,
-          type: field.type,
-          required: field.required === true,
-          label: field.label,
-          description: field.description,
-        });
-      }
-      return {
-        name: descriptor.name,
-        label: descriptor.label,
-        description: descriptor.description,
-        fields,
-        actionNames: allowedActions(entityName).map((a) => a.name),
-        // EXISTING rules (includes inherited) — the `update_rule` target list.
-        rules: visibleRules(entityName, descriptor.rules),
-      };
-    },
-  };
-}
 
 // ── Wire-format response ─────────────────────────────────────
 
@@ -227,9 +99,12 @@ export interface ResolveSchemaIntentResponse {
   /** Present only for update drafts — human-readable diff vs the existing rule. */
   diffSummary?: string;
   /**
-   * Present only for update drafts of CODE-condition rules. The draft carries
-   * no declarative definition (the condition is a TS function the AI cannot
-   * round-trip); a developer must apply the change in source.
+   * Present only for diff-only update drafts (CODE-condition rules and any
+   * other non-round-trippable rule — composite condition, non-action trigger,
+   * non-declarative effect). The draft carries no declarative definition; a
+   * developer must apply the change in source. The persisted governed
+   * proposal carries the same signal as a `REQUIRES_CODE_CHANGE_MARKER`
+   * prefix on the change diff + description.
    */
   requiresCodeChange?: boolean;
   /** Present only for `clarification`. */
@@ -329,13 +204,25 @@ function persistGovernedRuleDraft(opts: {
       : undefined;
   if (!definition && !diffOnly) return undefined;
 
+  // A diff-only draft is an HONEST developer change-request: it has no
+  // definition BY DESIGN (the rule cannot be rebuilt declaratively). The
+  // `requiresCodeChange` flag exists only in the HTTP response, so the
+  // PERSISTED proposal carries a stable text marker on the change's diff and
+  // the proposal description — the fields the review UI renders — letting a
+  // reviewer in /admin/proposals distinguish it from a malformed change.
+  // (Text-only on purpose: ProposalChange has no structured extension point.)
+  const diffText = outcome.diffSummary ?? explanation;
   const change: ProposalChange = {
     target: "rule",
     operation,
     name: ruleName,
     ...(definition ? { definition } : {}),
-    diff: outcome.diffSummary ?? explanation,
+    diff: diffOnly ? `${REQUIRES_CODE_CHANGE_MARKER} ${diffText}` : diffText,
   };
+
+  const codeChangeNote = diffOnly
+    ? `\n\n${REQUIRES_CODE_CHANGE_MARKER} This update targets a rule that cannot be rebuilt declaratively; it intentionally carries no definition — a developer must apply the described change in source.`
+    : "";
 
   return engine.createProposal({
     title: explanation,
@@ -343,7 +230,7 @@ function persistGovernedRuleDraft(opts: {
     // trail, plus the requesting actor for the audit trail (governance: record
     // WHO initiated the AI resolution). The utterance is never interpolated into
     // a privileged context — this string is display/audit metadata only.
-    description: `${reasoning}\n\n(Requested by ${actor.type}:${actor.id})`,
+    description: `${reasoning}\n\n(Requested by ${actor.type}:${actor.id})${codeChangeNote}`,
     // The change originates from an AI resolution acting on the user's behalf.
     author: { type: "ai", id: "schema-intent-resolver", name: "Schema Intent Resolver" },
     // The rule attaches to its target entity — used as the governed

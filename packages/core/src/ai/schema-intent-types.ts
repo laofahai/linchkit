@@ -73,11 +73,13 @@ export interface SchemaIntentProposalDraft {
    */
   diffSummary?: string;
   /**
-   * Present only for `update` of a CODE-condition rule. The existing rule's
-   * condition is a TypeScript function the AI cannot round-trip into a
-   * declarative definition, so the draft carries NO definition — only the
-   * `diffSummary` describing the intended change. A developer must apply
-   * the change in source; the draft is an honest, governed change REQUEST.
+   * Present only for `update` of a NON-round-trippable rule: a CODE
+   * condition (a TypeScript function the AI cannot see), a composite/not
+   * condition, a non-action trigger, or a non-declarative effect — anything
+   * the declarative rebuild path cannot express faithfully. The draft
+   * carries NO definition — only the `diffSummary` describing the intended
+   * change. A developer must apply the change in source; the draft is an
+   * honest, governed change REQUEST.
    */
   requiresCodeChange?: boolean;
 }
@@ -141,6 +143,23 @@ export type SchemaIntentOutcome =
 // ── Ontology snapshot the resolver consumes ──────────────────
 
 /**
+ * Sanitized projection of an existing rule's effect payload — the declarative
+ * fields `buildEffect` consumes when round-tripping an update (message for
+ * block/warn, level for require_approval, setFields for enrich). Exposed in
+ * the snapshot so the AI can keep unchanged effect fields IDENTICAL instead
+ * of fabricating replacements (review-integrity: the diff must be honest).
+ * Non-declarative effect payloads (execute_action / trigger_flow) carry only
+ * `type` — such rules are never offered for declarative rebuild (see
+ * `roundTrippable`).
+ */
+export interface SchemaIntentRuleEffect {
+  type: string;
+  message?: string;
+  level?: string;
+  setFields?: Record<string, unknown>;
+}
+
+/**
  * One EXISTING rule's grounding metadata, exposed so the AI can target it
  * with an `update_rule` intent (the AI can't update what it can't see).
  *
@@ -160,10 +179,30 @@ export interface SchemaIntentRule {
   triggerActions?: string[];
   /** The rule's effect type (`block`, `warn`, `require_approval`, …). */
   effectType: string;
+  /**
+   * Sanitized effect payload (message / level / setFields) so an update can
+   * round-trip unchanged effect fields faithfully instead of fabricating
+   * replacements. Optional for legacy snapshots / test fixtures.
+   */
+  effect?: SchemaIntentRuleEffect;
+  /** The rule's evaluation priority, preserved verbatim across updates. */
+  priority?: number;
   /** Whether the condition is declarative (editable) or code (opaque). */
   conditionKind: "declarative" | "code";
   /** The declarative condition. Present only when `conditionKind` is `"declarative"`. */
   condition?: DeclarativeCondition;
+  /**
+   * Whether the FULL rule can be rebuilt declaratively from an AI-returned
+   * definition. `false` for rules the rebuild path cannot express faithfully:
+   * composite/not conditions (the builder only rebuilds simple conditions),
+   * non-action triggers (stateChange / fieldChange / event / schedule — the
+   * builder only emits `{action}`), and non-declarative effects
+   * (execute_action / trigger_flow). Such rules take the SAME honest
+   * diff-only path as code-backed rules — the draft carries no definition,
+   * only the human-readable diff (`requiresCodeChange`). Absent (legacy
+   * snapshots) means round-trippable when `conditionKind` is `"declarative"`.
+   */
+  roundTrippable?: boolean;
 }
 
 /**

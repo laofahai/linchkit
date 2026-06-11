@@ -923,6 +923,62 @@ describe("resolveSchemaIntent — update_rule proposal draft", () => {
     expect(engine.size).toBe(0);
   });
 
+  it("re-pins the governed name to the EXISTING registered name after build normalization", async () => {
+    // A registered rule whose name is NOT canonical snake_case: the builder's
+    // normalizeRuleName would lowercase it, so without the post-build re-pin
+    // the governed change would name a rule that does not exist.
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      fields: [{ name: "amount", type: "number", required: true }],
+      actionNames: ["create_purchase_request"],
+      rules: [
+        {
+          name: "warnBig",
+          label: "Warn big",
+          triggerActions: ["create_purchase_request"],
+          effectType: "warn",
+          effect: { type: "warn", message: "big" },
+          conditionKind: "declarative",
+          condition: { field: "amount", operator: "gt", value: 5000 },
+          roundTrippable: true,
+        },
+      ],
+    };
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["purchase_request"],
+      describeEntity: () => entity,
+    };
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warnBig",
+        rule: {
+          name: "warnBig",
+          label: "Warn big",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 8000 },
+          effect: { type: "warn", message: "big" },
+        },
+        diff: "Raise to 8000.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise warnBig to 8000" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.ruleName).toBe("warnBig");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    // Normalization would have produced "warnbig" — the re-pin restores the
+    // registered name so the governed update targets the real rule.
+    expect(def.name).toBe("warnBig");
+  });
+
   it("add_rule drafts still report operation create (regression)", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(
@@ -950,5 +1006,345 @@ describe("resolveSchemaIntent — update_rule proposal draft", () => {
     expect(outcome.proposal.diff.operation).toBe("create");
     expect(outcome.diffSummary).toBeUndefined();
     expect(outcome.requiresCodeChange).toBeUndefined();
+  });
+});
+
+// ── update_rule: round-trip preservation + non-round-trippable rules ──
+
+/**
+ * Ontology whose entity carries the snapshots the new review-integrity paths
+ * need: a fully-snapshotted declarative rule (priority + effect payload), a
+ * composite-condition rule and a schedule-triggered rule (both
+ * `roundTrippable: false` — the declarative rebuild cannot express them).
+ */
+function makeRoundTripOntology(): SchemaIntentOntology {
+  const purchaseRequest: SchemaIntentEntity = {
+    name: "purchase_request",
+    label: "Purchase Request",
+    fields: [
+      { name: "amount", type: "number", required: true, label: "Amount" },
+      { name: "department", type: "string", required: true, label: "Department" },
+    ],
+    actionNames: ["create_purchase_request", "submit_purchase_request"],
+    rules: [
+      {
+        name: "warn_large_amount",
+        label: "Warn on large amount",
+        description: "Warn when the amount exceeds 5000",
+        triggerActions: ["create_purchase_request"],
+        effectType: "warn",
+        effect: { type: "warn", message: "Original warning message" },
+        priority: 30,
+        conditionKind: "declarative",
+        condition: { field: "amount", operator: "gt", value: 5000 },
+        roundTrippable: true,
+      },
+      {
+        name: "composite_guard",
+        label: "Composite guard",
+        description: "Block large ops purchases",
+        triggerActions: ["create_purchase_request"],
+        effectType: "block",
+        effect: { type: "block", message: "blocked" },
+        conditionKind: "declarative",
+        condition: {
+          operator: "and",
+          conditions: [
+            { field: "amount", operator: "gt", value: 1000 },
+            { field: "department", operator: "eq", value: "ops" },
+          ],
+        },
+        roundTrippable: false,
+      },
+      {
+        name: "schedule_warn_stale",
+        label: "Warn stale requests",
+        description: "Scheduled warning for stale requests",
+        // No triggerActions — schedule trigger.
+        effectType: "warn",
+        effect: { type: "warn", message: "stale" },
+        conditionKind: "declarative",
+        condition: { field: "amount", operator: "gt", value: 0 },
+        roundTrippable: false,
+      },
+    ],
+  };
+  const byName: Record<string, SchemaIntentEntity> = { purchase_request: purchaseRequest };
+  return {
+    listEntities: () => Object.keys(byName),
+    describeEntity: (name) => byName[name],
+  };
+}
+
+describe("resolveSchemaIntent — update round-trip preservation (priority/effect)", () => {
+  it("back-fills priority and the effect message from the existing rule when the AI omits them", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 8000 },
+          // Same effect type, message OMITTED — must NOT be fabricated; the
+          // existing message survives. `priority` omitted — must not reset.
+          effect: { type: "warn" },
+        },
+        diff: "Raise the warn threshold from 5000 to 8000.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise the warn threshold to 8000" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.condition).toEqual({ field: "amount", operator: "gt", value: 8000 });
+    // Issue under test: only the threshold changed — priority and the effect
+    // message are preserved verbatim, matching the human-readable diff.
+    expect(def.priority).toBe(30);
+    expect(def.effect).toEqual({ type: "warn", message: "Original warning message" });
+  });
+
+  it("uses the existing effect verbatim when the AI omits the effect entirely", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 9000 },
+          // No effect at all — back-filled from the snapshot.
+        },
+        diff: "Raise the threshold to 9000.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise the warn threshold to 9000" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.effect).toEqual({ type: "warn", message: "Original warning message" });
+  });
+
+  it("AI-changed effect fields win over the back-fill (same effect type)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 5000 },
+          effect: { type: "warn", message: "New warning message" },
+        },
+        diff: "Change the warning message.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the warning text" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.effect).toEqual({ type: "warn", message: "New warning message" });
+  });
+
+  it("a deliberate effect-TYPE change is passed through unmerged and fully validated", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 5000 },
+          // warn → block: a deliberate change; the old warn message must NOT
+          // leak into the new effect via the merge.
+          effect: { type: "block", message: "Blocked over 5000" },
+        },
+        diff: "Escalate the warn to a hard block.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "make it a hard block" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.effect).toEqual({ type: "block", message: "Blocked over 5000" });
+  });
+});
+
+describe("resolveSchemaIntent — non-round-trippable rules take the diff-only path", () => {
+  it("a composite-condition rule update never rebuilds declaratively (no flattened conjuncts)", async () => {
+    const engine = new ProposalEngine();
+    // The AI disobeys and fabricates a SIMPLE condition for the composite
+    // rule — the resolver must take the honest diff-only path regardless.
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "composite_guard",
+        rule: {
+          name: "composite_guard",
+          label: "Composite guard",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 2000 },
+          effect: { type: "block", message: "blocked" },
+        },
+        diff: "Raise the amount conjunct from 1000 to 2000.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise the composite guard amount to 2000" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.operation).toBe("update");
+    expect(outcome.requiresCodeChange).toBe(true);
+    expect(outcome.diffSummary).toBe("Raise the amount conjunct from 1000 to 2000.");
+    // No definition — a declarative rebuild would have FLATTENED the AND.
+    expect(outcome.proposal.diff.definition).toBeUndefined();
+  });
+
+  it("a non-action-trigger (schedule) rule update never rebuilds declaratively", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "schedule_warn_stale",
+        rule: {
+          name: "schedule_warn_stale",
+          label: "Warn stale requests",
+          // The builder could only emit an ACTION trigger — accepting this
+          // would silently swap the trigger kind.
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 10 },
+          effect: { type: "warn", message: "stale" },
+        },
+        diff: "Raise the stale threshold to 10.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise the stale warning threshold to 10" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.requiresCodeChange).toBe(true);
+    expect(outcome.proposal.diff.definition).toBeUndefined();
+    expect(outcome.proposal.diff.summary).toBe("Raise the stale threshold to 10.");
+  });
+
+  it("a non-round-trippable update with no diff and no explanation is refused", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "composite_guard",
+        confidence: 0.9,
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the composite guard" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_rule");
+    expect(engine.size).toBe(0);
+  });
+});
+
+// ── Prompt snapshot: priority/effect serialization + condition sanitization ──
+
+describe("resolveSchemaIntent — prompt serializes the full sanitized rule snapshot", () => {
+  it("serializes priority, the effect payload, and roundTrippable; sanitizes condition/effect strings", async () => {
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(JSON.stringify({ kind: "no_match", explanation: "x" }));
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      fields: [
+        { name: "amount", type: "number", required: true },
+        { name: "department", type: "string", required: true },
+      ],
+      actionNames: ["create_purchase_request"],
+      rules: [
+        {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          triggerActions: ["create_purchase_request"],
+          effectType: "warn",
+          // Control characters in the effect message and the condition value —
+          // a prior NL-drafted rule is a carrier into future prompts; both
+          // must be stripped like labels/descriptions are.
+          effect: { type: "warn", message: "warn\u0007message" },
+          priority: 30,
+          conditionKind: "declarative",
+          condition: {
+            operator: "and",
+            conditions: [
+              { field: "amount", operator: "gt", value: 5000 },
+              { field: "department", operator: "eq", value: "bad\u0000dept" },
+            ],
+          },
+          roundTrippable: false,
+        },
+      ],
+    };
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["purchase_request"],
+      describeEntity: () => entity,
+    };
+    await resolveSchemaIntent(
+      { utterance: "change the warn threshold" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    const systemPrompt = calls[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    // Priority + full effect payload reach the AI so it can round-trip them.
+    expect(systemPrompt).toContain('"priority": 30');
+    expect(systemPrompt).toContain('"roundTrippable": false');
+    // String leaves are sanitized — control characters are stripped, never
+    // serialized (JSON.stringify would emit \u0000 / \u0007 escapes).
+    expect(systemPrompt).toContain('"message": "warnmessage"');
+    expect(systemPrompt).toContain('"value": "baddept"');
+    expect(systemPrompt).not.toContain("\\u0000");
+    expect(systemPrompt).not.toContain("\\u0007");
+    // The composite condition itself is serialized whole (structured data).
+    expect(systemPrompt).toContain('"operator": "and"');
   });
 });

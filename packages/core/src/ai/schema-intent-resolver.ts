@@ -45,12 +45,13 @@
  */
 
 import type { AIMessage, AIService } from "../types/ai";
+import type { RuleDefinition } from "../types/rule";
 import { sanitizePrompt } from "./prompt-sanitizer";
 import type { ProposalEngine } from "./proposal-engine";
 // System prompt + response parser live in a sibling module (mirrors the
 // intent-resolver.ts / intent-prompt.ts split) so this file stays focused on
 // the pipeline + the governed Proposal mint.
-import type { ParsedSchemaIntent } from "./schema-intent-prompt";
+import type { ParsedRuleShape, ParsedSchemaIntent } from "./schema-intent-prompt";
 import { buildSchemaIntentSystemPrompt, parseSchemaIntentResponse } from "./schema-intent-prompt";
 // Rule reconciliation + validation lives in a sibling module so this file
 // stays under the 500-line ceiling and focuses on the pipeline.
@@ -60,12 +61,25 @@ import type {
   SchemaIntentOntology,
   SchemaIntentOutcome,
   SchemaIntentResolverOptions,
+  SchemaIntentRule,
 } from "./schema-intent-types";
 
 // ── Tunable defaults ─────────────────────────────────────────
 
 /** Confidence floor below which we ask a clarifying question instead of drafting. */
 export const SCHEMA_INTENT_MIN_CONFIDENCE = 0.4;
+
+/**
+ * Stable text marker persisted on a governed diff-only update draft (the
+ * `requiresCodeChange` outcome flag exists only in the HTTP response — the
+ * PERSISTED proposal needs its own signal). Callers prepend it to the
+ * governed change's `diff` / proposal description so a reviewer reading
+ * /admin/proposals can distinguish an HONEST developer change-request
+ * (no definition BY DESIGN) from a malformed change. Text-only on purpose:
+ * `ProposalChange` has no structured extension point and core types are not
+ * widened for this.
+ */
+export const REQUIRES_CODE_CHANGE_MARKER = "[requires-code-change]";
 
 // ── User-facing messages (centralized for future i18n) ───────
 
@@ -282,14 +296,19 @@ export async function resolveSchemaIntent(
  *
  *  1. The targeted rule MUST exist on the entity's rule list (allowlist —
  *     the AI cannot update a rule it was not shown).
- *  2. Declarative rule: the AI's FULL updated definition passes the same
- *     strict structural validation as add_rule (`buildRuleDefinition`), and
- *     the name is pinned to the existing rule's name (renames out of scope).
- *  3. CODE-condition rule: the condition is a TS function the AI cannot
- *     round-trip, so no declarative definition is fabricated. The draft
- *     carries ONLY the human-readable diff summary and is flagged
+ *  2. Round-trippable declarative rule: the AI's FULL updated definition
+ *     passes the same strict structural validation as add_rule
+ *     (`buildRuleDefinition`); `priority` and unchanged effect fields are
+ *     BACK-FILLED from the existing snapshot (robust against AI omissions),
+ *     and the name is pinned to the existing rule's name (renames out of
+ *     scope) — re-pinned AFTER the build so name normalization can never
+ *     diverge from the registered name.
+ *  3. Non-round-trippable rule (CODE condition, composite/not condition,
+ *     non-action trigger, non-declarative effect): the builder cannot rebuild
+ *     the definition faithfully, so none is fabricated. The draft carries
+ *     ONLY the human-readable diff summary and is flagged
  *     `requiresCodeChange` — an honest, governed change REQUEST a developer
- *     applies in source. A code update without any diff/explanation is
+ *     applies in source. Such an update without any diff/explanation is
  *     refused (there is nothing actionable to review).
  */
 function draftRuleUpdate(opts: {
@@ -311,8 +330,13 @@ function draftRuleUpdate(opts: {
     parsed.explanation?.trim() || `Update rule "${existing.name}" on ${entity.name}`;
   const diffSummary = parsed.diff?.trim() || "";
 
-  if (existing.conditionKind === "code") {
-    // Honest path for code-backed rules: no fabricated declarative condition.
+  // Diff-only path: code-backed rules AND declarative rules the builder
+  // cannot rebuild faithfully (composite/not conditions, non-action triggers,
+  // non-declarative effects — `roundTrippable: false` in the snapshot). A
+  // declarative rebuild of those would silently flatten conjuncts or swap the
+  // trigger kind, so the honest draft carries the diff summary only.
+  if (existing.conditionKind === "code" || existing.roundTrippable === false) {
+    // Honest path for non-round-trippable rules: no fabricated definition.
     const summary = diffSummary || parsed.explanation?.trim() || "";
     if (!summary) {
       return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.missingUpdateDiff);
@@ -322,8 +346,8 @@ function draftRuleUpdate(opts: {
       description: explanation,
       reasoning: utterance,
       confidence,
-      // NO definition — the rule's condition lives in TypeScript source the
-      // AI never saw. The summary is the reviewable spec of the change.
+      // NO definition — the rule cannot be rebuilt faithfully from what the
+      // AI saw. The summary is the reviewable spec of the change.
       diff: { target: "rule", operation: "update", summary },
     });
     return {
@@ -341,32 +365,72 @@ function draftRuleUpdate(opts: {
 
   // Declarative rule — same strict structural validation as add_rule. The
   // name is pinned to the EXISTING rule's name before validation so an
-  // AI-side rename (out of scope) can never slip through as a new rule.
+  // AI-side rename (out of scope) can never slip through as a new rule, and
+  // `priority` / unchanged effect fields are back-filled from the existing
+  // snapshot so an AI omission never silently resets them.
   const built = buildRuleDefinition(
-    parsed.rule ? { ...parsed.rule, name: existing.name } : undefined,
+    parsed.rule ? backfillUpdateShape(parsed.rule, existing) : undefined,
     entity,
   );
   if (!built.ok) {
     return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.invalidRule(built.reason));
   }
+  // Re-pin AFTER the build: `normalizeRuleName` runs inside the builder, so a
+  // registered name that normalization would alter could otherwise make the
+  // built name diverge from the pinned target. The governed change must name
+  // the EXISTING rule, always.
+  const ruleDef: RuleDefinition = { ...built.rule, name: existing.name };
   const summary = diffSummary || explanation;
   const proposal = engine.createProposal({
     type: "update_rule",
     description: explanation,
     reasoning: utterance,
     confidence,
-    diff: { target: "rule", operation: "update", definition: built.rule, summary },
+    diff: { target: "rule", operation: "update", definition: ruleDef, summary },
   });
   return {
     kind: "proposal_draft",
     proposal,
     operation: "update",
-    ruleName: built.rule.name,
+    ruleName: ruleDef.name,
     targetEntity: entity.name,
     confidence,
     explanation,
     diffSummary: summary,
   };
+}
+
+/**
+ * Merge the AI-returned update shape with the EXISTING rule snapshot so
+ * fields the AI did not change survive verbatim (review-integrity — the
+ * persisted definition must match the human-readable diff):
+ *
+ *  - `name` is pinned to the existing rule's name (renames out of scope).
+ *  - `priority` falls back to the existing value when the AI omits it.
+ *  - Effect payload: when the AI omits the effect entirely the existing
+ *    payload is used verbatim; when the AI keeps the SAME effect type,
+ *    payload fields it omitted (message / level / setFields) are back-filled
+ *    from the snapshot. A deliberate effect-type change is passed through
+ *    unmerged (the builder validates its required fields).
+ */
+function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule): ParsedRuleShape {
+  const out: ParsedRuleShape = { ...rule, name: existing.name };
+  if (out.priority === undefined && existing.priority !== undefined) {
+    out.priority = existing.priority;
+  }
+  const existingEffect = existing.effect;
+  if (existingEffect) {
+    if (out.effect === undefined) {
+      out.effect = { ...existingEffect };
+    } else if (
+      typeof out.effect === "object" &&
+      out.effect !== null &&
+      (out.effect as Record<string, unknown>).type === existingEffect.type
+    ) {
+      out.effect = { ...existingEffect, ...(out.effect as Record<string, unknown>) };
+    }
+  }
+  return out;
 }
 
 // ── Catalog construction ─────────────────────────────────────

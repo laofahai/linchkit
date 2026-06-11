@@ -17,10 +17,11 @@
  *    embedded inside catalog string fields.
  */
 
+import type { CompositeCondition, DeclarativeCondition, SimpleCondition } from "../types/rule";
 // Reuse the intent resolver's tolerant JSON extractor — same parser, no
 // second implementation to keep in sync.
 import { extractJsonCandidate } from "./intent-prompt";
-import type { SchemaIntentEntity } from "./schema-intent-types";
+import type { SchemaIntentEntity, SchemaIntentRuleEffect } from "./schema-intent-types";
 
 // ── System prompt builder ────────────────────────────────────
 
@@ -28,6 +29,55 @@ import type { SchemaIntentEntity } from "./schema-intent-types";
 function sanitizeText(value: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional control-character removal
   return value.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, "");
+}
+
+/** Sanitize string leaves of an arbitrary value (scalars / arrays). */
+function sanitizeStringLeaves(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeText(value);
+  if (Array.isArray(value)) return value.map(sanitizeStringLeaves);
+  return value;
+}
+
+/**
+ * Recursively sanitize the string leaves of a declarative condition before it
+ * is serialized into the prompt. Condition values can carry user-dictated
+ * text (a prior NL-drafted rule is a carrier into future prompts), so they
+ * get the same control-character stripping as labels/descriptions.
+ */
+function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
+  // Structural narrowing: composite carries `conditions`, not carries `condition`.
+  if ("conditions" in cond) {
+    return { operator: cond.operator, conditions: cond.conditions.map(sanitizeCondition) };
+  }
+  if ("condition" in cond) {
+    // Input is Simple | Composite, so the sanitized output is too.
+    return {
+      operator: "not",
+      condition: sanitizeCondition(cond.condition) as SimpleCondition | CompositeCondition,
+    };
+  }
+  return {
+    field: sanitizeText(cond.field),
+    operator: cond.operator,
+    ...(cond.value !== undefined ? { value: sanitizeStringLeaves(cond.value) } : {}),
+  };
+}
+
+/** Sanitize the string fields of an existing rule's effect payload. */
+function sanitizeEffect(effect: SchemaIntentRuleEffect): SchemaIntentRuleEffect {
+  let setFields: Record<string, unknown> | undefined;
+  if (effect.setFields) {
+    setFields = {};
+    for (const [key, value] of Object.entries(effect.setFields)) {
+      setFields[sanitizeText(key)] = sanitizeStringLeaves(value);
+    }
+  }
+  return {
+    type: sanitizeText(effect.type),
+    ...(effect.message !== undefined ? { message: sanitizeText(effect.message) } : {}),
+    ...(effect.level !== undefined ? { level: sanitizeText(effect.level) } : {}),
+    ...(setFields ? { setFields } : {}),
+  };
 }
 
 /**
@@ -60,8 +110,15 @@ export function buildSchemaIntentSystemPrompt(
       description: r.description ? sanitizeText(r.description) : undefined,
       triggerActions: r.triggerActions,
       effectType: r.effectType,
+      // Full sanitized effect payload + priority so an update can keep
+      // unchanged fields IDENTICAL instead of fabricating replacements.
+      ...(r.effect ? { effect: sanitizeEffect(r.effect) } : {}),
+      ...(r.priority !== undefined ? { priority: r.priority } : {}),
       conditionKind: r.conditionKind,
-      condition: r.condition,
+      // Condition string leaves get the same control-character stripping as
+      // labels/descriptions (prior NL-drafted rules are a prompt carrier).
+      condition: r.condition ? sanitizeCondition(r.condition) : undefined,
+      ...(r.roundTrippable !== undefined ? { roundTrippable: r.roundTrippable } : {}),
     })),
   }));
   const catalogJson = JSON.stringify(safe, null, 2);
@@ -121,14 +178,17 @@ B) The user wants to CHANGE an EXISTING rule (the request clearly refers to one 
      "explanation": "<one short sentence for the review card, in the user's language>"
    }
 
-   - If the existing rule's \`conditionKind\` is "declarative": return the FULL updated
-     definition in \`rule\` (keep everything you are not changing identical to the
-     existing rule, including its name).
-   - If the existing rule's \`conditionKind\` is "code": its condition is a TypeScript
-     function you CANNOT see or edit. OMIT \`rule\` entirely — return only \`ruleName\`
-     and a precise \`diff\` describing the intended change (e.g. the new threshold);
-     a developer will apply it in source. NEVER invent a declarative condition for
-     a code-backed rule.
+   - If the existing rule's \`conditionKind\` is "declarative" AND its \`roundTrippable\`
+     is not false: return the FULL updated definition in \`rule\`. Keep everything you
+     are not changing IDENTICAL to the existing rule — its name, \`priority\`, and the
+     \`effect\` payload (message / level / setFields) are all provided in
+     \`existingRules\`; copy them verbatim unless the user asked to change them.
+   - If the existing rule's \`conditionKind\` is "code" OR its \`roundTrippable\` is
+     false: the rule cannot be faithfully rebuilt from what you can see (a code
+     condition, a composite condition, a non-action trigger, or a non-declarative
+     effect). OMIT \`rule\` entirely — return only \`ruleName\` and a precise \`diff\`
+     describing the intended change (e.g. the new threshold); a developer will apply
+     it in source. NEVER invent a replacement definition for such a rule.
 
 C) Ambiguous / low confidence — ASK A CLARIFYING QUESTION:
    {
