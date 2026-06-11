@@ -11,7 +11,7 @@
 
 import type { FieldDefinition } from "@linchkit/core/types";
 import { Badge, Button, Checkbox, Separator, Skeleton } from "@linchkit/ui-kit/components";
-import { cn } from "@linchkit/ui-kit/lib/utils";
+import { cn, formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import {
   ArrowRight,
   ChevronDown,
@@ -82,22 +82,6 @@ const SYSTEM_FIELDS = new Set([
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
-}
-
-function formatRelativeTime(
-  iso: string,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
-  const days = Math.floor(hours / 24);
-  if (days < 30) return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
-  return new Date(iso).toLocaleDateString();
 }
 
 function formatValue(value: unknown): string {

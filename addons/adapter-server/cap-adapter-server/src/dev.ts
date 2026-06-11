@@ -10,7 +10,10 @@ import { resolve } from "node:path";
 import { consoleLogger } from "@linchkit/core/server";
 import { assembleDevSchema } from "./assemble-schema";
 import { loadConfig } from "./config-loader";
+import { resolveDevRoleActor } from "./dev-actor-resolver";
+import { buildDevEvolutionRuntime, buildDevOntologyRegistry } from "./dev-app";
 import { createServer } from "./server";
+import { wireAITraceSink } from "./wire-ai-trace-sink";
 
 // ── Resolve project root ────────────────────────────────
 // When run via `bun run --filter` in a workspace, CWD is the package
@@ -107,6 +110,37 @@ if (runtime.dataProvider instanceof InMemoryStore) {
 const allEntities = assembled.allEntities;
 const allActions = assembled.allActions;
 
+// Unified semantic layer over the assembled registries — mirrors the
+// `linch dev` boot path (dev-wiring.ts). Without it, ontology-dependent
+// endpoints (e.g. POST /api/ai/resolve-schema-intent) answer 503 and Phase 3
+// compatibility validation silently skips.
+const ontologyRegistry = buildDevOntologyRegistry(assembled);
+consoleLogger.info(`OntologyRegistry built (${ontologyRegistry.listEntities().length} schemas)`);
+
+// Evolution runtime (Spec 55) — mirrors the `linch dev` boot path
+// (dev-wiring.ts). Without it, POST /api/evolution/run-cycle answers 501
+// "Evolution runtime is not configured" and the Evolution page's
+// "Run Evolution Cycle" button dead-ends. SAFETY: proposals from the live
+// cycle stay DATA-only drafts — no graduation, no file writes, no scheduler.
+const evolutionRuntime = buildDevEvolutionRuntime({
+  capabilities: config.capabilities ?? [],
+  assembled,
+  ontologyRegistry,
+});
+consoleLogger.info(
+  `Evolution runtime ready: ${evolutionRuntime.signalBus.listSensors().length} sensor(s) registered ` +
+    "(insight→proposal translator + pre-analysis pipeline wired)",
+);
+
+// AI trace sink (Spec 69 P3 wave 2) — register a LIVE sink so the AI
+// instrumentation's `getAITraceSink().recordGeneration(...)` calls are actually
+// persisted instead of discarded by the Noop default. DB mode → DrizzleAITraceStore
+// (durable PG mirror); no DATABASE_URL → InMemoryAITraceStore (in-process only).
+// Non-throwing: a wiring failure logs + leaves the prior sink in place, never
+// crashing boot. On the dev path the dataProvider is the in-memory store unless a
+// DATABASE_URL-backed provider was injected, so this is InMemory here by default.
+await wireAITraceSink({ dataProvider: runtime.dataProvider });
+
 const port = config.server?.port ?? 3001;
 const host = config.server?.host ?? "0.0.0.0";
 
@@ -122,11 +156,22 @@ const server = createServer(graphqlSchema, {
   capabilities: config.capabilities,
   rules: capContributions.rules,
   aiService: runtime.ai,
+  // The assistant + model-resolving AI routes gate on BOTH aiService AND
+  // aiConfig (ai-api.ts) — without this the boot summary says "AI: zhipu"
+  // while POST /api/ai/assistant answers 503 "AI service is not configured".
+  aiConfig: config.ai,
   linchKitConfig: config,
   states: capContributions.states,
   flows: [],
+  // Dev-only role switching (`x-dev-role` header) — a development affordance,
+  // NOT an auth mechanism. Lives in this dev entry wiring only; absent or
+  // unrecognized header resolves to the same elevated no-auth actor as before,
+  // so every existing channel (REST scripts, flows, AI endpoints) is unchanged.
+  resolveRequestActor: resolveDevRoleActor,
   dataProvider: runtime.dataProvider,
   onchangeEvaluator,
+  ontologyRegistry,
+  evolutionRuntime,
 });
 
 server.listen(port);

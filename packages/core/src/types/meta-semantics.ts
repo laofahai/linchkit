@@ -129,7 +129,9 @@ export type DependencyEdgeType =
   | "guards" // State.transition guarded by Rule
   | "handles" // EventHandler handles Event
   | "contains" // Flow contains Action step
-  | "references"; // Action/Relation/View references Entity
+  | "references" // Action/Relation/View references Entity
+  | "state_transition" // State.transition[].action references Action (State → Action)
+  | "state_machine"; // Entity state field references its StateDefinition (Entity → State)
 
 export interface DependencyEdge {
   from: MetaModelRef;

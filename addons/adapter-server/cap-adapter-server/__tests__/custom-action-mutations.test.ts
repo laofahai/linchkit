@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ActionDefinition, EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -89,24 +89,22 @@ const graphqlSchema = buildGraphQLSchema([orderSchema], {
 });
 
 const app = createServer(graphqlSchema);
-const port = 4025;
 
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
 
 // ── Helper ───────────────────────────────────────────────
 
 async function gql(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 

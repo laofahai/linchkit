@@ -15,6 +15,7 @@
     "typecheck": "bunx tsc --noEmit",
     "test": "bash scripts/run-tests.sh",
     "test:coverage": "bash scripts/verify-test-coverage.sh",
+    "test:e2e": "bash scripts/run-e2e-browser.sh",
     "build": "bun run --filter '@linchkit/core' build && bun run --filter '@linchkit/devtools' build && bun run --filter '@linchkit/cli' --filter '@linchkit/cap-adapter-ui' build",
     "dev": "bun run --filter '@linchkit/cap-adapter-server' --filter '@linchkit/cap-adapter-ui' dev",
     "dev:server": "bun run --filter @linchkit/cap-adapter-server dev",
@@ -28,24 +29,25 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
-    "@changesets/cli": "^2.30.0",
+    "@changesets/cli": "^2.31.0",
     "bun-types": "latest",
     "drizzle-kit": "^0.31.10",
+    "puppeteer-core": "^25.1.0",
     "tsup": "^8.5.1"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.63",
-    "@ai-sdk/openai": "^3.0.47",
+    "@ai-sdk/anthropic": "^3.0.82",
+    "@ai-sdk/openai": "^3.0.69",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "@restatedev/restate-sdk": "1.14.4",
+    "@restatedev/restate-sdk": "1.14.5",
     "@tanstack/react-table": "^8.21.3",
-    "ai": "^6.0.134",
+    "ai": "^6.0.199",
     "dataloader": "^2.2.3",
-    "drizzle-orm": "^0.45.1",
-    "mermaid": "^11.13.0",
+    "drizzle-orm": "^0.45.2",
+    "mermaid": "^11.15.0",
     "sonner": "^2.0.7"
   }
 }

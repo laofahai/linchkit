@@ -1,9 +1,10 @@
 /**
- * createCapAdapterAgUi — Factory that produces the AG-UI adapter capability (SKELETON).
+ * createCapAdapterAgUi — Factory that produces the AG-UI adapter capability.
  *
  * Returns a CapabilityDefinition with the AG-UI transport registered in
  * extensions.transports. Mirrors cap-adapter-mcp's createCapAdapterMcp shape.
- * The transport is currently a no-op; real logic arrives in later slices (#89).
+ * Phase 1 (#89): the transport serves the AG-UI run endpoint, bridging the
+ * assistant AIService seam to protocol events over SSE.
  *
  * Usage:
  * ```ts
@@ -27,15 +28,16 @@ export interface CapAdapterAgUiOptions {
 /**
  * Create the AG-UI adapter capability.
  *
- * SKELETON: wires the AG-UI transport definition into the capability but does
- * not yet implement the SSE run-session. See ag-ui-transport.ts TODO(#89 S6+).
+ * Wires the AG-UI transport definition into the capability. The transport
+ * serves `POST <basePath>/run` and streams AG-UI protocol events by bridging
+ * the assistant `aiService` seam (see run-endpoint.ts).
  */
 export function createCapAdapterAgUi(options?: CapAdapterAgUiOptions): CapabilityDefinition {
   return defineCapability({
     name: "cap-adapter-ag-ui",
     label: "AG-UI Server",
     description:
-      "Exposes LinchKit to a frontend AI agent via the AG-UI SSE protocol (Spec 15 §6.5, skeleton)",
+      "Exposes LinchKit to a frontend AI agent via the AG-UI SSE protocol (Spec 15 §6.5)",
     type: "adapter",
     category: "integration",
     version: "0.0.1",
@@ -44,6 +46,10 @@ export function createCapAdapterAgUi(options?: CapAdapterAgUiOptions): Capabilit
     config: options?.config,
 
     dependencies: [],
+
+    // Opt-in adapter — never auto-activated; enable it explicitly in
+    // linchkit.config.ts and set `cap-adapter-ag-ui.enabled=true`.
+    autoInstall: false,
 
     extensions: {
       transports: [agUiTransport],

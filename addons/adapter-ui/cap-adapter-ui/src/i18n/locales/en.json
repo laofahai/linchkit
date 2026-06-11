@@ -175,6 +175,27 @@
     "stateTransition": "State Transition",
     "rulesEvaluated": "Rules Evaluated"
   },
+  "aiTraces": {
+    "title": "AI Traces",
+    "subtitle": "Recent AI generations — audit cost, tokens, and outcomes.",
+    "refresh": "Refresh",
+    "allStatuses": "All Statuses",
+    "statusLabel": "Status",
+    "status": {
+      "ok": "OK",
+      "error": "Error",
+      "partial": "Partial"
+    },
+    "time": "Time",
+    "name": "Name",
+    "origin": "Origin",
+    "tokens": "Tokens (in / out)",
+    "cost": "Cost",
+    "traceId": "Trace ID",
+    "empty": "No AI traces recorded yet",
+    "denied": "You don't have permission to view AI traces.",
+    "fetchError": "Failed to load AI traces"
+  },
   "viewTabs": {
     "newView": "New View",
     "saveView": "Save current filters as view",
@@ -261,6 +282,17 @@
     "switchTenant": "Switch tenant",
     "selectTenant": "Select tenant",
     "clearTenant": "Clear tenant"
+  },
+  "devRole": {
+    "switchRole": "Switch dev role",
+    "selectRole": "View as role (dev only)",
+    "devOnlyHint": "Development affordance — not an auth mechanism.",
+    "roles": {
+      "user": "User",
+      "manager": "Manager",
+      "admin": "Admin",
+      "default": "Default (anonymous)"
+    }
   },
   "language": {
     "label": "Language",
@@ -776,6 +808,17 @@
     "phaseErrors": "{{count}} error",
     "phaseErrors_other": "{{count}} errors",
     "defaultRejectReason": "Rejected by user",
+    "findings": {
+      "heading": "Validation Findings",
+      "phaseTitle": "Phase {{phase}}",
+      "compatibilityTitle": "Phase {{phase}}: Compatibility",
+      "errorCount": "{{count}} error",
+      "errorCount_other": "{{count}} errors",
+      "warningCount": "{{count}} warning",
+      "warningCount_other": "{{count}} warnings",
+      "clean": "Validation passed with no findings.",
+      "empty": "No validation findings to display."
+    },
     "preanalysis": {
       "heading": "Pre-Analysis",
       "empty": "No pre-analysis result available for this proposal.",
@@ -851,6 +894,20 @@
     "reasoning": "AI Reasoning",
     "revert": "Revert",
     "showChanges": "Show {{count}} change(s)"
+  },
+  "nlRule": {
+    "title": "Draft a rule from natural language",
+    "subtitle": "Describe a business rule in plain language. AI drafts it as a proposal for your review — nothing is applied automatically.",
+    "placeholder": "e.g. Require an approver when a purchase order total exceeds 10000",
+    "draft": "Draft rule",
+    "draftCreated": "Rule draft created",
+    "targetEntity": "Target entity",
+    "proposalId": "Proposal",
+    "reviewDraft": "Review draft",
+    "refineHint": "Refine your description and submit again.",
+    "noMatch": "Couldn't draft a rule from that description. Try rephrasing.",
+    "notConfigured": "AI is not configured. Configure an AI provider to enable rule drafting.",
+    "error": "Something went wrong. Please try again."
   },
   "insights": {
     "title": "AI Insights",

@@ -26,12 +26,21 @@
     "dataloader": "^2.2.3"
   },
   "peerDependencies": {
+    "@linchkit/cap-adapter-ag-ui": "workspace:*",
     "@linchkit/cap-ai-provider": "^1.0.0",
+    "@linchkit/cap-dry-run": "^0.1.0",
     "@linchkit/core": "^0.2.0"
   },
+  "peerDependenciesMeta": {
+    "@linchkit/cap-adapter-ag-ui": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@linchkit/cap-adapter-ag-ui": "workspace:*",
     "@linchkit/cap-ai-provider": "workspace:*",
     "@linchkit/cap-chatter": "workspace:*",
+    "@linchkit/cap-dry-run": "workspace:*",
     "@linchkit/cap-permission": "workspace:*",
     "@linchkit/core": "workspace:*",
     "typescript": "^6.0.2"

@@ -1,6 +1,6 @@
 # LinchKit Spec Index
 
-> 72 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
+> 74 specs grouped by domain. Format: `[number] Title — one-line summary (milestone, status)`.
 > **Status legend**: `Done` = implemented and tested, `Partial` = core done / details pending, `Draft` = spec only, not implemented, `Deprecated` = superseded by newer spec.
 > **How to use**: Scan this index to locate relevant specs. Read specs on-demand by domain — do not read them all at once.
 
@@ -38,7 +38,8 @@ Five-layer evolution model (Sense → Memory → Awareness → Insight → Propo
 
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
-| [55](./55_evolution_system.md) | Evolution System | Living software: sensors, baselines, importance graph, evidence-chain insights, gradual Proposals | M3–M6+ | Partial |
+| [55](./55_evolution_system.md) | Evolution System | Living software: sensors, baselines, importance graph, evidence-chain insights, gradual Proposals. §7.7 G5 code materialization implemented (CodeGenerationProvider + materializeProposalChanges + Phase-2 build gate + Phase-4 contract check + live `POST /api/proposals/:id/materialize`); sensing/cadence still gated | M3–M6+ | Partial |
+| [70](./70_execution_dry_run_sandbox.md) | Execution Dry-Run Sandbox | Run AI-generated handler source in a locked-down sandbox as an opt-in, infra-gated validation Phase 5 — the execution counterpart to Spec 55 §7.7's static Phase 4. Fully implemented P2–P5: core seam + durable `dryRunStatus` + sync `validatePhase5` (#523), hardened Bun-subprocess runner (#524) wired into materialize (#526), forbidden-op kinds + UI (#529), `strictExecutionDryRun` opt-in block gate (#530), gVisor microVM tier + `prlimit` memory rlimit (#531) | M6–M7+ | Done |
 
 ## Runtime Engines
 
@@ -103,6 +104,7 @@ Capability definition, extension, composition, and distribution.
 | [58](./58_mcp_client_registry.md) | MCP Client Registry | AI Agent access management — client registration, per-client auth, tool visibility, management UI | M2 | Done |
 | [60](./60_ai_workspace.md) | AI Workspace | Two-layer AI architecture (dev-time + runtime), AGENTS.md generation, MCP integration | M3 | Partial |
 | [69](./69_ai_evaluation_framework.md) | AI Evaluation Framework | Cross-scenario prompt-quality regression + cost-governed live evals; fixture schema, matcher catalog, BAML/Mastra decision matrices | M5–M7 | Draft |
+| [71](./71_agui_hitl_governance.md) | AG-UI HITL Governance | Native protocol-governed assistant write path: model proposes a runtime-data mutation mid-run → `RUN_FINISHED` interrupt outcome → existing `ActionProposalCard` → human approve → CommandLayer execute → `resume[]` finishes the run. Unifies the two parallel write paths (stream + `resolveIntent` side channel) into one AG-UI stream; dismantles the side channel. Distinct from Spec 55's code-graduation ProposalEngine | M6–M7+ | Draft |
 
 ## Frontend & Views
 
@@ -202,15 +204,20 @@ Capability definition, extension, composition, and distribution.
 
 | Status | Count |
 |--------|-------|
-| Done | 51 |
+| Done | 52 |
 | Partial | 13 |
-| Draft | 8 |
-| **Total** | **72** unique specs |
+| Draft | 9 |
+| **Total** | **74** unique specs |
 
 ### Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-06-10 | Added Spec 71 (AG-UI HITL Governance — Draft) — make the assistant's write path natively governed through AG-UI's interrupt/resume protocol (`@ag-ui/core@0.0.56`): model proposes a runtime-data mutation mid-run → `RUN_FINISHED` interrupt outcome → existing `ActionProposalCard` → human approve → CommandLayer execute → `resume[]` finishes the run. Unifies the two parallel write paths (AG-UI stream + the `resolveIntent`→`ActionProposalCard` side channel that bypasses the stream) into ONE stream path; P4 dismantles the side channel. Distinct from Spec 55's code-graduation ProposalEngine (naming-collision trap called out). Stats: Total 73→74, Draft 8→9. |
+| 2026-06-10 | Spec 70 **COMPLETE — Draft→Done** (Stats: Done 51→52, Draft 9→8). P3 subprocess sandbox runner `@linchkit/cap-dry-run` (#524) wired into the materialize path behind `LINCHKIT_EXECUTION_DRY_RUN=1` (#526); P4 forbidden-op kind inference + `DryRunOutcomesPanel` UI (#529); P5 `features.strictExecutionDryRun` opt-in block gate — never derived from `isProduction` (#530) + gVisor microVM runner tier (`runner: "subprocess" \| "microvm"`, fail-closed, `docker run --runtime=runsc`) + Linux `prlimit --data` OS memory rlimit (#531). microvm tier is argv-verified; validate on a real gVisor host before production reliance. |
+| 2026-06-09 | Spec 70 **P2 landed** + §5/§7 refined to the **durable-signal** architecture: the async dry-run runs in the (already-async) materialize path and stamps a durable `dryRunStatus`; validation **Phase 5 is synchronous** and only reads it (mirrors Phase 4 reading `materializationStatus`), so `validateProposal`/`submitProposal` stay sync. P2 ships core `dry-run.ts` types + `ExecutionDryRunProvider` seam + `ProposalChange.dryRunStatus`/`dryRunOutcomes` + `ValidationPhase`→`1–5` + `validatePhase5`. |
+| 2026-06-09 | Added Spec 70 (Execution Dry-Run Sandbox — Draft) — designs the deferred execution counterpart to Spec 55 §7.7's static Phase 4: run AI-generated handler source in a hardened Bun-subprocess sandbox as an opt-in, infra-gated validation Phase 5. Threat model + sandbox tech comparison + phased rollout. Stats: Total 72→73, Draft +1. |
+| 2026-06-07 | Spec 55 §7.7 代码物化 added — G5 materialization (provider #494, materializer+build-gate #495, live endpoint+UI #496) documented; old §7.7 反馈回路 renumbered to §7.8. |
 | 2026-06-01 | Spec 45 progress: `schedule` trigger implemented (croner, PR #439) + `_linchkit.watcher_state` debounce persistence (`WatcherStateStore` InMemory default + Drizzle PG backend) — restart-safe `once_until_reset`. Status stays Partial: the watcher admin UI `EntityDefinition` (§7.1) is still deferred. |
 | 2026-06-01 | Spec 63 Phase 2 shipped: GraphQL field-lock introspection (PR #437) + auto-form field-lock UI reusing core's `matchesLockCondition` (PR #441). Status stays Partial — Phase 3 `cap-lock` needs a returning-value hook/slot extension mechanism (design decision) before it can be built. |
 | 2026-06-01 | Spec 56 Step 2c complete: removed the dead 0-byte `automation-engine`/`automation-registry` stubs from core (PR #436); the Detector/Watcher implementations already live in cap-ai-provider. |

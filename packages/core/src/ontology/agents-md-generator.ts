@@ -98,7 +98,7 @@ function renderTechStack(): string {
     "| Frontend | React 19 + Vite |",
     "| Routing | TanStack Router |",
     "| UI | Shadcn + Radix + Tailwind |",
-    "| Testing | bun test |",
+    "| Testing | bun run test |",
     "| Code Quality | Biome |",
   ].join("\n");
 }
@@ -254,7 +254,7 @@ function renderDevCommands(): string {
     "```bash",
     "bun run dev:server    # Start server on :3001",
     "bun run dev:ui        # Start UI on :3000 (proxies API to :3001)",
-    "bun test              # Run all tests",
+    "bun run test          # Run all tests",
     "bun run check         # Biome lint + format",
     "bun run typecheck     # TypeScript check",
     "bun run db:generate   # Generate migration SQL from schema changes",

@@ -6,6 +6,7 @@
  * Permission groups are declared by each capability, not here.
  */
 
+import { createCapAdapterAgUi } from "@linchkit/cap-adapter-ag-ui";
 import { createCapAdapterMcp } from "@linchkit/cap-adapter-mcp";
 import { capAdapterServer } from "@linchkit/cap-adapter-server";
 import { capAdapterUi } from "@linchkit/cap-adapter-ui";
@@ -25,6 +26,11 @@ export const capabilities: CapabilityDefinition[] = [
   capAdapterServer,
   createCapAdapterMcp({ config: { transport: "sse", ssePort: 3002 } }),
   capAdapterUi,
+  // AG-UI protocol (#89): registering the capability opts in the
+  // `POST /api/agui/run` route on the main server (:3001) — the admin UI
+  // assistant talks this endpoint via @ag-ui/client. The addon's own
+  // standalone transport (port 3003) stays disabled by default.
+  createCapAdapterAgUi(),
 
   // Authentication & authorization
   // createCapAuth({

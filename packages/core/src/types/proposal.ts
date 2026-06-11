@@ -6,8 +6,10 @@
  * AI can never directly modify production — every change must be proposed and validated first.
  */
 
+import type { ProposalPreAnalysisResult } from "../life-system/proposal-preanalysis/types";
 import type { ImpactNode } from "../ontology/impact-analysis";
 import type { ActionDefinition } from "./action";
+import type { DryRunOutcome, DryRunStatus } from "./dry-run";
 import type { EntityDefinition } from "./entity";
 import type { EventDefinition } from "./event";
 import type { FieldOverlayDefinition } from "./overlay";
@@ -109,6 +111,56 @@ export interface ProposalChange {
    * a rollback can execute. This field NEVER triggers auto-execution.
    */
   revertSha?: string;
+  /**
+   * AI-materialized TypeScript source for this change (G5 Phase 3).
+   *
+   * Only set for code targets whose logic body cannot be expressed declaratively
+   * in `definition` — today that is an `action` (its `handler` function).
+   * Produced by the proposal materializer, build-checked by validation Phase 2,
+   * and written verbatim by `ProposalFileWriter` at graduation (preferred over
+   * the deterministic codegen). Candidate source only — it never executes or
+   * lands without passing validation and double human review (draft + graduation
+   * PR).
+   */
+  generatedSource?: string;
+  /**
+   * Durable status of the LAST materialization attempt for this change (G5 Phase 4).
+   *
+   * The materializer stamps this on every MATERIALIZABLE change so a reviewer
+   * reading the PERSISTED proposal (GET /api/proposals/:id) can distinguish a
+   * change that was never materialized (undefined) from one whose generated
+   * source FAILED the build/syntax gate ("failed", reason in
+   * `materializationErrors`) or succeeded ("materialized", source in
+   * `generatedSource`). Unlike the transient POST /materialize `outcomes` array,
+   * this is durable on the change. Declarative / skipped changes leave it
+   * undefined. Candidate signal only — it never auto-advances the proposal.
+   */
+  materializationStatus?: "materialized" | "failed";
+  /**
+   * Build/syntax-gate errors from the final FAILED materialization attempt — set
+   * only when `materializationStatus === "failed"`. Cleared on a successful
+   * (re-)materialization. Lets the human reviewer see WHY a change has no
+   * candidate source without re-running materialization.
+   */
+  materializationErrors?: string[];
+  /**
+   * Durable result of the Spec 70 execution dry-run for this change (P3).
+   *
+   * The async sandbox dry-run runs LATER (during materialization in P3) and
+   * stamps the WORST-CASE aggregate status here — mirroring the
+   * `materializationStatus` arc (#513). Validation Phase 5 (`validatePhase5`)
+   * READS this synchronously and emits findings; core never executes the dry-run
+   * as a side effect of validation. Undefined when the change was never
+   * dry-run (no runner configured, not materializable, or feature off).
+   * Candidate signal only — it never auto-advances the proposal.
+   */
+  dryRunStatus?: DryRunStatus;
+  /**
+   * Per-input-case outcomes behind the aggregate `dryRunStatus` (Spec 70 P3) —
+   * for the `/admin/proposals` UI and reproducibility. Each entry carries the
+   * `inputCaseId` that produced it. Undefined when the change was never dry-run.
+   */
+  dryRunOutcomes?: DryRunOutcome[];
 }
 
 // ── Impact analysis ──────────────────────────────────────
@@ -125,7 +177,7 @@ export interface ProposalImpact {
 
 // ── Validation types ─────────────────────────────────────
 
-export type ValidationPhase = 1 | 2 | 3 | 4;
+export type ValidationPhase = 1 | 2 | 3 | 4 | 5;
 
 export type ValidationPhaseStatus = "passed" | "failed" | "skipped";
 
@@ -256,4 +308,17 @@ export interface ProposalDefinition {
    * change merges to determine whether the outcome was achieved.
    */
   successMetric?: SuccessMetric;
+
+  /**
+   * Optional pre-analysis envelope for this proposal (Spec 55 §7.3).
+   *
+   * Carries the evolution pipeline's per-proposal pre-analysis — dedup /
+   * conflict / impact / backtest stages — so a human reviewer can see the
+   * "why" (evidence, estimated impact, backtest delta, rationale) behind an
+   * AI-surfaced proposal. This is READ-ONLY metadata attached when a cycle
+   * proposal is persisted as a draft; it never drives submission, approval,
+   * or graduation. Absent when the proposal entered the pipeline without a
+   * pre-analysis (e.g. manual drafts).
+   */
+  analysis?: ProposalPreAnalysisResult;
 }

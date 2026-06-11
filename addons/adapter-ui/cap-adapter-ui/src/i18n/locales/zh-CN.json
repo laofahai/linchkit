@@ -175,6 +175,27 @@
     "stateTransition": "状态变更",
     "rulesEvaluated": "规则评估"
   },
+  "aiTraces": {
+    "title": "AI 调用追踪",
+    "subtitle": "近期 AI 生成记录 — 审计成本、token 与结果。",
+    "refresh": "刷新",
+    "allStatuses": "全部状态",
+    "statusLabel": "状态",
+    "status": {
+      "ok": "成功",
+      "error": "错误",
+      "partial": "部分"
+    },
+    "time": "时间",
+    "name": "名称",
+    "origin": "来源",
+    "tokens": "Token（输入 / 输出）",
+    "cost": "成本",
+    "traceId": "追踪 ID",
+    "empty": "暂无 AI 调用追踪记录",
+    "denied": "您没有查看 AI 调用追踪的权限。",
+    "fetchError": "加载 AI 调用追踪失败"
+  },
   "viewTabs": {
     "newView": "新视图",
     "saveView": "将当前筛选条件保存为视图",
@@ -261,6 +282,17 @@
     "switchTenant": "切换租户",
     "selectTenant": "选择租户",
     "clearTenant": "清除租户"
+  },
+  "devRole": {
+    "switchRole": "切换开发角色",
+    "selectRole": "以角色查看（仅开发模式）",
+    "devOnlyHint": "开发辅助功能，不是认证机制。",
+    "roles": {
+      "user": "普通用户",
+      "manager": "经理",
+      "admin": "管理员",
+      "default": "默认（匿名）"
+    }
   },
   "language": {
     "label": "语言",
@@ -776,6 +808,17 @@
     "phaseErrors": "{{count}} 个错误",
     "phaseErrors_other": "{{count}} 个错误",
     "defaultRejectReason": "用户拒绝",
+    "findings": {
+      "heading": "校验发现",
+      "phaseTitle": "阶段 {{phase}}",
+      "compatibilityTitle": "阶段 {{phase}}：兼容性",
+      "errorCount": "{{count}} 个错误",
+      "errorCount_other": "{{count}} 个错误",
+      "warningCount": "{{count}} 个警告",
+      "warningCount_other": "{{count}} 个警告",
+      "clean": "校验通过，未发现问题。",
+      "empty": "没有可显示的校验发现。"
+    },
     "preanalysis": {
       "heading": "预分析结果",
       "empty": "该提案暂无预分析结果。",
@@ -851,6 +894,20 @@
     "reasoning": "AI 推理依据",
     "revert": "回滚",
     "showChanges": "查看 {{count}} 项变更"
+  },
+  "nlRule": {
+    "title": "用自然语言起草规则",
+    "subtitle": "用日常语言描述一条业务规则，AI 会将其起草为提案供你审阅 —— 不会自动应用任何变更。",
+    "placeholder": "例如：当采购订单总额超过 10000 时需要审批人",
+    "draft": "起草规则",
+    "draftCreated": "规则草稿已创建",
+    "targetEntity": "目标实体",
+    "proposalId": "提案",
+    "reviewDraft": "审阅草稿",
+    "refineHint": "请完善你的描述后重新提交。",
+    "noMatch": "无法根据该描述起草规则，请尝试换一种说法。",
+    "notConfigured": "AI 尚未配置。请配置 AI 提供商以启用规则起草。",
+    "error": "出现错误，请重试。"
   },
   "insights": {
     "title": "AI 洞察",

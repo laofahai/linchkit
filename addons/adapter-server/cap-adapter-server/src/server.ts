@@ -52,24 +52,15 @@ import { type GraphQLSchema, NoSchemaIntrospectionCustomRule } from "graphql";
 import { createYoga, type Plugin } from "graphql-yoga";
 import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
-import { mountActionRoutes } from "./routes/action-api";
-import { mountAdminRoutes } from "./routes/admin-api";
-import { mountAIRoutes } from "./routes/ai-api";
-import { mountAIByokRoutes } from "./routes/ai-byok";
-import { mountResolveIntentRoute } from "./routes/ai-resolve-intent";
-import { mountResolveSchemaIntentRoute } from "./routes/ai-resolve-schema-intent";
-import { mountApprovalRoutes } from "./routes/approval-api";
-import { mountConfigRoutes } from "./routes/config-api";
-import { mountConfigStoreRoutes } from "./routes/config-store-api";
+import { mountProposalGraduateAPI } from "./proposal-graduate-api";
+import { mountProposalMaterializeAPI } from "./proposal-materialize-api";
 import { mountDeployRoutes } from "./routes/deploy-api";
-import { mountEntityRoutes } from "./routes/entity-api";
-import { mountHealthRoutes } from "./routes/health";
-import { mountImportRoutes } from "./routes/import-api";
-import { mountOnchangeRoutes } from "./routes/onchange-api";
+import { mountEvolutionCycleRoutes } from "./routes/evolution-cycle-api";
+import { mountEvolutionStatusRoutes } from "./routes/evolution-status-api";
+import { mountCoreRoutes } from "./routes/mount-core-routes";
 import { mountOverlayRoutes } from "./routes/overlay-api";
 import { ANONYMOUS_ACTOR, NO_AUTH_ACTOR, resolveRequestLocale } from "./routes/shared";
 import { mountSubscriptionRoutes } from "./routes/subscription-api";
-import { mountTranslationRoutes } from "./routes/translation-api";
 
 export interface ServerOptions {
   /** Server port (default: 3001) */
@@ -216,6 +207,17 @@ export interface ServerOptions {
    * events and trigger the configured deployment callback.
    */
   deployWebhookHandler?: DeployWebhookHandler;
+  /**
+   * Evolution runtime (Spec 55) — when provided, enables
+   * `POST /api/evolution/run-cycle` to run one on-demand evolution cycle and
+   * persist its proposals as governance `draft`s. No-op (501) when absent.
+   */
+  evolutionRuntime?: import("@linchkit/core/server").EvolutionRuntime;
+  /**
+   * Opt-in evolution cadence scheduler (Spec 55 §7) — exposes read-only status
+   * via `GET /api/evolution/scheduler-status` (`{ configured: false }` when absent).
+   */
+  evolutionScheduler?: import("@linchkit/core/server").EvolutionScheduler;
 }
 
 // Re-export parseAcceptLanguage for external consumers
@@ -389,31 +391,11 @@ export function createServer(
   const opts = options ?? {};
 
   // ── Mount route modules ────────────────────────────────────
-  mountAdminRoutes(app, opts, serverStartedAt);
-  // Mounted AFTER admin so the canonical, minimal `/health` (Spec 12 — liveness)
-  // overrides any duplicate handler in admin-api.ts. `/ready` is exclusive to
-  // this module.
-  mountHealthRoutes(app, opts);
-  mountEntityRoutes(app, opts);
-  mountActionRoutes(app, opts);
-  mountImportRoutes(app, opts);
-  mountApprovalRoutes(app, opts);
-  mountConfigRoutes(app, opts);
-  mountConfigStoreRoutes(app, opts);
-  mountAIRoutes(app, opts);
-  // Spec 36 M2+ BYOK + usage endpoints (per-tenant key store + meter).
-  // Mounted alongside the other AI routes; no-ops when the store /
-  // meter are not configured (returns 503 with a structured envelope).
-  mountAIByokRoutes(app, opts);
-  // Spec 52 §2.6 canonical intent-resolution endpoint. Mounted AFTER
-  // mountAIRoutes so the canonical handler (with permission scoping +
-  // audit logging) wins routing for `POST /api/ai/resolve-intent` if any
-  // legacy handler is left in the file.
-  mountResolveIntentRoute(app, opts);
-  // Spec 52 "说→有" first slice — NL utterance → governed `add_rule` ProposalDraft.
-  mountResolveSchemaIntentRoute(app, opts);
-  mountTranslationRoutes(app, opts);
-  mountOnchangeRoutes(app, opts, opts.onchangeEvaluator);
+  // Order-sensitive, closure-free core mounts live in mount-core-routes.ts
+  // (keeps this entrypoint under the 500-line ceiling). The mounts BELOW close
+  // over server-local state (overlay → schema hot-reload, graphql-yoga, deploy,
+  // proposal / evolution / subscription) and stay inline.
+  mountCoreRoutes(app, opts, serverStartedAt);
 
   // Mount overlay management endpoints when overlay registry is available
   if (options?.overlayRegistry) {
@@ -442,7 +424,44 @@ export function createServer(
   mountDeployRoutes(app, opts.deployWebhookHandler);
 
   // ── Proposal / Evolution / AI Insights endpoints ──────────────
-  mountProposalAPI(app, executionLogger);
+  // Thread the ontology + env validation policies so proposal validation can
+  // detect breaking references (Phase 3, Spec 09 §4.5) and gate generated-source
+  // contract findings (Phase 4, G5). strictCompatibility / strictGeneratedContract
+  // block such proposals in prod/staging; dev/test stay warn-only.
+  // strictExecutionDryRun (Phase 5, Spec 70) is opt-in everywhere — it blocks
+  // only when LINCHKIT_STRICT_EXECUTION_DRY_RUN=1 is set explicitly.
+  mountProposalAPI(app, {
+    executionLogger,
+    ontology: opts.ontologyRegistry,
+    strictCompatibility: environment.features.strictCompatibility,
+    strictGeneratedContract: environment.features.strictGeneratedContract,
+    strictExecutionDryRun: environment.features.strictExecutionDryRun,
+  });
+  // Manual, admin-triggered graduation: POST /api/proposals/:id/graduate writes
+  // an approved proposal to disk and opens a PR (Spec 55 §7.6/§7.7). It NEVER
+  // auto-fires on approval and NEVER auto-merges — graduation is human-triggered
+  // and the resulting PR is human-reviewed. Uses the SAME shared governed engine
+  // as mountProposalAPI; config/credentials are sourced from the environment.
+  mountProposalGraduateAPI(app, {
+    commandLayer: opts.commandLayer,
+    resolveRequestActor: opts.resolveRequestActor,
+  });
+  // On-demand AI code materialization: POST /api/proposals/:id/materialize
+  // generates candidate source for a DRAFT proposal's code parts (G5 Phase 4).
+  // It NEVER approves/graduates/writes-files — the candidate enters the same
+  // human review pipeline. Degrades to 503 when no AI provider is configured.
+  mountProposalMaterializeAPI(app, {
+    commandLayer: opts.commandLayer,
+    resolveRequestActor: opts.resolveRequestActor,
+    aiService: opts.aiService,
+    // Derive the generation context from the project ontology so generated
+    // candidate source references REAL entities/actions (no explicit override).
+    ontology: opts.ontologyRegistry,
+  });
+
+  // ── Evolution (Spec 55 §7) — on-demand cycle→drafts + read-only scheduler status.
+  mountEvolutionCycleRoutes(app, opts);
+  mountEvolutionStatusRoutes(app, opts);
 
   // ── SSE Subscription endpoint (/api/subscribe) ────────────────
   mountSubscriptionRoutes(app, opts);

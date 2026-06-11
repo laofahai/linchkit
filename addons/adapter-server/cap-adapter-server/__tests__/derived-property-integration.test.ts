@@ -6,7 +6,7 @@
  * - Compute-strategy derived fields are resolved on read (GraphQL queries)
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { createDerivedPropertyEngine, type EntityDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -106,24 +106,22 @@ const graphqlSchema = buildGraphQLSchema([employeeSchema, orderSchema], {
   derivedPropertyEngine: derivedEngine,
 });
 const app = createServer(graphqlSchema);
-const port = 4022;
 
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
 
 // ── Helper ───────────────────────────────────────────────────
 
 async function gql(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 
@@ -332,25 +330,21 @@ describe("Derived fields: no-derived-engine fallback", () => {
       // No derivedPropertyEngine
     });
     const plainApp = createServer(plainSchema);
-    const plainPort = 3995;
-    plainApp.listen(plainPort);
 
-    try {
-      const res = await fetch(`http://localhost:${plainPort}/graphql`, {
+    const res = await plainApp.handle(
+      new Request(`${BASE}/graphql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: `mutation { createEmployee(input: { first_name: "Test", last_name: "User" }) { id first_name } }`,
         }),
-      });
-      const result = (await res.json()) as { data: Record<string, unknown>; errors?: unknown[] };
-      expect(result.errors).toBeUndefined();
-      const emp = result.data.createEmployee as Record<string, unknown>;
-      expect(emp.first_name).toBe("Test");
-      // full_name will be null (not computed since no engine is wired)
-      // This is expected backward-compatible behavior
-    } finally {
-      plainApp.stop();
-    }
+      }),
+    );
+    const result = (await res.json()) as { data: Record<string, unknown>; errors?: unknown[] };
+    expect(result.errors).toBeUndefined();
+    const emp = result.data.createEmployee as Record<string, unknown>;
+    expect(emp.first_name).toBe("Test");
+    // full_name will be null (not computed since no engine is wired)
+    // This is expected backward-compatible behavior
   });
 });

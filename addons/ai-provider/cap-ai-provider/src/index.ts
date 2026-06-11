@@ -34,7 +34,13 @@ export {
   resolveModelRoute,
   resolveTenantConfig,
 } from "./ai-service";
-
+// AI trace persistence (Spec 69 Phase 3 — durable PG-backed AITraceSink)
+export {
+  DEFAULT_TRACE_RETENTION_DAYS,
+  DrizzleAITraceStore,
+  type DrizzleAITraceStoreOptions,
+} from "./ai-trace-store-drizzle";
+export { aiGenerationsTable, aiTracesTable } from "./ai-trace-tables";
 // Anomaly Detector (moved from @linchkit/core, Spec 56 Phase 2 Step 2c)
 export type {
   AnomalyDetection,
@@ -45,11 +51,14 @@ export type {
   UsageEvent,
 } from "./anomaly-detector";
 export { AnomalyDetector } from "./anomaly-detector";
-
+// Code generation provider (G5 Phase 1) — implements core's CodeGenerationProvider
+// seam over the configured AIService. Produces candidate source only; never
+// writes/runs code (gated by validation + double human review).
+export type { CodeGenerationProviderOptions } from "./code-generation-provider";
+export { createCodeGenerationProvider } from "./code-generation-provider";
 // Cost Estimator
 export type { ModelPricing } from "./cost-estimator";
 export { CostEstimator, defaultCostEstimator } from "./cost-estimator";
-
 // NOTE: the AI Eval scenario adapter (spec 69) is intentionally NOT exported
 // from the package root. It lives in `<cap-ai-provider>/eval-runner/` —
 // outside `src/` and therefore outside the published `files` allowlist —
@@ -68,7 +77,6 @@ export type {
   ResolveIntentInput,
 } from "./intent-resolver";
 export { MIN_CONFIDENCE, resolveIntent } from "./intent-resolver";
-
 // Pattern Detector (moved from @linchkit/core, Spec 56 Phase 2 Step 2c)
 export type {
   PatternDetectorConfig,
@@ -77,10 +85,18 @@ export type {
   PatternType,
 } from "./pattern-detector";
 export { PatternDetector } from "./pattern-detector";
-
 // Response Cache
 export { AIResponseCache } from "./response-cache";
-
+// Raw-stream trace instrumentation — onFinish/onError/onAbort callbacks for
+// caller-owned `streamText` calls (streaming chat endpoint + AG-UI runner) so
+// transport-layer assistant traffic records to the same trace sink as
+// `completeStream`. See ./stream-instrumentation.ts.
+export type {
+  InstrumentRawStreamOptions,
+  RawStreamInstrumentation,
+  RawStreamMessage,
+} from "./stream-instrumentation";
+export { instrumentRawStream } from "./stream-instrumentation";
 // Watcher Engine (moved from @linchkit/core, Spec 56 Phase 2 Step 2c)
 export {
   createWatcherEngine,
@@ -91,7 +107,6 @@ export {
   type WatcherEngine,
   type WatcherEngineOptions,
 } from "./watcher-engine";
-
 // Watcher debounce-state persistence (Spec 45 §4 — restart-safe debounce)
 export {
   InMemoryWatcherStateStore,

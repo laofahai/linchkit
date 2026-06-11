@@ -11,6 +11,7 @@
  */
 
 import type { EntityRegistry } from "../entity/entity-registry";
+import type { OntologyRegistry } from "../ontology/ontology-registry";
 import type { ActionDefinition } from "../types/action";
 import type { EntityDefinition, FieldType } from "../types/entity";
 import type {
@@ -24,6 +25,10 @@ import type {
 } from "../types/proposal";
 import type { RuleDefinition } from "../types/rule";
 import type { StateDefinition } from "../types/state";
+import { validatePhase2 } from "./validation-phase2";
+import { validatePhase3 } from "./validation-phase3";
+import { validatePhase4 } from "./validation-phase4";
+import { validatePhase5 } from "./validation-phase5";
 
 // ── Valid field types ────────────────────────────────────
 // Relationships are now declared via defineRelation(), not field types
@@ -56,6 +61,41 @@ export interface ValidationContext {
   existingStates?: string[];
   /** Existing event names */
   existingEvents?: string[];
+  /**
+   * Read-only semantic view of the CURRENT (pre-change) meta-model. Used by
+   * Phase 3 (compatibility) to detect breaking references. When absent, Phase 3
+   * degrades to "skipped" (no findings) — existing callers stay unchanged.
+   */
+  ontology?: OntologyRegistry;
+  /**
+   * Escalate Phase 3 breaking-reference findings from WARN to BLOCK. Default
+   * (false / undefined) → Phase 3 is warn-only and does NOT affect `passed`.
+   * Mirrors the `strictValidation` env-feature pattern.
+   */
+  strictCompatibility?: boolean;
+  /**
+   * Escalate Phase 2 (build/syntax) findings on AI-materialized `generatedSource`
+   * from WARN to BLOCK. Default (false / undefined) → Phase 2 is warn-only and
+   * does NOT affect `passed`. When no change carries generated source, Phase 2 is
+   * skipped regardless. Mirrors the `strictCompatibility` pattern.
+   */
+  strictGeneratedBuild?: boolean;
+  /**
+   * Escalate Phase 4 (generated-source contract) findings from WARN to BLOCK.
+   * Default (false / undefined) → Phase 4 is warn-only and does NOT affect
+   * `passed`. The checks are heuristic (execution-free static checks that the AI
+   * generated the declared `define*()` target/name), so warn-only is the safe
+   * default. When no change carries generated source, Phase 4 is skipped.
+   */
+  strictGeneratedContract?: boolean;
+  /**
+   * Escalate Phase 5 (execution dry-run) findings from WARN to BLOCK. Default
+   * (false/undefined) → Phase 5 is warn-only. Unlike `strictGeneratedContract`
+   * this is NOT auto-derived from `isProduction` (Spec 70 §7) — it depends on
+   * configured sandbox infra. An `infra_error` dry-run status NEVER blocks, even
+   * when this is true.
+   */
+  strictExecutionDryRun?: boolean;
 }
 
 // ── Phase 1: Static checks ──────────────────────────────
@@ -639,30 +679,50 @@ export function validateProposal(options: {
   // Phase 1: Static checks
   const phase1 = validatePhase1({ changes: proposal.changes, context });
 
-  // Phase 2-4: Skipped for M1
-  const phase2: PhaseResult = {
-    phase: 2,
-    status: "skipped",
-    errors: [],
-    warnings: [],
-    duration: 0,
-  };
-  const phase3: PhaseResult = {
-    phase: 3,
-    status: "skipped",
-    errors: [],
-    warnings: [],
-    duration: 0,
-  };
-  const phase4: PhaseResult = {
-    phase: 4,
-    status: "skipped",
-    errors: [],
-    warnings: [],
-    duration: 0,
-  };
+  // Phase 2: Build (syntax) check of any AI-materialized `generatedSource` on the
+  // changes (G5). Warn-only by default; gated to BLOCK via strictGeneratedBuild.
+  // When no change carries generated source, validatePhase2 returns "skipped" —
+  // existing all-declarative callers are unaffected.
+  const phase2 = validatePhase2({
+    changes: proposal.changes,
+    strictGeneratedBuild: context?.strictGeneratedBuild,
+  });
 
-  const phases = [phase1, phase2, phase3, phase4];
+  // Phase 3: Compatibility (breaking-reference) check (Spec 09 §4.5).
+  // Warn-only by default; gated to BLOCK via context.strictCompatibility. When
+  // the context carries no ontology, validatePhase3 returns "skipped" — same
+  // behavior as before this phase existed, so existing callers are unaffected.
+  const phase3 = validatePhase3({
+    changes: proposal.changes,
+    ontology: context?.ontology,
+    strictCompatibility: context?.strictCompatibility,
+  });
+
+  // Phase 4: Generated-source CONTRACT check (G5) — static, EXECUTION-FREE
+  // verification that any AI-materialized `generatedSource` actually defines the
+  // declared target/name (right define*() call, references its name, imports
+  // core). Warn-only by default; gated to BLOCK via strictGeneratedContract. No
+  // generated source → "skipped". A true execution-based dry-run is intentionally
+  // out of scope (it would require a sandbox to run untrusted AI code).
+  const phase4 = validatePhase4({
+    changes: proposal.changes,
+    strictGeneratedContract: context?.strictGeneratedContract,
+  });
+
+  // Phase 5: Execution dry-run SIGNAL (Spec 70 P2) — reads the DURABLE
+  // `dryRunStatus` a sandbox runner stamps on a change (the actual sandboxed
+  // execution runs LATER in a capability, P3, never here). A failing dry-run
+  // (threw/timeout/oom/forbidden_side_effect/malformed_output) becomes a content
+  // finding; `infra_error` is always a non-blocking warning. Warn-only by
+  // default; gated to BLOCK via strictExecutionDryRun (opt-in, NOT derived from
+  // isProduction). No change carries a `dryRunStatus` → "skipped". Stays SYNC —
+  // it executes nothing.
+  const phase5 = validatePhase5({
+    changes: proposal.changes,
+    strictExecutionDryRun: context?.strictExecutionDryRun,
+  });
+
+  const phases = [phase1, phase2, phase3, phase4, phase5];
   const passed = phases.filter((p) => p.status !== "skipped").every((p) => p.status === "passed");
 
   // Generate impact summary

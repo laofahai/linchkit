@@ -6,7 +6,7 @@
  * envelope produced by `CommandLayer.executeBatch`.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type {
   ActionDefinition,
   DataProvider,
@@ -152,17 +152,21 @@ const app = createServer(graphqlSchema, {
   commandLayer,
   transactionManager: txManager,
 });
-const port = 4031;
 
-const baseUrl = () => `http://localhost:${port}`;
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
 
 async function postJSON(path: string, body: unknown, init?: RequestInit) {
-  const res = await fetch(`${baseUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    ...init,
-  });
+  const res = await app.handle(
+    new Request(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      ...init,
+    }),
+  );
   const text = await res.text();
   let json: Record<string, unknown> | undefined;
   try {
@@ -172,14 +176,6 @@ async function postJSON(path: string, body: unknown, init?: RequestInit) {
   }
   return { status: res.status, body: json, raw: text };
 }
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
 
 describe("POST /api/actions/batch", () => {
   test("(a) valid partial batch returns 200 with structured BatchActionsResult", async () => {

@@ -8,6 +8,7 @@ import {
   CardTitle,
   Skeleton,
 } from "@linchkit/ui-kit/components";
+import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -214,24 +215,6 @@ function StatusBadge({ status }: { status: ExecutionLogEntry["status"] }) {
         </Badge>
       );
   }
-}
-
-// ── Time formatting ─────────────────────────────────────
-
-function formatRelativeTime(
-  dateStr: string,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return t("time.justNow", { defaultValue: "just now" });
-  if (diffMin < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: diffMin });
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: diffHr });
-  const diffDay = Math.floor(diffHr / 24);
-  return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: diffDay });
 }
 
 // ── State Breakdown Badges ──────────────────────────────

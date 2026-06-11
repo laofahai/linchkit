@@ -16,20 +16,34 @@ import {
   CardTitle,
   Skeleton,
 } from "@linchkit/ui-kit/components";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
+  AlertTriangleIcon,
   BotIcon,
   CheckCircle2,
   ClockIcon,
   CodeIcon,
+  ExternalLinkIcon,
   GitBranchIcon,
   HistoryIcon,
+  Loader2Icon,
+  PlayIcon,
   RefreshCwIcon,
   RotateCcwIcon,
   UserIcon,
+  XCircleIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type EvolutionEntry, fetchEvolutionHistory } from "@/lib/proposal-api";
+import { NlRuleDrafter } from "@/components/nl-rule-drafter";
+import { SchedulerStatusPanel } from "@/components/scheduler-status-panel";
+import {
+  type EvolutionEntry,
+  fetchEvolutionHistory,
+  type RunEvolutionCycleResult,
+  runEvolutionCycle,
+} from "@/lib/proposal-api";
 
 // ── Change type badge ────────────────────────────────────
 
@@ -175,36 +189,146 @@ function TimelineItem({ entry, isLast }: { entry: EvolutionEntry; isLast: boolea
   );
 }
 
+// ── Run-cycle outcome line ───────────────────────────────
+
+function RunCycleOutcome({
+  result,
+  t,
+}: {
+  result: RunEvolutionCycleResult;
+  t: ReturnType<typeof useTranslation>["t"];
+}) {
+  switch (result.kind) {
+    case "ran":
+      return (
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300"
+          data-testid="run-cycle-ran"
+        >
+          <CheckCircle2 className="size-4 shrink-0" />
+          <span>
+            {t("evolution.runCycle.summary", {
+              created: result.created,
+              deduped: result.deduped,
+              total: result.total,
+              defaultValue: "Created {{created}} draft(s), {{deduped}} deduped ({{total}} total)",
+            })}
+          </span>
+          {/* Route the reviewer to the human-gated review surface. */}
+          <Link to={"/admin/proposals" as "/"}>
+            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs">
+              <ExternalLinkIcon className="size-3" />
+              {t("evolution.runCycle.reviewLink", "Review proposals")}
+            </Button>
+          </Link>
+        </div>
+      );
+
+    case "unavailable":
+      return (
+        <div
+          className="flex items-center gap-2 rounded-md border border-dashed bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+          data-testid="run-cycle-unavailable"
+        >
+          <AlertTriangleIcon className="size-4 shrink-0" />
+          <span>
+            {result.message ?? t("evolution.runCycle.unavailable", "Evolution cycle not available")}
+          </span>
+        </div>
+      );
+
+    case "denied":
+      return (
+        <div
+          className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          data-testid="run-cycle-denied"
+        >
+          <XCircleIcon className="size-4 shrink-0" />
+          <span>{t("evolution.runCycle.denied", "Not authorized")}</span>
+        </div>
+      );
+
+    case "error":
+      return (
+        <div
+          className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          data-testid="run-cycle-error"
+        >
+          <AlertTriangleIcon className="size-4 shrink-0" />
+          <span>{result.message}</span>
+        </div>
+      );
+  }
+}
+
 // ── Main Page ────────────────────────────────────────────
 
 export function EvolutionPage() {
   const { t } = useTranslation();
-  const [entries, setEntries] = useState<EvolutionEntry[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const loadHistory = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchEvolutionHistory();
-      setEntries(data);
-    } catch {
-      setEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // History load failures render the same empty-timeline card as "no history"
+  // (the manual loader swallowed errors into an empty list).
+  const historyQuery = useQuery<EvolutionEntry[]>({
+    queryKey: ["evolution-history"],
+    queryFn: fetchEvolutionHistory,
+  });
+  const entries = historyQuery.data ?? [];
+  const loading = historyQuery.isLoading;
 
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  const runCycleMutation = useMutation<RunEvolutionCycleResult>({
+    mutationFn: async () => {
+      try {
+        return await runEvolutionCycle();
+      } catch (err) {
+        // runEvolutionCycle maps transport errors internally; this defensive catch
+        // keeps an unexpected throw from becoming an unhandled mutation error.
+        return {
+          kind: "error",
+          message: err instanceof Error ? err.message : "Evolution cycle failed",
+        };
+      }
+    },
+  });
+  const running = runCycleMutation.isPending;
+  // Hide the previous outcome while a new cycle is in flight (the manual
+  // handler reset the result to null before each run).
+  const runResult = running ? null : (runCycleMutation.data ?? null);
+
+  const handleRunCycle = () => {
+    if (running) return;
+    runCycleMutation.mutate();
+  };
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex justify-end">
-        <Button variant="outline" size="icon-sm" onClick={loadHistory}>
+      {/* Read-only heartbeat of the autonomous evolution cadence loop. Auto-polls
+          so the operator can see at a glance whether the scheduler is alive. */}
+      <SchedulerStatusPanel pollIntervalMs={15000} />
+
+      {/* "说→有" — draft a governed rule from natural language. The draft enters
+          the human-gated review pipeline; this surface never approves/applies. */}
+      <NlRuleDrafter />
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button size="sm" onClick={handleRunCycle} disabled={running}>
+          {running ? (
+            <Loader2Icon className="mr-1 size-3.5 animate-spin" />
+          ) : (
+            <PlayIcon className="mr-1 size-3.5" />
+          )}
+          {t("evolution.runCycle.action", "Run Evolution Cycle")}
+        </Button>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          onClick={() => void historyQuery.refetch()}
+          aria-label={t("common.refresh", "Refresh")}
+        >
           <RefreshCwIcon className="h-4 w-4" />
         </Button>
       </div>
+
+      {runResult && <RunCycleOutcome result={runResult} t={t} />}
 
       {/* Timeline */}
       {loading ? (

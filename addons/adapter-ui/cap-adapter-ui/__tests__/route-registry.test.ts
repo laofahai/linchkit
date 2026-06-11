@@ -1,5 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { _clearAdminRoutes, getAdminRoutes, registerAdminRoute } from "../src/lib/route-registry";
+/**
+ * Route-registry unit tests run against an ISOLATED instance from
+ * createAdminRouteRegistry() — never against the shared module singleton.
+ * Capability packages (cap-adapter-mcp UI, …) register into the singleton at
+ * import time and assert on it; clearing it here raced those assertions under
+ * bun's batched test run (#539).
+ */
+
+import { beforeEach, describe, expect, it } from "bun:test";
+import { type AdminRouteRegistry, createAdminRouteRegistry } from "../src/lib/route-registry";
 
 // ── Helpers ─────────────────────────────────────────────
 
@@ -17,50 +25,48 @@ function makeRoute(overrides: Record<string, unknown> = {}) {
 // ── Tests ───────────────────────────────────────────────
 
 describe("Admin Route Registry", () => {
+  let registry: AdminRouteRegistry;
+
   beforeEach(() => {
-    _clearAdminRoutes();
+    registry = createAdminRouteRegistry();
   });
 
-  afterEach(() => {
-    _clearAdminRoutes();
+  it("register adds a route", () => {
+    registry.register(makeRoute());
+    expect(registry.getAll()).toHaveLength(1);
+    expect(registry.getAll()[0]?.id).toBe("test-route");
   });
 
-  it("registerAdminRoute adds a route", () => {
-    registerAdminRoute(makeRoute());
-    expect(getAdminRoutes()).toHaveLength(1);
-    expect(getAdminRoutes()[0]?.id).toBe("test-route");
-  });
+  it("getAll returns sorted by order", () => {
+    registry.register(makeRoute({ id: "c", order: 300 }));
+    registry.register(makeRoute({ id: "a", order: 10 }));
+    registry.register(makeRoute({ id: "b", order: 50 }));
 
-  it("getAdminRoutes returns sorted by order", () => {
-    registerAdminRoute(makeRoute({ id: "c", order: 300 }));
-    registerAdminRoute(makeRoute({ id: "a", order: 10 }));
-    registerAdminRoute(makeRoute({ id: "b", order: 50 }));
-
-    const routes = getAdminRoutes();
+    const routes = registry.getAll();
     expect(routes.map((r) => r.id)).toEqual(["a", "b", "c"]);
   });
 
   it("throws on duplicate ID", () => {
-    registerAdminRoute(makeRoute({ id: "dup" }));
-    expect(() => registerAdminRoute(makeRoute({ id: "dup" }))).toThrow(
+    registry.register(makeRoute({ id: "dup" }));
+    expect(() => registry.register(makeRoute({ id: "dup" }))).toThrow(
       'Admin route "dup" is already registered',
     );
   });
 
-  it("getAdminRoutes returns a copy, not a reference", () => {
-    registerAdminRoute(makeRoute());
-    const a = getAdminRoutes();
-    const b = getAdminRoutes();
+  it("getAll returns a copy, not a reference", () => {
+    registry.register(makeRoute());
+    const a = registry.getAll();
+    const b = registry.getAll();
     expect(a).not.toBe(b);
     expect(a).toEqual(b);
   });
 
   it("default order is 100", () => {
-    registerAdminRoute(makeRoute({ id: "low", order: 50 }));
-    registerAdminRoute(makeRoute({ id: "default" })); // no order → 100
-    registerAdminRoute(makeRoute({ id: "high", order: 200 }));
+    registry.register(makeRoute({ id: "low", order: 50 }));
+    registry.register(makeRoute({ id: "default" })); // no order → 100
+    registry.register(makeRoute({ id: "high", order: 200 }));
 
-    const routes = getAdminRoutes();
+    const routes = registry.getAll();
     expect(routes.map((r) => r.id)).toEqual(["low", "default", "high"]);
   });
 
@@ -73,14 +79,20 @@ describe("Admin Route Registry", () => {
       icon: "Terminal",
       order: 42,
     });
-    registerAdminRoute(route);
+    registry.register(route);
 
-    const [result] = getAdminRoutes();
+    const [result] = registry.getAll();
     expect(result?.id).toBe("full");
     expect(result?.capability).toBe("cap-mcp");
     expect(result?.path).toBe("/admin/mcp");
     expect(result?.label).toBe("mcp.title");
     expect(result?.icon).toBe("Terminal");
     expect(result?.order).toBe(42);
+  });
+
+  it("instances are isolated from each other and from the shared singleton", () => {
+    registry.register(makeRoute({ id: "iso" }));
+    const other = createAdminRouteRegistry();
+    expect(other.getAll()).toHaveLength(0);
   });
 });

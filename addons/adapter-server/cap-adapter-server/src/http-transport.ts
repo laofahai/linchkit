@@ -9,6 +9,12 @@
 import type { Actor, TransportContext, TransportLifecycle } from "@linchkit/core";
 import { serverConfig } from "@linchkit/core";
 import { consoleLogger, createOnchangeEvaluator } from "@linchkit/core/server";
+import {
+  createEvolutionCadence,
+  resolveCadenceIntervalMs,
+  resolveCadenceTenantIds,
+} from "./evolution-scheduler-wiring";
+import { wireAITraceSink } from "./wire-ai-trace-sink";
 
 export function resolveRequestTenantId(request: Request, actor?: Actor): string | undefined {
   // Prefer tenant from verified actor (auth middleware already validated the JWT).
@@ -58,6 +64,15 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
         executionLogger: ctx.executionLogger,
       })
     : undefined;
+
+  // AI trace sink (Spec 69 P3 wave 2) — register a LIVE sink so the AI
+  // instrumentation's `getAITraceSink().recordGeneration(...)` calls are actually
+  // persisted in the real serving path (NOT dev-only). When `ctx.dataProvider` is a
+  // DrizzleDataProvider (DATABASE_URL set) its db handle is reused for a durable
+  // DrizzleAITraceStore; otherwise (InMemoryStore fallback) an InMemoryAITraceStore
+  // is wired. Non-throwing: a wiring failure logs + leaves the prior sink in place,
+  // never aborting transport startup.
+  await wireAITraceSink({ dataProvider: ctx.dataProvider });
 
   // Generate CRUD actions for each business schema (skip internal)
   const crudOpts = ctx.derivedPropertyEngine
@@ -130,6 +145,28 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
   // Collect rule definitions from all capabilities for /api/rules endpoint
   const allRules = (ctx.capabilities ?? []).flatMap((c) => c.rules ?? []);
 
+  // Spec 55 §7 — OPT-IN autonomous cadence. OFF unless EVOLUTION_CADENCE_INTERVAL_MS
+  // is set to a positive integer (ms). The tick runs one cycle and persists its
+  // proposals as DRAFTS only — approval and graduation stay human-gated. Built
+  // here (un-started) BEFORE the server so its read-only status can be wired into
+  // `GET /api/evolution/scheduler-status`; started/stopped with the lifecycle below.
+  const cadenceIntervalMs = resolveCadenceIntervalMs();
+  const evolutionScheduler =
+    cadenceIntervalMs !== null
+      ? createEvolutionCadence({
+          evolutionRuntime: ctx.evolutionRuntime,
+          intervalMs: cadenceIntervalMs,
+          tenantIds: resolveCadenceTenantIds(),
+        })
+      : null;
+  // The operator opted into cadence but no evolution runtime is wired, so
+  // createEvolutionCadence returned null — warn instead of silently doing nothing.
+  if (cadenceIntervalMs !== null && !evolutionScheduler) {
+    consoleLogger.warn(
+      "[cap-adapter-server] EVOLUTION_CADENCE_INTERVAL_MS is set but no evolution runtime is wired — autonomous cadence will NOT start.",
+    );
+  }
+
   const app = createServer(graphqlSchema, {
     port,
     executor: ctx.executor,
@@ -139,6 +176,12 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
     views: viewsMap,
     capabilities: ctx.capabilities,
     dataProvider: ctx.dataProvider,
+    // Wire the event bus so SSE /api/subscribe is live (subscription-api bails when absent).
+    eventBus: ctx.eventBus,
+    // Wire the approval engine so /api/approvals works (returns 501 when absent).
+    approvalEngine: ctx.approvalEngine,
+    // Wire the cache manager so /internal/cache/stats reports real stats (errors when absent).
+    cacheManager: ctx.cacheManager,
     healthCheckRegistry: ctx.healthCheckRegistry,
     permissionGroups: permGroups,
     entityMap,
@@ -159,6 +202,13 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
     onchangeEvaluator,
     overlayRegistry: ctx.overlayRegistry,
     resolveRequestTenantId,
+    // Spec 55 §7 — enable `POST /api/evolution/run-cycle` so an operator can run
+    // one on-demand evolution cycle and land its proposals as governance drafts.
+    evolutionRuntime: ctx.evolutionRuntime,
+    // Spec 55 §7 — expose the opt-in cadence scheduler's read-only status via
+    // `GET /api/evolution/scheduler-status` (null when cadence is disabled →
+    // that endpoint reports `{ configured: false }`).
+    evolutionScheduler: evolutionScheduler ?? undefined,
   });
 
   return {
@@ -168,8 +218,16 @@ export async function createHttpTransport(ctx: TransportContext): Promise<Transp
       console.log(`[cap-adapter-server] HTTP:    http://${displayHost}:${port}`);
       console.log(`[cap-adapter-server] GraphQL: http://${displayHost}:${port}/graphql`);
       console.log(`[cap-adapter-server] Health:  http://${displayHost}:${port}/health`);
+      if (evolutionScheduler) {
+        evolutionScheduler.start();
+        console.log(
+          `[cap-adapter-server] Evolution cadence: ON (every ${cadenceIntervalMs}ms, DRAFT-only)`,
+        );
+      }
     },
     stop: () => {
+      // Stop the opt-in evolution cadence timer (if running).
+      evolutionScheduler?.stop();
       // Stop the subscription manager (heartbeat/idle timers) if present
       const subManager = (app as { __subscriptionManager?: { stop?: () => void } })
         .__subscriptionManager;

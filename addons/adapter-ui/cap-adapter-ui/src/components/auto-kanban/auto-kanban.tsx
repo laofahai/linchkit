@@ -2,7 +2,10 @@
  * AutoKanban — Kanban board view for entities with state fields.
  *
  * Groups records by state field value into draggable columns.
- * Drag-and-drop between columns triggers state transitions via GraphQL.
+ * Drag-and-drop between columns runs the transition's bound Action (server
+ * performs the declarative transition, setFields stamps, rules/flows); the
+ * generic transition mutation is used only when the transition edge has no
+ * bound action — see lib/transition-dispatch.ts.
  * Uses native HTML drag-and-drop API (no external library).
  */
 
@@ -13,8 +16,9 @@ import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "../../i18n/use-entity-label";
-import { transitionRecord } from "../../lib/api";
+import { executeAction, queryRecord, transitionRecord } from "../../lib/api";
 import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
+import { executeTransition, resolveBoundAction } from "../../lib/transition-dispatch";
 
 // ── Types ────────────────────────────────────────────────
 
@@ -338,11 +342,24 @@ export function AutoKanban({
         return;
       }
 
-      // Execute transition
+      // Execute transition — through the bound Action when the state machine
+      // declares one for this edge (declarative stateTransition + setFields +
+      // rules/flows happen server-side); raw transition mutation otherwise.
       setTransitioningId(recordId);
       try {
         const fields = queryFields ?? ["id", stateField];
-        await transitionRecord(schema.name, recordId, toState, fields);
+        const outcome = await executeTransition({
+          entityName: schema.name,
+          recordId,
+          to: toState,
+          boundAction: resolveBoundAction(stateDefinition.transitions, fromState, toState),
+          recordFields: fields,
+          api: { executeAction, transitionRecord, queryRecord },
+        });
+        if (outcome.kind === "failed") {
+          toast.error(outcome.message ?? t("toast.transitionFailed", "Status change failed"));
+          return;
+        }
         toast.success(t("toast.transitionSuccess", "Status changed successfully"));
         onTransitioned?.();
       } catch (err) {
@@ -353,7 +370,16 @@ export function AutoKanban({
         setTransitioningId(null);
       }
     },
-    [dragState, isValidDrop, schema.name, stateField, queryFields, onTransitioned, t],
+    [
+      dragState,
+      isValidDrop,
+      schema.name,
+      stateField,
+      stateDefinition.transitions,
+      queryFields,
+      onTransitioned,
+      t,
+    ],
   );
 
   // End drag when leaving the board area

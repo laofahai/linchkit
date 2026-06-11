@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { EntityDefinition, StateDefinition } from "@linchkit/core";
 import { createActionExecutor, InMemoryStore } from "@linchkit/core/server";
 import { buildGraphQLSchema, generateCrudActions } from "../src/graphql/build-schema";
@@ -58,15 +58,7 @@ const graphqlSchema = buildGraphQLSchema([orderSchema], {
 });
 
 const app = createServer(graphqlSchema);
-const port = 3996;
-
-beforeAll(() => {
-  app.listen(port);
-});
-
-afterAll(() => {
-  app.stop();
-});
+const BASE = "http://local.test";
 
 beforeEach(() => {
   store.clear();
@@ -75,11 +67,13 @@ beforeEach(() => {
 // ── Helper ───────────────────────────────────────────────
 
 async function gql(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{ data: Record<string, unknown>; errors?: unknown[] }>;
 }
 

@@ -1,9 +1,11 @@
 /**
- * @linchkit/cap-adapter-ag-ui — AG-UI adapter (SKELETON)
+ * @linchkit/cap-adapter-ag-ui — AG-UI protocol adapter
  *
  * AG-UI (Agent-User Interaction) protocol adapter — CopilotKit open standard for
  * bidirectional, real-time agent ↔ frontend communication over SSE (Spec 15 §6.5).
- * Only the capability/transport scaffold is implemented; real logic is deferred (#89).
+ * Phase 1 (#89): canonical protocol types from `@ag-ui/core` (re-exported via
+ * `./protocol`) + the `POST <basePath>/run` endpoint bridging the assistant
+ * AIService seam to AG-UI events.
  */
 
 export type { TransportAdapterDefinition } from "@linchkit/core";
@@ -14,3 +16,42 @@ export { capAdapterAgUi } from "./capability";
 export { capAdapterAgUiConfig } from "./config";
 export type { CapAdapterAgUiOptions } from "./factory";
 export { createCapAdapterAgUi } from "./factory";
+// Canonical AG-UI protocol types (re-exported from @ag-ui/core) + SSE framing
+export type {
+  AGUIEvent,
+  BaseEvent,
+  Context,
+  CustomEvent,
+  Message,
+  RunAgentInput,
+  RunErrorEvent,
+  RunFinishedEvent,
+  RunStartedEvent,
+  StateDeltaEvent,
+  StateSnapshotEvent,
+  TextMessageContentEvent,
+  TextMessageEndEvent,
+  TextMessageStartEvent,
+  Tool,
+  ToolCall,
+  ToolCallArgsEvent,
+  ToolCallEndEvent,
+  ToolCallStartEvent,
+} from "./protocol";
+export { EventType, encodeSseEvent, RunAgentInputSchema } from "./protocol";
+// Run endpoint (test seams: inject a fake AIService or a custom runner)
+export type {
+  AgUiAgentRunner,
+  AgUiEmit,
+  AgUiRunDeps,
+  AgUiRunHandler,
+  AgUiRunHandlerContext,
+} from "./run-endpoint";
+export {
+  createAgUiApp,
+  createAgUiRunHandler,
+  DEFAULT_AG_UI_BASE_PATH,
+  mountAgUiRunRoute,
+  toAiMessages,
+  toAiTools,
+} from "./run-endpoint";

@@ -10,7 +10,7 @@
  *   - permission middleware on the CommandLayer protects every batch item
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type {
   ActionDefinition,
   DataProvider,
@@ -168,20 +168,9 @@ const app = createServer(graphqlSchema, {
   resolveRequestActor: () => ({ type: "system", id: "anonymous", groups: [] }),
 });
 
-// Use OS-assigned port (0 → auto) so the suite isn't flaky when a parallel
-// worker already owns a fixed port. Captured after `listen()` returns.
-let port = 0;
-
-beforeAll(() => {
-  app.listen(0);
-  const server = (app as unknown as { server?: { port?: number } }).server;
-  if (!server?.port) throw new Error("Test server failed to bind to a port");
-  port = server.port;
-});
-
-afterAll(() => {
-  app.stop();
-});
+// In-process, port-free: this URL only supplies a path to `new Request(...)` for
+// `app.handle` — no socket is bound, so a dummy domain is used (no real port).
+const BASE = "http://local.test";
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -226,11 +215,13 @@ async function gql(
   data?: { batch_actions?: BatchActionsResultGQL } & Record<string, unknown>;
   errors?: Array<{ message: string }>;
 }> {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return res.json() as Promise<{
     data?: { batch_actions?: BatchActionsResultGQL } & Record<string, unknown>;
     errors?: Array<{ message: string }>;

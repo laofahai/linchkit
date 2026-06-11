@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import { printSchema } from "graphql";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
@@ -109,18 +109,10 @@ describe("buildGraphQLSchema", () => {
 describe("createServer", () => {
   const schema = buildGraphQLSchema([taskSchema]);
   const app = createServer(schema);
-  const port = 3999; // Use a different port for tests
-
-  beforeAll(() => {
-    app.listen(port);
-  });
-
-  afterAll(() => {
-    app.stop();
-  });
+  const BASE = "http://local.test";
 
   test("health check returns ok", async () => {
-    const res = await fetch(`http://localhost:${port}/health`);
+    const res = await app.handle(new Request(`${BASE}/health`));
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -137,11 +129,13 @@ describe("createServer", () => {
 			}
 		}`;
 
-    const res = await fetch(`http://localhost:${port}/graphql`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: introspectionQuery }),
-    });
+    const res = await app.handle(
+      new Request(`${BASE}/graphql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: introspectionQuery }),
+      }),
+    );
 
     expect(res.status).toBe(200);
 
@@ -166,11 +160,13 @@ describe("createServer", () => {
 			}
 		}`;
 
-    const res = await fetch(`http://localhost:${port}/graphql`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
+    const res = await app.handle(
+      new Request(`${BASE}/graphql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      }),
+    );
 
     expect(res.status).toBe(200);
 
@@ -182,7 +178,7 @@ describe("createServer", () => {
   });
 
   test("tenants endpoint returns empty list when no tenants configured", async () => {
-    const res = await fetch(`http://localhost:${port}/api/tenants`);
+    const res = await app.handle(new Request(`${BASE}/api/tenants`));
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as { success: boolean; data: unknown[] };
@@ -191,11 +187,13 @@ describe("createServer", () => {
   });
 
   test("action endpoint returns 500 when no executor configured", async () => {
-    const res = await fetch(`http://localhost:${port}/api/actions/submit_request`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: "pr_001" }),
-    });
+    const res = await app.handle(
+      new Request(`${BASE}/api/actions/submit_request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "pr_001" }),
+      }),
+    );
 
     expect(res.status).toBe(500);
     const body = (await res.json()) as {
@@ -217,18 +215,10 @@ describe("createServer /api/tenants with configured tenants", () => {
     { id: "tenant-b", name: "Tenant B" },
   ];
   const app = createServer(schema, { tenants: testTenants });
-  const port = 4099;
-
-  beforeAll(() => {
-    app.listen(port);
-  });
-
-  afterAll(() => {
-    app.stop();
-  });
+  const BASE = "http://local.test";
 
   test("returns configured tenant list", async () => {
-    const res = await fetch(`http://localhost:${port}/api/tenants`);
+    const res = await app.handle(new Request(`${BASE}/api/tenants`));
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {

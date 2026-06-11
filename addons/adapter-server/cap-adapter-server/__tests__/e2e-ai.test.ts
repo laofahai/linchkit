@@ -10,7 +10,7 @@
  * Tests both with mock AI service and without (graceful degradation).
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { ActionDefinition, AIService, EntityDefinition } from "@linchkit/core";
 import { ActionRegistry, createOntologyRegistry, EntityRegistry } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
@@ -54,6 +54,11 @@ const createTaskAction: ActionDefinition = {
 };
 
 const graphqlSchema = buildGraphQLSchema([taskSchema]);
+
+// In-process, port-free: requests are dispatched via `app.handle(new Request(...))`.
+// A dummy domain is used since no socket is bound (`app.listen` would SEGFAULT the
+// batched addons run when many server suites accumulate sockets in one process).
+const BASE = "http://local.test";
 
 // ── Mock AI service ──────────────────────────────────────
 
@@ -135,31 +140,27 @@ const mockAiService: AIService = {
 // ══════════════════════════════════════════════════════════
 
 describe("E2E AI endpoints — no AI service configured", () => {
-  const PORT = 32140;
   let server: ReturnType<typeof createServer>;
 
   beforeAll(() => {
-    server = createServer(graphqlSchema, { port: PORT });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
+    server = createServer(graphqlSchema);
   });
 
   test("1. /api/ai/auto-fill returns empty suggestions", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        schema: "task",
-        fields: {
-          title: { type: "string", label: "Title", required: true },
-          description: { type: "text", label: "Description" },
-        },
-        currentValues: {},
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/auto-fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema: "task",
+          fields: {
+            title: { type: "string", label: "Title", required: true },
+            description: { type: "text", label: "Description" },
+          },
+          currentValues: {},
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -168,15 +169,17 @@ describe("E2E AI endpoints — no AI service configured", () => {
   });
 
   test("2. /api/ai/search returns null data", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: "high priority tasks for Alice",
-        schema: "task",
-        fields: { priority: { type: "enum", label: "Priority" } },
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "high priority tasks for Alice",
+          schema: "task",
+          fields: { priority: { type: "enum", label: "Priority" } },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -185,13 +188,15 @@ describe("E2E AI endpoints — no AI service configured", () => {
   });
 
   test("3. /api/ai/resolve-intent returns 503 when AI is not configured", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: "Create a task for CI/CD setup",
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/resolve-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: "Create a task for CI/CD setup",
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(503);
     const json = await res.json();
@@ -200,14 +205,16 @@ describe("E2E AI endpoints — no AI service configured", () => {
   });
 
   test("4. /api/ai/chat returns 503 when not configured", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: [{ role: "user", content: "Hello" }],
-        context: {},
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: "Hello" }],
+          context: {},
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(503);
     const json = await res.json();
@@ -216,7 +223,7 @@ describe("E2E AI endpoints — no AI service configured", () => {
   });
 
   test("5. /api/app-config shows aiEnabled=false", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/app-config`);
+    const res = await server.handle(new Request(`${BASE}/api/app-config`));
     const json = await res.json();
     expect(json.data.aiEnabled).toBe(false);
   });
@@ -227,7 +234,6 @@ describe("E2E AI endpoints — no AI service configured", () => {
 // ══════════════════════════════════════════════════════════
 
 describe("E2E AI endpoints — with mock AI service", () => {
-  const PORT = 32141;
   let server: ReturnType<typeof createServer>;
 
   const actionRegistry = new ActionRegistry();
@@ -255,33 +261,29 @@ describe("E2E AI endpoints — with mock AI service", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: mockAiService,
       // biome-ignore lint/suspicious/noExplicitAny: mock for test
       executor: mockExecutor as any,
       entityRegistry,
       ontologyRegistry,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
   });
 
   test("6. /api/ai/auto-fill returns AI-generated suggestions", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        schema: "task",
-        fields: {
-          title: { type: "string", label: "Title", required: true },
-          priority: { type: "enum", label: "Priority", options: ["low", "medium", "high"] },
-        },
-        currentValues: {},
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/auto-fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema: "task",
+          fields: {
+            title: { type: "string", label: "Title", required: true },
+            priority: { type: "enum", label: "Priority", options: ["low", "medium", "high"] },
+          },
+          currentValues: {},
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -293,17 +295,19 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("7. /api/ai/auto-fill returns empty when all fields filled", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        schema: "task",
-        fields: {
-          title: { type: "string", label: "Title", required: true },
-        },
-        currentValues: { title: "Already Filled" },
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/auto-fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema: "task",
+          fields: {
+            title: { type: "string", label: "Title", required: true },
+          },
+          currentValues: { title: "Already Filled" },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -312,11 +316,13 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("8. /api/ai/auto-fill returns 400 when schema is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/auto-fill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentValues: {} }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/auto-fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentValues: {} }),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -324,18 +330,20 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("9. /api/ai/search returns structured filter condition", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: "high priority tasks assigned to Alice",
-        schema: "task",
-        fields: {
-          priority: { type: "enum", label: "Priority", options: ["low", "medium", "high"] },
-          assignee: { type: "string", label: "Assignee" },
-        },
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "high priority tasks assigned to Alice",
+          schema: "task",
+          fields: {
+            priority: { type: "enum", label: "Priority", options: ["low", "medium", "high"] },
+            assignee: { type: "string", label: "Assignee" },
+          },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -347,11 +355,13 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("10. /api/ai/search returns 400 when query is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ schema: "task" }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schema: "task" }),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -359,24 +369,28 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("11. /api/ai/search returns 400 when schema is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: "find all tasks" }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: "find all tasks" }),
+      }),
+    );
 
     expect(res.status).toBe(400);
   });
 
   test("12. /api/ai/resolve-intent resolves natural language to ActionProposal", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: "Create a high priority task for CI/CD pipeline setup",
-        scope: { entityFilter: ["task"] },
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/resolve-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: "Create a high priority task for CI/CD pipeline setup",
+          scope: { entityFilter: ["task"] },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = (await res.json()) as {
@@ -395,11 +409,13 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("13. /api/ai/resolve-intent returns 400 when prompt is missing", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/resolve-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -408,11 +424,13 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("14. /api/ai/chat returns 400 when messages array is empty", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [], context: {} }),
-    });
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [], context: {} }),
+      }),
+    );
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -421,7 +439,7 @@ describe("E2E AI endpoints — with mock AI service", () => {
   });
 
   test("15. /api/app-config shows aiEnabled=true", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/app-config`);
+    const res = await server.handle(new Request(`${BASE}/api/app-config`));
     const json = await res.json();
     expect(json.data.aiEnabled).toBe(true);
   });
@@ -432,7 +450,6 @@ describe("E2E AI endpoints — with mock AI service", () => {
 // ══════════════════════════════════════════════════════════
 
 describe("E2E AI endpoints — low confidence / edge cases", () => {
-  const PORT = 32142;
   let server: ReturnType<typeof createServer>;
 
   const lowConfService: AIService = {
@@ -467,7 +484,6 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
 
   beforeAll(() => {
     server = createServer(graphqlSchema, {
-      port: PORT,
       aiService: lowConfService,
       executor: {
         registry: actionRegistry,
@@ -477,21 +493,18 @@ describe("E2E AI endpoints — low confidence / edge cases", () => {
       entityRegistry,
       ontologyRegistry,
     });
-    server.listen(PORT);
-  });
-
-  afterAll(() => {
-    server.stop?.();
   });
 
   test("16. resolve-intent returns null proposal when confidence is too low", async () => {
-    const res = await fetch(`http://localhost:${PORT}/api/ai/resolve-intent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt: "do something unclear",
+    const res = await server.handle(
+      new Request(`${BASE}/api/ai/resolve-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: "do something unclear",
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const json = (await res.json()) as { proposal: unknown };

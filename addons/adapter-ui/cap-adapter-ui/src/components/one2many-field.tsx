@@ -154,7 +154,7 @@ function formatNumber(value: unknown, fieldDef: FieldDefinition): string {
 
 /** Generate a temporary ID for pending rows */
 function tempId(): string {
-  return `_new_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return `_new_${crypto.randomUUID()}`;
 }
 
 // ── Component ────────────────────────────────────────────

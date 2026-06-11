@@ -18,6 +18,7 @@ import {
   GraphQLString,
 } from "graphql";
 import { createPubSub } from "graphql-yoga";
+import { toPascalCase } from "./naming";
 
 // ── PubSub topic naming ──────────────────────────────────
 
@@ -38,19 +39,6 @@ const DeletedRecordType = new GraphQLObjectType({
     schema: { type: new GraphQLNonNull(GraphQLString) },
   },
 });
-
-// ── PascalCase helper (same as build-schema.ts) ──────────
-
-const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
-
-function toPascalCase(name: string): string {
-  const raw = name
-    .split(/[_-]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
-  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
-}
 
 // ── PubSub + EventBus bridge ─────────────────────────────
 
@@ -144,6 +132,10 @@ export function buildSubscriptionFields(
     const objectType = entityObjectTypes.get(entity.name);
     if (!objectType) continue;
 
+    // PRODUCER side of the subscription field-name contract: the UI builds
+    // these `on{Pascal}...` names independently via toPascalCase in
+    // addons/adapter-ui/cap-adapter-ui/src/lib/api.ts (consumed by
+    // buildEntitySubscriptionQuery in hooks/use-subscription.ts).
     const pascalName = toPascalCase(entity.name);
     const entityName = entity.name;
 

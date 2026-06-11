@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@linchkit/ui-kit/components";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangleIcon,
   BoxIcon,
@@ -42,7 +43,7 @@ import {
   ServerIcon,
   XCircleIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 // ── Types ────────────────────────────────────────────────
@@ -69,6 +70,51 @@ interface HealthResponse {
   checks: HealthCheck[];
   timestamp: string;
   system?: SystemInfo;
+}
+
+/**
+ * Normalize the server's `/health` checks into the rich HealthCheck[] this
+ * page renders. The endpoint has three live shapes (routes/health.ts):
+ *   - rich registry: [{ name, status, durationMs, ... }]   → passthrough
+ *   - probe list:    [{ name, ok, detail? }]               → ok ⇒ status
+ *   - minimal map:   { process: { ok: true } }             → entries ⇒ checks
+ * Rendering `.map` directly on the raw value crashed on the minimal map
+ * ("health.checks.map is not a function").
+ */
+export function normalizeHealthChecks(raw: unknown): HealthCheck[] {
+  const VALID_STATUSES: ReadonlySet<string> = new Set(["healthy", "degraded", "unhealthy"]);
+  const toCheck = (name: string, entry: unknown): HealthCheck => {
+    const obj: Record<string, unknown> =
+      entry !== null && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    const status: HealthCheck["status"] =
+      typeof obj.status === "string" && VALID_STATUSES.has(obj.status)
+        ? (obj.status as HealthCheck["status"])
+        : obj.ok === false
+          ? "unhealthy"
+          : "healthy";
+    return {
+      name,
+      status,
+      ...(typeof obj.message === "string"
+        ? { message: obj.message }
+        : typeof obj.detail === "string"
+          ? { message: obj.detail }
+          : {}),
+      durationMs: typeof obj.durationMs === "number" ? obj.durationMs : 0,
+    };
+  };
+  if (Array.isArray(raw)) {
+    return raw.map((entry, i) => {
+      const name = (entry as Record<string, unknown>)?.name;
+      return toCheck(typeof name === "string" ? name : `check_${i}`, entry);
+    });
+  }
+  if (raw && typeof raw === "object") {
+    return Object.entries(raw as Record<string, unknown>).map(([name, entry]) =>
+      toCheck(name, entry),
+    );
+  }
+  return [];
 }
 
 interface SettingsGeneral {
@@ -187,14 +233,7 @@ function BannerIcon({ status }: { status: string }) {
 export function SystemOverviewPage() {
   const { t } = useTranslation();
 
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthError, setHealthError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const [settings, setSettings] = useState<SettingsData | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Capability detail dialog
   const [selectedCap, setSelectedCap] = useState<CapabilityDetail | null>(null);
@@ -202,47 +241,55 @@ export function SystemOverviewPage() {
   // Startup config dialog
   const [configOpen, setConfigOpen] = useState(false);
 
-  const fetchHealth = useCallback(async () => {
-    setHealthLoading(true);
-    setHealthError(null);
-    try {
+  // GET /health — refetchInterval replaces the manual setInterval polling.
+  // retry: false restores the pre-migration zero-retry behavior — a health
+  // dashboard should reflect failures immediately, not after a retry cycle.
+  const healthQuery = useQuery<HealthResponse | null>({
+    queryKey: ["health"],
+    retry: false,
+    queryFn: async () => {
       const res = await fetch("/health");
-      const data = await res.json().catch(() => null);
+      const data: Record<string, unknown> | null = await res.json().catch(() => null);
       if (data?.checks) {
-        setHealth(data as HealthResponse);
-        setLastRefresh(new Date());
-        return;
+        return {
+          ...(data as Omit<HealthResponse, "checks">),
+          checks: normalizeHealthChecks(data.checks),
+        };
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (err) {
-      setHealthError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setHealthLoading(false);
-    }
-  }, []);
+      // OK response without a `checks` payload: keep whatever we last had
+      // (the manual loader left state untouched in this case).
+      return queryClient.getQueryData<HealthResponse | null>(["health"]) ?? null;
+    },
+    refetchInterval: REFRESH_INTERVAL_MS,
+  });
+  const health = healthQuery.data ?? null;
+  // isFetching (not isLoading) so the refresh icon also spins on interval polls,
+  // matching the manual loader which flagged loading on every fetch.
+  const healthLoading = healthQuery.isFetching;
+  const healthError = healthQuery.error
+    ? healthQuery.error instanceof Error
+      ? healthQuery.error.message
+      : String(healthQuery.error)
+    : null;
+  const lastRefresh = healthQuery.dataUpdatedAt ? new Date(healthQuery.dataUpdatedAt) : null;
 
-  const fetchSettings = useCallback(async () => {
-    try {
+  // GET /api/settings — fetched once per mount (no polling).
+  const settingsQuery = useQuery<SettingsData>({
+    queryKey: ["settings"],
+    queryFn: async () => {
       const res = await fetch("/api/settings");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setSettings(json.data as SettingsData);
-    } catch (err) {
-      setSettingsError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchHealth();
-    intervalRef.current = setInterval(fetchHealth, REFRESH_INTERVAL_MS);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [fetchHealth]);
-
-  useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
+      const json: { data?: SettingsData } = await res.json();
+      return json.data as SettingsData;
+    },
+  });
+  const settings = settingsQuery.data ?? null;
+  const settingsError = settingsQuery.error
+    ? settingsQuery.error instanceof Error
+      ? settingsQuery.error.message
+      : String(settingsQuery.error)
+    : null;
 
   const gen = settings?.general;
   const version = health?.system?.version ?? gen?.version;
@@ -307,7 +354,7 @@ export function SystemOverviewPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={fetchHealth}
+              onClick={() => void healthQuery.refetch()}
               disabled={healthLoading}
               className="h-7 px-2"
             >

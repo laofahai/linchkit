@@ -7,6 +7,7 @@
  */
 
 import { Badge, Button } from "@linchkit/ui-kit/components";
+import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import {
   ArrowRight,
   ChevronDown,
@@ -83,22 +84,6 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
 const DEFAULT_STATUS_CONFIG: StatusConfig = { variant: "outline" };
 
 // ── Helpers ───────────────────────────────────────────────
-
-function formatRelativeTime(
-  iso: string,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return t("time.justNow", { defaultValue: "just now" });
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return t("time.minutesAgo", { defaultValue: "{{count}}m ago", count: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return t("time.hoursAgo", { defaultValue: "{{count}}h ago", count: hours });
-  const days = Math.floor(hours / 24);
-  if (days < 30) return t("time.daysAgo", { defaultValue: "{{count}}d ago", count: days });
-  return new Date(iso).toLocaleDateString();
-}
 
 function formatActionLabel(action: string, status?: string): string {
   // Strip schema prefix: "create_purchase_order" -> "create"

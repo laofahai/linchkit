@@ -33,7 +33,7 @@ function writeTemplates(entityName: string, templates: RecordTemplate[]): void {
 }
 
 function generateId(): string {
-  return `rt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `rt_${crypto.randomUUID()}`;
 }
 
 // ── External store for useSyncExternalStore ──────────────────────

@@ -477,7 +477,9 @@ Only include fields where you have genuine confidence. Omit fields where you wou
 
       try {
         const { streamText, stepCountIs, convertToModelMessages } = await import("ai");
-        const { resolveLanguageModel } = await import("@linchkit/cap-ai-provider");
+        const { resolveLanguageModel, resolveModel, instrumentRawStream } = await import(
+          "@linchkit/cap-ai-provider"
+        );
         const { createTenantAwareDataProvider } = await import("@linchkit/core/server");
         const { buildSystemPrompt } = await import("../ai/system-prompt");
         const { buildTools } = await import("../ai/tools");
@@ -545,20 +547,47 @@ Only include fields where you have genuine confidence. Omit fields where you wou
         // useChat sends messages in UI format (with parts array), but streamText expects model format
         const modelMessages = await convertToModelMessages(messages, { tools });
 
-        // Use Vercel AI SDK streamText with tools and multi-step support
-        const result = streamText({
-          model,
-          system: systemPrompt,
+        // Record this streaming generation to the AI trace sink. The endpoint
+        // owns the `streamText` call (tools + multi-step + UI message stream),
+        // so it cannot route through the instrumented `completeStream`; instead
+        // it spreads the SDK's onFinish/onError/onAbort callbacks (non-throwing,
+        // one-shot) so the generation lands in the SAME sink. See Spec 69 P3 / #350.
+        const modelAlias = assistantConfig?.model ?? "fast";
+        const { provider, modelId } = resolveModel(aiConfig, undefined, modelAlias);
+        const temperature = assistantConfig?.temperature ?? 0.3;
+        const trace = instrumentRawStream({
+          trace: { name: "assistant-chat", model: modelAlias, tenantId, actorId: actor?.id },
+          provider,
+          model: modelId,
           messages: modelMessages,
-          tools,
-          stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
-          temperature: assistantConfig?.temperature ?? 0.3,
-          abortSignal: request.signal,
+          temperature,
         });
 
-        // Return standard Vercel AI SDK UI message stream response
-        // Compatible with @ai-sdk/react useChat hook
-        return result.toUIMessageStreamResponse();
+        // Use Vercel AI SDK streamText with tools and multi-step support.
+        // Guard the synchronous construction so a sync throw still finalizes the
+        // trace (`fail`) instead of leaking the parent opened above; async stream
+        // errors go through `onError` and never reach here.
+        try {
+          const result = streamText({
+            model,
+            system: systemPrompt,
+            messages: modelMessages,
+            tools,
+            stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
+            temperature,
+            abortSignal: request.signal,
+            onFinish: trace.onFinish,
+            onError: trace.onError,
+            onAbort: trace.onAbort,
+          });
+
+          // Return standard Vercel AI SDK UI message stream response
+          // Compatible with @ai-sdk/react useChat hook
+          return result.toUIMessageStreamResponse();
+        } catch (streamErr) {
+          trace.fail(streamErr);
+          throw streamErr;
+        }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "AI chat failed";
         set.status = 500;

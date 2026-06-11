@@ -30,6 +30,8 @@ export {
   executeBatch,
   MAX_BATCH_SIZE,
 } from "../../engine/batch-action-engine";
+// G5 code materialization (Phase 2 build gate + Phase 3 materializer).
+export { checkSourceSyntax, createSyntaxQualityGate } from "../../engine/code-quality-gate";
 export {
   type CommandBatchExecuteOptions,
   type CommandContext,
@@ -43,6 +45,19 @@ export {
   PipelineError,
   type SlotName,
 } from "../../engine/command-layer";
+export {
+  type PersistCycleDraftsOptions,
+  type PersistCycleDraftsResult,
+  persistCycleProposalsAsDrafts,
+} from "../../engine/evolution-cycle-drafts";
+export {
+  createEvolutionScheduler,
+  type EvolutionScheduler,
+  type EvolutionSchedulerOptions,
+  type EvolutionSchedulerStatus,
+  MAX_INTERVAL_MS,
+  MIN_INTERVAL_MS,
+} from "../../engine/evolution-scheduler";
 // Generator priority aggregator (Spec 55 §7.7 Phase 3)
 export {
   createGeneratorPriorityAggregator,
@@ -81,6 +96,14 @@ export {
   resolveConditionVariables,
   resolveDataAccess,
 } from "../../engine/permission-engine";
+export {
+  aggregateDryRunStatus,
+  type DryRunInputCase,
+  type DryRunMaterializedOptions,
+  type DryRunMaterializedResult,
+  dryRunMaterializedChanges,
+  MAX_INPUT_CASES,
+} from "../../engine/proposal-dry-runner";
 export {
   createProposalEffectVerifier,
   type EffectVerificationPayload,
@@ -121,6 +144,13 @@ export {
   type ProposalGitRunner,
 } from "../../engine/proposal-git-committer";
 export {
+  isMaterializable,
+  type MaterializeChangeOutcome,
+  type MaterializeProposalOptions,
+  type MaterializeProposalResult,
+  materializeProposalChanges,
+} from "../../engine/proposal-materializer";
+export {
   createProposalOutcomeRecorder,
   type ProposalOutcomePayload,
   ProposalOutcomeRecorder,
@@ -156,3 +186,15 @@ export {
   validatePhase1,
   validateProposal,
 } from "../../engine/validation-engine";
+export {
+  type ValidatePhase2Options,
+  validatePhase2,
+} from "../../engine/validation-phase2";
+export {
+  type ValidatePhase3Options,
+  validatePhase3,
+} from "../../engine/validation-phase3";
+export {
+  type ValidatePhase4Options,
+  validatePhase4,
+} from "../../engine/validation-phase4";

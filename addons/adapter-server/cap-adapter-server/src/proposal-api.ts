@@ -7,8 +7,12 @@
  */
 
 import { PatternDetector, type PatternInsight } from "@linchkit/cap-ai-provider";
-import type { ExecutionLogger, ProposalDefinition } from "@linchkit/core";
-import { createProposalEngine, type ProposalEngine } from "@linchkit/core/server";
+import type { ExecutionLogger, OntologyRegistry, ProposalDefinition } from "@linchkit/core";
+import {
+  createProposalEngine,
+  type ProposalEngine,
+  type ValidationContext,
+} from "@linchkit/core/server";
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -164,15 +168,72 @@ async function scanInsights(executionLogger: ExecutionLogger): Promise<AIInsight
 
 // ── Mount endpoints onto Elysia app ──────────────────────
 
+/** Extra wiring for proposal validation (Phase 3 compatibility checks). */
+export interface MountProposalAPIOptions {
+  /** Execution logger for real PatternDetector analysis. */
+  executionLogger?: ExecutionLogger;
+  /**
+   * Current meta-model view used by validation Phase 3 to detect breaking
+   * references. When absent, Phase 3 degrades to "skipped".
+   */
+  ontology?: OntologyRegistry;
+  /**
+   * Escalate Phase 3 breaking-reference findings from WARN to BLOCK. Sourced
+   * from `detectEnvironment().features.strictCompatibility` (true in prod/staging).
+   */
+  strictCompatibility?: boolean;
+  /**
+   * Escalate Phase 4 generated-source CONTRACT findings (G5) from WARN to BLOCK.
+   * Sourced from `detectEnvironment().features.strictGeneratedContract` (true in
+   * prod/staging). Lock-step sibling of `strictCompatibility`.
+   */
+  strictGeneratedContract?: boolean;
+  /**
+   * Escalate Phase 5 execution dry-run CONTENT findings (Spec 70 §7) from WARN
+   * to BLOCK. Sourced from `detectEnvironment().features.strictExecutionDryRun`,
+   * which — unlike the two strict siblings above — is opt-in EVERYWHERE (never
+   * derived from `isProduction`): enabled only via
+   * `LINCHKIT_STRICT_EXECUTION_DRY_RUN=1` once the sandbox is confirmed healthy.
+   * Infra failures (`infra_error`) always stay warnings regardless of this flag.
+   */
+  strictExecutionDryRun?: boolean;
+}
+
 /**
  * Register proposal/evolution/insights REST endpoints on the given Elysia app.
  * Call this in createServer() after the main app is created.
  *
  * @param app Elysia app instance
- * @param executionLogger Optional execution logger for real PatternDetector analysis
+ * @param options Execution logger + Phase 3 compatibility wiring (also accepts a
+ *   bare ExecutionLogger for backward compatibility).
  */
-// biome-ignore lint/suspicious/noExplicitAny: Elysia plugin typing
-export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): void {
+export function mountProposalAPI(
+  // biome-ignore lint/suspicious/noExplicitAny: Elysia plugin typing
+  app: any,
+  options?: MountProposalAPIOptions | ExecutionLogger,
+): void {
+  // Backward-compatible: a bare ExecutionLogger may still be passed positionally.
+  // Discriminate by its `log` method (MountProposalAPIOptions has no such field).
+  const isLogger = (v: unknown): v is ExecutionLogger =>
+    typeof (v as { log?: unknown } | undefined)?.log === "function";
+  const opts: MountProposalAPIOptions = isLogger(options)
+    ? { executionLogger: options }
+    : (options ?? {});
+  const executionLogger = opts.executionLogger;
+
+  // ValidationContext threaded into both submit sites so Phase 3 (compatibility),
+  // Phase 4 (generated-source contract) and Phase 5 (execution dry-run) can run.
+  // Built once; when ontology is absent Phase 3 returns "skipped", when no change
+  // carries generated source Phase 4 returns "skipped", and when no change carries
+  // a durable `dryRunStatus` Phase 5 returns "skipped" (all unchanged for existing
+  // callers).
+  const validationContext: ValidationContext = {
+    ontology: opts.ontology,
+    strictCompatibility: opts.strictCompatibility,
+    strictGeneratedContract: opts.strictGeneratedContract,
+    strictExecutionDryRun: opts.strictExecutionDryRun,
+  };
+
   // Run initial pattern scan in background if execution logger is available
   if (executionLogger) {
     scanInsights(executionLogger).catch(() => {
@@ -231,7 +292,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
         // If draft, auto-submit first
         if (proposal.status === "draft") {
-          proposalEngine.submitProposal({ proposalId: params.id });
+          proposalEngine.submitProposal({ proposalId: params.id, context: validationContext });
         }
 
         // Re-fetch to check validation result
@@ -276,7 +337,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
         // If draft, auto-submit first
         if (proposal.status === "draft") {
-          proposalEngine.submitProposal({ proposalId: params.id });
+          proposalEngine.submitProposal({ proposalId: params.id, context: validationContext });
         }
 
         const refreshed = proposalEngine.getProposal(params.id);
@@ -354,7 +415,7 @@ export function mountProposalAPI(app: any, executionLogger?: ExecutionLogger): v
 
 // ── Serialization helper ─────────────────────────────────
 
-function serializeProposal(p: ProposalDefinition): Record<string, unknown> {
+export function serializeProposal(p: ProposalDefinition): Record<string, unknown> {
   return {
     id: p.id,
     title: p.title,
@@ -374,5 +435,12 @@ function serializeProposal(p: ProposalDefinition): Record<string, unknown> {
     deployedAt: p.deployedAt?.toISOString(),
     approvedBy: p.approvedBy,
     rejectionReason: p.rejectionReason,
+    // Per-proposal pre-analysis (Spec 55 §7.3) — read-only evidence/impact/
+    // backtest rationale surfaced to the human reviewer. Undefined for proposals
+    // created without a pre-analysis (e.g. manual drafts). Serialize its only
+    // Date field (analyzedAt) to ISO for consistency with the rest of the payload.
+    analysis: p.analysis
+      ? { ...p.analysis, analyzedAt: p.analysis.analyzedAt.toISOString() }
+      : undefined,
   };
 }

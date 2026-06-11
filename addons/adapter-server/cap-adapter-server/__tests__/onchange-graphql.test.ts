@@ -10,7 +10,7 @@
  *   - OnchangeEvaluatorError propagates with a stable extension code
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import type { EntityDefinition } from "@linchkit/core";
 import {
   createActionExecutor,
@@ -65,11 +65,7 @@ await store.create("product_gql", { id: "pg1", price: 49.5, description: "Sprock
 
 // ── Server harness ────────────────────────────────────────
 
-function buildServer(options: {
-  permissionDeny?: boolean;
-  permissionDenyMessage?: string;
-  port: number;
-}) {
+function buildServer(options: { permissionDeny?: boolean; permissionDenyMessage?: string }) {
   const entityRegistry = createEntityRegistry();
   entityRegistry.register(lineEntity);
   entityRegistry.register(plainEntity);
@@ -107,12 +103,11 @@ function buildServer(options: {
   });
 
   const app = createServer(graphqlSchema, { executor, commandLayer, entityRegistry });
-  app.listen(options.port);
   return app;
 }
 
 // Server with NO evaluator wired — onchange mutation should be omitted entirely.
-function buildServerWithoutEvaluator(port: number) {
+function buildServerWithoutEvaluator() {
   const entityRegistry = createEntityRegistry();
   entityRegistry.register(lineEntity);
 
@@ -128,35 +123,23 @@ function buildServerWithoutEvaluator(port: number) {
 
   const graphqlSchema = buildGraphQLSchema([lineEntity], { executor, commandLayer });
   const app = createServer(graphqlSchema, { executor, commandLayer, entityRegistry });
-  app.listen(port);
   return app;
 }
 
-const happyPort = 4310;
-const denyPort = 4311;
-const leakyDenyPort = 4312;
-const noEvaluatorPort = 4313;
+const BASE = "http://local.test";
 let happyApp: ReturnType<typeof buildServer>;
 let denyApp: ReturnType<typeof buildServer>;
 let leakyDenyApp: ReturnType<typeof buildServer>;
 let noEvaluatorApp: ReturnType<typeof buildServer>;
 
 beforeAll(() => {
-  happyApp = buildServer({ port: happyPort });
-  denyApp = buildServer({ port: denyPort, permissionDeny: true });
+  happyApp = buildServer({});
+  denyApp = buildServer({ permissionDeny: true });
   leakyDenyApp = buildServer({
-    port: leakyDenyPort,
     permissionDeny: true,
     permissionDenyMessage: "forbidden: entity admin_secret",
   });
-  noEvaluatorApp = buildServerWithoutEvaluator(noEvaluatorPort);
-});
-
-afterAll(() => {
-  happyApp.stop();
-  denyApp.stop();
-  leakyDenyApp.stop();
-  noEvaluatorApp.stop();
+  noEvaluatorApp = buildServerWithoutEvaluator();
 });
 
 // ── Helpers ──────────────────────────────────────────────
@@ -166,12 +149,18 @@ interface GraphQLResponse {
   errors?: Array<{ message: string; extensions?: Record<string, unknown> }>;
 }
 
-async function gql(port: number, query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(`http://localhost:${port}/graphql`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
+async function gql(
+  app: ReturnType<typeof buildServer>,
+  query: string,
+  variables?: Record<string, unknown>,
+) {
+  const res = await app.handle(
+    new Request(`${BASE}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    }),
+  );
   return (await res.json()) as GraphQLResponse;
 }
 
@@ -189,7 +178,7 @@ const ONCHANGE_MUTATION = /* GraphQL */ `
 describe("GraphQL `<entity>_onchange` auto-generation", () => {
   test("schema exposes purchase_line_gql_onchange but NOT plain_gql_onchange", async () => {
     const introspection = await gql(
-      happyPort,
+      happyApp,
       /* GraphQL */ `
         {
           __type(name: "Mutation") {
@@ -210,7 +199,7 @@ describe("GraphQL `<entity>_onchange` auto-generation", () => {
 
   test("mutation is omitted entirely when no evaluator is wired", async () => {
     const introspection = await gql(
-      noEvaluatorPort,
+      noEvaluatorApp,
       /* GraphQL */ `
         {
           __type(name: "Mutation") {
@@ -229,7 +218,7 @@ describe("GraphQL `<entity>_onchange` auto-generation", () => {
 
   test("OnchangeResponse type is exported with updates + warnings shape", async () => {
     const introspection = await gql(
-      happyPort,
+      happyApp,
       /* GraphQL */ `
         {
           __type(name: "OnchangeResponse") {
@@ -256,7 +245,7 @@ describe("GraphQL `<entity>_onchange` auto-generation", () => {
 
 describe("GraphQL `<entity>_onchange` happy path", () => {
   test("returns updates JSON + warnings array with chained subtotal cascade", async () => {
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: JSON.stringify({ product_id: "pg1", quantity: 3 }),
     });
@@ -274,7 +263,7 @@ describe("GraphQL `<entity>_onchange` happy path", () => {
   });
 
   test("comma-separated trigger updates only the cascaded field", async () => {
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "quantity",
       values: JSON.stringify({ quantity: 4, unit_price: 5 }),
     });
@@ -289,7 +278,7 @@ describe("GraphQL `<entity>_onchange` happy path", () => {
 
 describe("GraphQL `<entity>_onchange` validation", () => {
   test("malformed JSON in values arg returns INVALID_REQUEST.MALFORMED_VALUES", async () => {
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: "not-json",
     });
@@ -297,7 +286,7 @@ describe("GraphQL `<entity>_onchange` validation", () => {
   });
 
   test("non-object JSON in values arg (array) returns MALFORMED_VALUES", async () => {
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: JSON.stringify([1, 2, 3]),
     });
@@ -307,7 +296,7 @@ describe("GraphQL `<entity>_onchange` validation", () => {
   test("oversized values arg returns VALUES_TOO_LARGE", async () => {
     // 10_001 chars of whitespace is still valid JSON (`"x...x"`) but exceeds the cap.
     const huge = `"${"x".repeat(10_001)}"`;
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: huge,
     });
@@ -316,7 +305,7 @@ describe("GraphQL `<entity>_onchange` validation", () => {
 
   test("changedField with no registered hook surfaces ONCHANGE.NO_HOOK_FOR_FIELD", async () => {
     // `description` is a known field but has no hook registered.
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "description",
       values: JSON.stringify({ description: "x" }),
     });
@@ -324,7 +313,7 @@ describe("GraphQL `<entity>_onchange` validation", () => {
   });
 
   test("changedField unknown to the entity surfaces ONCHANGE.FIELD_UNKNOWN", async () => {
-    const result = await gql(happyPort, ONCHANGE_MUTATION, {
+    const result = await gql(happyApp, ONCHANGE_MUTATION, {
       field: "does_not_exist",
       values: JSON.stringify({}),
     });
@@ -334,7 +323,7 @@ describe("GraphQL `<entity>_onchange` validation", () => {
 
 describe("GraphQL `<entity>_onchange` permission denial canonicalization", () => {
   test("denied permission collapses to AUTHZ_DENIED with generic message", async () => {
-    const result = await gql(denyPort, ONCHANGE_MUTATION, {
+    const result = await gql(denyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: JSON.stringify({ product_id: "pg1" }),
     });
@@ -346,7 +335,7 @@ describe("GraphQL `<entity>_onchange` permission denial canonicalization", () =>
     // The leaky middleware sends "forbidden: entity admin_secret". The
     // resolver must canonicalize the response so attackers cannot enumerate
     // entities by reading varying error strings.
-    const result = await gql(leakyDenyPort, ONCHANGE_MUTATION, {
+    const result = await gql(leakyDenyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: JSON.stringify({ product_id: "pg1" }),
     });
@@ -362,7 +351,7 @@ describe("GraphQL `<entity>_onchange` permission denial canonicalization", () =>
     // could distinguish "endpoint exists, request rejected at validation"
     // from "endpoint denied entirely" and enumerate which entities have
     // onchange hooks.
-    const result = await gql(denyPort, ONCHANGE_MUTATION, {
+    const result = await gql(denyApp, ONCHANGE_MUTATION, {
       field: "product_id",
       values: "definitely not json",
     });
@@ -392,25 +381,19 @@ describe("GraphQL `<entity>_onchange` non-auth pipeline failures", () => {
       commandLayer,
       onchangeEvaluator: evaluator,
     });
-    const port = 4314;
     const app = createServer(schema, { executor, commandLayer, entityRegistry });
-    app.listen(port);
-    try {
-      const result = await gql(port, ONCHANGE_MUTATION, {
-        field: "product_id",
-        values: JSON.stringify({ product_id: "pg1" }),
-      });
-      // Must NOT collapse to AUTHZ_DENIED — clients need to recognize
-      // throttling so they can backoff/retry. The original error code
-      // is preserved verbatim in extensions.
-      expect(result.errors?.[0]?.extensions?.code).toBe("rate_limit.exceeded");
-      expect(result.errors?.[0]?.extensions?.code).not.toBe("AUTHZ_DENIED");
-      // The structured message reaches the client (auth gates already passed,
-      // so non-auth failure detail is safe to surface).
-      expect(result.errors?.[0]?.message).toBe("Too many requests, retry later");
-    } finally {
-      app.stop();
-    }
+    const result = await gql(app, ONCHANGE_MUTATION, {
+      field: "product_id",
+      values: JSON.stringify({ product_id: "pg1" }),
+    });
+    // Must NOT collapse to AUTHZ_DENIED — clients need to recognize
+    // throttling so they can backoff/retry. The original error code
+    // is preserved verbatim in extensions.
+    expect(result.errors?.[0]?.extensions?.code).toBe("rate_limit.exceeded");
+    expect(result.errors?.[0]?.extensions?.code).not.toBe("AUTHZ_DENIED");
+    // The structured message reaches the client (auth gates already passed,
+    // so non-auth failure detail is safe to surface).
+    expect(result.errors?.[0]?.message).toBe("Too many requests, retry later");
   });
 });
 
@@ -450,30 +433,24 @@ describe("GraphQL `<entity>_onchange` schema build-time guards", () => {
       commandLayer,
       onchangeEvaluator: evaluator,
     });
-    const port = 4319;
     const app = createServer(schema, { executor, commandLayer, entityRegistry });
-    app.listen(port);
-    try {
-      const introspection = await gql(
-        port,
-        /* GraphQL */ `
-          {
-            __type(name: "Mutation") {
-              fields {
-                name
-              }
+    const introspection = await gql(
+      app,
+      /* GraphQL */ `
+        {
+          __type(name: "Mutation") {
+            fields {
+              name
             }
           }
-        `,
-      );
-      const fields = (
-        introspection.data?.__type as { fields: Array<{ name: string }> } | null
-      )?.fields.map((f) => f.name);
-      // Underscore is the canonical replacement for `-` per the sanitizer.
-      expect(fields).toContain("sales_order_onchange");
-    } finally {
-      app.stop();
-    }
+        }
+      `,
+    );
+    const fields = (
+      introspection.data?.__type as { fields: Array<{ name: string }> } | null
+    )?.fields.map((f) => f.name);
+    // Underscore is the canonical replacement for `-` per the sanitizer.
+    expect(fields).toContain("sales_order_onchange");
   });
 
   test("schema omits onchange mutations when CommandLayer has no permission middleware", async () => {
@@ -491,29 +468,23 @@ describe("GraphQL `<entity>_onchange` schema build-time guards", () => {
       commandLayer,
       onchangeEvaluator: evaluator,
     });
-    const port = 4320;
     const app = createServer(schema, { executor, commandLayer, entityRegistry });
-    app.listen(port);
-    try {
-      const introspection = await gql(
-        port,
-        /* GraphQL */ `
-          {
-            __type(name: "Mutation") {
-              fields {
-                name
-              }
+    const introspection = await gql(
+      app,
+      /* GraphQL */ `
+        {
+          __type(name: "Mutation") {
+            fields {
+              name
             }
           }
-        `,
-      );
-      const fields = (
-        introspection.data?.__type as { fields: Array<{ name: string }> } | null
-      )?.fields.map((f) => f.name);
-      expect(fields).not.toContain("purchase_line_gql_onchange");
-    } finally {
-      app.stop();
-    }
+        }
+      `,
+    );
+    const fields = (
+      introspection.data?.__type as { fields: Array<{ name: string }> } | null
+    )?.fields.map((f) => f.name);
+    expect(fields).not.toContain("purchase_line_gql_onchange");
   });
 });
 
@@ -558,19 +529,13 @@ describe("GraphQL `<entity>_onchange` post-auth actor propagation", () => {
       commandLayer,
       onchangeEvaluator: spyEvaluator,
     });
-    const port = 4317;
     const app = createServer(schema, { executor, commandLayer, entityRegistry });
-    app.listen(port);
-    try {
-      const result = await gql(port, ONCHANGE_MUTATION, {
-        field: "product_id",
-        values: JSON.stringify({ product_id: "pg1" }),
-      });
-      expect(result.errors).toBeUndefined();
-      expect(capturedActor?.groups).toContain("hydrated-admin");
-    } finally {
-      app.stop();
-    }
+    const result = await gql(app, ONCHANGE_MUTATION, {
+      field: "product_id",
+      values: JSON.stringify({ product_id: "pg1" }),
+    });
+    expect(result.errors).toBeUndefined();
+    expect(capturedActor?.groups).toContain("hydrated-admin");
   });
 });
 
@@ -606,29 +571,23 @@ describe("GraphQL `<entity>_onchange` internalSchemas filter", () => {
       onchangeEvaluator: evaluator,
       internalSchemas: new Set(["system_internal_gql"]),
     });
-    const port = 4318;
     const app = createServer(schema, { executor, commandLayer, entityRegistry });
-    app.listen(port);
-    try {
-      const introspection = await gql(
-        port,
-        /* GraphQL */ `
-          {
-            __type(name: "Mutation") {
-              fields {
-                name
-              }
+    const introspection = await gql(
+      app,
+      /* GraphQL */ `
+        {
+          __type(name: "Mutation") {
+            fields {
+              name
             }
           }
-        `,
-      );
-      const fields = (
-        introspection.data?.__type as { fields: Array<{ name: string }> } | null
-      )?.fields.map((f) => f.name);
-      expect(fields).not.toContain("system_internal_gql_onchange");
-    } finally {
-      app.stop();
-    }
+        }
+      `,
+    );
+    const fields = (
+      introspection.data?.__type as { fields: Array<{ name: string }> } | null
+    )?.fields.map((f) => f.name);
+    expect(fields).not.toContain("system_internal_gql_onchange");
   });
 });
 
@@ -671,7 +630,6 @@ describe("GraphQL `<entity>_onchange` tenant scope handling", () => {
       commandLayer,
       onchangeEvaluator: spyEvaluator,
     });
-    const port = 4316;
     const app = createServer(schema, {
       executor,
       commandLayer,
@@ -681,20 +639,15 @@ describe("GraphQL `<entity>_onchange` tenant scope handling", () => {
       // must pass undefined through because middleware cleared it.
       resolveRequestTenantId: () => "rt-incoming",
     });
-    app.listen(port);
-    try {
-      const result = await gql(port, ONCHANGE_MUTATION, {
-        field: "product_id",
-        values: JSON.stringify({ product_id: "pg1" }),
-      });
-      expect(result.errors).toBeUndefined();
-      // Evaluator must have been called with undefined tenantId — not
-      // "rt-incoming". This proves the resolver respects the middleware's
-      // decision to clear scope.
-      expect(capturedTenantId).toBeUndefined();
-    } finally {
-      app.stop();
-    }
+    const result = await gql(app, ONCHANGE_MUTATION, {
+      field: "product_id",
+      values: JSON.stringify({ product_id: "pg1" }),
+    });
+    expect(result.errors).toBeUndefined();
+    // Evaluator must have been called with undefined tenantId — not
+    // "rt-incoming". This proves the resolver respects the middleware's
+    // decision to clear scope.
+    expect(capturedTenantId).toBeUndefined();
   });
 });
 
@@ -730,19 +683,13 @@ describe("GraphQL `<entity>_onchange` unexpected evaluator failures", () => {
       commandLayer,
       onchangeEvaluator: leakyEvaluator,
     });
-    const port = 4315;
     const app = createServer(schema, { executor, commandLayer, entityRegistry });
-    app.listen(port);
-    try {
-      const result = await gql(port, ONCHANGE_MUTATION, {
-        field: "product_id",
-        values: JSON.stringify({ product_id: "pg1" }),
-      });
-      expect(result.errors?.[0]?.extensions?.code).toBe("ONCHANGE.EVALUATION_FAILED");
-      expect(result.errors?.[0]?.message).toBe("Onchange evaluation failed");
-      expect(JSON.stringify(result)).not.toContain("SECRET_INTERNAL_DETAIL");
-    } finally {
-      app.stop();
-    }
+    const result = await gql(app, ONCHANGE_MUTATION, {
+      field: "product_id",
+      values: JSON.stringify({ product_id: "pg1" }),
+    });
+    expect(result.errors?.[0]?.extensions?.code).toBe("ONCHANGE.EVALUATION_FAILED");
+    expect(result.errors?.[0]?.message).toBe("Onchange evaluation failed");
+    expect(JSON.stringify(result)).not.toContain("SECRET_INTERNAL_DETAIL");
   });
 });

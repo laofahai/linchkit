@@ -16,7 +16,16 @@
  */
 
 // AI Boundary
-export type { PatternEvidence, PatternInsight, PatternType } from "../../ai";
+// Code-generation seam (G5) — type-only; the impl lives in cap-ai-provider.
+export type {
+  CodeGenerationProvider,
+  CodeGenerationResult,
+  PatternEvidence,
+  PatternInsight,
+  PatternType,
+  ProjectContext,
+  QualityGateRunner,
+} from "../../ai";
 // AI Audit
 // AI Prompt Sanitizer
 // AI Intent Resolver (Spec 52 §2.2 / §2.5)

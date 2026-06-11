@@ -12,6 +12,7 @@
  * copy-on-read semantics so callers cannot accidentally mutate stored state.
  */
 
+import type { ProposalPreAnalysisResult } from "../life-system/proposal-preanalysis/types";
 import { analyzeImpact } from "../ontology/impact-analysis";
 import type { Logger } from "../types/logger";
 import type {
@@ -28,7 +29,7 @@ import { type ValidationContext, validateProposal } from "./validation-engine";
 // ── ID generation helper ─────────────────────────────────
 
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return crypto.randomUUID();
 }
 
 // ── Create proposal options ──────────────────────────────
@@ -41,6 +42,14 @@ export interface CreateProposalOptions {
   changeType: ChangeType;
   changes: ProposalChange[];
   impact?: Partial<ProposalImpact>;
+  /**
+   * Optional pre-analysis envelope to attach to the created draft (Spec 55 §7.3).
+   *
+   * When provided, it is stored verbatim on `ProposalDefinition.analysis` so the
+   * review UI can show the evidence/impact/backtest rationale behind the change.
+   * Read-only metadata — it never affects validation, approval, or graduation.
+   */
+  analysis?: ProposalPreAnalysisResult;
 }
 
 // ── Engine options ───────────────────────────────────────
@@ -160,6 +169,9 @@ export class ProposalEngine {
       status: "draft",
       createdAt: now,
       updatedAt: now,
+      // Attach the optional pre-analysis envelope so the review UI can surface
+      // the "why" behind the proposal. Omitted entirely when not provided.
+      ...(options.analysis ? { analysis: options.analysis } : {}),
     };
 
     this.proposals.set(proposal.id, proposal);
