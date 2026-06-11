@@ -40,14 +40,12 @@ export const a2aTransport: TransportAdapterDefinition = {
           providerOrg: cfg.agentProviderOrg,
           actions: ctx.actions,
         });
-        console.log(
-          `[cap-adapter-a2a] AgentCard generated: "${card.name}" v${card.version} ` +
-            `with ${card.skills.length} skill(s). ` +
-            `HTTP endpoint (/.well-known/agent-card.json) deferred to next slice.`,
-        );
-
-        if (!cfg.enabled) {
-          return;
+        if (cfg.enabled) {
+          console.log(
+            `[cap-adapter-a2a] AgentCard generated: "${card.name}" v${card.version} ` +
+              `with ${card.skills.length} skill(s). ` +
+              `HTTP endpoint (/.well-known/agent-card.json) deferred to next slice.`,
+          );
         }
       },
       stop: async () => {
