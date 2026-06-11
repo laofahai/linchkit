@@ -255,7 +255,7 @@ function extractErrorFromResult(result: { data?: unknown }): {
   constraint?: string;
 } {
   const data = result.data as Record<string, unknown> | undefined;
-  const message = (data?.error as string) ?? "Action execution failed";
+  const message = typeof data?.error === "string" ? data.error : "Action execution failed";
   const code = (data?.code as string) ?? "ACTION.EXECUTION.FAILED";
   const ctx = data?.context as Record<string, unknown> | undefined;
   const field = ctx?.field as string | undefined;
