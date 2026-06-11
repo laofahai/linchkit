@@ -152,6 +152,10 @@ export function AITracesPage() {
   // Controller for the manual Refresh fetch — tracked separately from the
   // effect's controller so an in-flight Refresh is also aborted on unmount.
   const manualCtrlRef = useRef<AbortController | null>(null);
+  // Controller for the effect's auto-fetch — exposed via a ref so the manual
+  // Refresh handler can abort a still-running auto-fetch (not just discard
+  // its stale result via reqSeq).
+  const effectCtrlRef = useRef<AbortController | null>(null);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -173,6 +177,7 @@ export function AITracesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    effectCtrlRef.current = controller;
     load(controller.signal);
     return () => {
       controller.abort();
@@ -217,6 +222,7 @@ export function AITracesPage() {
             variant="outline"
             size="sm"
             onClick={() => {
+              effectCtrlRef.current?.abort();
               manualCtrlRef.current?.abort();
               const ctrl = new AbortController();
               manualCtrlRef.current = ctrl;
