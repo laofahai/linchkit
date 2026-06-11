@@ -60,7 +60,7 @@ describe("resolveDevRoleActor (unit)", () => {
       type: "human",
       id: "dev-admin",
       name: "Dev Admin",
-      groups: ["admin", "manager", "user"],
+      groups: ["purchase_manager", "purchase_user", "admin", "manager", "user"],
     });
   });
 
@@ -170,7 +170,7 @@ describe("x-dev-role over in-process HTTP (createDevApp default wiring)", () => 
   it("REST: x-dev-role: admin executes as the elevated dev-admin actor", async () => {
     const actor = await revealViaRest("admin");
     expect(actor.id).toBe("dev-admin");
-    expect(actor.groups).toEqual(["admin", "manager", "user"]);
+    expect(actor.groups).toEqual(["purchase_manager", "purchase_user", "admin", "manager", "user"]);
   });
 
   it("REST: no header keeps today's elevated no-auth default (back-compat)", async () => {

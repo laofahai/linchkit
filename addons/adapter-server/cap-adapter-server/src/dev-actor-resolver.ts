@@ -54,7 +54,12 @@ export const DEV_ROLE_ACTORS: Readonly<Record<string, Actor>> = Object.freeze({
     type: "human",
     id: "dev-admin",
     name: "Dev Admin",
-    groups: ["admin", "manager", "user"],
+    // Cumulative: includes the capability-specific groups too. Permission
+    // grants key on EXACT group names (e.g. cap-purchase-demo grants
+    // approve_purchase_request to `purchase_manager`, not to `admin`), so an
+    // "elevated" admin without them would be LESS capable than manager once
+    // cap-permission is enabled (codex P2 on this branch).
+    groups: ["purchase_manager", "purchase_user", "admin", "manager", "user"],
   },
 });
 
