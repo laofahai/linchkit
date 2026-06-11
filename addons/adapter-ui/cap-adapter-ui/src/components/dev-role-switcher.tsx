@@ -40,10 +40,11 @@ export function DevRoleSwitcher() {
   // "Default" label and no role gets a check mark until one is chosen.
   const activeRole = getStoredDevRole();
 
-  const handleSelect = useCallback((role: DevRole) => {
+  const handleSelect = useCallback((role: DevRole | null) => {
+    // null clears the stored choice → back to the "Default (anonymous)" state
+    // (no header sent). Reload so every page refetches with the new role
+    // context — same strategy as TenantSwitcher.
     setDevRole(role);
-    // Reload so every page refetches with the new role context — same
-    // strategy as TenantSwitcher.
     window.location.reload();
   }, []);
 
@@ -71,6 +72,13 @@ export function DevRoleSwitcher() {
           {t("devRole.selectRole")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {/* "Default (anonymous)" clears the stored choice — without it a user
+            could never return to the no-header state from the UI. */}
+        <DropdownMenuItem onClick={() => handleSelect(null)} className="gap-2">
+          <UserCogIcon className="size-4 text-muted-foreground" />
+          <span className="flex-1">{t("devRole.roles.default")}</span>
+          {activeRole === null && <CheckIcon className="size-4 text-primary" />}
+        </DropdownMenuItem>
         {DEV_ROLES.map((role) => (
           <DropdownMenuItem key={role} onClick={() => handleSelect(role)} className="gap-2">
             <UserCogIcon className="size-4 text-muted-foreground" />
