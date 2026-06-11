@@ -44,7 +44,7 @@ export const capAdapterServer = defineCapability({
       },
       {
         id: "ai-proposals",
-        label: "t:proposals.title",
+        label: "t:proposals.navLabel",
         path: "/admin/proposals",
         icon: "GitPullRequest",
         section: "admin",
