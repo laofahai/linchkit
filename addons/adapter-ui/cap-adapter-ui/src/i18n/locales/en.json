@@ -208,6 +208,7 @@
       "prompt": "Prompt",
       "completion": "Completion",
       "noCompletion": "No completion recorded (streaming or empty)",
+      "noMessages": "No prompt messages recorded",
       "role": {
         "system": "System",
         "user": "User",

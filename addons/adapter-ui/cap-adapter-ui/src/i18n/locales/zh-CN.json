@@ -208,6 +208,7 @@
       "prompt": "提示词",
       "completion": "补全结果",
       "noCompletion": "未记录补全结果（流式或为空）",
+      "noMessages": "未记录提示词消息",
       "role": {
         "system": "系统",
         "user": "用户",
