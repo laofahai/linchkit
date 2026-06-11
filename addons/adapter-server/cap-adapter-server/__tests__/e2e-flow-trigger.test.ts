@@ -78,6 +78,24 @@ const approveAction: ActionDefinition = {
   },
 };
 
+// Real action the approval flow's `flag_for_review` step calls — records an
+// audit note WITHOUT changing state (request stays pending). Mirrors the
+// capability's declarative `flag_purchase_for_review`; defined as a handler
+// here to match this test's handler-style action wiring.
+const flagForReviewAction: ActionDefinition = {
+  name: "flag_purchase_for_review",
+  entity: "purchase_request",
+  label: "Flag for Review",
+  policy: { mode: "sync", transaction: true },
+  exposure: "all",
+  handler: async (ctx) => {
+    const id = ctx.input.id as string;
+    return ctx.update("purchase_request", id, {
+      audit_notes: ctx.input.audit_notes as string,
+    });
+  },
+};
+
 // ── Setup: wire real runtime ────────────────────────────
 
 const store = new InMemoryStore();
@@ -88,7 +106,12 @@ entityRegistry.register(purchaseRequestSchema);
 const { bus: eventBus } = createEventBus();
 const executor = createActionExecutor({ dataProvider: store, executionLogger, eventBus });
 
-const allActions = [...generateCrudActions(purchaseRequestSchema), submitAction, approveAction];
+const allActions = [
+  ...generateCrudActions(purchaseRequestSchema),
+  submitAction,
+  approveAction,
+  flagForReviewAction,
+];
 for (const action of allActions) {
   executor.registry.register(action);
 }
@@ -224,7 +247,7 @@ describe("E2E: Small purchase — auto-approved by flow", () => {
     expect((body.data as Record<string, unknown>).status).toBe("pending");
   });
 
-  test("3. Trigger flow via API → auto-approve (amount <= 5000)", async () => {
+  test("3. Trigger flow via API → auto-approve (amount <= 10000)", async () => {
     const { status, body } = await startFlow("purchase_approval", {
       id: purchaseId,
       amount: 2000,
@@ -266,7 +289,7 @@ describe("E2E: Large purchase — flagged for manager", () => {
     expect((body.data as Record<string, unknown>).status).toBe("pending");
   });
 
-  test("3. Trigger flow → flag for review (amount > 5000)", async () => {
+  test("3. Trigger flow → flag for review (amount > 10000)", async () => {
     const { body } = await startFlow("purchase_approval", {
       id: purchaseId,
       amount: 30000,
@@ -341,7 +364,7 @@ describe("E2E: Auto-trigger — action.succeeded → TriggerBinding → flow", (
     // Wait for async event processing
     await new Promise((r) => setTimeout(r, 500));
 
-    // Verify: flow should have auto-approved (amount 1500 <= 5000)
+    // Verify: flow should have auto-approved (amount 1500 <= 10000)
     const result = await gql(`{ purchaseRequest(id: "${id}") { status approved_by } }`);
     const pr = (result.data as Record<string, unknown>).purchaseRequest as Record<string, unknown>;
     expect(pr.status).toBe("approved");

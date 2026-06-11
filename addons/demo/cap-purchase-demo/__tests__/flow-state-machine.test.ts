@@ -28,6 +28,7 @@ import {
   transition,
 } from "@linchkit/core/server";
 import { purchaseApprovalFlow } from "../src/flows/purchase-approval";
+import { MANAGER_APPROVAL_THRESHOLD } from "../src/rules/manager-approval-threshold";
 import { purchaseRequestState } from "../src/states/purchase-request";
 
 // ── Actors ──────────────────────────────────────────────
@@ -61,7 +62,7 @@ function createTestFlowContext(store: InstanceType<typeof InMemoryStore>): FlowS
         });
       }
 
-      if (actionName === "update_purchase_request") {
+      if (actionName === "flag_purchase_for_review") {
         const recordId = input.id as string;
         const { id: _id, ...updates } = input;
         return store.update("purchase_request", recordId, updates);
@@ -154,7 +155,7 @@ describe("Purchase Approval Flow — auto-approval routing", () => {
     store = new InMemoryStore();
   });
 
-  test("small purchase (<=5000): auto-approved by flow", async () => {
+  test(`small purchase (<=${MANAGER_APPROVAL_THRESHOLD}): auto-approved by flow`, async () => {
     const record = await store.create("purchase_request", {
       title: "Office Supplies",
       amount: 3000,
@@ -176,7 +177,7 @@ describe("Purchase Approval Flow — auto-approval routing", () => {
     expect(updated.approved_by).toBe("system:auto-approval");
   });
 
-  test("large purchase (>5000): flagged for review, stays pending", async () => {
+  test(`large purchase (>${MANAGER_APPROVAL_THRESHOLD}): flagged for review, stays pending`, async () => {
     const record = await store.create("purchase_request", {
       title: "Server Hardware",
       amount: 25000,
@@ -197,30 +198,36 @@ describe("Purchase Approval Flow — auto-approval routing", () => {
     expect(String(updated.audit_notes)).toContain("manager approval");
   });
 
-  test("boundary: exactly 5000 → auto-approved", async () => {
+  test(`boundary: exactly ${MANAGER_APPROVAL_THRESHOLD} → auto-approved`, async () => {
     const record = await store.create("purchase_request", {
       title: "Boundary",
-      amount: 5000,
+      amount: MANAGER_APPROVAL_THRESHOLD,
       status: "pending",
     });
 
     const engine = createSyncFlowEngine(createTestFlowContext(store));
     engine.registerFlow(purchaseApprovalFlow);
-    await engine.startFlow("purchase_approval", { id: record.id, amount: 5000 });
+    await engine.startFlow("purchase_approval", {
+      id: record.id,
+      amount: MANAGER_APPROVAL_THRESHOLD,
+    });
 
     expect((await store.get("purchase_request", record.id)).status).toBe("approved");
   });
 
-  test("boundary: 5001 → stays pending", async () => {
+  test(`boundary: ${MANAGER_APPROVAL_THRESHOLD + 1} → stays pending`, async () => {
     const record = await store.create("purchase_request", {
       title: "Boundary",
-      amount: 5001,
+      amount: MANAGER_APPROVAL_THRESHOLD + 1,
       status: "pending",
     });
 
     const engine = createSyncFlowEngine(createTestFlowContext(store));
     engine.registerFlow(purchaseApprovalFlow);
-    await engine.startFlow("purchase_approval", { id: record.id, amount: 5001 });
+    await engine.startFlow("purchase_approval", {
+      id: record.id,
+      amount: MANAGER_APPROVAL_THRESHOLD + 1,
+    });
 
     const updated = await store.get("purchase_request", record.id);
     expect(updated.status).toBe("pending");
@@ -276,7 +283,7 @@ describe("Full Lifecycle — State Machine + Flow collaboration", () => {
     expect(transition(machine, "draft", "submit_purchase_request").allowed).toBe(true);
     await store.update("purchase_request", record.id, { status: "pending" });
 
-    // 2. Flow runs: amount 30000 > 5000 → flags for manager
+    // 2. Flow runs: amount 30000 > threshold → flags for manager
     const engine = createSyncFlowEngine(createTestFlowContext(store));
     engine.registerFlow(purchaseApprovalFlow);
     await engine.startFlow("purchase_approval", { id: record.id, amount: 30000 });
@@ -313,7 +320,7 @@ describe("Full Lifecycle — State Machine + Flow collaboration", () => {
     expect(transition(machine, "rejected", "submit_purchase_request").allowed).toBe(true);
     await store.update("purchase_request", record.id, { status: "pending" });
 
-    // 4. Flow triggers again on resubmit → auto-approves (amount 500 <= 5000)
+    // 4. Flow triggers again on resubmit → auto-approves (amount 500 <= threshold)
     const engine = createSyncFlowEngine(createTestFlowContext(store));
     engine.registerFlow(purchaseApprovalFlow);
     await engine.startFlow("purchase_approval", { id: record.id, amount: 500 });

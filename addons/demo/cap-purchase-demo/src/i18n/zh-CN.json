@@ -35,6 +35,7 @@
         "submit_for_approval": "提交审批",
         "approve": "批准",
         "reject": "拒绝",
+        "flag_for_review": "标记为经理审批",
         "cancel": "取消申请"
       }
     },

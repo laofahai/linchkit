@@ -7,6 +7,7 @@
  */
 
 export { approveAction } from "./actions/approve";
+export { flagForReviewAction } from "./actions/flag-for-review";
 export { rejectAction } from "./actions/reject";
 export { submitAction } from "./actions/submit";
 export {
@@ -21,6 +22,10 @@ export { purchaseRequestEntity } from "./entities/purchase-request";
 export { purchaseApprovalFlow } from "./flows/purchase-approval";
 export { auditableInterface } from "./interfaces/auditable";
 export { requestToDepartment, requestToItems } from "./relations";
+export {
+  MANAGER_APPROVAL_THRESHOLD,
+  managerApprovalThresholdRule,
+} from "./rules/manager-approval-threshold";
 export { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
 export { purchaseRejectionPattern } from "./sensors/purchase-rejection-pattern";
 export { purchaseRequestState } from "./states/purchase-request";
