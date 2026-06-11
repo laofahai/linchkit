@@ -60,7 +60,36 @@
         "quantity": "数量",
         "unit_price": "单价",
         "specification": "规格",
-        "line_total": "小计"
+        "line_total": "小计",
+        "product": "商品"
+      }
+    },
+    "product": {
+      "_label": "商品",
+      "_labelPlural": "商品",
+      "fields": {
+        "name": "商品名称",
+        "category": "商品分类",
+        "specification": "规格",
+        "barcode": "条码",
+        "case_pack_quantity": "箱规（每箱数量）",
+        "unit": "计量单位",
+        "unit_price": "单价",
+        "status": "状态",
+        "purchase_items": "采购明细"
+      },
+      "enums": {
+        "category": {
+          "stationery": "文具",
+          "paper": "纸品",
+          "electronics": "电子耗材",
+          "cleaning": "清洁用品",
+          "other": "其他"
+        },
+        "status": { "active": "启用", "inactive": "停用" }
+      },
+      "actions": {
+        "create": "新建商品"
       }
     }
   }

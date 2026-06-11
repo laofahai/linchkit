@@ -17,17 +17,26 @@ export {
 } from "./automations/purchase-status";
 export { capPurchaseDemo } from "./capability";
 export { departmentEntity } from "./entities/department";
+export { productEntity } from "./entities/product";
 export { purchaseItemEntity } from "./entities/purchase-item";
 export { purchaseRequestEntity } from "./entities/purchase-request";
 export { purchaseApprovalFlow } from "./flows/purchase-approval";
 export { auditableInterface } from "./interfaces/auditable";
-export { requestToDepartment, requestToItems } from "./relations";
+export { itemToProduct, requestToDepartment, requestToItems } from "./relations";
 export {
   MANAGER_APPROVAL_THRESHOLD,
   managerApprovalThresholdRule,
 } from "./rules/manager-approval-threshold";
-export { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
+export {
+  departmentSeedData,
+  productSeedData,
+  purchaseItemSeedData,
+  purchaseRequestSeedData,
+} from "./seed";
 export { purchaseRejectionPattern } from "./sensors/purchase-rejection-pattern";
 export { purchaseRequestState } from "./states/purchase-request";
 export { purchaseRequestFormView } from "./views/form";
 export { purchaseRequestListView } from "./views/list";
+export { productFormView } from "./views/product-form";
+export { productListView } from "./views/product-list";
+export { purchaseItemFormView } from "./views/purchase-item-form";

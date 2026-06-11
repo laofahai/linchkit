@@ -28,3 +28,20 @@ export const requestToItems = defineRelation({
   cascade: "delete",
   label: { from: "Items", to: "Purchase Request" },
 });
+
+/**
+ * Purchase item references a catalog product (many_to_one).
+ *
+ * The `fromName: "product"` semantic name is what makes the purchase_item
+ * form render a product selector (FK column `product_id` on purchase_item),
+ * mirroring how purchase_request.department works.
+ */
+export const itemToProduct = defineRelation({
+  name: "item_to_product",
+  from: "purchase_item",
+  to: "product",
+  cardinality: "many_to_one",
+  fromName: "product",
+  toName: "purchase_items",
+  label: { from: "Product", to: "Purchase Items" },
+});

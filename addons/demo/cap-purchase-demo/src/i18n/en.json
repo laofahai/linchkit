@@ -60,7 +60,36 @@
         "quantity": "Quantity",
         "unit_price": "Unit Price",
         "specification": "Specification",
-        "line_total": "Line Total"
+        "line_total": "Line Total",
+        "product": "Product"
+      }
+    },
+    "product": {
+      "_label": "Product",
+      "_labelPlural": "Products",
+      "fields": {
+        "name": "Product Name",
+        "category": "Category",
+        "specification": "Specification",
+        "barcode": "Barcode",
+        "case_pack_quantity": "Case Pack Quantity",
+        "unit": "Unit of Measure",
+        "unit_price": "Unit Price",
+        "status": "Status",
+        "purchase_items": "Purchase Items"
+      },
+      "enums": {
+        "category": {
+          "stationery": "Stationery",
+          "paper": "Paper",
+          "electronics": "Electronics",
+          "cleaning": "Cleaning Supplies",
+          "other": "Other"
+        },
+        "status": { "active": "Active", "inactive": "Inactive" }
+      },
+      "actions": {
+        "create": "New Product"
       }
     }
   }
