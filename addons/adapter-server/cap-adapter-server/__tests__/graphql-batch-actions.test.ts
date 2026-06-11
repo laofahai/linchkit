@@ -61,6 +61,28 @@ const adminOnly: ActionDefinition = {
   handler: async () => ({ ok: true }),
 };
 
+// Rule-blocked fixture: the rule `block` reason is user-facing policy text
+// and must survive production sanitization per item (constraint: "rule_block").
+const POLICY_MESSAGE = "金额超过 10000 需要经理审批 / Amounts over 10000 require manager approval";
+
+const gatedAction: ActionDefinition = {
+  name: "do_gated",
+  entity: "item",
+  label: "Gated",
+  policy: { mode: "sync", transaction: false },
+  exposure: "all",
+  handler: async () => ({ ok: true }),
+};
+
+const blockGatedRule = {
+  name: "always_block_gated",
+  label: "Always Block (test)",
+  description: "Blocks do_gated unconditionally to exercise the batch rule_block envelope",
+  trigger: { action: "do_gated" },
+  condition: () => true,
+  effect: { type: "block" as const, message: POLICY_MESSAGE },
+};
+
 // Snapshot-aware in-memory provider so we can verify rollback under
 // `all_or_nothing`. Mirrors the REST batch test fixture.
 function createSnapshotProvider() {
@@ -129,10 +151,12 @@ const txManager = createFakeTxManager(provider);
 const executor = createActionExecutor({
   dataProvider: provider,
   transactionManager: txManager,
+  rules: [blockGatedRule],
 });
 executor.registry.register(createItem);
 executor.registry.register(failItem);
 executor.registry.register(adminOnly);
+executor.registry.register(gatedAction);
 
 const commandLayer = createCommandLayer({ executor, transactionManager: txManager });
 commandLayer.use({
@@ -153,7 +177,7 @@ const graphqlSchema = buildGraphQLSchema([itemSchema], {
   executor,
   commandLayer,
   dataProvider: provider,
-  actions: [createItem, failItem, adminOnly],
+  actions: [createItem, failItem, adminOnly, gatedAction],
   transactionManager: txManager,
 });
 
@@ -461,6 +485,45 @@ describe("GraphQL batch_actions mutation", () => {
       expect(batch.failed[0]?.error.message).toBe("Action execution failed");
       expect(typeof batch.failed[0]?.error.code).toBe("string");
       expect((batch.failed[0]?.error.code as string).length).toBeGreaterThan(0);
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  test("(i) production mode keeps rule_block policy text, still sanitizes other failures", async () => {
+    // A rule `block` reason is the rule author's user-facing policy text —
+    // it must reach the caller verbatim even in production, while non-policy
+    // failures in the SAME batch are still flattened to the generic message.
+    // Detection rides the engine-stamped `constraint: "rule_block"` marker
+    // (server-controlled), never message content.
+    provider.records.clear();
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const result = await gql(
+        `mutation Run($actions: [BatchActionInputItem!]!) {
+          batch_actions(actions: $actions, strategy: "partial") {
+            ${BATCH_SELECTION}
+          }
+        }`,
+        {
+          actions: [
+            { name: "do_gated", input: JSON.stringify({}) },
+            { name: "fail_item", input: JSON.stringify({}) },
+          ],
+        },
+      );
+      expect(result.errors).toBeUndefined();
+      const batch = result.data?.batch_actions;
+      expect(batch).toBeDefined();
+      if (!batch) return;
+      expect(batch.success).toBe(false);
+      expect(batch.failed.length).toBe(2);
+      const blocked = batch.failed.find((f) => f.index === 0);
+      const thrown = batch.failed.find((f) => f.index === 1);
+      expect(blocked?.error.message).toBe(POLICY_MESSAGE);
+      expect(thrown?.error.message).toBe("Action execution failed");
+      expect(thrown?.error.message).not.toContain("intentional failure");
     } finally {
       process.env.NODE_ENV = originalNodeEnv;
     }

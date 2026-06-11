@@ -898,6 +898,8 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
         public readonly executionId: string | undefined,
         public readonly errCode: string,
         public readonly errMessage: string,
+        /** Engine-stamped policy marker (e.g. "rule_block"), when present. */
+        public readonly errConstraint?: string,
       ) {
         super(errMessage);
       }
@@ -916,7 +918,7 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
           );
           if (!result.success) {
             const err = extractErrorFromActionResult(result);
-            throw new BatchAbort(i, result.executionId, err.code, err.message);
+            throw new BatchAbort(i, result.executionId, err.code, err.message, err.constraint);
           }
           succeededInside.push(toSucceededItem(i, result));
         }
@@ -935,7 +937,11 @@ export function createCommandLayer(options: CommandLayerOptions): CommandLayer {
             {
               index: err.index,
               executionId: err.executionId,
-              error: { code: err.errCode, message: err.errMessage },
+              error: {
+                code: err.errCode,
+                message: err.errMessage,
+                ...(err.errConstraint !== undefined ? { constraint: err.errConstraint } : {}),
+              },
             },
           ],
           rolledBack: succeededInside,
@@ -984,13 +990,23 @@ function extractErrorFromActionResult(result: ActionResult): {
   code: string;
   message: string;
   field?: string;
+  constraint?: string;
 } {
   const data = result.data as Record<string, unknown> | undefined;
   const message = (data?.error as string) ?? "Action execution failed";
   const code = (data?.code as string) ?? "ACTION.EXECUTION.FAILED";
   const ctx = data?.context as Record<string, unknown> | undefined;
   const field = ctx?.field as string | undefined;
-  return field ? { code, message, field } : { code, message };
+  // Engine-stamped policy marker (e.g. "rule_block"). Threaded onto the
+  // failed item so transports can exempt policy text from production
+  // sanitization without inspecting message content.
+  const constraint = typeof ctx?.constraint === "string" ? ctx.constraint : undefined;
+  return {
+    code,
+    message,
+    ...(field !== undefined ? { field } : {}),
+    ...(constraint !== undefined ? { constraint } : {}),
+  };
 }
 
 /** Build a {@link BatchSucceededItem} from a successful {@link ActionResult}. */

@@ -57,6 +57,28 @@ const adminOnly: ActionDefinition = {
   handler: async () => ({ ok: true }),
 };
 
+// Rule-blocked fixture: the rule `block` reason is user-facing policy text
+// and must survive production sanitization per item (constraint: "rule_block").
+const POLICY_MESSAGE = "金额超过 10000 需要经理审批 / Amounts over 10000 require manager approval";
+
+const gatedAction: ActionDefinition = {
+  name: "do_gated",
+  entity: "item",
+  label: "Gated",
+  policy: { mode: "sync", transaction: false },
+  exposure: "all",
+  handler: async () => ({ ok: true }),
+};
+
+const blockGatedRule = {
+  name: "always_block_gated",
+  label: "Always Block (test)",
+  description: "Blocks do_gated unconditionally to exercise the batch rule_block envelope",
+  trigger: { action: "do_gated" },
+  condition: () => true,
+  effect: { type: "block" as const, message: POLICY_MESSAGE },
+};
+
 // Snapshot-aware in-memory provider so we can verify rollback behavior under
 // `all_or_nothing`. InMemoryStore alone has no rollback semantics, so we
 // pair a custom DataProvider with a fake TransactionManager.
@@ -126,10 +148,12 @@ const txManager = createFakeTxManager(provider);
 const executor = createActionExecutor({
   dataProvider: provider,
   transactionManager: txManager,
+  rules: [blockGatedRule],
 });
 executor.registry.register(createItem);
 executor.registry.register(failItem);
 executor.registry.register(adminOnly);
+executor.registry.register(gatedAction);
 
 const commandLayer = createCommandLayer({ executor });
 commandLayer.use({
@@ -291,6 +315,95 @@ describe("POST /api/actions/batch", () => {
         process.env.NODE_ENV = prevEnv;
       }
     }
+  });
+
+  test("(h2) production mode keeps rule_block policy text, still sanitizes other failures", async () => {
+    // A rule `block` reason is the rule author's user-facing policy text —
+    // it must reach the caller verbatim even in production, while non-policy
+    // failures in the SAME batch are still flattened to the generic message.
+    // Detection rides the engine-stamped `constraint: "rule_block"` marker,
+    // never message content.
+    provider.records.clear();
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { status, body } = await postJSON("/api/actions/batch", {
+        strategy: "partial",
+        actions: [
+          { name: "do_gated", input: {} },
+          { name: "fail_item", input: {} },
+        ],
+      });
+      expect(status).toBe(200);
+      expect(body?.success).toBe(false);
+      const failed = body?.failed as Array<{
+        index: number;
+        error: { code: string; message: string; constraint?: string };
+      }>;
+      expect(failed.length).toBe(2);
+      const blocked = failed.find((f) => f.index === 0);
+      const thrown = failed.find((f) => f.index === 1);
+      expect(blocked?.error.message).toBe(POLICY_MESSAGE);
+      expect(blocked?.error.constraint).toBe("rule_block");
+      expect(thrown?.error.message).toBe("Action execution failed");
+      expect(thrown?.error.message).not.toContain("intentional failure");
+    } finally {
+      if (prevEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = prevEnv;
+      }
+    }
+  });
+
+  test("(h3) production mode keeps rule_block policy text under all_or_nothing abort", async () => {
+    // The all_or_nothing path threads the constraint through BatchAbortError;
+    // the aborting item's policy text must survive sanitization too.
+    provider.records.clear();
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { status, body } = await postJSON("/api/actions/batch", {
+        strategy: "all_or_nothing",
+        actions: [
+          { name: "create_item", input: { title: "A" } },
+          { name: "do_gated", input: {} },
+        ],
+      });
+      expect(status).toBe(200);
+      expect(body?.success).toBe(false);
+      const failed = body?.failed as Array<{
+        index: number;
+        error: { message: string; constraint?: string };
+      }>;
+      expect(failed.length).toBe(1);
+      expect(failed[0]?.index).toBe(1);
+      expect(failed[0]?.error.message).toBe(POLICY_MESSAGE);
+      expect(failed[0]?.error.constraint).toBe("rule_block");
+      expect(provider.records.size).toBe(0);
+    } finally {
+      if (prevEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = prevEnv;
+      }
+    }
+  });
+
+  test("(h4) dev mode passes rule_block message through unchanged", async () => {
+    // Dev-mode parity: the sanitizer is a no-op, so the policy text (and the
+    // raw failure text) arrive untouched.
+    provider.records.clear();
+    const { status, body } = await postJSON("/api/actions/batch", {
+      strategy: "partial",
+      actions: [{ name: "do_gated", input: {} }],
+    });
+    expect(status).toBe(200);
+    const failed = body?.failed as Array<{
+      error: { message: string; constraint?: string };
+    }>;
+    expect(failed[0]?.error.message).toBe(POLICY_MESSAGE);
+    expect(failed[0]?.error.constraint).toBe("rule_block");
   });
 
   test("(g) /api/actions/batch is NOT captured by /api/actions/:name", async () => {

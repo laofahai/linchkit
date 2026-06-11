@@ -141,7 +141,8 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
       // `success` and the per-item arrays. (Consider HTTP 207 Multi-Status
       // for `partial` mode with mixed outcomes in a follow-up.) In production
       // we strip per-item error messages to prevent internal-detail leakage,
-      // matching the single-action route below.
+      // matching the single-action route below — including its rule_block
+      // exemption (policy text survives; see sanitizeBatchResult).
       return sanitizeBatchResult(result);
     })
     // REST action endpoint — executes via ActionExecutor
