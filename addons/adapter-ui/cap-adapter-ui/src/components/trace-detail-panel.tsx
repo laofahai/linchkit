@@ -218,13 +218,21 @@ export function TraceDetailPanel({
       traceId,
       limit: GENERATION_LIMIT,
       signal: controller.signal,
-    }).then((next) => {
-      // Drop a stale response superseded by a newer selection, or one whose
-      // request was aborted (panel closed / unmounted).
-      if (seq !== reqSeq.current || controller.signal.aborted) return;
-      setResult(next);
-      setLoading(false);
-    });
+    })
+      .then((next) => {
+        // Drop a stale response superseded by a newer selection, or one whose
+        // request was aborted (panel closed / unmounted).
+        if (seq !== reqSeq.current || controller.signal.aborted) return;
+        setResult(next);
+        setLoading(false);
+      })
+      .catch(() => {
+        // fetchTraceGenerations never rejects by construction; this guard only
+        // keeps the skeleton from sticking forever if that invariant changes.
+        if (seq !== reqSeq.current || controller.signal.aborted) return;
+        setResult({ kind: "error", message: "Failed to load trace generations" });
+        setLoading(false);
+      });
     // Abort the in-flight fetch when the selection changes or the panel closes.
     return () => controller.abort();
   }, [traceId]);

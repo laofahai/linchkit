@@ -97,7 +97,10 @@ function TraceRow({ trace, onSelect }: { trace: AITrace; onSelect: (trace: AITra
     <TableRow
       role="button"
       tabIndex={0}
-      aria-label={t("aiTraces.detail.open", "View trace detail")}
+      // Include the trace name: `role="button"` makes aria-label the row's
+      // ENTIRE accessible name (cell content is no longer announced), so a
+      // fixed label would make every row indistinguishable to screen readers.
+      aria-label={`${t("aiTraces.detail.open", "View trace detail")}: ${trace.name}`}
       className="cursor-pointer"
       onClick={() => onSelect(trace)}
       onKeyDown={(e) => {

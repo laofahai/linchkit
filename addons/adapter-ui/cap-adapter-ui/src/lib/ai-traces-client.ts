@@ -163,7 +163,7 @@ async function requestTraceApi<TData>(options: {
     // Empty / non-JSON body (proxy, gateway, 204). A 403 is still a denial —
     // map it before falling back to a generic error so the friendly state shows.
     if (res.status === 403) return { kind: "denied", message: DENIED_MESSAGE };
-    return { kind: "error", message: "AI traces endpoint returned an invalid response" };
+    return { kind: "error", message: options.fallbackMessage };
   }
 
   if (json.success && json.data) {
