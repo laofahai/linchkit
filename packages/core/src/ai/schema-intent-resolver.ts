@@ -1,23 +1,30 @@
 /**
- * Schema Intent Resolver — NL utterance → governed `add_rule` ProposalDraft
- * (Spec 52 "说→有", first slice).
+ * Schema Intent Resolver — NL utterance → governed `add_rule` / `update_rule`
+ * ProposalDraft (Spec 52 "说→有").
  *
  * The bridge that was missing: the existing `resolveIntent()` (intent-
  * resolver.ts) turns an utterance into a RUNTIME DATA action; this resolver
- * turns an utterance into a METAMODEL CHANGE — specifically a new
- * `defineRule()` — surfaced ONLY as a governed `add_rule` Proposal in
+ * turns an utterance into a METAMODEL CHANGE — a new `defineRule()` or an
+ * UPDATE to an existing one — surfaced ONLY as a governed Proposal in
  * `draft` status via `ProposalEngine.createProposal()`.
  *
  * Pipeline (mirrors intent-resolver.ts):
- *   sanitize → build entity catalog → build focused system prompt
- *   → call provider → parse + validate AI JSON → reconcile rule against
- *   the ontology → `ProposalEngine.createProposal({ type: 'add_rule', ... })`
- *   → emit `SchemaIntentOutcome` (proposal_draft / clarification / no_match).
+ *   sanitize → build entity catalog (incl. existing rules) → build focused
+ *   system prompt → call provider → parse + validate AI JSON → reconcile rule
+ *   against the ontology → `ProposalEngine.createProposal(...)` → emit
+ *   `SchemaIntentOutcome` (proposal_draft / clarification / no_match).
  *
  * Hard rules (repo principle "AI Never Modifies Production Directly"):
  *  - NEVER submits, approves, or applies. The returned Proposal is ALWAYS
  *    `draft`. Graduating it (draft→pending→…) is a separate, human-gated path.
- *  - `add_rule` ONLY. Entity/field/view creation is out of scope (later slices).
+ *  - `add_rule` + `update_rule` ONLY (no rename/delete). Entity/field/view
+ *    creation is out of scope (later slices).
+ *  - An `update_rule` may only target a rule present in the ontology's rule
+ *    list (allowlist — the AI cannot update what it cannot see). A rule whose
+ *    condition is CODE (a TS function) cannot be round-tripped declaratively;
+ *    its update draft carries NO definition, only a human-readable diff
+ *    summary, and is flagged `requiresCodeChange` (honest change REQUEST —
+ *    a developer applies it in source).
  *  - Single-shot. No multi-turn, no history replay.
  *
  * Security posture (this is a prompt-injection-sensitive path):
@@ -43,6 +50,7 @@ import type { ProposalEngine } from "./proposal-engine";
 // System prompt + response parser live in a sibling module (mirrors the
 // intent-resolver.ts / intent-prompt.ts split) so this file stays focused on
 // the pipeline + the governed Proposal mint.
+import type { ParsedSchemaIntent } from "./schema-intent-prompt";
 import { buildSchemaIntentSystemPrompt, parseSchemaIntentResponse } from "./schema-intent-prompt";
 // Rule reconciliation + validation lives in a sibling module so this file
 // stays under the 500-line ceiling and focuses on the pipeline.
@@ -70,7 +78,10 @@ export const SCHEMA_INTENT_MESSAGES = {
   aiMalformedResponse: "AI returned malformed JSON; could not parse the schema intent.",
   noRuleDrafted: "AI did not propose a rule for this request.",
   unknownEntity: (entity: string) => `AI proposed a rule for unknown entity "${entity}".`,
+  unknownRule: (rule: string, entity: string) =>
+    `AI proposed an update to unknown rule "${rule}" on entity "${entity}".`,
   invalidRule: (detail: string) => `AI proposed an invalid rule: ${detail}.`,
+  missingUpdateDiff: "AI proposed a code-backed rule update without describing what should change",
   lowConfidenceClarification:
     "I'm not sure what rule you want. Could you describe the condition and what should happen when it matches?",
 } as const;
@@ -198,7 +209,7 @@ export async function resolveSchemaIntent(
     };
   }
 
-  // kind === "add_rule"
+  // kind === "add_rule" | "update_rule"
   const confidence = clampConfidence(parsed.confidence);
   if (confidence < minConfidence) {
     return {
@@ -213,6 +224,17 @@ export async function resolveSchemaIntent(
   const entity = catalogIndex.get(targetEntity);
   if (!entity) {
     return noMatch("unknown_entity", SCHEMA_INTENT_MESSAGES.unknownEntity(targetEntity));
+  }
+
+  // Step 8/9 — update path: reconcile against an EXISTING rule, then mint.
+  if (parsed.kind === "update_rule") {
+    return draftRuleUpdate({
+      parsed,
+      entity,
+      confidence,
+      utterance,
+      engine: deps.proposalEngine,
+    });
   }
 
   // Step 8 — Validate + reconcile the proposed rule against the entity.
@@ -244,10 +266,106 @@ export async function resolveSchemaIntent(
   return {
     kind: "proposal_draft",
     proposal,
+    operation: "create",
     ruleName: ruleDef.name,
     targetEntity: entity.name,
     confidence,
     explanation,
+  };
+}
+
+// ── Update-rule reconciliation + mint ────────────────────────
+
+/**
+ * Turn a parsed `update_rule` intent into a governed `update_rule` draft
+ * Proposal, mirroring the add_rule path's validation discipline:
+ *
+ *  1. The targeted rule MUST exist on the entity's rule list (allowlist —
+ *     the AI cannot update a rule it was not shown).
+ *  2. Declarative rule: the AI's FULL updated definition passes the same
+ *     strict structural validation as add_rule (`buildRuleDefinition`), and
+ *     the name is pinned to the existing rule's name (renames out of scope).
+ *  3. CODE-condition rule: the condition is a TS function the AI cannot
+ *     round-trip, so no declarative definition is fabricated. The draft
+ *     carries ONLY the human-readable diff summary and is flagged
+ *     `requiresCodeChange` — an honest, governed change REQUEST a developer
+ *     applies in source. A code update without any diff/explanation is
+ *     refused (there is nothing actionable to review).
+ */
+function draftRuleUpdate(opts: {
+  parsed: ParsedSchemaIntent;
+  entity: SchemaIntentEntity;
+  confidence: number;
+  utterance: string;
+  engine: ProposalEngine;
+}): SchemaIntentOutcome {
+  const { parsed, entity, confidence, utterance, engine } = opts;
+
+  const targetRuleName = (parsed.ruleName ?? "").trim();
+  const existing = (entity.rules ?? []).find((rule) => rule.name === targetRuleName);
+  if (!existing) {
+    return noMatch("unknown_rule", SCHEMA_INTENT_MESSAGES.unknownRule(targetRuleName, entity.name));
+  }
+
+  const explanation =
+    parsed.explanation?.trim() || `Update rule "${existing.name}" on ${entity.name}`;
+  const diffSummary = parsed.diff?.trim() || "";
+
+  if (existing.conditionKind === "code") {
+    // Honest path for code-backed rules: no fabricated declarative condition.
+    const summary = diffSummary || parsed.explanation?.trim() || "";
+    if (!summary) {
+      return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.missingUpdateDiff);
+    }
+    const proposal = engine.createProposal({
+      type: "update_rule",
+      description: explanation,
+      reasoning: utterance,
+      confidence,
+      // NO definition — the rule's condition lives in TypeScript source the
+      // AI never saw. The summary is the reviewable spec of the change.
+      diff: { target: "rule", operation: "update", summary },
+    });
+    return {
+      kind: "proposal_draft",
+      proposal,
+      operation: "update",
+      ruleName: existing.name,
+      targetEntity: entity.name,
+      confidence,
+      explanation,
+      diffSummary: summary,
+      requiresCodeChange: true,
+    };
+  }
+
+  // Declarative rule — same strict structural validation as add_rule. The
+  // name is pinned to the EXISTING rule's name before validation so an
+  // AI-side rename (out of scope) can never slip through as a new rule.
+  const built = buildRuleDefinition(
+    parsed.rule ? { ...parsed.rule, name: existing.name } : undefined,
+    entity,
+  );
+  if (!built.ok) {
+    return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.invalidRule(built.reason));
+  }
+  const summary = diffSummary || explanation;
+  const proposal = engine.createProposal({
+    type: "update_rule",
+    description: explanation,
+    reasoning: utterance,
+    confidence,
+    diff: { target: "rule", operation: "update", definition: built.rule, summary },
+  });
+  return {
+    kind: "proposal_draft",
+    proposal,
+    operation: "update",
+    ruleName: built.rule.name,
+    targetEntity: entity.name,
+    confidence,
+    explanation,
+    diffSummary: summary,
   };
 }
 

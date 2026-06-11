@@ -18,7 +18,13 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
-import type { ActionDefinition, Actor, AIService, EntityDefinition } from "@linchkit/core";
+import type {
+  ActionDefinition,
+  Actor,
+  AIService,
+  EntityDefinition,
+  RuleDefinition,
+} from "@linchkit/core";
 import {
   ActionRegistry,
   createOntologyRegistry,
@@ -65,6 +71,52 @@ function buildOntology(): ReturnType<typeof createOntologyRegistry> {
     schemas: entityRegistry,
     actions: actionRegistry,
     rules: [],
+    states: [],
+    views: [],
+  });
+}
+
+// ── update_rule fixtures: an ontology that carries EXISTING rules ──
+
+const submitPurchaseAction: ActionDefinition = {
+  name: "submit_purchase_request",
+  entity: "purchase_request",
+  label: "Submit Purchase Request",
+  description: "Submit a purchase request for approval",
+  input: {},
+  policy: "unrestricted",
+};
+
+/** Declarative rule — updatable end-to-end via the resolver. */
+const warnLargeAmountRule: RuleDefinition = {
+  name: "warn_large_amount",
+  label: "Warn on large amount",
+  description: "Warn when the amount exceeds 5000",
+  trigger: { action: "create_purchase_request" },
+  condition: { field: "amount", operator: "gt", value: 5000 },
+  effect: { type: "warn", message: "Large amount" },
+};
+
+/** CODE-condition rule — the threshold lives in a TS function the AI cannot see. */
+const managerApprovalRule: RuleDefinition = {
+  name: "manager_approval_threshold",
+  label: "Manager approval threshold",
+  description: "Requires manager approval when the amount exceeds 10000",
+  trigger: { action: "submit_purchase_request" },
+  condition: (ctx) => Number((ctx.target as { amount?: number }).amount ?? 0) > 10000,
+  effect: { type: "require_approval", level: "manager" },
+};
+
+function buildOntologyWithRules(): ReturnType<typeof createOntologyRegistry> {
+  const entityRegistry = new EntityRegistry();
+  entityRegistry.register(purchaseSchema);
+  const actionRegistry = new ActionRegistry();
+  actionRegistry.register(createPurchaseAction);
+  actionRegistry.register(submitPurchaseAction);
+  return createOntologyRegistry({
+    schemas: entityRegistry,
+    actions: actionRegistry,
+    rules: [warnLargeAmountRule, managerApprovalRule],
     states: [],
     views: [],
   });
@@ -632,6 +684,250 @@ describe("POST /api/ai/resolve-schema-intent — permission scoping persists not
     // (no_entities_in_scope) — and crucially the unauthorized entity never
     // becomes a governed change.
     expect(body.outcome).toBe("no_match");
+    expect(body.proposalId).toBeUndefined();
+    const after = (await getProposals(server, "purchase_request")).json.data.total;
+    expect(after).toBe(before);
+  });
+});
+
+// ── update_rule: the ontology exposes EXISTING rules ─────────
+
+describe("buildSchemaIntentOntology — existing rules section", () => {
+  const actor: Actor = { type: "human", id: "user-1", groups: [] };
+
+  test("declarative rules expose their full condition; code rules expose kind + description only", () => {
+    const ontology = buildSchemaIntentOntology({ base: buildOntologyWithRules(), actor });
+    const entity = ontology.describeEntity("purchase_request");
+    expect(entity).toBeDefined();
+    if (!entity) throw new Error("expected entity");
+    const rules = entity.rules ?? [];
+    expect(rules.map((r) => r.name).sort()).toEqual([
+      "manager_approval_threshold",
+      "warn_large_amount",
+    ]);
+
+    const declarative = rules.find((r) => r.name === "warn_large_amount");
+    expect(declarative?.conditionKind).toBe("declarative");
+    expect(declarative?.condition).toEqual({ field: "amount", operator: "gt", value: 5000 });
+    expect(declarative?.triggerActions).toEqual(["create_purchase_request"]);
+    expect(declarative?.effectType).toBe("warn");
+
+    const code = rules.find((r) => r.name === "manager_approval_threshold");
+    expect(code?.conditionKind).toBe("code");
+    // The TS function is NEVER serialized into the snapshot.
+    expect(code?.condition).toBeUndefined();
+    expect(code?.description).toBe("Requires manager approval when the amount exceeds 10000");
+    expect(code?.triggerActions).toEqual(["submit_purchase_request"]);
+    expect(code?.effectType).toBe("require_approval");
+  });
+
+  test("action-triggered rules are hidden when the actor cannot run any of their trigger actions", () => {
+    // Grant ONLY create_purchase_request — the submit-triggered code rule must
+    // be filtered out, mirroring the actionNames permission gate.
+    const registry = new PermissionRegistry();
+    registry.register({
+      name: "purchase_creator",
+      label: "Purchase creator",
+      permissions: {},
+      grant: { purchase_request: { actions: { create_purchase_request: true } } },
+    });
+    const scopedActor: Actor = { type: "human", id: "user-1", groups: ["purchase_creator"] };
+    const ontology = buildSchemaIntentOntology({
+      base: buildOntologyWithRules(),
+      permissionRegistry: registry,
+      actor: scopedActor,
+    });
+    const entity = ontology.describeEntity("purchase_request");
+    expect(entity).toBeDefined();
+    if (!entity) throw new Error("expected entity");
+    expect(entity.actionNames).toEqual(["create_purchase_request"]);
+    const ruleNames = (entity.rules ?? []).map((r) => r.name);
+    expect(ruleNames).toContain("warn_large_amount");
+    expect(ruleNames).not.toContain("manager_approval_threshold");
+  });
+});
+
+// ── update_rule: declarative update lands as a governed update draft ──
+
+describe("POST /api/ai/resolve-schema-intent — update_rule (declarative)", () => {
+  let server: ReturnType<typeof createServer>;
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      kind: "update_rule",
+      targetEntity: "purchase_request",
+      ruleName: "warn_large_amount",
+      rule: {
+        name: "warn_large_amount",
+        label: "Warn on large amount",
+        description: "Warn when the amount exceeds 8000",
+        trigger: { action: "create_purchase_request" },
+        condition: { field: "amount", operator: "gt", value: 8000 },
+        effect: { type: "warn", message: "Amount exceeds 8000" },
+      },
+      diff: "Raise the warn threshold from 5000 to 8000.",
+      confidence: 0.9,
+      explanation: "Update the warn threshold to 8000.",
+    }),
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      aiService: ai,
+      ontologyRegistry: buildOntologyWithRules(),
+    });
+  });
+
+  test("returns an update draft and persists a governed update change", async () => {
+    const { status, json } = await postSchemaIntent(server, {
+      prompt: "把大额提醒阈值改成8000",
+    });
+    expect(status).toBe(200);
+    const body = json as {
+      outcome: string;
+      operation?: string;
+      ruleName?: string;
+      diffSummary?: string;
+      requiresCodeChange?: boolean;
+      proposalId?: string;
+      proposalStatus?: string;
+      proposal?: { type: string; status: string; diff: { operation: string } };
+    };
+    expect(body.outcome).toBe("proposal_draft");
+    expect(body.operation).toBe("update");
+    expect(body.ruleName).toBe("warn_large_amount");
+    expect(body.diffSummary).toBe("Raise the warn threshold from 5000 to 8000.");
+    expect(body.requiresCodeChange).toBeUndefined();
+    expect(body.proposal?.type).toBe("update_rule");
+    expect(body.proposal?.status).toBe("draft");
+    expect(body.proposal?.diff.operation).toBe("update");
+    expect(body.proposalStatus).toBe("draft");
+    const proposalId = body.proposalId;
+    expect(typeof proposalId).toBe("string");
+    if (!proposalId) throw new Error("expected a governed proposalId");
+
+    // Governed persistence — the SAME engine /api/proposals serves, with the
+    // exact update change shape (target/operation/name/definition/diff).
+    const byId = await getProposalById(server, proposalId);
+    expect(byId.status).toBe(200);
+    expect(byId.json.data?.status).toBe("draft");
+    const changes = byId.json.data?.changes as Array<{
+      target: string;
+      operation: string;
+      name: string;
+      definition?: Record<string, unknown>;
+      diff?: string;
+    }>;
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.target).toBe("rule");
+    expect(changes[0]?.operation).toBe("update");
+    expect(changes[0]?.name).toBe("warn_large_amount");
+    expect(changes[0]?.diff).toBe("Raise the warn threshold from 5000 to 8000.");
+    expect(changes[0]?.definition?.name).toBe("warn_large_amount");
+    expect(changes[0]?.definition?.condition).toEqual({
+      field: "amount",
+      operator: "gt",
+      value: 8000,
+    });
+  });
+});
+
+// ── update_rule: code-backed rule → honest diff-only update draft ──
+
+describe("POST /api/ai/resolve-schema-intent — update_rule (code-backed)", () => {
+  let server: ReturnType<typeof createServer>;
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      kind: "update_rule",
+      targetEntity: "purchase_request",
+      ruleName: "manager_approval_threshold",
+      // Code-backed: the AI omits `rule` and only describes the change.
+      diff: "Change the manager-approval threshold from 10000 to 20000.",
+      confidence: 0.85,
+      explanation: "把经理审批阈值改成2万。",
+    }),
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      aiService: ai,
+      ontologyRegistry: buildOntologyWithRules(),
+    });
+  });
+
+  test("persists a definition-less governed update change flagged requiresCodeChange", async () => {
+    const { status, json } = await postSchemaIntent(server, {
+      prompt: "把经理审批阈值改成2万",
+    });
+    expect(status).toBe(200);
+    const body = json as {
+      outcome: string;
+      operation?: string;
+      ruleName?: string;
+      diffSummary?: string;
+      requiresCodeChange?: boolean;
+      proposalId?: string;
+    };
+    expect(body.outcome).toBe("proposal_draft");
+    expect(body.operation).toBe("update");
+    expect(body.ruleName).toBe("manager_approval_threshold");
+    expect(body.requiresCodeChange).toBe(true);
+    expect(body.diffSummary).toBe("Change the manager-approval threshold from 10000 to 20000.");
+    const proposalId = body.proposalId;
+    expect(typeof proposalId).toBe("string");
+    if (!proposalId) throw new Error("expected a governed proposalId");
+
+    const byId = await getProposalById(server, proposalId);
+    expect(byId.status).toBe(200);
+    expect(byId.json.data?.status).toBe("draft");
+    const changes = byId.json.data?.changes as Array<{
+      target: string;
+      operation: string;
+      name: string;
+      definition?: unknown;
+      diff?: string;
+    }>;
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.target).toBe("rule");
+    expect(changes[0]?.operation).toBe("update");
+    expect(changes[0]?.name).toBe("manager_approval_threshold");
+    // Honest: NO fabricated declarative definition for a code condition — the
+    // human-readable diff IS the reviewable spec of the change.
+    expect(changes[0]?.definition).toBeUndefined();
+    expect(changes[0]?.diff).toBe("Change the manager-approval threshold from 10000 to 20000.");
+  });
+});
+
+// ── update_rule: unknown rule target persists nothing ────────
+
+describe("POST /api/ai/resolve-schema-intent — update_rule unknown rule", () => {
+  let server: ReturnType<typeof createServer>;
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      kind: "update_rule",
+      targetEntity: "purchase_request",
+      ruleName: "totally_made_up_rule",
+      diff: "x",
+      confidence: 0.9,
+      explanation: "x",
+    }),
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      aiService: ai,
+      ontologyRegistry: buildOntologyWithRules(),
+    });
+  });
+
+  test("a hallucinated rule name is refused → no_match, nothing persisted", async () => {
+    const before = (await getProposals(server, "purchase_request")).json.data.total;
+    const { status, json } = await postSchemaIntent(server, {
+      prompt: "update the made-up rule",
+    });
+    expect(status).toBe(200);
+    const body = json as { outcome: string; reason?: string; proposalId?: unknown };
+    expect(body.outcome).toBe("no_match");
+    expect(body.reason).toBe("unknown_rule");
     expect(body.proposalId).toBeUndefined();
     const after = (await getProposals(server, "purchase_request")).json.data.total;
     expect(after).toBe(before);

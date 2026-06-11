@@ -241,6 +241,7 @@ export type {
   SchemaIntentOutcome,
   SchemaIntentProposalDraft,
   SchemaIntentResolverOptions,
+  SchemaIntentRule,
 } from "./schema-intent-types";
 // Usage Meter (Spec 36 M2+)
 export type {

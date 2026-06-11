@@ -12,8 +12,9 @@
  *     `draft` status. Nothing is ever auto-submitted or applied — that is
  *     the repo principle "AI Never Modifies Production Directly".
  *
- * Scope of this first slice (intentionally narrow):
- *   - `add_rule` ONLY. Entity / field / view creation are later slices.
+ * Scope (intentionally narrow):
+ *   - `add_rule` + `update_rule` ONLY (no rename/delete, no multi-rule edits).
+ *     Entity / field / view creation are later slices.
  *   - Single-shot (no multi-turn). The resolver returns one of three
  *     outcomes and stops.
  *   - Stops at `draft`. The caller never submits/applies from this path.
@@ -22,29 +23,42 @@
  * mirroring the four-state shape of `Intent`, collapsed to the three
  * outcomes meaningful for a schema-change proposal:
  *
- *   - `SchemaIntentProposalDraft` — a governed `add_rule` Proposal (draft).
+ *   - `SchemaIntentProposalDraft` — a governed `add_rule` / `update_rule`
+ *     Proposal (draft).
  *   - `SchemaIntentClarification` — low confidence; ask the user a question.
  *   - `SchemaIntentNoMatch`       — graceful degradation / no usable rule.
  */
 
+import type { DeclarativeCondition } from "../types/rule";
 import type { Proposal } from "./proposal-engine";
 
 // ── Proposal-draft outcome ───────────────────────────────────
 
 /**
- * A confident schema-change intent that produced a governed `add_rule`
- * Proposal. The Proposal is created via `ProposalEngine.createProposal()`
- * and is ALWAYS in `draft` status — the resolver never submits or applies
- * it. The caller surfaces it for human review (Spec 15 §8 Proposal UI).
+ * A confident schema-change intent that produced a governed `add_rule` or
+ * `update_rule` Proposal. The Proposal is created via
+ * `ProposalEngine.createProposal()` and is ALWAYS in `draft` status — the
+ * resolver never submits or applies it. The caller surfaces it for human
+ * review (Spec 15 §8 Proposal UI).
  */
 export interface SchemaIntentProposalDraft {
   kind: "proposal_draft";
   /**
    * The governed draft Proposal. `proposal.status` is always `"draft"` and
-   * `proposal.type` is always `"add_rule"` for this slice.
+   * `proposal.type` is `"add_rule"` or `"update_rule"`.
    */
   proposal: Proposal;
-  /** Generated rule name (also present inside `proposal.diff.definition`). */
+  /**
+   * What the draft does to the rule: `"create"` mints a new rule
+   * (`add_rule`), `"update"` modifies an EXISTING rule (`update_rule`).
+   * Mirrors `proposal.diff.operation`.
+   */
+  operation: "create" | "update";
+  /**
+   * Rule name. For `create` this is the generated name; for `update` it is
+   * the EXISTING rule's name (validated against the ontology's rule list —
+   * renames are out of scope).
+   */
   ruleName: string;
   /** Entity the proposed rule is attached to (validated against the ontology). */
   targetEntity: string;
@@ -52,6 +66,20 @@ export interface SchemaIntentProposalDraft {
   confidence: number;
   /** Short human-readable summary suitable for the Proposal review card. */
   explanation: string;
+  /**
+   * Present only for `update` — the human-readable diff summary describing
+   * what changes versus the existing rule (carried into the governed
+   * `ProposalChange.diff` field).
+   */
+  diffSummary?: string;
+  /**
+   * Present only for `update` of a CODE-condition rule. The existing rule's
+   * condition is a TypeScript function the AI cannot round-trip into a
+   * declarative definition, so the draft carries NO definition — only the
+   * `diffSummary` describing the intended change. A developer must apply
+   * the change in source; the draft is an honest, governed change REQUEST.
+   */
+  requiresCodeChange?: boolean;
 }
 
 // ── Clarification outcome ────────────────────────────────────
@@ -90,6 +118,7 @@ export interface SchemaIntentNoMatch {
     | "ai_malformed_response"
     | "no_entities_in_scope"
     | "unknown_entity"
+    | "unknown_rule"
     | "invalid_rule"
     | "no_rule_drafted";
   /** Human-readable explanation, suitable for surfacing in the UI. */
@@ -110,6 +139,32 @@ export type SchemaIntentOutcome =
   | SchemaIntentNoMatch;
 
 // ── Ontology snapshot the resolver consumes ──────────────────
+
+/**
+ * One EXISTING rule's grounding metadata, exposed so the AI can target it
+ * with an `update_rule` intent (the AI can't update what it can't see).
+ *
+ * Declarative rules expose their full condition (the AI returns an updated
+ * one). CODE-condition rules (a TypeScript function) are NOT round-trippable
+ * — they expose `conditionKind: "code"` and their description only, never
+ * the function source, so the AI cannot pretend to edit code it cannot see.
+ */
+export interface SchemaIntentRule {
+  name: string;
+  label?: string;
+  description?: string;
+  /**
+   * Action name(s) from the rule's trigger, when it is an action trigger.
+   * Absent for stateChange / fieldChange / event / schedule triggers.
+   */
+  triggerActions?: string[];
+  /** The rule's effect type (`block`, `warn`, `require_approval`, …). */
+  effectType: string;
+  /** Whether the condition is declarative (editable) or code (opaque). */
+  conditionKind: "declarative" | "code";
+  /** The declarative condition. Present only when `conditionKind` is `"declarative"`. */
+  condition?: DeclarativeCondition;
+}
 
 /**
  * One entity's grounding metadata passed to the prompt builder so the AI
@@ -134,6 +189,12 @@ export interface SchemaIntentEntity {
    * entity exposes no actions.
    */
   actionNames: string[];
+  /**
+   * EXISTING rules attached to this entity — the `update_rule` target list.
+   * Optional so legacy ontology snapshots (and test fixtures) that predate
+   * update support keep working; absent/empty means nothing is updatable.
+   */
+  rules?: SchemaIntentRule[];
 }
 
 /**

@@ -21,7 +21,7 @@ import { describe, expect, it } from "bun:test";
 import type { AICompletionOptions, AICompletionResult, AIService } from "../../types/ai";
 import { ProposalEngine } from "../proposal-engine";
 import { resolveSchemaIntent } from "../schema-intent-resolver";
-import type { SchemaIntentOntology } from "../schema-intent-types";
+import type { SchemaIntentEntity, SchemaIntentOntology } from "../schema-intent-types";
 
 // ── Ontology fixture ─────────────────────────────────────────
 
@@ -50,6 +50,49 @@ const emptyOntology: SchemaIntentOntology = {
   listEntities: () => [],
   describeEntity: () => undefined,
 };
+
+/**
+ * Ontology whose entity carries EXISTING rules — one declarative (updatable
+ * end-to-end) and one CODE-backed (condition is a TS function the resolver
+ * must never pretend to round-trip).
+ */
+function makeOntologyWithRules(): SchemaIntentOntology {
+  const purchaseRequest: SchemaIntentEntity = {
+    name: "purchase_request",
+    label: "Purchase Request",
+    description: "A request to purchase goods or services",
+    fields: [
+      { name: "amount", type: "number", required: true, label: "Amount" },
+      { name: "department", type: "string", required: true, label: "Department" },
+      { name: "status", type: "string", required: false, label: "Status" },
+    ],
+    actionNames: ["create_purchase_request", "submit_purchase_request"],
+    rules: [
+      {
+        name: "warn_large_amount",
+        label: "Warn on large amount",
+        description: "Warn when the amount exceeds 5000",
+        triggerActions: ["create_purchase_request"],
+        effectType: "warn",
+        conditionKind: "declarative",
+        condition: { field: "amount", operator: "gt", value: 5000 },
+      },
+      {
+        name: "manager_approval_threshold",
+        label: "Manager approval threshold",
+        description: "Requires manager approval when the amount exceeds 10000",
+        triggerActions: ["submit_purchase_request"],
+        effectType: "require_approval",
+        conditionKind: "code",
+      },
+    ],
+  };
+  const byName: Record<string, SchemaIntentEntity> = { purchase_request: purchaseRequest };
+  return {
+    listEntities: () => Object.keys(byName),
+    describeEntity: (name) => byName[name],
+  };
+}
 
 // ── Fake AIService ──────────────────────────────────────────
 
@@ -584,5 +627,328 @@ describe("resolveSchemaIntent — security & degradation", () => {
     if (outcome.kind !== "no_match") throw new Error("expected no_match");
     expect(outcome.reason).toBe("ai_unavailable");
     expect(engine.size).toBe(0);
+  });
+});
+
+// ── update_rule (existing-rule update drafts) ────────────────
+
+describe("resolveSchemaIntent — update_rule proposal draft", () => {
+  it("exposes existing rules in the system prompt (declarative condition whole, code as kind only)", async () => {
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(JSON.stringify({ kind: "no_match", explanation: "x" }));
+    await resolveSchemaIntent(
+      { utterance: "change the warn threshold to 8000" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    const systemPrompt = calls[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    // The existing-rules section is present with both rules.
+    expect(systemPrompt).toContain('"existingRules"');
+    expect(systemPrompt).toContain("warn_large_amount");
+    expect(systemPrompt).toContain("manager_approval_threshold");
+    // The declarative rule carries its full condition…
+    expect(systemPrompt).toContain('"conditionKind": "declarative"');
+    expect(systemPrompt).toContain('"value": 5000');
+    // …the code rule exposes its kind + description, never a condition body.
+    expect(systemPrompt).toContain('"conditionKind": "code"');
+  });
+
+  it("drafts a governed update_rule Proposal for a declarative rule", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          description: "Warn when the amount exceeds 8000",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 8000 },
+          effect: { type: "warn", message: "Amount exceeds 8000" },
+        },
+        diff: "Raise the warn threshold from 5000 to 8000.",
+        confidence: 0.9,
+        explanation: "Update the warn threshold to 8000.",
+      }),
+    );
+
+    const outcome = await resolveSchemaIntent(
+      { utterance: "把大额提醒阈值改成8000" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.operation).toBe("update");
+    expect(outcome.ruleName).toBe("warn_large_amount");
+    expect(outcome.targetEntity).toBe("purchase_request");
+    expect(outcome.diffSummary).toBe("Raise the warn threshold from 5000 to 8000.");
+    expect(outcome.requiresCodeChange).toBeUndefined();
+
+    const p = outcome.proposal;
+    expect(p.type).toBe("update_rule");
+    // The "never applies" guarantee: the engine stops at draft.
+    expect(p.status).toBe("draft");
+    expect(p.diff.target).toBe("rule");
+    expect(p.diff.operation).toBe("update");
+    const def = p.diff.definition as Record<string, unknown>;
+    expect(def.name).toBe("warn_large_amount");
+    expect(def.condition).toEqual({ field: "amount", operator: "gt", value: 8000 });
+    expect(engine.size).toBe(1);
+    expect(engine.list("draft").length).toBe(1);
+  });
+
+  it("pins the updated definition to the existing rule name (rename out of scope)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          // AI tries to rename — must be pinned back to the existing name.
+          name: "warn_really_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 9000 },
+          effect: { type: "warn", message: "Amount exceeds 9000" },
+        },
+        diff: "Raise the threshold to 9000.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise the warn threshold to 9000" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.ruleName).toBe("warn_large_amount");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.name).toBe("warn_large_amount");
+  });
+
+  it("drafts a diff-only update for a CODE-condition rule (no fabricated definition)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "manager_approval_threshold",
+        // No `rule` — the condition is code-backed; the AI only describes the change.
+        diff: "Change the manager-approval threshold from 10000 to 20000.",
+        confidence: 0.85,
+        explanation: "把经理审批阈值改成2万。",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "把经理审批阈值改成2万" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.operation).toBe("update");
+    expect(outcome.ruleName).toBe("manager_approval_threshold");
+    expect(outcome.requiresCodeChange).toBe(true);
+    expect(outcome.diffSummary).toBe("Change the manager-approval threshold from 10000 to 20000.");
+
+    const p = outcome.proposal;
+    expect(p.type).toBe("update_rule");
+    expect(p.status).toBe("draft");
+    expect(p.diff.operation).toBe("update");
+    // Honest: NO declarative definition is fabricated for a code condition.
+    expect(p.diff.definition).toBeUndefined();
+    expect(p.diff.summary).toBe("Change the manager-approval threshold from 10000 to 20000.");
+  });
+
+  it("ignores an AI-fabricated definition for a CODE-condition rule (diff-only draft)", async () => {
+    // Even if the AI disobeys and returns a declarative `rule` for a
+    // code-backed target, the resolver must NOT persist it as the definition.
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "manager_approval_threshold",
+        rule: {
+          name: "manager_approval_threshold",
+          label: "Manager approval threshold",
+          trigger: { action: "submit_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 20000 },
+          effect: { type: "require_approval", level: "manager" },
+        },
+        diff: "Change the threshold to 20000.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the manager approval threshold to 20000" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.requiresCodeChange).toBe(true);
+    expect(outcome.proposal.diff.definition).toBeUndefined();
+  });
+
+  it("refuses a CODE-condition update with no diff and no explanation", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "manager_approval_threshold",
+        confidence: 0.9,
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the manager approval threshold" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_rule");
+    expect(engine.size).toBe(0);
+  });
+
+  it("refuses an update targeting a rule that does not exist (allowlist)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "totally_made_up_rule",
+        rule: {
+          name: "totally_made_up_rule",
+          label: "x",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 1 },
+          effect: { type: "warn", message: "x" },
+        },
+        diff: "x",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "update the made-up rule" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("unknown_rule");
+    expect(engine.size).toBe(0);
+  });
+
+  it("refuses an update when the entity exposes no rules", async () => {
+    // makeOntology() has no `rules` — nothing is updatable.
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        diff: "x",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "update the warn rule" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("unknown_rule");
+    expect(engine.size).toBe(0);
+  });
+
+  it("refuses an invalid updated definition for a declarative rule", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          // Unknown field → strict structural validation must refuse.
+          condition: { field: "nonexistent", operator: "gt", value: 8000 },
+          effect: { type: "warn", message: "x" },
+        },
+        diff: "x",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the warn rule" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_rule");
+    expect(engine.size).toBe(0);
+  });
+
+  it("demotes a low-confidence update_rule to clarification (no draft minted)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 8000 },
+          effect: { type: "warn", message: "x" },
+        },
+        diff: "x",
+        confidence: 0.1,
+        explanation: "unsure",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "maybe change some threshold" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("clarification");
+    expect(engine.size).toBe(0);
+  });
+
+  it("add_rule drafts still report operation create (regression)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "purchase_request",
+        rule: {
+          name: "block_overlimit_amount",
+          label: "Block over-limit amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 10000 },
+          effect: { type: "block", message: "too big" },
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "Block purchase requests over 10000" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    expect(outcome.operation).toBe("create");
+    expect(outcome.proposal.diff.operation).toBe("create");
+    expect(outcome.diffSummary).toBeUndefined();
+    expect(outcome.requiresCodeChange).toBeUndefined();
   });
 });

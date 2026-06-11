@@ -3,8 +3,9 @@
  *
  * The governed sibling of `POST /api/ai/resolve-intent`. Where that endpoint
  * turns an utterance into a RUNTIME DATA action proposal, this endpoint turns
- * an utterance into a METAMODEL CHANGE — a new `defineRule()` — surfaced ONLY
- * as an `add_rule` Proposal in `draft` status.
+ * an utterance into a METAMODEL CHANGE — a new `defineRule()` or an UPDATE to
+ * an existing one — surfaced ONLY as an `add_rule` / `update_rule` Proposal in
+ * `draft` status.
  *
  * It is a thin consumer of the canonical `resolveSchemaIntent()` engine from
  * `@linchkit/core/ai`:
@@ -41,6 +42,8 @@ import type {
   SchemaIntentEntity,
   SchemaIntentOntology,
   SchemaIntentOutcome,
+  SchemaIntentProposalDraft,
+  SchemaIntentRule,
 } from "@linchkit/core/ai";
 import { ProposalEngine, resolveSchemaIntent } from "@linchkit/core/ai";
 import {
@@ -109,6 +112,48 @@ export function buildSchemaIntentOntology(opts: {
     return out;
   };
 
+  // Project a registered RuleDefinition into the resolver's rule snapshot.
+  // A CODE condition (a TypeScript function) is NEVER serialized — only its
+  // kind + the rule's description are exposed, so the AI cannot pretend to
+  // edit source it cannot see. Declarative conditions are structured data
+  // and travel whole.
+  const toSchemaIntentRule = (rule: RuleDefinition): SchemaIntentRule => {
+    const isCode = typeof rule.condition === "function";
+    const triggerActions =
+      "action" in rule.trigger
+        ? Array.isArray(rule.trigger.action)
+          ? rule.trigger.action
+          : [rule.trigger.action]
+        : undefined;
+    return {
+      name: rule.name,
+      label: rule.label,
+      description: rule.description,
+      ...(triggerActions ? { triggerActions } : {}),
+      effectType: rule.effect.type,
+      conditionKind: isCode ? "code" : "declarative",
+      ...(isCode ? {} : { condition: rule.condition as SchemaIntentRule["condition"] }),
+    };
+  };
+
+  // Permission gate for rules, mirroring `actionNames`: an action-triggered
+  // rule is visible only when the actor can run at least one of its trigger
+  // actions. Rules with non-action triggers (state/event/schedule) ride on
+  // the entity-level gate, which already passed by the time this runs.
+  const visibleRules = (entityName: string, rules: RuleDefinition[]): SchemaIntentRule[] => {
+    if (!permissionRegistry) return rules.map(toSchemaIntentRule);
+    const allowedNames = new Set(allowedActions(entityName).map((a) => a.name));
+    return rules
+      .filter((rule) => {
+        if (!("action" in rule.trigger)) return true;
+        const actions = Array.isArray(rule.trigger.action)
+          ? rule.trigger.action
+          : [rule.trigger.action];
+        return actions.some((name) => allowedNames.has(name));
+      })
+      .map(toSchemaIntentRule);
+  };
+
   return {
     listEntities: () => visibleEntities(),
     describeEntity: (entityName: string): SchemaIntentEntity | undefined => {
@@ -138,6 +183,8 @@ export function buildSchemaIntentOntology(opts: {
         description: descriptor.description,
         fields,
         actionNames: allowedActions(entityName).map((a) => a.name),
+        // EXISTING rules (includes inherited) — the `update_rule` target list.
+        rules: visibleRules(entityName, descriptor.rules),
       };
     },
   };
@@ -168,10 +215,23 @@ export interface ResolveSchemaIntentResponse {
    * at persist time — always `"draft"` (never auto-submitted / approved here).
    */
   proposalStatus?: string;
+  /**
+   * Present only for `proposal_draft` — `"create"` for a new rule
+   * (`add_rule`), `"update"` for a change to an EXISTING rule (`update_rule`).
+   */
+  operation?: "create" | "update";
   ruleName?: string;
   targetEntity?: string;
   confidence?: number;
   explanation?: string;
+  /** Present only for update drafts — human-readable diff vs the existing rule. */
+  diffSummary?: string;
+  /**
+   * Present only for update drafts of CODE-condition rules. The draft carries
+   * no declarative definition (the condition is a TS function the AI cannot
+   * round-trip); a developer must apply the change in source.
+   */
+  requiresCodeChange?: boolean;
   /** Present only for `clarification`. */
   question?: string;
   bestConfidence?: number;
@@ -197,10 +257,13 @@ function toResponse(
         proposal: outcome.proposal,
         proposalId: governed?.id,
         proposalStatus: governed?.status,
+        operation: outcome.operation,
         ruleName: outcome.ruleName,
         targetEntity: outcome.targetEntity,
         confidence: outcome.confidence,
         explanation: outcome.explanation,
+        ...(outcome.diffSummary !== undefined ? { diffSummary: outcome.diffSummary } : {}),
+        ...(outcome.requiresCodeChange ? { requiresCodeChange: true } : {}),
       };
     case "clarification":
       return {
@@ -220,46 +283,58 @@ function toResponse(
 // ── Translate the resolver draft → governed Proposal ─────────
 
 /**
- * Persist a resolver-produced `add_rule` draft into the shared GOVERNED engine
- * (`packages/core/src/engine/proposal-engine.ts`) — the same instance
- * `/api/proposals` reads from — so the NL draft surfaces in the review pipeline.
+ * Persist a resolver-produced `add_rule` / `update_rule` draft into the shared
+ * GOVERNED engine (`packages/core/src/engine/proposal-engine.ts`) — the same
+ * instance `/api/proposals` reads from — so the NL draft surfaces in the
+ * review pipeline.
  *
  * The resolver runs ALL of its security validation first (prompt-injection
- * sanitize → entity allowlist → strict structural rule allowlist). By the time
- * we reach here the draft carries only a validated, typed `RuleDefinition`; we
- * translate that into a single governed `ProposalChange`
- * (`{ target: "rule", operation: "create", name, definition }`) and create the
- * proposal in `draft` status. It is NEVER submitted, approved, or applied here —
- * graduation is a separate, human-gated path.
+ * sanitize → entity allowlist → existing-rule allowlist → strict structural
+ * rule allowlist). By the time we reach here the draft carries only validated,
+ * typed values; we translate them into a single governed `ProposalChange`:
+ *
+ *  - create: `{ target: "rule", operation: "create", name, definition, diff }`
+ *  - update: `{ target: "rule", operation: "update", name, definition, diff }`
+ *    where `diff` is the human-readable summary of what changes. An update of
+ *    a CODE-condition rule carries NO definition (the resolver flags it
+ *    `requiresCodeChange` — the diff is the reviewable spec; a developer
+ *    applies it in source).
+ *
+ * The proposal lands in `draft` status. It is NEVER submitted, approved, or
+ * applied here — graduation is a separate, human-gated path.
  *
  * Returns `undefined` when the draft does not carry a usable rule definition
- * (defensive — the resolver only emits `proposal_draft` with a built rule, but
- * we never want a malformed change to reach the engine).
+ * for a definition-bearing path (defensive — the resolver only emits
+ * `proposal_draft` with a built rule, but we never want a malformed change to
+ * reach the engine).
  */
 function persistGovernedRuleDraft(opts: {
   engine: GovernedProposalEngine;
-  draft: Proposal;
-  ruleName: string;
-  targetEntity: string;
-  explanation: string;
+  outcome: SchemaIntentProposalDraft;
   reasoning: string;
   /** The actor who requested the resolution — recorded for the audit trail. */
   actor: Actor;
 }): ProposalDefinition | undefined {
-  const { engine, draft, ruleName, targetEntity, explanation, reasoning, actor } = opts;
+  const { engine, outcome, reasoning, actor } = opts;
+  const { proposal: draft, ruleName, targetEntity, explanation, operation } = outcome;
+  const diffOnly = outcome.requiresCodeChange === true;
 
   // The validated rule definition is the resolver draft's diff definition.
   // Optional-chain `diff` defensively against runtime drift in the draft shape.
-  const definition = draft.diff?.definition;
-  if (!definition || typeof definition !== "object") return undefined;
-  const ruleDefinition = definition as RuleDefinition;
+  // Code-backed updates legitimately carry no definition (diff-only).
+  const rawDefinition = draft.diff?.definition;
+  const definition =
+    rawDefinition && typeof rawDefinition === "object"
+      ? (rawDefinition as RuleDefinition)
+      : undefined;
+  if (!definition && !diffOnly) return undefined;
 
   const change: ProposalChange = {
     target: "rule",
-    operation: "create",
+    operation,
     name: ruleName,
-    definition: ruleDefinition,
-    diff: explanation,
+    ...(definition ? { definition } : {}),
+    diff: outcome.diffSummary ?? explanation,
   };
 
   return engine.createProposal({
@@ -275,7 +350,7 @@ function persistGovernedRuleDraft(opts: {
     // capability/grouping key, mirroring the PatternDetector path in
     // proposal-api.ts (capability = entity name).
     capability: targetEntity,
-    // A new business rule is an additive, minor change.
+    // Adding or updating a single business rule is a minor change.
     changeType: "minor",
     changes: [change],
   });
@@ -398,10 +473,7 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
     if (outcome.kind === "proposal_draft") {
       governed = persistGovernedRuleDraft({
         engine: governedEngine,
-        draft: outcome.proposal,
-        ruleName: outcome.ruleName,
-        targetEntity: outcome.targetEntity,
-        explanation: outcome.explanation,
+        outcome,
         reasoning: parsed.data.prompt,
         actor,
       });

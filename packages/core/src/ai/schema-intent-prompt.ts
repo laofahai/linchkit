@@ -51,6 +51,18 @@ export function buildSchemaIntentSystemPrompt(
       description: f.description ? sanitizeText(f.description) : undefined,
     })),
     actions: e.actionNames,
+    // EXISTING rules — the `update_rule` target list. Declarative conditions
+    // are structured data (safe to serialize); code conditions expose their
+    // description only (conditionKind: "code"), never function source.
+    existingRules: (e.rules ?? []).map((r) => ({
+      name: r.name,
+      label: r.label ? sanitizeText(r.label) : undefined,
+      description: r.description ? sanitizeText(r.description) : undefined,
+      triggerActions: r.triggerActions,
+      effectType: r.effectType,
+      conditionKind: r.conditionKind,
+      condition: r.condition,
+    })),
   }));
   const catalogJson = JSON.stringify(safe, null, 2);
 
@@ -97,14 +109,35 @@ A) A rule you can confidently draft:
      - require_approval: { "type": "require_approval", "level": "<approver level>", "message": "<optional>" }
      - enrich:           { "type": "enrich", "setFields": { "<field>": <value> } }
 
-B) Ambiguous / low confidence — ASK A CLARIFYING QUESTION:
+B) The user wants to CHANGE an EXISTING rule (the request clearly refers to one of the
+   entity's \`existingRules\` by name, label, or description):
+   {
+     "kind": "update_rule",
+     "targetEntity": "<entity name from the catalog above>",
+     "ruleName": "<the EXISTING rule's name from existingRules — never invent one>",
+     "rule": { <the FULL UPDATED rule definition, same shape as in (A)> },
+     "diff": "<one short human-readable sentence describing exactly what changes vs the existing rule>",
+     "confidence": <number in [0, 1]>,
+     "explanation": "<one short sentence for the review card, in the user's language>"
+   }
+
+   - If the existing rule's \`conditionKind\` is "declarative": return the FULL updated
+     definition in \`rule\` (keep everything you are not changing identical to the
+     existing rule, including its name).
+   - If the existing rule's \`conditionKind\` is "code": its condition is a TypeScript
+     function you CANNOT see or edit. OMIT \`rule\` entirely — return only \`ruleName\`
+     and a precise \`diff\` describing the intended change (e.g. the new threshold);
+     a developer will apply it in source. NEVER invent a declarative condition for
+     a code-backed rule.
+
+C) Ambiguous / low confidence — ASK A CLARIFYING QUESTION:
    {
      "kind": "clarification",
      "question": "<plain-language question to the user>",
      "confidence": <best confidence considered, < ${minConfidence}>
    }
 
-C) No rule fits (off-topic, or the request is about creating an entity/field/view
+D) No rule fits (off-topic, or the request is about creating an entity/field/view
    rather than a rule, which is out of scope here):
    {
      "kind": "no_match",
@@ -119,8 +152,11 @@ Rules:
  4. Pick \`kind: "add_rule"\` ONLY for a genuine business rule (a validation, a guard, an
     approval gate, an auto-fill). If the user is asking to create a new entity, field, or view,
     return \`kind: "no_match"\` — that is out of scope for this resolver.
- 5. Pick \`kind: "clarification"\` when overall confidence is below ${minConfidence}.
- 6. Return STRICT JSON only — no prose outside the JSON, no Markdown fences.
+ 5. Pick \`kind: "update_rule"\` ONLY when the request clearly targets one of the entity's
+    \`existingRules\`; \`ruleName\` MUST be that rule's exact name. Renaming or deleting a rule
+    is out of scope — return \`kind: "no_match"\` for those.
+ 6. Pick \`kind: "clarification"\` when overall confidence is below ${minConfidence}.
+ 7. Return STRICT JSON only — no prose outside the JSON, no Markdown fences.
 `;
 }
 
@@ -139,9 +175,13 @@ export interface ParsedRuleShape {
 
 /** Parsed (but not yet reconciled) AI response. */
 export interface ParsedSchemaIntent {
-  kind: "add_rule" | "clarification" | "no_match";
+  kind: "add_rule" | "update_rule" | "clarification" | "no_match";
   targetEntity?: string;
   rule?: ParsedRuleShape;
+  /** `update_rule` only — the EXISTING rule's name (validated downstream). */
+  ruleName?: string;
+  /** `update_rule` only — human-readable diff summary vs the existing rule. */
+  diff?: string;
   confidence?: number;
   explanation?: string;
   question?: string;
@@ -171,6 +211,8 @@ export function parseSchemaIntentResponse(raw: string): ParsedSchemaIntent | nul
     kind,
     targetEntity: typeof rec.targetEntity === "string" ? rec.targetEntity : undefined,
     rule: rec.rule && typeof rec.rule === "object" ? (rec.rule as ParsedRuleShape) : undefined,
+    ruleName: typeof rec.ruleName === "string" ? rec.ruleName : undefined,
+    diff: typeof rec.diff === "string" ? rec.diff : undefined,
     confidence: typeof rec.confidence === "number" ? rec.confidence : undefined,
     explanation: typeof rec.explanation === "string" ? rec.explanation : undefined,
     question: typeof rec.question === "string" ? rec.question : undefined,
@@ -180,7 +222,12 @@ export function parseSchemaIntentResponse(raw: string): ParsedSchemaIntent | nul
 /** Infer the discriminant, tolerating a missing `kind` field. */
 function inferKind(rec: Record<string, unknown>): ParsedSchemaIntent["kind"] | null {
   const declared = rec.kind;
-  if (declared === "add_rule" || declared === "clarification" || declared === "no_match") {
+  if (
+    declared === "add_rule" ||
+    declared === "update_rule" ||
+    declared === "clarification" ||
+    declared === "no_match"
+  ) {
     return declared;
   }
   if (declared !== undefined) return null; // unknown kind → malformed

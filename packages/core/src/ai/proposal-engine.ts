@@ -31,7 +31,12 @@ import { validateProposalExtended } from "./proposal-validator-extended";
 
 // ── Proposal types ───────────────────────────────────────
 
-export type ProposalType = "add_rule" | "add_automation" | "modify_schema" | "add_default";
+export type ProposalType =
+  | "add_rule"
+  | "update_rule"
+  | "add_automation"
+  | "modify_schema"
+  | "add_default";
 
 export type AIProposalStatus =
   | "draft"
@@ -475,6 +480,7 @@ export class ProposalEngine {
   private toSecurityChanges(proposal: Proposal): SecurityProposalChange[] {
     const typeMapping: Record<ProposalType, SecurityProposalChange["type"]> = {
       add_rule: "create_rule",
+      update_rule: "modify_rule",
       add_automation: "create_flow",
       modify_schema: "modify_schema",
       add_default: "modify_schema",
