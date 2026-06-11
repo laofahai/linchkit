@@ -32,8 +32,8 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
-const { fetchAITraces } = await import("../api");
-type AITrace = import("../api").AITrace;
+const { fetchAITraces } = await import("../ai-traces-client");
+type AITrace = import("../ai-traces-client").AITrace;
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -132,5 +132,36 @@ describe("fetchAITraces", () => {
     expect(result.kind).toBe("error");
     if (result.kind !== "error") throw new Error("expected error");
     expect(result.message).toBe("network down");
+  });
+
+  // ── query-string construction (contract) ──────────────────
+
+  test("builds the request URL with limit + status query params", async () => {
+    let captured = "";
+    const capturingFetch = (async (url: string) => {
+      captured = url;
+      return new Response(JSON.stringify({ success: true, data: { traces: [], count: 0 } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    await fetchAITraces({ limit: 100, status: "error", fetchImpl: capturingFetch });
+    expect(captured).toBe("/api/ai/traces?limit=100&status=error");
+
+    await fetchAITraces({ fetchImpl: capturingFetch });
+    expect(captured).toBe("/api/ai/traces");
+  });
+
+  // ── denied: non-JSON 403 body (proxy / gateway) ───────────
+
+  test("maps a 403 with a non-JSON body to { kind: 'denied' }", async () => {
+    const nonJsonFetch = (async () =>
+      new Response("Forbidden", {
+        status: 403,
+        headers: { "Content-Type": "text/plain" },
+      })) as unknown as typeof fetch;
+    const result = await fetchAITraces({ fetchImpl: nonJsonFetch });
+    expect(result.kind).toBe("denied");
   });
 });

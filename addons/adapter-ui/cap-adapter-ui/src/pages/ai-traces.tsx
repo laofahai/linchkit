@@ -31,7 +31,12 @@ import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import { ActivityIcon, RefreshCwIcon, ShieldOffIcon, XCircleIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type AITrace, type AITraceStatus, type AITracesResult, fetchAITraces } from "../lib/api";
+import {
+  type AITrace,
+  type AITraceStatus,
+  type AITracesResult,
+  fetchAITraces,
+} from "../lib/ai-traces-client";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -63,9 +68,10 @@ function statusBadgeClass(status: AITraceStatus): string {
 
 /** Format trace duration (endedAt - startedAt) in ms, or "" when unfinished. */
 function formatTraceDuration(trace: AITrace): string {
-  if (trace.endedAt === undefined) return "";
+  // `== null` covers both null (common in JSON) and undefined (open trace).
+  if (trace.endedAt == null) return "";
   const ms = trace.endedAt - trace.startedAt;
-  if (ms < 0) return "";
+  if (!Number.isFinite(ms) || ms < 0) return "";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
 }
@@ -97,10 +103,16 @@ function LoadingSkeleton() {
 function TraceRow({ trace }: { trace: AITrace }) {
   const { t } = useTranslation();
   const duration = formatTraceDuration(trace);
+  // Guard against a missing / invalid `startedAt` — `new Date(NaN).toISOString()`
+  // throws `RangeError`, which would crash the whole table.
+  const started = new Date(trace.startedAt);
+  const startedLabel = Number.isNaN(started.getTime())
+    ? "—"
+    : formatRelativeTime(started.toISOString(), t);
   return (
     <TableRow>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-        <div>{formatRelativeTime(new Date(trace.startedAt).toISOString(), t)}</div>
+        <div>{startedLabel}</div>
         {duration && <div className="text-[10px] opacity-70">{duration}</div>}
       </TableCell>
       <TableCell>
@@ -114,7 +126,7 @@ function TraceRow({ trace }: { trace: AITrace }) {
         </Badge>
       </TableCell>
       <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-        {trace.inputTokens.toLocaleString()} / {trace.outputTokens.toLocaleString()}
+        {(trace.inputTokens ?? 0).toLocaleString()} / {(trace.outputTokens ?? 0).toLocaleString()}
       </TableCell>
       <TableCell className="whitespace-nowrap font-mono text-xs">
         {formatCost(trace.cost)}
@@ -147,8 +159,9 @@ export function AITracesPage() {
         status: statusFilter === "__all__" ? undefined : statusFilter,
         signal,
       });
-      // Drop a stale response superseded by a newer load (incl. an aborted one).
-      if (seq !== reqSeq.current) return;
+      // Drop a stale response superseded by a newer load, or one whose request
+      // was aborted (e.g. the component unmounted) — avoid setState-after-unmount.
+      if (seq !== reqSeq.current || signal?.aborted) return;
       setResult(next);
       setLoading(false);
     },
