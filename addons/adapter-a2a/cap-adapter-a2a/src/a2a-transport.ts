@@ -40,16 +40,15 @@ export const a2aTransport: TransportAdapterDefinition = {
           providerOrg: cfg.agentProviderOrg,
           actions: ctx.actions,
         });
-
-        if (!cfg.enabled) {
-          return;
-        }
-
         console.log(
           `[cap-adapter-a2a] AgentCard generated: "${card.name}" v${card.version} ` +
             `with ${card.skills.length} skill(s). ` +
             `HTTP endpoint (/.well-known/agent-card.json) deferred to next slice.`,
         );
+
+        if (!cfg.enabled) {
+          return;
+        }
       },
       stop: async () => {
         // No resources held in this slice.

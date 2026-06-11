@@ -50,7 +50,7 @@ export interface AgentCardOptions {
  */
 export function isA2aExposed(action: ActionDefinition): boolean {
   const exp = action.exposure;
-  if (!exp) return true;
+  if (exp === undefined) return true;
   // Fail-closed: only the known "all" shorthand is accepted; unknown strings are excluded.
   if (typeof exp === "string") return exp === "all";
   if (exp.internal === true) return false;
