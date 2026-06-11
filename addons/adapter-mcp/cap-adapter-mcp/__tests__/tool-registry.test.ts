@@ -83,6 +83,21 @@ describe("generateActionTools", () => {
     expect(names).not.toContain("mcp_disabled");
   });
 
+  test("filters out actions with internal exposure", () => {
+    const registry = new ActionRegistry();
+    registry.register(makeAction({ name: "visible", exposure: { http: true } }));
+    registry.register(makeAction({ name: "internal_only", exposure: { internal: true } }));
+    registry.register(
+      makeAction({ name: "internal_mcp_true", exposure: { internal: true, mcp: true } }),
+    );
+
+    const tools = generateActionTools(registry);
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("visible");
+    expect(names).not.toContain("internal_only");
+    expect(names).not.toContain("internal_mcp_true");
+  });
+
   test("handles actions without input fields", () => {
     const registry = new ActionRegistry();
     registry.register(makeAction({ name: "no_input" }));
