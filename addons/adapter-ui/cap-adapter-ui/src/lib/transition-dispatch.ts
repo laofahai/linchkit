@@ -18,13 +18,14 @@
  */
 
 import type { Transition } from "@linchkit/core/types";
+import { resolveActionErrorMessage } from "./api";
 
 /** Minimal API surface consumed by executeTransition — injectable in tests. */
 export interface TransitionDispatchApi {
   executeAction: (
     actionName: string,
     input: Record<string, unknown>,
-  ) => Promise<{ success: boolean; error?: { message?: string } }>;
+  ) => Promise<{ success: boolean; error?: { message?: string }; data?: unknown }>;
   transitionRecord: (
     schema: string,
     id: string,
@@ -93,7 +94,9 @@ export async function executeTransition(opts: {
 
   const result = await api.executeAction(boundAction, { id: recordId });
   if (!result.success) {
-    return { kind: "failed", message: result.error?.message };
+    // Same defensive extraction as executeHeaderAction: the failure reason
+    // may live on `error.message` or as a raw `data.error` string.
+    return { kind: "failed", message: resolveActionErrorMessage(result) };
   }
 
   // Bound action succeeded — re-query the record so the caller can refresh

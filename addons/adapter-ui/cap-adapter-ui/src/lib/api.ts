@@ -551,6 +551,32 @@ export interface ActionResult {
 }
 
 /**
+ * Resolve the human-readable failure message from a failed action result.
+ *
+ * The REST action endpoint lifts the failure reason (e.g. a rule-block
+ * message) into `error.message` (see adapter-server routes/action-api.ts),
+ * but depending on the seam a rule-block can also arrive as a raw string on
+ * `data.error` (core ActionResult shape, with
+ * `data.context.constraint === "rule_block"`). Handle both defensively and
+ * return undefined when no message exists so callers fall back to their
+ * generic i18n text.
+ */
+export function resolveActionErrorMessage(result: {
+  success: boolean;
+  error?: { message?: string };
+  data?: unknown;
+}): string | undefined {
+  const fromError = result.error?.message;
+  if (typeof fromError === "string" && fromError.length > 0) return fromError;
+  const data = result.data;
+  if (data && typeof data === "object" && "error" in data) {
+    const fromData = (data as { error?: unknown }).error;
+    if (typeof fromData === "string" && fromData.length > 0) return fromData;
+  }
+  return undefined;
+}
+
+/**
  * Execute a named action via REST API.
  */
 export async function executeAction(

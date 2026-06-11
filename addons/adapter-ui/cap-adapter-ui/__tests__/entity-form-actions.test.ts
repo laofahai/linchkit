@@ -41,6 +41,7 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
+import { resolveActionErrorMessage } from "../src/lib/api";
 import {
   executeHeaderAction,
   type HeaderActionApi,
@@ -58,12 +59,20 @@ function makeApi(opts: {
   actionSuccess?: boolean;
   record?: Record<string, unknown> | null;
   queryThrows?: boolean;
+  /** Failure envelope from the REST endpoint (`error.message`). */
+  actionError?: { message?: string };
+  /** Core ActionResult shape — rule blocks may carry a raw `data.error` string. */
+  actionData?: unknown;
 }): { api: HeaderActionApi; calls: ApiCalls } {
   const calls: ApiCalls = { executeAction: [], queryRecord: [] };
   const api: HeaderActionApi = {
     executeAction: async (actionName, input) => {
       calls.executeAction.push({ actionName, input });
-      return { success: opts.actionSuccess ?? true };
+      return {
+        success: opts.actionSuccess ?? true,
+        ...(opts.actionError ? { error: opts.actionError } : {}),
+        ...(opts.actionData !== undefined ? { data: opts.actionData } : {}),
+      };
     },
     queryRecord: async (schema, id, fields) => {
       calls.queryRecord.push({ schema, id, fields });
@@ -175,5 +184,95 @@ describe("executeHeaderAction — plain (non-transition) actions", () => {
     const outcome = await executeHeaderAction({ ...BASE, actionName: "send_reminder", api });
 
     expect(outcome).toEqual({ kind: "failed" });
+  });
+});
+
+describe("executeHeaderAction — failure message surfacing", () => {
+  // Regression: a rule block (e.g. "Amounts over 10000 require manager
+  // approval") used to be dropped — the user only saw a generic "Action
+  // failed" toast. The outcome must carry the server's message so the hook
+  // can show it.
+  test("surfaces error.message from the REST failure envelope", async () => {
+    const { api } = makeApi({
+      actionSuccess: false,
+      actionError: { message: "金额超过 10000 需要经理审批" },
+    });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed", message: "金额超过 10000 需要经理审批" });
+  });
+
+  test("surfaces a raw data.error string (core ActionResult rule-block shape)", async () => {
+    const { api } = makeApi({
+      actionSuccess: false,
+      actionData: {
+        error: "Amounts over 10000 require manager approval",
+        context: { constraint: "rule_block" },
+      },
+    });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({
+      kind: "failed",
+      message: "Amounts over 10000 require manager approval",
+    });
+  });
+
+  test("omits the message when the failure carries none (caller falls back to generic i18n)", async () => {
+    const { api } = makeApi({ actionSuccess: false, actionData: { error: 42 } });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed" });
+    expect("message" in outcome).toBe(false);
+  });
+});
+
+// ── resolveActionErrorMessage (pure helper, chokepoint for both shapes) ─────
+
+describe("resolveActionErrorMessage", () => {
+  test("prefers error.message when present", () => {
+    const message = resolveActionErrorMessage({
+      success: false,
+      error: { message: "rule says no" },
+      data: { error: "shadowed" },
+    });
+    expect(message).toBe("rule says no");
+  });
+
+  test("falls back to a string data.error", () => {
+    const message = resolveActionErrorMessage({
+      success: false,
+      data: { error: "blocked by rule", context: { constraint: "rule_block" } },
+    });
+    expect(message).toBe("blocked by rule");
+  });
+
+  test("ignores empty strings and non-string data.error", () => {
+    expect(
+      resolveActionErrorMessage({ success: false, error: { message: "" }, data: { error: "" } }),
+    ).toBeUndefined();
+    expect(
+      resolveActionErrorMessage({ success: false, data: { error: { nested: true } } }),
+    ).toBeUndefined();
+  });
+
+  test("returns undefined when no message exists anywhere", () => {
+    expect(resolveActionErrorMessage({ success: false })).toBeUndefined();
+    expect(resolveActionErrorMessage({ success: false, data: null })).toBeUndefined();
   });
 });
