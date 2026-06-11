@@ -119,8 +119,9 @@ export function resolveStatusCode(result: { success: boolean; data?: unknown }):
     if (codeStatus !== undefined) return codeStatus;
   }
 
-  // Fallback: match on error message text
-  const errorMsg = (errData?.error as string) ?? "";
+  // Fallback: match on error message text. Strictly require a string — a
+  // truthy non-string `data.error` would otherwise crash `.includes` below.
+  const errorMsg = typeof errData?.error === "string" ? errData.error : "";
 
   // Not found patterns
   if (errorMsg.includes("not found")) return 404;

@@ -231,7 +231,11 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
 
       set.status = resolveStatusCode(result);
       const errData = result.data as Record<string, unknown> | undefined;
-      const rawMessage = (errData?.error as string) ?? "Action execution failed";
+      // Strictly require a string: a cast alone only satisfies the compiler —
+      // a non-string `data.error` value must fall back to the generic message
+      // instead of being serialized to the client.
+      const rawMessage =
+        typeof errData?.error === "string" ? errData.error : "Action execution failed";
 
       // In production, sanitize internal error details to prevent information
       // leakage. EXCEPTION: a rule `block` reason is the rule author's

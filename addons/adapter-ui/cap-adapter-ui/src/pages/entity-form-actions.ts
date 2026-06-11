@@ -83,7 +83,10 @@ export async function executeHeaderAction(opts: {
   const transition = availableTransitions.find((tr) => tr.action === actionName);
 
   const result = await api.executeAction(actionName, { id: recordId });
-  if (!result.success) {
+  // The optional chain is a defensive null guard: a (mis)implemented api
+  // could resolve to null/undefined despite the type — treat it as a plain
+  // failure so the caller falls back to its generic message, not a throw.
+  if (!result?.success) {
     // Surface the server's failure reason (e.g. a rule-block message) so the
     // caller can show it instead of a generic "Action failed" toast.
     const message = resolveActionErrorMessage(result);

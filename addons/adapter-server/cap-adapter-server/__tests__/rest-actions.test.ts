@@ -403,3 +403,44 @@ describe("production sanitization — rule_block policy text is exempt", () => {
     );
   });
 });
+
+// ── Failure envelope hardening: non-string data.error ─────
+//
+// The envelope's `message` must be strictly a string at runtime: a
+// (mis)behaving executor putting a non-string value on `data.error` must fall
+// back to the generic message — a type cast alone only satisfies the compiler
+// and would serialize the raw value to the client. The stub executor below is
+// injected through createServer options (same DI seam as the real one); the
+// route only calls `execute` on it.
+
+const nonStringFailureExecutor = {
+  execute: async () => ({
+    success: false,
+    data: { error: { internal: "raw-failure-object" } },
+    executionId: "exec-nonstring",
+  }),
+} as unknown as ReturnType<typeof createActionExecutor>;
+
+const nonStringApp = createServer(buildGraphQLSchema([itemSchema]), {
+  executor: nonStringFailureExecutor,
+});
+
+describe("failure envelope hardening — non-string data.error never leaks", () => {
+  test("falls back to the generic message and omits the raw value (dev mode included)", async () => {
+    const res = await nonStringApp.handle(
+      new Request(actionUrl("do_anything"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = (await res.json()) as Record<string, unknown>;
+
+    // No structured code and no string message → default business-failure 422
+    // (resolveStatusCode must not crash on the non-string error either).
+    expect(res.status).toBe(422);
+    expect(body.success).toBe(false);
+    expect((body.error as Record<string, unknown>).message).toBe("Action execution failed");
+    expect(JSON.stringify(body)).not.toContain("raw-failure-object");
+  });
+});

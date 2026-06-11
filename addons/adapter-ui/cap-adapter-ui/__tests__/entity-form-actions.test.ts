@@ -207,7 +207,12 @@ describe("executeHeaderAction — failure message surfacing", () => {
     expect(outcome).toEqual({ kind: "failed", message: "金额超过 10000 需要经理审批" });
   });
 
-  test("surfaces a raw data.error string (core ActionResult rule-block shape)", async () => {
+  // Core-seam shape, NOT the REST envelope: REST failures carry no `data`
+  // key, so this arm is unreachable via today's REST transport. It covers
+  // direct core-seam consumers / non-REST transports, gated on the same
+  // `constraint === "rule_block"` exemption the server applies before
+  // un-sanitizing a message.
+  test("surfaces a rule-block data.error string (core ActionResult seam, unreachable via REST)", async () => {
     const { api } = makeApi({
       actionSuccess: false,
       actionData: {
@@ -228,8 +233,41 @@ describe("executeHeaderAction — failure message surfacing", () => {
     });
   });
 
+  test("does NOT surface a data.error string without the rule_block constraint (mirrors server sanitization)", async () => {
+    const { api } = makeApi({
+      actionSuccess: false,
+      actionData: { error: "internal failure detail" },
+    });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed" });
+    expect("message" in outcome).toBe(false);
+  });
+
   test("omits the message when the failure carries none (caller falls back to generic i18n)", async () => {
     const { api } = makeApi({ actionSuccess: false, actionData: { error: 42 } });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed" });
+    expect("message" in outcome).toBe(false);
+  });
+
+  test("null action result (misimplemented api) reports a generic failed outcome instead of throwing", async () => {
+    const api: HeaderActionApi = {
+      executeAction: async () =>
+        null as unknown as Awaited<ReturnType<HeaderActionApi["executeAction"]>>,
+      queryRecord: async () => null,
+    };
 
     const outcome = await executeHeaderAction({
       ...BASE,
@@ -254,7 +292,7 @@ describe("resolveActionErrorMessage", () => {
     expect(message).toBe("rule says no");
   });
 
-  test("falls back to a string data.error", () => {
+  test("falls back to a rule-block data.error (core seam shape, gated on the constraint)", () => {
     const message = resolveActionErrorMessage({
       success: false,
       data: { error: "blocked by rule", context: { constraint: "rule_block" } },
@@ -262,17 +300,56 @@ describe("resolveActionErrorMessage", () => {
     expect(message).toBe("blocked by rule");
   });
 
+  test("ignores a data.error WITHOUT the rule_block constraint (server-sanitization parity)", () => {
+    expect(
+      resolveActionErrorMessage({ success: false, data: { error: "internal detail" } }),
+    ).toBeUndefined();
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        data: { error: "internal detail", context: { constraint: "tenant_scope" } },
+      }),
+    ).toBeUndefined();
+    // A non-object context never satisfies the gate.
+    expect(
+      resolveActionErrorMessage({ success: false, data: { error: "x", context: "rule_block" } }),
+    ).toBeUndefined();
+  });
+
   test("ignores empty strings and non-string data.error", () => {
     expect(
       resolveActionErrorMessage({ success: false, error: { message: "" }, data: { error: "" } }),
     ).toBeUndefined();
     expect(
-      resolveActionErrorMessage({ success: false, data: { error: { nested: true } } }),
+      resolveActionErrorMessage({
+        success: false,
+        data: { error: "", context: { constraint: "rule_block" } },
+      }),
+    ).toBeUndefined();
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        data: { error: { nested: true }, context: { constraint: "rule_block" } },
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores a non-string error.message (runtime shape mismatch)", () => {
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        error: { message: 42 as unknown as string },
+      }),
     ).toBeUndefined();
   });
 
   test("returns undefined when no message exists anywhere", () => {
     expect(resolveActionErrorMessage({ success: false })).toBeUndefined();
     expect(resolveActionErrorMessage({ success: false, data: null })).toBeUndefined();
+  });
+
+  test("returns undefined for a nullish result instead of throwing", () => {
+    expect(resolveActionErrorMessage(null)).toBeUndefined();
+    expect(resolveActionErrorMessage(undefined)).toBeUndefined();
   });
 });
