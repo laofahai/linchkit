@@ -31,6 +31,7 @@ import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import { ActivityIcon, RefreshCwIcon, ShieldOffIcon, XCircleIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { formatCost, statusBadgeClass, TraceDetailPanel } from "../components/trace-detail-panel";
 import {
   type AITrace,
   type AITraceStatus,
@@ -52,19 +53,8 @@ const STATUS_OPTIONS: ReadonlyArray<AITraceStatus | "__all__"> = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────
-
-/** Map a trace status to a Badge variant (ok=green, error=red, partial=amber). */
-function statusBadgeClass(status: AITraceStatus): string {
-  switch (status) {
-    case "ok":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400";
-    case "error":
-      return "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400";
-    default:
-      // partial
-      return "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400";
-  }
-}
+// `statusBadgeClass` / `formatCost` are shared with the detail panel and live
+// in `../components/trace-detail-panel`.
 
 /** Format trace duration (endedAt - startedAt) in ms, or "" when unfinished. */
 function formatTraceDuration(trace: AITrace): string {
@@ -74,12 +64,6 @@ function formatTraceDuration(trace: AITrace): string {
   if (!Number.isFinite(ms) || ms < 0) return "";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
-}
-
-/** Format a USD cost, or "—" when zero (per spec — `$0.000026`, `—` when 0). */
-function formatCost(cost: number): string {
-  if (!cost) return "—";
-  return `$${cost.toFixed(6)}`;
 }
 
 /** Truncate a trace id for compact monospace display. */
@@ -100,7 +84,7 @@ function LoadingSkeleton() {
   );
 }
 
-function TraceRow({ trace }: { trace: AITrace }) {
+function TraceRow({ trace, onSelect }: { trace: AITrace; onSelect: (trace: AITrace) => void }) {
   const { t } = useTranslation();
   const duration = formatTraceDuration(trace);
   // Guard against a missing / invalid `startedAt` — `new Date(NaN).toISOString()`
@@ -110,7 +94,20 @@ function TraceRow({ trace }: { trace: AITrace }) {
     ? "—"
     : formatRelativeTime(started.toISOString(), t);
   return (
-    <TableRow>
+    <TableRow
+      role="button"
+      tabIndex={0}
+      aria-label={t("aiTraces.detail.open", "View trace detail")}
+      className="cursor-pointer"
+      onClick={() => onSelect(trace)}
+      onKeyDown={(e) => {
+        // Keyboard activation parity with a native button (Enter / Space).
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(trace);
+        }
+      }}
+    >
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         <div>{startedLabel}</div>
         {duration && <div className="text-[10px] opacity-70">{duration}</div>}
@@ -145,6 +142,8 @@ export function AITracesPage() {
   const [result, setResult] = useState<AITracesResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<AITraceStatus | "__all__">("__all__");
+  // The trace whose content drill-down is open in the side panel (null = closed).
+  const [selectedTrace, setSelectedTrace] = useState<AITrace | null>(null);
 
   // Monotonic request token: a slow in-flight fetch (e.g. an older status
   // filter) must not overwrite the result of a newer one that already resolved.
@@ -281,11 +280,19 @@ export function AITracesPage() {
           </TableHeader>
           <TableBody>
             {traces.map((trace) => (
-              <TraceRow key={trace.traceId} trace={trace} />
+              <TraceRow key={trace.traceId} trace={trace} onSelect={setSelectedTrace} />
             ))}
           </TableBody>
         </Table>
       )}
+
+      {/* Per-trace content drill-down (Sheet side panel) */}
+      <TraceDetailPanel
+        trace={selectedTrace}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTrace(null);
+        }}
+      />
     </div>
   );
 }
