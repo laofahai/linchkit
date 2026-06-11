@@ -45,6 +45,12 @@ describe("isA2aExposed", () => {
   test("internal takes precedence over a2a:true", () => {
     expect(isA2aExposed(makeAction({ exposure: { internal: true, a2a: true } }))).toBe(false);
   });
+
+  test("excludes unknown string exposure values (fail-closed)", () => {
+    // Runtime bypass or dynamic config might pass unexpected strings — exclude them.
+    expect(isA2aExposed(makeAction({ exposure: "public" as "all" }))).toBe(false);
+    expect(isA2aExposed(makeAction({ exposure: "none" as "all" }))).toBe(false);
+  });
 });
 
 // ── actionToSkill ─────────────────────────────────────────────────────────────
@@ -75,6 +81,11 @@ describe("actionToSkill", () => {
     const skill = actionToSkill(makeAction());
     expect(skill.inputModes).toEqual(["application/json"]);
     expect(skill.outputModes).toEqual(["application/json"]);
+  });
+
+  test("produces empty tags when entity is falsy to avoid [null] in JSON", () => {
+    const skill = actionToSkill(makeAction({ entity: "" }));
+    expect(skill.tags).toEqual([]);
   });
 });
 

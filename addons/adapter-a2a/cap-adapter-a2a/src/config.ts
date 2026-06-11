@@ -24,6 +24,7 @@ export const capAdapterA2aConfig = defineConfigSchema("cap-adapter-a2a", {
     .describe("Human-readable description published in the A2A AgentCard"),
   agentUrl: z
     .string()
+    .url()
     .default("http://localhost:3003")
     .describe("Canonical URL where this agent accepts A2A requests"),
   agentVersion: z
@@ -32,6 +33,7 @@ export const capAdapterA2aConfig = defineConfigSchema("cap-adapter-a2a", {
     .describe("Agent implementation version (semver) published in the A2A AgentCard"),
   agentDocumentationUrl: z
     .string()
+    .url()
     .optional()
     .describe("Optional documentation URL published in the A2A AgentCard"),
   agentProviderOrg: z

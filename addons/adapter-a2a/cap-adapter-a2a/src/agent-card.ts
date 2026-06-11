@@ -45,12 +45,14 @@ export interface AgentCardOptions {
  * - Explicitly excluded: `exposure.a2a === false`
  * - Explicitly excluded: `exposure.internal === true`
  * - If `exposure === "all"` → include
+ * - Any other unexpected string value → exclude (fail-closed for unknown exposure types)
  * - Otherwise include (open default for the spike)
  */
 export function isA2aExposed(action: ActionDefinition): boolean {
   const exp = action.exposure;
   if (!exp) return true;
-  if (exp === "all") return true;
+  // Fail-closed: only the known "all" shorthand is accepted; unknown strings are excluded.
+  if (typeof exp === "string") return exp === "all";
   if (exp.internal === true) return false;
   if (exp.a2a === false) return false;
   return true;
@@ -64,7 +66,7 @@ export function actionToSkill(action: ActionDefinition): AgentSkill {
     id: action.name,
     name: action.label || action.name,
     description: action.description ?? `Execute the ${action.name} action`,
-    tags: [action.entity],
+    tags: action.entity ? [action.entity] : [],
     inputModes: ["application/json"],
     outputModes: ["application/json"],
   };
