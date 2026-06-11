@@ -1,6 +1,6 @@
 /**
  * Schema Intent Resolver — NL utterance → governed `add_rule` / `update_rule`
- * ProposalDraft (Spec 52 "说→有").
+ * ProposalDraft (Spec 52 "describe-to-exists").
  *
  * The bridge that was missing: the existing `resolveIntent()` (intent-
  * resolver.ts) turns an utterance into a RUNTIME DATA action; this resolver

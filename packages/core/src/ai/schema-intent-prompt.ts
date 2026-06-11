@@ -53,6 +53,18 @@ function sanitizeStringLeaves(value: unknown): unknown {
  * text (a prior NL-drafted rule is a carrier into future prompts), so they
  * get the same control-character stripping as labels/descriptions.
  */
+/**
+ * Sanitize an operator leaf while preserving its declared literal type.
+ * Statically operators are enum-constrained (the non-string branch is
+ * impossible), but a malformed runtime snapshot could carry an arbitrary
+ * value — the `unknown` hop applies the runtime guard without tsc collapsing
+ * the literal type to `never`.
+ */
+function sanitizeOperator<T>(operator: T): T {
+  const raw: unknown = operator;
+  return (typeof raw === "string" ? sanitizeText(raw) : operator) as T;
+}
+
 function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
   // Defensive: a malformed registered rule can carry a null / non-object
   // condition at runtime despite the static type — `in` would throw on it.
@@ -63,7 +75,14 @@ function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
     // (e.g. null) at runtime despite the static type — `.map` would throw,
     // so the value is returned untouched like other malformed shapes.
     if (!Array.isArray(cond.conditions)) return cond;
-    return { operator: cond.operator, conditions: cond.conditions.map(sanitizeCondition) };
+    return {
+      // Operators are enum-constrained by the types, but a malformed snapshot
+      // could carry an arbitrary string — sanitize like the other leaves. The
+      // `unknown` hop avoids tsc collapsing the literal type to `never` in the
+      // (statically impossible, runtime-possible) non-string branch.
+      operator: sanitizeOperator(cond.operator),
+      conditions: cond.conditions.map(sanitizeCondition),
+    };
   }
   if ("condition" in cond) {
     // Input is Simple | Composite, so the sanitized output is too.
@@ -77,7 +96,7 @@ function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
     // through overlays / a custom OntologyRegistry) must not throw inside
     // sanitizeText's .replace — same never-throws contract as the guards above.
     field: typeof cond.field === "string" ? sanitizeText(cond.field) : "",
-    operator: cond.operator,
+    operator: sanitizeOperator(cond.operator),
     ...(cond.value !== undefined ? { value: sanitizeStringLeaves(cond.value) } : {}),
   };
 }
