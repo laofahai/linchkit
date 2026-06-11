@@ -74,6 +74,11 @@ const BatchFailedItemErrorType = new GraphQLObjectType({
     code: { type: new GraphQLNonNull(GraphQLString) },
     message: { type: new GraphQLNonNull(GraphQLString) },
     field: { type: GraphQLString },
+    constraint: {
+      type: GraphQLString,
+      description:
+        "Engine-stamped constraint marker (e.g. 'rule_block') — same field the REST batch endpoint exposes.",
+    },
   },
 });
 
@@ -138,7 +143,7 @@ function serializeBatchResult(result: BatchActionsResult): {
   failed: Array<{
     index: number;
     executionId: string | null;
-    error: { code: string; message: string; field: string | null };
+    error: { code: string; message: string; field: string | null; constraint: string | null };
   }>;
   rolledBack: Array<{
     index: number;
@@ -168,6 +173,9 @@ function serializeBatchResult(result: BatchActionsResult): {
         code: item.error.code,
         message: item.error.message,
         field: item.error.field ?? null,
+        // Keep the REST and GraphQL surfaces consistent: the constraint marker
+        // (e.g. "rule_block") rides along so clients can branch on it.
+        constraint: item.error.constraint ?? null,
       },
     })),
     rolledBack: result.rolledBack ? result.rolledBack.map(encodeSucceeded) : null,

@@ -209,7 +209,7 @@ interface BatchSucceededItem {
 interface BatchFailedItem {
   index: number;
   executionId: string | null;
-  error: { code: string; message: string; field: string | null };
+  error: { code: string; message: string; field: string | null; constraint: string | null };
 }
 
 interface BatchActionsResultGQL {
@@ -227,7 +227,7 @@ const BATCH_SELECTION = `
   parentExecutionId
   strategy
   succeeded { index executionId data record warnings }
-  failed { index executionId error { code message field } }
+  failed { index executionId error { code message field constraint } }
   rolledBack { index executionId data record warnings }
   summary { total succeeded failed }
 `;
@@ -524,6 +524,10 @@ describe("GraphQL batch_actions mutation", () => {
       expect(blocked?.error.message).toBe(POLICY_MESSAGE);
       expect(thrown?.error.message).toBe("Action execution failed");
       expect(thrown?.error.message).not.toContain("intentional failure");
+      // The constraint marker must reach GraphQL clients too (REST parity) so
+      // they can branch on rule blocks structurally instead of by message.
+      expect(blocked?.error.constraint).toBe("rule_block");
+      expect(thrown?.error.constraint).toBeNull();
     } finally {
       process.env.NODE_ENV = originalNodeEnv;
     }
