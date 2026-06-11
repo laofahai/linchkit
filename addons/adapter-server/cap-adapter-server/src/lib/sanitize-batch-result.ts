@@ -32,9 +32,12 @@ export function sanitizeBatchResult(result: BatchActionsResult): BatchActionsRes
     failed: result.failed.map((f) => {
       // Engine-stamped policy marker — keep the rule author's policy text.
       // Re-check the message type at runtime: upstream casts could smuggle a
-      // non-string value past the compiler.
+      // non-string value past the compiler. A zero-length message offers the
+      // client nothing — fall through to the generic fallback instead.
       const isPolicyMessage =
-        f.error.constraint === "rule_block" && typeof f.error.message === "string";
+        f.error.constraint === "rule_block" &&
+        typeof f.error.message === "string" &&
+        f.error.message.length > 0;
       if (isPolicyMessage) return f;
       return {
         ...f,

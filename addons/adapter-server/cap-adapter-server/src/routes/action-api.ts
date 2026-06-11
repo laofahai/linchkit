@@ -246,7 +246,10 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
       // production, hiding the rule's message exactly where it matters.
       const isDevMode = process.env.NODE_ENV !== "production";
       const constraint = (errData?.context as Record<string, unknown> | undefined)?.constraint;
-      const isPolicyMessage = constraint === "rule_block" && typeof errData?.error === "string";
+      // rawMessage's assignment above already guarantees a string (the
+      // non-string fallback is non-empty); the length guard keeps an
+      // empty-string policy message from reaching the client verbatim.
+      const isPolicyMessage = constraint === "rule_block" && rawMessage.length > 0;
       const safeMessage = isDevMode || isPolicyMessage ? rawMessage : "Action execution failed";
 
       return {
