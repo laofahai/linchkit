@@ -20,11 +20,16 @@ export const ANONYMOUS_ACTOR: Actor = {
  * so all actions (including permission-gated ones) can be executed
  * during development and demo scenarios.
  */
-export const NO_AUTH_ACTOR: Actor = {
+// Deep-frozen: this shared reference is handed to every no-auth request (and
+// is the dev role resolver's fallback) — a downstream `groups.push(...)`
+// would otherwise silently corrupt the actor process-wide. Same invariant as
+// DEV_ROLE_ACTORS in dev-actor-resolver.ts.
+export const NO_AUTH_ACTOR: Actor = Object.freeze({
   type: "human",
   id: "anonymous",
   groups: ["admin", "manager", "user"],
-};
+});
+Object.freeze(NO_AUTH_ACTOR.groups);
 
 /**
  * Shape of the synthetic data carried by a successful `skipActionSlots`

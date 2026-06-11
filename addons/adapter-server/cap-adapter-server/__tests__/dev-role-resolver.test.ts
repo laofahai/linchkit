@@ -103,6 +103,17 @@ describe("resolveDevRoleActor (unit)", () => {
     }).toThrow();
     expect(admin.groups).not.toContain("evil");
   });
+
+  it("the NO_AUTH_ACTOR fallback is deep-frozen too (same shared-reference invariant)", () => {
+    for (const actor of [resolveDevRoleActor(req()), resolveDevRoleActor(req("garbage"))]) {
+      expect(Object.isFrozen(actor)).toBe(true);
+      expect(Object.isFrozen(actor.groups)).toBe(true);
+      expect(() => {
+        (actor.groups as string[]).push("evil");
+      }).toThrow();
+      expect(actor.groups).not.toContain("evil");
+    }
+  });
 });
 
 // ── In-process HTTP: dev wiring default ───────────────────
