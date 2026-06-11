@@ -45,8 +45,11 @@ export const MANAGER_APPROVAL_THRESHOLD = 10000;
 const MANAGER_GROUPS = ["purchase_manager", "manager", "admin"] as const;
 
 /** True when the actor belongs to at least one manager-class group. */
-function actorIsManager(groups: string[]): boolean {
-  return groups.some((g) => (MANAGER_GROUPS as readonly string[]).includes(g));
+function actorIsManager(groups: string[] = []): boolean {
+  // Defensive default: a nullish `groups` from an unexpected actor payload
+  // must not crash the condition (a throw would fail-closed and block ALL
+  // approvals, valid ones included).
+  return (groups ?? []).some((g) => (MANAGER_GROUPS as readonly string[]).includes(g));
 }
 
 /**
@@ -64,7 +67,11 @@ function actorIsManager(groups: string[]): boolean {
  * (which cannot satisfy approve's pending→approved transition anyway).
  */
 const overThresholdNonManager: CodeCondition = ({ target, actor, record }) => {
-  const raw = record !== undefined ? record.amount : target.amount;
+  // `!= null` covers a runtime null as well as undefined. Deliberately NOT
+  // `record?.amount ?? target.amount`: when a stored row EXISTS, its amount is
+  // authoritative even if nullish — falling back to caller-controlled `target`
+  // there would reopen the input-spoof bypass this rule exists to close.
+  const raw = record != null ? record.amount : target.amount;
   const amount = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(amount)) return false;
   if (amount <= MANAGER_APPROVAL_THRESHOLD) return false;
