@@ -415,6 +415,9 @@ function draftRuleUpdate(opts: {
  *
  *  - `name` is pinned to the existing rule's name (renames out of scope).
  *  - `priority` falls back to the existing value when the AI omits it.
+ *  - `trigger` falls back to the existing rule's trigger actions when the AI
+ *    omits it (LLMs frequently leave out fields they treat as "unchanged",
+ *    and `buildTrigger(undefined)` would otherwise fail the whole update).
  *  - Effect payload: when the AI omits the effect entirely the existing
  *    payload is used verbatim; when the AI keeps the SAME effect type (or
  *    omits `type` — a partial update payload), payload fields it omitted
@@ -428,6 +431,16 @@ function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule):
   const out: ParsedRuleShape = { ...rule, name: existing.name };
   if (out.priority === undefined && existing.priority !== undefined) {
     out.priority = existing.priority;
+  }
+  if (
+    out.trigger === undefined &&
+    Array.isArray(existing.triggerActions) &&
+    existing.triggerActions.length > 0
+  ) {
+    out.trigger = {
+      action:
+        existing.triggerActions.length === 1 ? existing.triggerActions[0] : existing.triggerActions,
+    };
   }
   const existingEffect = existing.effect;
   if (existingEffect) {

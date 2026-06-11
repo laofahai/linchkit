@@ -652,6 +652,42 @@ describe("resolveSchemaIntent — update_rule proposal draft", () => {
     expect(systemPrompt).toContain('"conditionKind": "code"');
   });
 
+  it("back-fills an omitted trigger from the existing rule on update", async () => {
+    // LLMs frequently omit fields they treat as "unchanged". Without the
+    // back-fill, buildTrigger(undefined) fails and the whole update surfaces
+    // as no_match("invalid_rule").
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          description: "Warn when the amount exceeds 8000",
+          // trigger intentionally omitted — must back-fill from the snapshot.
+          condition: { field: "amount", operator: "gt", value: 8000 },
+          effect: { type: "warn", message: "Amount exceeds 8000" },
+        },
+        diff: "Raise the warn threshold from 5000 to 8000.",
+        confidence: 0.9,
+        explanation: "Update the warn threshold to 8000.",
+      }),
+    );
+
+    const outcome = await resolveSchemaIntent(
+      { utterance: "raise the warn threshold to 8000" },
+      { provider: service, ontology: makeOntologyWithRules(), proposalEngine: engine },
+    );
+
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.trigger).toEqual({ action: "create_purchase_request" });
+    expect(def.condition).toEqual({ field: "amount", operator: "gt", value: 8000 });
+  });
+
   it("drafts a governed update_rule Proposal for a declarative rule", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(
