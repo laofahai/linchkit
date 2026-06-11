@@ -87,6 +87,16 @@ export type {
 export { PatternDetector } from "./pattern-detector";
 // Response Cache
 export { AIResponseCache } from "./response-cache";
+// Raw-stream trace instrumentation — onFinish/onError/onAbort callbacks for
+// caller-owned `streamText` calls (streaming chat endpoint + AG-UI runner) so
+// transport-layer assistant traffic records to the same trace sink as
+// `completeStream`. See ./stream-instrumentation.ts.
+export type {
+  InstrumentRawStreamOptions,
+  RawStreamInstrumentation,
+  RawStreamMessage,
+} from "./stream-instrumentation";
+export { instrumentRawStream } from "./stream-instrumentation";
 // Watcher Engine (moved from @linchkit/core, Spec 56 Phase 2 Step 2c)
 export {
   createWatcherEngine,
