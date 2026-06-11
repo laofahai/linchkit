@@ -194,7 +194,29 @@
     "traceId": "追踪 ID",
     "empty": "暂无 AI 调用追踪记录",
     "denied": "您没有查看 AI 调用追踪的权限。",
-    "fetchError": "加载 AI 调用追踪失败"
+    "fetchError": "加载 AI 调用追踪失败",
+    "detail": {
+      "title": "追踪详情",
+      "open": "查看追踪详情",
+      "provider": "提供商",
+      "tokens": "Token",
+      "cost": "成本",
+      "latency": "延迟",
+      "cached": "缓存",
+      "partial": "部分",
+      "fallback": "降级",
+      "prompt": "提示词",
+      "completion": "补全结果",
+      "noCompletion": "未记录补全结果（流式或为空）",
+      "noMessages": "未记录提示词消息",
+      "role": {
+        "system": "系统",
+        "user": "用户",
+        "assistant": "助手"
+      },
+      "empty": "该追踪暂无生成记录",
+      "fetchError": "加载追踪详情失败"
+    }
   },
   "viewTabs": {
     "newView": "新视图",

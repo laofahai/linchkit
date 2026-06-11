@@ -194,7 +194,29 @@
     "traceId": "Trace ID",
     "empty": "No AI traces recorded yet",
     "denied": "You don't have permission to view AI traces.",
-    "fetchError": "Failed to load AI traces"
+    "fetchError": "Failed to load AI traces",
+    "detail": {
+      "title": "Trace Detail",
+      "open": "View trace detail",
+      "provider": "Provider",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "latency": "Latency",
+      "cached": "Cached",
+      "partial": "Partial",
+      "fallback": "Fallback",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "noCompletion": "No completion recorded (streaming or empty)",
+      "noMessages": "No prompt messages recorded",
+      "role": {
+        "system": "System",
+        "user": "User",
+        "assistant": "Assistant"
+      },
+      "empty": "No generations recorded for this trace",
+      "fetchError": "Failed to load trace detail"
+    }
   },
   "viewTabs": {
     "newView": "New View",
