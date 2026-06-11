@@ -262,6 +262,16 @@
     "selectTenant": "Select tenant",
     "clearTenant": "Clear tenant"
   },
+  "devRole": {
+    "switchRole": "Switch dev role",
+    "selectRole": "View as role (dev only)",
+    "devOnlyHint": "Development affordance — not an auth mechanism.",
+    "roles": {
+      "user": "User",
+      "manager": "Manager",
+      "admin": "Admin"
+    }
+  },
   "language": {
     "label": "Language",
     "en": "English",

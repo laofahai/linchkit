@@ -19,6 +19,7 @@ import { useTheme } from "@linchkit/ui-kit/hooks";
 import { GlobeIcon, MonitorIcon, MoonIcon, SearchIcon, SparklesIcon, SunIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { changeLanguage, languageNames, type SupportedLanguage, supportedLanguages } from "@/i18n";
+import { DevRoleSwitcher } from "./dev-role-switcher";
 import { NotificationCenter } from "./notification-center";
 import { TenantSwitcher } from "./tenant-switcher";
 
@@ -42,6 +43,9 @@ export function HeaderActions({
 
   return (
     <div className="flex items-center gap-1">
+      {/* Dev-only role switcher (renders nothing in production builds / with real auth) */}
+      <DevRoleSwitcher />
+
       {/* Tenant switcher */}
       <TenantSwitcher />
 

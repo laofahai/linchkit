@@ -5,6 +5,7 @@
  * Uses plain fetch — no external GraphQL client library needed.
  */
 
+import { getDevRoleHeaders } from "./dev-role";
 import { getTenantHeaders } from "./tenant";
 
 // ── Auth header helper ──────────────────────────────────
@@ -12,10 +13,13 @@ import { getTenantHeaders } from "./tenant";
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("linchkit:token");
   const tenantHeaders = getTenantHeaders();
+  // Dev-only role switching: empty unless an explicit choice was stored,
+  // and ignored by servers with a real auth resolver.
+  const devRoleHeaders = getDevRoleHeaders();
   if (token) {
-    return { Authorization: `Bearer ${token}`, ...tenantHeaders };
+    return { Authorization: `Bearer ${token}`, ...tenantHeaders, ...devRoleHeaders };
   }
-  return { ...tenantHeaders };
+  return { ...tenantHeaders, ...devRoleHeaders };
 }
 
 function handleUnauthorized(res: Response): void {

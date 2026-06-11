@@ -8,6 +8,8 @@
  * catching thrown errors. Mirrors the conventions in `lib/proposal-api.ts`.
  */
 
+import { getDevRoleHeaders } from "./dev-role";
+
 // ── Auth header helper (reuse from api.ts / proposal-api.ts pattern) ──────
 
 function getAuthHeaders(): Record<string, string> {
@@ -17,10 +19,12 @@ function getAuthHeaders(): Record<string, string> {
     return {};
   }
   const token = localStorage.getItem("linchkit:token");
+  // Dev-only role switching header — empty unless explicitly chosen.
+  const devRoleHeaders = getDevRoleHeaders();
   if (token) {
-    return { Authorization: `Bearer ${token}` };
+    return { Authorization: `Bearer ${token}`, ...devRoleHeaders };
   }
-  return {};
+  return { ...devRoleHeaders };
 }
 
 // ── Wire type ──────────────────────────────────────────────
