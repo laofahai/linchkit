@@ -207,7 +207,13 @@ export function AITracesPage() {
         <div className="flex items-center gap-2 shrink-0">
           <Select
             value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as AITraceStatus | "__all__")}
+            onValueChange={(v) => {
+              setStatusFilter(v as AITraceStatus | "__all__");
+              // Close the drill-down panel: the selected trace may not exist in
+              // the newly-filtered list, which would leave the panel showing a
+              // trace with no corresponding row (list/panel out of sync).
+              setSelectedTrace(null);
+            }}
           >
             <SelectTrigger className="w-36">
               <SelectValue />
