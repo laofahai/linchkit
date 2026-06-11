@@ -107,6 +107,21 @@ describe("instrumentRawStream", () => {
     expect(sink.query()).toHaveLength(0);
   });
 
+  it("coerces message roles to the stored union (developer→system, tool→assistant)", () => {
+    const trace = instrumentRawStream({
+      ...BASE,
+      messages: [
+        { role: "developer", content: "system-ish instructions" },
+        { role: "tool", content: "tool result" },
+        { role: "user", content: "hi" },
+      ],
+    });
+    trace.onFinish({ text: "ok", totalUsage: { inputTokens: 1, outputTokens: 1 } });
+
+    const gen = sink.query()[0];
+    expect(gen?.messages.map((m) => m.role)).toEqual(["system", "assistant", "user"]);
+  });
+
   it("fail records one partial/error generation (synchronous streamText throw)", () => {
     const trace = instrumentRawStream(BASE);
 
@@ -177,10 +192,20 @@ describe("instrumentRawStream", () => {
     };
     setAITraceSink(throwingSink);
 
-    const trace = instrumentRawStream(BASE);
+    // onFinish's recording path swallows a throwing sink.
     expect(() =>
-      trace.onFinish({ text: "x", totalUsage: { inputTokens: 1, outputTokens: 1 } }),
+      instrumentRawStream(BASE).onFinish({
+        text: "x",
+        totalUsage: { inputTokens: 1, outputTokens: 1 },
+      }),
     ).not.toThrow();
-    expect(() => trace.onError({ error: new Error("y") })).not.toThrow();
+
+    // onError's recording path (recordError + its `finally { parent.end }`) must
+    // ALSO swallow a throwing sink. Use a FRESH instance so the one-shot latch
+    // doesn't short-circuit onError before it enters recordError.
+    expect(() => instrumentRawStream(BASE).onError({ error: new Error("y") })).not.toThrow();
+
+    // And the synchronous fail() path shares recordError — verify it too.
+    expect(() => instrumentRawStream(BASE).fail(new Error("z"))).not.toThrow();
   });
 });

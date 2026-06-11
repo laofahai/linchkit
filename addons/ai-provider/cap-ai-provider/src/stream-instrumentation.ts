@@ -95,9 +95,15 @@ export interface RawStreamInstrumentation {
   readonly fail: (error: unknown) => void;
 }
 
-/** Coerce an arbitrary role to the strict union the sink stores (default assistant). */
+/**
+ * Coerce an arbitrary model-message role to the strict union the sink stores.
+ * `"developer"` (newer OpenAI / Vercel AI SDK system-equivalent role) maps to
+ * `"system"` to preserve its meaning; any other non-standard role (e.g. `"tool"`)
+ * falls back to `"assistant"`.
+ */
 function coerceRole(role: string): AIMessage["role"] {
-  return role === "system" || role === "user" || role === "assistant" ? role : "assistant";
+  if (role === "system" || role === "developer") return "system";
+  return role === "user" || role === "assistant" ? role : "assistant";
 }
 
 /** Coerce arbitrary model-message content to the string shape the sink stores. */
