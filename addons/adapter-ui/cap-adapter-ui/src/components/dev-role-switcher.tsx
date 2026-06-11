@@ -9,8 +9,9 @@
  *
  * Visibility: rendered only in Vite dev builds (`import.meta.env.DEV` is
  * statically replaced, so production builds tree-shake this out) AND only
- * when no real auth capability is active (`isAuthEnabled()` from
- * /api/app-config) — with real auth, identities come from login, not headers.
+ * once /api/app-config has resolved with `authEnabled: false` (fail-closed:
+ * hidden until resolved) — with real auth, identities come from login, not
+ * headers.
  */
 
 import {
@@ -26,13 +27,39 @@ import {
   TooltipTrigger,
 } from "@linchkit/ui-kit/components";
 import { CheckIcon, UserCogIcon } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isAuthEnabled } from "@/lib/api";
+import { fetchAppConfig } from "@/lib/api";
 import { DEV_ROLES, type DevRole, getStoredDevRole, setDevRole } from "@/lib/dev-role";
+
+/**
+ * Resolve `authEnabled` from the (cached) app-config fetch reactively.
+ * The module-level cache behind `isAuthEnabled()` is null until the first
+ * fetch resolves, and React gets no re-render signal when it does — a plain
+ * synchronous read here would return false on first render even when auth is
+ * enabled. Tri-state: null = not resolved yet (FAIL-CLOSED: treat as "may be
+ * enabled" and render nothing).
+ */
+function useAuthEnabled(): boolean | null {
+  const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Reuses the cached fetch — resolves instantly after the app shell loaded.
+    fetchAppConfig().then((config) => {
+      if (!cancelled) setAuthEnabled(config.authEnabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return authEnabled;
+}
 
 export function DevRoleSwitcher() {
   const { t } = useTranslation();
+  const authEnabled = useAuthEnabled();
   // The STORED choice (null when none): with no choice, NO header is sent and
   // the server resolves the anonymous no-auth default — which is NOT the same
   // actor as an explicit "admin" selection. Displaying "Admin" there would
@@ -49,8 +76,9 @@ export function DevRoleSwitcher() {
   }, []);
 
   // Dev builds only (statically eliminated in production), and never when a
-  // real auth capability provides actual identities.
-  if (!import.meta.env.DEV || isAuthEnabled()) return null;
+  // real auth capability provides actual identities. FAIL-CLOSED: stays
+  // hidden until the app config has resolved to authEnabled === false.
+  if (!import.meta.env.DEV || authEnabled !== false) return null;
 
   return (
     <DropdownMenu>
