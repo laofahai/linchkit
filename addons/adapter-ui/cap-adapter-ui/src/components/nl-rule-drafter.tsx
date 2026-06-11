@@ -180,7 +180,7 @@ function SchemaIntentOutcome({
           </div>
           {/* Route the user to the existing review surface — this component never
               approves or applies; review/approval stays human-gated there. */}
-          <Link to={"/entities/proposal" as "/"}>
+          <Link to={"/admin/proposals" as "/"}>
             <Button variant="outline" size="sm" className="h-7 gap-1 text-xs">
               <ExternalLinkIcon className="size-3" />
               {t("nlRule.reviewDraft")}

@@ -43,6 +43,14 @@ export const capAdapterServer = defineCapability({
         order: 80,
       },
       {
+        id: "ai-proposals",
+        label: "t:proposals.title",
+        path: "/admin/proposals",
+        icon: "GitPullRequest",
+        section: "admin",
+        order: 85,
+      },
+      {
         id: "system-overview",
         label: "t:systemOverview.title",
         path: "/admin/system",
