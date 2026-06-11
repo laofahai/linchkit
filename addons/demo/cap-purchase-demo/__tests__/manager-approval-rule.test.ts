@@ -253,6 +253,30 @@ describe("manager_approval_threshold rule — fires in approve_purchase_request"
     expect((await store.get("purchase_request", id)).status).toBe("approved");
   });
 
+  test("FAIL-CLOSED: a missing stored row (phantom id) ignores the spoofed input amount", async () => {
+    // Defense-in-depth (claude round 5): the rule must not fall back to the
+    // caller-controlled `target.amount` when no record exists — relying on the
+    // state machine to reject phantom ids is a safety net a custom wiring
+    // without a `stateMachine` option would not have. Exercised at the
+    // condition level because the full executor rejects the phantom id earlier.
+    const condition = managerApprovalThresholdRule.condition as (ctx: {
+      target: Record<string, unknown>;
+      context: Record<string, unknown>;
+      actor: Actor;
+      record?: Record<string, unknown>;
+    }) => boolean;
+
+    const spoofCtx = {
+      target: { id: "ghost-id", amount: 1 },
+      context: {},
+      record: undefined,
+    };
+    // Non-manager: blocked (condition triggers) despite the low input amount.
+    expect(condition({ ...spoofCtx, actor: purchaseUser })).toBe(true);
+    // Manager: still allowed to proceed (condition does not trigger).
+    expect(condition({ ...spoofCtx, actor: purchaseManager })).toBe(false);
+  });
+
   test("a generic 'manager' / 'admin' actor also satisfies the manager check", async () => {
     const id = await seedPending(store, MANAGER_APPROVAL_THRESHOLD + 1);
     const adminActor: Actor = { type: "human", id: "admin-1", groups: ["admin"] };

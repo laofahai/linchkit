@@ -196,12 +196,16 @@ describe("E2E: manager_approval_threshold rule over REST", () => {
     // external channels, or any caller could overwrite audit_notes.
     const id = await createPending(MANAGER_APPROVAL_THRESHOLD + 5000);
 
-    const { body } = await restAction(
+    const { status, body } = await restAction(
       "flag_purchase_for_review",
       { id, audit_notes: "forged" },
       "user",
     );
 
+    // Structural assertions first — the 403 (exposure.blocked) and the failed
+    // envelope hold even if the error message is ever reworded; the substring
+    // is only a secondary sanity check on the reason.
+    expect(status).toBe(403);
     expect(body.success).toBe(false);
     expect(JSON.stringify(body)).toContain("not exposed");
   });

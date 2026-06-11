@@ -58,20 +58,22 @@ function actorIsManager(groups: string[] = []): boolean {
  * write. A code condition (not a declarative one) keeps the two-part check —
  * amount AND role — in one readable, type-safe place.
  *
- * SECURITY: the amount is read from `record` (the persisted row, threaded
+ * SECURITY: the amount is read ONLY from `record` (the persisted row, threaded
  * through untouched by caller input) — NEVER from `target`, which merges the
  * caller's input over the stored values. Reading `target.amount` would let any
  * caller bypass the gate by spoofing `{ id, amount: 1 }` while the state
  * transition still approves the stored high-value request (codex P1 on the
- * scenario-P1 review). `target` is only the fallback when no stored row exists
- * (which cannot satisfy approve's pending→approved transition anyway).
+ * scenario-P1 review). When NO stored row exists (phantom/deleted id), the
+ * rule fails CLOSED instead of falling back to caller-controlled `target`:
+ * relying on the state machine to reject such calls is a safety net that a
+ * custom wiring without a `stateMachine` option would not have.
  */
-const overThresholdNonManager: CodeCondition = ({ target, actor, record }) => {
-  // `!= null` covers a runtime null as well as undefined. Deliberately NOT
-  // `record?.amount ?? target.amount`: when a stored row EXISTS, its amount is
-  // authoritative even if nullish — falling back to caller-controlled `target`
-  // there would reopen the input-spoof bypass this rule exists to close.
-  const raw = record != null ? record.amount : target.amount;
+const overThresholdNonManager: CodeCondition = ({ actor, record }) => {
+  // Fail CLOSED on a missing stored row: approve is meaningless without one,
+  // and the only way to "prove" a low amount here would be trusting the
+  // caller's own input.
+  if (record == null) return !actorIsManager(actor.groups);
+  const raw = record.amount;
   // Accept ONLY a real number. Coercing other types is a fail-open trap:
   // Number(null) and Number("") are both 0, which would sail under the
   // threshold. Legitimate amounts stored through the action layer are always
