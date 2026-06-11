@@ -290,7 +290,9 @@ export function createAssistantAgUiRunner(options: ServerOptions): AgUiAgentRunn
 
     // Lazy imports — mirrors ai-api.ts so heavy deps load on first use only.
     const { streamText, stepCountIs, jsonSchema } = await import("ai");
-    const { resolveLanguageModel } = await import("@linchkit/cap-ai-provider");
+    const { resolveLanguageModel, resolveModel, instrumentRawStream } = await import(
+      "@linchkit/cap-ai-provider"
+    );
     const { createTenantAwareDataProvider } = await import("@linchkit/core/server");
     const { buildSystemPrompt, extractLocale } = await import("./system-prompt");
     const { buildTools } = await import("./tools");
@@ -350,21 +352,48 @@ export function createAssistantAgUiRunner(options: ServerOptions): AgUiAgentRunn
       toSchema: jsonSchema,
     });
 
-    const result = streamText({
-      model,
-      system: systemPrompt,
-      messages: toModelMessagesFromAgUi(input.messages),
-      tools: { ...frontendTools, ...tools },
-      stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
-      temperature: assistantConfig?.temperature ?? 0.3,
-      abortSignal: signal,
+    // Record this streaming generation to the AI trace sink. The runner owns
+    // the `streamText` call (tools + multi-step + fullStream translation), so
+    // it spreads the SDK's non-throwing onFinish/onError/onAbort callbacks to
+    // land the generation in the SAME sink as `completeStream`. See #350.
+    const modelAlias = assistantConfig?.model ?? "fast";
+    const { provider, modelId } = resolveModel(aiConfig, undefined, modelAlias);
+    const temperature = assistantConfig?.temperature ?? 0.3;
+    const modelMessages = toModelMessagesFromAgUi(input.messages);
+    const trace = instrumentRawStream({
+      trace: { name: "assistant-agui", model: modelAlias, tenantId, actorId: actor?.id },
+      provider,
+      model: modelId,
+      messages: modelMessages,
+      temperature,
     });
 
-    for await (const part of result.fullStream) {
-      if (signal?.aborted) break; // client went away — stop consuming
-      for (const event of streamPartToAgUiEvents(part)) {
-        emit(event);
+    // Guard construction + iteration so any throw still finalizes the trace
+    // (`fail`) instead of leaking the parent opened above. An async stream error
+    // already fired `onError` (settling the latch), so `fail` is then a no-op.
+    try {
+      const result = streamText({
+        model,
+        system: systemPrompt,
+        messages: modelMessages,
+        tools: { ...frontendTools, ...tools },
+        stopWhen: stepCountIs(assistantConfig?.maxSteps ?? 5),
+        temperature,
+        abortSignal: signal,
+        onFinish: trace.onFinish,
+        onError: trace.onError,
+        onAbort: trace.onAbort,
+      });
+
+      for await (const part of result.fullStream) {
+        if (signal?.aborted) break; // client went away — stop consuming
+        for (const event of streamPartToAgUiEvents(part)) {
+          emit(event);
+        }
       }
+    } catch (streamErr) {
+      trace.fail(streamErr);
+      throw streamErr;
     }
   };
 }
