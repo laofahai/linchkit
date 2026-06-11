@@ -41,7 +41,7 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
-import { resolveActionErrorMessage } from "../src/lib/api";
+import { resolveActionErrorMessage } from "../src/lib/action-errors";
 import {
   executeHeaderAction,
   type HeaderActionApi,

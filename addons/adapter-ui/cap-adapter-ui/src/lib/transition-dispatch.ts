@@ -18,7 +18,7 @@
  */
 
 import type { Transition } from "@linchkit/core/types";
-import { resolveActionErrorMessage } from "./api";
+import { resolveActionErrorMessage } from "./action-errors";
 
 /** Minimal API surface consumed by executeTransition — injectable in tests. */
 export interface TransitionDispatchApi {
