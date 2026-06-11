@@ -72,8 +72,17 @@ const overThresholdNonManager: CodeCondition = ({ target, actor, record }) => {
   // authoritative even if nullish — falling back to caller-controlled `target`
   // there would reopen the input-spoof bypass this rule exists to close.
   const raw = record != null ? record.amount : target.amount;
-  const amount = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isFinite(amount)) return false;
+  // `Number(null)` is 0 and `Number(undefined)` is NaN — normalize BOTH nullish
+  // cases (and any other non-numeric value) to NaN so they hit the fail-closed
+  // branch below instead of silently passing as a 0 amount.
+  const amount = typeof raw === "number" ? raw : raw == null ? Number.NaN : Number(raw);
+  if (!Number.isFinite(amount)) {
+    // Fail CLOSED: an absent / unparseable amount cannot prove the request is
+    // under the threshold, so only a manager may approve it. Returning false
+    // here would let a non-manager approve any record whose stored amount is
+    // missing (e.g. a partially-seeded row or a future schema migration).
+    return !actorIsManager(actor.groups);
+  }
   if (amount <= MANAGER_APPROVAL_THRESHOLD) return false;
   return !actorIsManager(actor.groups);
 };

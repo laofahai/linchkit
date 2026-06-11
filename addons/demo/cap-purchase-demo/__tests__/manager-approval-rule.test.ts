@@ -187,6 +187,49 @@ describe("manager_approval_threshold rule — fires in approve_purchase_request"
     expect(after.amount).toBe(MANAGER_APPROVAL_THRESHOLD + 1);
   });
 
+  test("FAIL-CLOSED: a stored record with NO amount blocks a purchase_user", async () => {
+    // Regression (claude review on scenario P1): `Number(undefined)` is NaN and
+    // the old `!Number.isFinite → return false` path silently fail-OPENED —
+    // a non-manager could approve any record whose stored amount was absent.
+    // An unknown amount cannot prove it is under the threshold, so the rule
+    // must require a manager.
+    const record = await store.create("purchase_request", {
+      title: "No-amount request",
+      requester: "Alice User",
+      requester_email: "alice@example.com",
+      status: "pending",
+    });
+    const id = record.id as string;
+
+    const result = (await executor.execute(
+      "approve_purchase_request",
+      { id },
+      purchaseUser,
+    )) as ActionResult;
+
+    expect(result.success).toBe(false);
+    expect((await store.get("purchase_request", id)).status).toBe("pending");
+  });
+
+  test("FAIL-CLOSED: a manager can still approve a record with NO amount", async () => {
+    const record = await store.create("purchase_request", {
+      title: "No-amount request",
+      requester: "Alice User",
+      requester_email: "alice@example.com",
+      status: "pending",
+    });
+    const id = record.id as string;
+
+    const result = (await executor.execute(
+      "approve_purchase_request",
+      { id },
+      purchaseManager,
+    )) as ActionResult;
+
+    expect(result.success).toBe(true);
+    expect((await store.get("purchase_request", id)).status).toBe("approved");
+  });
+
   test("a generic 'manager' / 'admin' actor also satisfies the manager check", async () => {
     const id = await seedPending(store, MANAGER_APPROVAL_THRESHOLD + 1);
     const adminActor: Actor = { type: "human", id: "admin-1", groups: ["admin"] };
