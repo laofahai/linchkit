@@ -16,9 +16,8 @@ export interface McpToolDef {
 
 /** Check whether an action should be exposed via MCP */
 export function isMcpExposed(action: ActionDefinition): boolean {
-  if (action.exposure === undefined || action.exposure === "all") {
-    return true;
-  }
+  if (action.exposure === undefined) return true;
+  if (typeof action.exposure === "string") return action.exposure === "all";
   if (action.exposure.internal === true) return false;
   return action.exposure.mcp !== false;
 }

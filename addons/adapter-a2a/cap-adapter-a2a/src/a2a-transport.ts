@@ -29,12 +29,8 @@ export const a2aTransport: TransportAdapterDefinition = {
 
     return {
       start: async () => {
-        if (!cfg.enabled) {
-          return;
-        }
-
-        // Generate the AgentCard so the mapping logic is validated at boot.
-        // Serving via HTTP is deferred until elysia is wired into the transport.
+        // Always generate so the OntologyRegistry→AgentCard mapping is
+        // validated at boot, even when HTTP serving is disabled.
         const card = generateAgentCard({
           name: cfg.agentName,
           description: cfg.agentDescription,
@@ -44,6 +40,10 @@ export const a2aTransport: TransportAdapterDefinition = {
           providerOrg: cfg.agentProviderOrg,
           actions: ctx.actions,
         });
+
+        if (!cfg.enabled) {
+          return;
+        }
 
         console.log(
           `[cap-adapter-a2a] AgentCard generated: "${card.name}" v${card.version} ` +
