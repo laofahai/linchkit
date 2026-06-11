@@ -37,6 +37,11 @@ const typeGuidance: Record<ProposalType, string> = {
     "Include: name, label, description, priority, trigger (action), condition, effect.",
     "Effect types: block, enrich, validate.",
   ].join("\n"),
+  update_rule: [
+    "Update an EXISTING RuleDefinition (defineRule()) in place.",
+    "Keep the rule's name unchanged; modify only what the proposal diff describes.",
+    "Emit the FULL updated definition: name, label, description, priority, trigger, condition, effect.",
+  ].join("\n"),
   add_automation: [
     "Generate an EventHandlerDefinition for reactive event handling.",
     "Include: name, description, listen (event type), handler function.",

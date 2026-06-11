@@ -229,6 +229,7 @@ export type {
   SchemaIntentMessages,
 } from "./schema-intent-resolver";
 export {
+  REQUIRES_CODE_CHANGE_MARKER,
   resolveSchemaIntent,
   SCHEMA_INTENT_MESSAGES,
   SCHEMA_INTENT_MIN_CONFIDENCE,
@@ -241,6 +242,8 @@ export type {
   SchemaIntentOutcome,
   SchemaIntentProposalDraft,
   SchemaIntentResolverOptions,
+  SchemaIntentRule,
+  SchemaIntentRuleEffect,
 } from "./schema-intent-types";
 // Usage Meter (Spec 36 M2+)
 export type {

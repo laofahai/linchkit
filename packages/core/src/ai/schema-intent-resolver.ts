@@ -1,23 +1,30 @@
 /**
- * Schema Intent Resolver — NL utterance → governed `add_rule` ProposalDraft
- * (Spec 52 "说→有", first slice).
+ * Schema Intent Resolver — NL utterance → governed `add_rule` / `update_rule`
+ * ProposalDraft (Spec 52 "describe-to-exists").
  *
  * The bridge that was missing: the existing `resolveIntent()` (intent-
  * resolver.ts) turns an utterance into a RUNTIME DATA action; this resolver
- * turns an utterance into a METAMODEL CHANGE — specifically a new
- * `defineRule()` — surfaced ONLY as a governed `add_rule` Proposal in
+ * turns an utterance into a METAMODEL CHANGE — a new `defineRule()` or an
+ * UPDATE to an existing one — surfaced ONLY as a governed Proposal in
  * `draft` status via `ProposalEngine.createProposal()`.
  *
  * Pipeline (mirrors intent-resolver.ts):
- *   sanitize → build entity catalog → build focused system prompt
- *   → call provider → parse + validate AI JSON → reconcile rule against
- *   the ontology → `ProposalEngine.createProposal({ type: 'add_rule', ... })`
- *   → emit `SchemaIntentOutcome` (proposal_draft / clarification / no_match).
+ *   sanitize → build entity catalog (incl. existing rules) → build focused
+ *   system prompt → call provider → parse + validate AI JSON → reconcile rule
+ *   against the ontology → `ProposalEngine.createProposal(...)` → emit
+ *   `SchemaIntentOutcome` (proposal_draft / clarification / no_match).
  *
  * Hard rules (repo principle "AI Never Modifies Production Directly"):
  *  - NEVER submits, approves, or applies. The returned Proposal is ALWAYS
  *    `draft`. Graduating it (draft→pending→…) is a separate, human-gated path.
- *  - `add_rule` ONLY. Entity/field/view creation is out of scope (later slices).
+ *  - `add_rule` + `update_rule` ONLY (no rename/delete). Entity/field/view
+ *    creation is out of scope (later slices).
+ *  - An `update_rule` may only target a rule present in the ontology's rule
+ *    list (allowlist — the AI cannot update what it cannot see). A rule whose
+ *    condition is CODE (a TS function) cannot be round-tripped declaratively;
+ *    its update draft carries NO definition, only a human-readable diff
+ *    summary, and is flagged `requiresCodeChange` (honest change REQUEST —
+ *    a developer applies it in source).
  *  - Single-shot. No multi-turn, no history replay.
  *
  * Security posture (this is a prompt-injection-sensitive path):
@@ -38,11 +45,13 @@
  */
 
 import type { AIMessage, AIService } from "../types/ai";
+import type { RuleDefinition } from "../types/rule";
 import { sanitizePrompt } from "./prompt-sanitizer";
 import type { ProposalEngine } from "./proposal-engine";
 // System prompt + response parser live in a sibling module (mirrors the
 // intent-resolver.ts / intent-prompt.ts split) so this file stays focused on
 // the pipeline + the governed Proposal mint.
+import type { ParsedRuleShape, ParsedSchemaIntent } from "./schema-intent-prompt";
 import { buildSchemaIntentSystemPrompt, parseSchemaIntentResponse } from "./schema-intent-prompt";
 // Rule reconciliation + validation lives in a sibling module so this file
 // stays under the 500-line ceiling and focuses on the pipeline.
@@ -52,12 +61,25 @@ import type {
   SchemaIntentOntology,
   SchemaIntentOutcome,
   SchemaIntentResolverOptions,
+  SchemaIntentRule,
 } from "./schema-intent-types";
 
 // ── Tunable defaults ─────────────────────────────────────────
 
 /** Confidence floor below which we ask a clarifying question instead of drafting. */
 export const SCHEMA_INTENT_MIN_CONFIDENCE = 0.4;
+
+/**
+ * Stable text marker persisted on a governed diff-only update draft (the
+ * `requiresCodeChange` outcome flag exists only in the HTTP response — the
+ * PERSISTED proposal needs its own signal). Callers prepend it to the
+ * governed change's `diff` / proposal description so a reviewer reading
+ * /admin/proposals can distinguish an HONEST developer change-request
+ * (no definition BY DESIGN) from a malformed change. Text-only on purpose:
+ * `ProposalChange` has no structured extension point and core types are not
+ * widened for this.
+ */
+export const REQUIRES_CODE_CHANGE_MARKER = "[requires-code-change]";
 
 // ── User-facing messages (centralized for future i18n) ───────
 
@@ -70,7 +92,10 @@ export const SCHEMA_INTENT_MESSAGES = {
   aiMalformedResponse: "AI returned malformed JSON; could not parse the schema intent.",
   noRuleDrafted: "AI did not propose a rule for this request.",
   unknownEntity: (entity: string) => `AI proposed a rule for unknown entity "${entity}".`,
+  unknownRule: (rule: string, entity: string) =>
+    `AI proposed an update to unknown rule "${rule}" on entity "${entity}".`,
   invalidRule: (detail: string) => `AI proposed an invalid rule: ${detail}.`,
+  missingUpdateDiff: "AI proposed a code-backed rule update without describing what should change",
   lowConfidenceClarification:
     "I'm not sure what rule you want. Could you describe the condition and what should happen when it matches?",
 } as const;
@@ -198,7 +223,7 @@ export async function resolveSchemaIntent(
     };
   }
 
-  // kind === "add_rule"
+  // kind === "add_rule" | "update_rule"
   const confidence = clampConfidence(parsed.confidence);
   if (confidence < minConfidence) {
     return {
@@ -213,6 +238,17 @@ export async function resolveSchemaIntent(
   const entity = catalogIndex.get(targetEntity);
   if (!entity) {
     return noMatch("unknown_entity", SCHEMA_INTENT_MESSAGES.unknownEntity(targetEntity));
+  }
+
+  // Step 8/9 — update path: reconcile against an EXISTING rule, then mint.
+  if (parsed.kind === "update_rule") {
+    return draftRuleUpdate({
+      parsed,
+      entity,
+      confidence,
+      utterance,
+      engine: deps.proposalEngine,
+    });
   }
 
   // Step 8 — Validate + reconcile the proposed rule against the entity.
@@ -244,11 +280,201 @@ export async function resolveSchemaIntent(
   return {
     kind: "proposal_draft",
     proposal,
+    operation: "create",
     ruleName: ruleDef.name,
     targetEntity: entity.name,
     confidence,
     explanation,
   };
+}
+
+// ── Update-rule reconciliation + mint ────────────────────────
+
+/**
+ * Turn a parsed `update_rule` intent into a governed `update_rule` draft
+ * Proposal, mirroring the add_rule path's validation discipline:
+ *
+ *  1. The targeted rule MUST exist on the entity's rule list (allowlist —
+ *     the AI cannot update a rule it was not shown).
+ *  2. Round-trippable declarative rule: the AI's FULL updated definition
+ *     passes the same strict structural validation as add_rule
+ *     (`buildRuleDefinition`); `priority` and unchanged effect fields are
+ *     BACK-FILLED from the existing snapshot (robust against AI omissions),
+ *     and the name is pinned to the existing rule's name (renames out of
+ *     scope) — re-pinned AFTER the build so name normalization can never
+ *     diverge from the registered name.
+ *  3. Non-round-trippable rule (CODE condition, composite/not condition,
+ *     non-action trigger, non-declarative effect): the builder cannot rebuild
+ *     the definition faithfully, so none is fabricated. The draft carries
+ *     ONLY the human-readable diff summary and is flagged
+ *     `requiresCodeChange` — an honest, governed change REQUEST a developer
+ *     applies in source. Such an update without any diff/explanation is
+ *     refused (there is nothing actionable to review).
+ */
+function draftRuleUpdate(opts: {
+  parsed: ParsedSchemaIntent;
+  entity: SchemaIntentEntity;
+  confidence: number;
+  utterance: string;
+  engine: ProposalEngine;
+}): SchemaIntentOutcome {
+  const { parsed, entity, confidence, utterance, engine } = opts;
+
+  const targetRuleName = (parsed.ruleName ?? "").trim();
+  const existing = (entity.rules ?? []).find((rule) => rule.name === targetRuleName);
+  if (!existing) {
+    return noMatch("unknown_rule", SCHEMA_INTENT_MESSAGES.unknownRule(targetRuleName, entity.name));
+  }
+
+  const explanation =
+    parsed.explanation?.trim() || `Update rule "${existing.name}" on ${entity.name}`;
+  const diffSummary = parsed.diff?.trim() || "";
+
+  // Diff-only path: code-backed rules AND declarative rules the builder
+  // cannot rebuild faithfully (composite/not conditions, non-action triggers,
+  // non-declarative effects — `roundTrippable: false` in the snapshot). A
+  // declarative rebuild of those would silently flatten conjuncts or swap the
+  // trigger kind, so the honest draft carries the diff summary only.
+  if (existing.conditionKind === "code" || existing.roundTrippable === false) {
+    // Honest path for non-round-trippable rules: no fabricated definition.
+    const summary = diffSummary || parsed.explanation?.trim() || "";
+    if (!summary) {
+      return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.missingUpdateDiff);
+    }
+    const proposal = engine.createProposal({
+      type: "update_rule",
+      description: explanation,
+      reasoning: utterance,
+      confidence,
+      // NO definition — the rule cannot be rebuilt faithfully from what the
+      // AI saw. The summary is the reviewable spec of the change.
+      // `targetName` carries the rule name so downstream security change
+      // records still report the real target without a definition.
+      diff: { target: "rule", operation: "update", targetName: existing.name, summary },
+    });
+    return {
+      kind: "proposal_draft",
+      proposal,
+      operation: "update",
+      ruleName: existing.name,
+      targetEntity: entity.name,
+      confidence,
+      explanation,
+      diffSummary: summary,
+      requiresCodeChange: true,
+    };
+  }
+
+  // Declarative rule — same strict structural validation as add_rule. The
+  // name is pinned to the EXISTING rule's name before validation so an
+  // AI-side rename (out of scope) can never slip through as a new rule, and
+  // `priority` / unchanged effect fields are back-filled from the existing
+  // snapshot so an AI omission never silently resets them.
+  const built = buildRuleDefinition(
+    parsed.rule ? backfillUpdateShape(parsed.rule, existing) : undefined,
+    entity,
+  );
+  if (!built.ok) {
+    return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.invalidRule(built.reason));
+  }
+  // Re-pin AFTER the build: `normalizeRuleName` runs inside the builder, so a
+  // registered name that normalization would alter could otherwise make the
+  // built name diverge from the pinned target. The governed change must name
+  // the EXISTING rule, always.
+  const ruleDef: RuleDefinition = { ...built.rule, name: existing.name };
+  const summary = diffSummary || explanation;
+  const proposal = engine.createProposal({
+    type: "update_rule",
+    description: explanation,
+    reasoning: utterance,
+    confidence,
+    diff: {
+      target: "rule",
+      operation: "update",
+      definition: ruleDef,
+      targetName: existing.name,
+      summary,
+    },
+  });
+  return {
+    kind: "proposal_draft",
+    proposal,
+    operation: "update",
+    ruleName: ruleDef.name,
+    targetEntity: entity.name,
+    confidence,
+    explanation,
+    diffSummary: summary,
+  };
+}
+
+/**
+ * Merge the AI-returned update shape with the EXISTING rule snapshot so
+ * fields the AI did not change survive verbatim (review-integrity — the
+ * persisted definition must match the human-readable diff):
+ *
+ *  - `name` is pinned to the existing rule's name (renames out of scope).
+ *  - `priority` falls back to the existing value when the AI omits it.
+ *  - `trigger` falls back to the existing rule's trigger actions when the AI
+ *    omits it (LLMs frequently leave out fields they treat as "unchanged",
+ *    and `buildTrigger(undefined)` would otherwise fail the whole update).
+ *  - Effect payload: when the AI omits the effect entirely the existing
+ *    payload is used verbatim; when the AI keeps the SAME effect type (or
+ *    omits `type` — a partial update payload), payload fields it omitted
+ *    (message / level / setFields) are back-filled from the snapshot, and
+ *    `setFields` merges ONE level deep so a partial setFields (only the
+ *    changed keys) never silently drops the snapshot's other entries. A
+ *    deliberate effect-type change is passed through unmerged (the builder
+ *    validates its required fields).
+ */
+function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule): ParsedRuleShape {
+  const out: ParsedRuleShape = { ...rule, name: existing.name };
+  if (out.priority === undefined && existing.priority !== undefined) {
+    out.priority = existing.priority;
+  }
+  if (
+    out.trigger === undefined &&
+    Array.isArray(existing.triggerActions) &&
+    existing.triggerActions.length > 0
+  ) {
+    out.trigger = {
+      action:
+        existing.triggerActions.length === 1 ? existing.triggerActions[0] : existing.triggerActions,
+    };
+  }
+  const existingEffect = existing.effect;
+  if (existingEffect) {
+    if (out.effect === undefined) {
+      out.effect = { ...existingEffect };
+    } else if (typeof out.effect === "object" && out.effect !== null) {
+      const aiEffect = out.effect as Record<string, unknown>;
+      // Merge when the AI kept the same effect type OR omitted `type`
+      // entirely (a partial payload). A type CHANGE skips the merge so
+      // stale fields never leak into the new effect shape.
+      if (aiEffect.type === undefined || aiEffect.type === existingEffect.type) {
+        const merged: Record<string, unknown> = {
+          ...existingEffect,
+          ...aiEffect,
+          // The merge only runs for same-or-omitted type, so the existing
+          // type always wins (covers an explicit `type: undefined` too).
+          type: existingEffect.type,
+        };
+        // `setFields` back-fills one level deep: a partial AI payload
+        // carrying only the changed keys must not REPLACE the snapshot's
+        // whole map (that would silently drop untouched entries).
+        if (isPlainRecord(existingEffect.setFields) && isPlainRecord(aiEffect.setFields)) {
+          merged.setFields = { ...existingEffect.setFields, ...aiEffect.setFields };
+        }
+        out.effect = merged;
+      }
+    }
+  }
+  return out;
+}
+
+/** Narrow to a plain object record (not null, not an array). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // ── Catalog construction ─────────────────────────────────────

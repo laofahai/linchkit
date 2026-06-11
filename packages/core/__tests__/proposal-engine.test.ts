@@ -178,6 +178,43 @@ describe("ProposalEngine", () => {
       expect(result.validation?.valid).toBe(false);
       expect(engine2.get(proposal.id)?.status).toBe("draft"); // stays in draft
     });
+
+    it("reports the real rule name for a diff-only update_rule proposal", () => {
+      // Diff-only updates (code-backed / non-round-trippable rules) carry NO
+      // definition — the security change record must still name the real
+      // target via the diff's explicit targetName, not "unknown".
+      const seenTargets: string[] = [];
+      const engine2 = new ProposalEngine({
+        validatorConfig: {
+          customRules: [
+            {
+              name: "capture_target",
+              validate: (change) => {
+                seenTargets.push(change.target);
+                return undefined;
+              },
+            },
+          ],
+        },
+      });
+
+      const proposal = engine2.createProposal({
+        type: "update_rule",
+        description: "Raise the manager approval threshold",
+        reasoning: "把经理审批阈值改成2万",
+        confidence: 0.85,
+        diff: {
+          target: "rule",
+          operation: "update",
+          targetName: "manager_approval_threshold",
+          summary: "Change the manager-approval threshold from 10000 to 20000.",
+        },
+      });
+
+      const result = engine2.submit(proposal.id);
+      expect(result.success).toBe(true);
+      expect(seenTargets).toEqual(["manager_approval_threshold"]);
+    });
   });
 
   // ── Lifecycle: approve ─────────────────────────────────
