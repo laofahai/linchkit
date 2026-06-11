@@ -16,3 +16,13 @@ registerAdminRoute({
   component: () =>
     import("../pages/execution-logs").then((m) => ({ default: m.ExecutionLogsPage })),
 });
+
+registerAdminRoute({
+  id: "ai-traces",
+  capability: "__builtin__",
+  path: "/admin/ai-traces",
+  label: "aiTraces.title",
+  icon: "Activity",
+  order: 110,
+  component: () => import("../pages/ai-traces").then((m) => ({ default: m.AITracesPage })),
+});
