@@ -408,10 +408,13 @@ function draftRuleUpdate(opts: {
  *  - `name` is pinned to the existing rule's name (renames out of scope).
  *  - `priority` falls back to the existing value when the AI omits it.
  *  - Effect payload: when the AI omits the effect entirely the existing
- *    payload is used verbatim; when the AI keeps the SAME effect type,
- *    payload fields it omitted (message / level / setFields) are back-filled
- *    from the snapshot. A deliberate effect-type change is passed through
- *    unmerged (the builder validates its required fields).
+ *    payload is used verbatim; when the AI keeps the SAME effect type (or
+ *    omits `type` — a partial update payload), payload fields it omitted
+ *    (message / level / setFields) are back-filled from the snapshot, and
+ *    `setFields` merges ONE level deep so a partial setFields (only the
+ *    changed keys) never silently drops the snapshot's other entries. A
+ *    deliberate effect-type change is passed through unmerged (the builder
+ *    validates its required fields).
  */
 function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule): ParsedRuleShape {
   const out: ParsedRuleShape = { ...rule, name: existing.name };
@@ -422,15 +425,35 @@ function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule):
   if (existingEffect) {
     if (out.effect === undefined) {
       out.effect = { ...existingEffect };
-    } else if (
-      typeof out.effect === "object" &&
-      out.effect !== null &&
-      (out.effect as Record<string, unknown>).type === existingEffect.type
-    ) {
-      out.effect = { ...existingEffect, ...(out.effect as Record<string, unknown>) };
+    } else if (typeof out.effect === "object" && out.effect !== null) {
+      const aiEffect = out.effect as Record<string, unknown>;
+      // Merge when the AI kept the same effect type OR omitted `type`
+      // entirely (a partial payload). A type CHANGE skips the merge so
+      // stale fields never leak into the new effect shape.
+      if (aiEffect.type === undefined || aiEffect.type === existingEffect.type) {
+        const merged: Record<string, unknown> = {
+          ...existingEffect,
+          ...aiEffect,
+          // The merge only runs for same-or-omitted type, so the existing
+          // type always wins (covers an explicit `type: undefined` too).
+          type: existingEffect.type,
+        };
+        // `setFields` back-fills one level deep: a partial AI payload
+        // carrying only the changed keys must not REPLACE the snapshot's
+        // whole map (that would silently drop untouched entries).
+        if (isPlainRecord(existingEffect.setFields) && isPlainRecord(aiEffect.setFields)) {
+          merged.setFields = { ...existingEffect.setFields, ...aiEffect.setFields };
+        }
+        out.effect = merged;
+      }
     }
   }
   return out;
+}
+
+/** Narrow to a plain object record (not null, not an array). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // ── Catalog construction ─────────────────────────────────────

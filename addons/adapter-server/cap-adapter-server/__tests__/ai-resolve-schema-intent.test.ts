@@ -23,6 +23,7 @@ import type {
   Actor,
   AIService,
   EntityDefinition,
+  OntologyRegistry,
   RuleDefinition,
 } from "@linchkit/core";
 import { REQUIRES_CODE_CHANGE_MARKER } from "@linchkit/core/ai";
@@ -810,6 +811,62 @@ describe("buildSchemaIntentOntology — existing rules section", () => {
     const ruleNames = (entity.rules ?? []).map((r) => r.name);
     expect(ruleNames).toContain("warn_large_amount");
     expect(ruleNames).not.toContain("manager_approval_threshold");
+  });
+
+  test("a malformed rule with no trigger never throws (rides the entity-level gate)", () => {
+    // `createOntologyRegistry` rejects trigger-less rules at construction, but
+    // `buildSchemaIntentOntology` only depends on the OntologyRegistry
+    // INTERFACE — an overlay/custom registry can surface a malformed rule at
+    // runtime, and `"action" in undefined` would throw a TypeError.
+    const malformedRule = {
+      name: "broken_rule",
+      label: "Broken rule",
+      // trigger intentionally ABSENT (undefined at runtime).
+      condition: { field: "amount", operator: "gt", value: 1 },
+      effect: { type: "warn", message: "x" },
+    } as unknown as RuleDefinition;
+    const base = {
+      listEntities: () => ["purchase_request"],
+      actionsFor: () => [createPurchaseAction],
+      describe: (name: string) =>
+        name === "purchase_request"
+          ? {
+              name: "purchase_request",
+              label: "Purchase Request",
+              fields: purchaseSchema.fields,
+              rules: [malformedRule],
+            }
+          : undefined,
+    } as unknown as OntologyRegistry;
+
+    // Site 1+2 (toSchemaIntentRule): no throw; the rule is projected with no
+    // trigger actions and is never offered for declarative rebuild.
+    const ontology = buildSchemaIntentOntology({ base, actor });
+    const entity = ontology.describeEntity("purchase_request");
+    expect(entity).toBeDefined();
+    if (!entity) throw new Error("expected entity");
+    const broken = (entity.rules ?? []).find((r) => r.name === "broken_rule");
+    expect(broken).toBeDefined();
+    expect(broken?.triggerActions).toBeUndefined();
+    expect(broken?.roundTrippable).toBe(false);
+
+    // Site 3 (visibleRules filter, permission-gated path): a trigger-less
+    // rule rides the entity-level gate instead of throwing.
+    const registry = new PermissionRegistry();
+    registry.register({
+      name: "purchase_creator",
+      label: "Purchase creator",
+      permissions: {},
+      grant: { purchase_request: { actions: { create_purchase_request: true } } },
+    });
+    const scopedActor: Actor = { type: "human", id: "user-1", groups: ["purchase_creator"] };
+    const gated = buildSchemaIntentOntology({
+      base,
+      permissionRegistry: registry,
+      actor: scopedActor,
+    });
+    const gatedEntity = gated.describeEntity("purchase_request");
+    expect((gatedEntity?.rules ?? []).map((r) => r.name)).toContain("broken_rule");
   });
 });
 

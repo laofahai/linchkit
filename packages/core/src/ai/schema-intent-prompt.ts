@@ -31,10 +31,19 @@ function sanitizeText(value: string): string {
   return value.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, "");
 }
 
-/** Sanitize string leaves of an arbitrary value (scalars / arrays). */
+/** Sanitize string leaves of an arbitrary value (scalars / arrays / plain objects). */
 function sanitizeStringLeaves(value: unknown): unknown {
   if (typeof value === "string") return sanitizeText(value);
   if (Array.isArray(value)) return value.map(sanitizeStringLeaves);
+  if (value && typeof value === "object") {
+    // Recurse into plain-object values (e.g. an enrich setFields value or a
+    // nested condition value) so no string leaf reaches the prompt raw. A
+    // FRESH object is built from own enumerable entries only — keys are
+    // sanitized too, and nothing from the prototype chain travels.
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [sanitizeText(key), sanitizeStringLeaves(entry)]),
+    );
+  }
   return value;
 }
 
@@ -45,6 +54,9 @@ function sanitizeStringLeaves(value: unknown): unknown {
  * get the same control-character stripping as labels/descriptions.
  */
 function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
+  // Defensive: a malformed registered rule can carry a null / non-object
+  // condition at runtime despite the static type — `in` would throw on it.
+  if (!cond || typeof cond !== "object") return cond;
   // Structural narrowing: composite carries `conditions`, not carries `condition`.
   if ("conditions" in cond) {
     return { operator: cond.operator, conditions: cond.conditions.map(sanitizeCondition) };
@@ -63,19 +75,25 @@ function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
   };
 }
 
-/** Sanitize the string fields of an existing rule's effect payload. */
+/**
+ * Sanitize the string fields of an existing rule's effect payload. Each leaf
+ * is typeof-guarded: a malformed registered rule can carry non-string values
+ * at runtime despite the static type, and `sanitizeText` would throw on them
+ * (`.replace` is string-only) — non-string message/level are omitted, a
+ * non-string type falls back to "".
+ */
 function sanitizeEffect(effect: SchemaIntentRuleEffect): SchemaIntentRuleEffect {
   let setFields: Record<string, unknown> | undefined;
-  if (effect.setFields) {
+  if (effect.setFields && typeof effect.setFields === "object") {
     setFields = {};
     for (const [key, value] of Object.entries(effect.setFields)) {
       setFields[sanitizeText(key)] = sanitizeStringLeaves(value);
     }
   }
   return {
-    type: sanitizeText(effect.type),
-    ...(effect.message !== undefined ? { message: sanitizeText(effect.message) } : {}),
-    ...(effect.level !== undefined ? { level: sanitizeText(effect.level) } : {}),
+    type: typeof effect.type === "string" ? sanitizeText(effect.type) : "",
+    ...(typeof effect.message === "string" ? { message: sanitizeText(effect.message) } : {}),
+    ...(typeof effect.level === "string" ? { level: sanitizeText(effect.level) } : {}),
     ...(setFields ? { setFields } : {}),
   };
 }

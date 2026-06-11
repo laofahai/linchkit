@@ -77,8 +77,11 @@ export function buildSchemaIntentOntology(opts: {
   // (the resolver takes the honest diff-only path otherwise).
   const toSchemaIntentRule = (rule: RuleDefinition): SchemaIntentRule => {
     const isCode = typeof rule.condition === "function";
+    // `rule.trigger` is guarded everywhere it is narrowed with `in`: a
+    // malformed rule can carry an undefined/null trigger at runtime despite
+    // the static type, and `"action" in undefined` throws.
     const triggerActions =
-      "action" in rule.trigger
+      rule.trigger && "action" in rule.trigger
         ? Array.isArray(rule.trigger.action)
           ? rule.trigger.action
           : [rule.trigger.action]
@@ -97,8 +100,9 @@ export function buildSchemaIntentOntology(opts: {
     // block/warn/require_approval/enrich effect. Anything else must take the
     // diff-only path or the rebuild would silently flatten/replace parts the
     // user never asked to change.
-    const hasSingleActionTrigger =
-      "action" in rule.trigger && typeof rule.trigger.action === "string";
+    const hasSingleActionTrigger = Boolean(
+      rule.trigger && "action" in rule.trigger && typeof rule.trigger.action === "string",
+    );
     const hasSimpleCondition =
       !isCode &&
       typeof rule.condition === "object" &&
@@ -133,7 +137,9 @@ export function buildSchemaIntentOntology(opts: {
     const allowedNames = new Set(allowedActions(entityName).map((a) => a.name));
     return rules
       .filter((rule) => {
-        if (!("action" in rule.trigger)) return true;
+        // A malformed (trigger-less) rule rides the entity-level gate, same
+        // as non-action triggers — `in` on undefined/null would throw.
+        if (!rule.trigger || !("action" in rule.trigger)) return true;
         const actions = Array.isArray(rule.trigger.action)
           ? rule.trigger.action
           : [rule.trigger.action];

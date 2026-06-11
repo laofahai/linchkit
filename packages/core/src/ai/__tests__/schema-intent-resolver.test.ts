@@ -1200,6 +1200,98 @@ describe("resolveSchemaIntent — update round-trip preservation (priority/effec
     const def = outcome.proposal.diff.definition as Record<string, unknown>;
     expect(def.effect).toEqual({ type: "block", message: "Blocked over 5000" });
   });
+
+  it("merges the back-fill even when the AI OMITS the effect type (partial payload)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "warn_large_amount",
+        rule: {
+          name: "warn_large_amount",
+          label: "Warn on large amount",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 5000 },
+          // Partial payload: `type` omitted entirely. The merge must still
+          // run (omitted type = same type), not skip and fail validation.
+          effect: { message: "New warning message" },
+        },
+        diff: "Change the warning message.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the warning text" },
+      { provider: service, ontology: makeRoundTripOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.effect).toEqual({ type: "warn", message: "New warning message" });
+  });
+
+  it("a partial setFields update preserves the snapshot's untouched keys (deep merge)", async () => {
+    // Local enrich fixture: the snapshot sets TWO fields; the AI returns only
+    // the one it changed. A shallow merge would REPLACE the whole map and
+    // silently drop `department` — the one-level deep merge must keep it.
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      fields: [
+        { name: "amount", type: "number", required: true },
+        { name: "department", type: "string", required: true },
+        { name: "status", type: "string", required: false },
+      ],
+      actionNames: ["create_purchase_request"],
+      rules: [
+        {
+          name: "enrich_defaults",
+          label: "Enrich defaults",
+          triggerActions: ["create_purchase_request"],
+          effectType: "enrich",
+          effect: { type: "enrich", setFields: { status: "draft", department: "ops" } },
+          conditionKind: "declarative",
+          condition: { field: "amount", operator: "gt", value: 0 },
+          roundTrippable: true,
+        },
+      ],
+    };
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["purchase_request"],
+      describeEntity: () => entity,
+    };
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "enrich_defaults",
+        rule: {
+          name: "enrich_defaults",
+          label: "Enrich defaults",
+          trigger: { action: "create_purchase_request" },
+          condition: { field: "amount", operator: "gt", value: 0 },
+          // Only the CHANGED key — `department` is never mentioned.
+          effect: { type: "enrich", setFields: { status: "approved" } },
+        },
+        diff: "Change the default status to approved.",
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the default status to approved" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("proposal_draft");
+    if (outcome.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const def = outcome.proposal.diff.definition as Record<string, unknown>;
+    expect(def.effect).toEqual({
+      type: "enrich",
+      setFields: { status: "approved", department: "ops" },
+    });
+  });
 });
 
 describe("resolveSchemaIntent — non-round-trippable rules take the diff-only path", () => {
@@ -1346,5 +1438,93 @@ describe("resolveSchemaIntent — prompt serializes the full sanitized rule snap
     expect(systemPrompt).not.toContain("\\u0007");
     // The composite condition itself is serialized whole (structured data).
     expect(systemPrompt).toContain('"operator": "and"');
+  });
+
+  it("sanitizes string leaves nested inside OBJECT values (setFields / condition values)", async () => {
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(JSON.stringify({ kind: "no_match", explanation: "x" }));
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      fields: [{ name: "amount", type: "number", required: true }],
+      actionNames: ["create_purchase_request"],
+      rules: [
+        {
+          name: "enrich_meta",
+          label: "Enrich meta",
+          triggerActions: ["create_purchase_request"],
+          effectType: "enrich",
+          // An OBJECT setFields value + a nested-object condition value — a
+          // prior NL-drafted rule is a prompt-injection carrier, so string
+          // leaves inside plain objects (keys included) must be stripped too.
+          effect: {
+            type: "enrich",
+            setFields: { meta: { note: "inj\u0007ected", "ba\u0007d_key": ["de\u0000ep"] } },
+          },
+          conditionKind: "declarative",
+          condition: { field: "amount", operator: "eq", value: { nested: "va\u0000lue" } },
+          roundTrippable: false,
+        },
+      ],
+    };
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["purchase_request"],
+      describeEntity: () => entity,
+    };
+    await resolveSchemaIntent(
+      { utterance: "change the enrich rule" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    const systemPrompt = calls[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(systemPrompt).toContain('"note": "injected"');
+    expect(systemPrompt).toContain('"bad_key"');
+    expect(systemPrompt).toContain('"deep"');
+    expect(systemPrompt).toContain('"nested": "value"');
+    expect(systemPrompt).not.toContain("\\u0000");
+    expect(systemPrompt).not.toContain("\\u0007");
+  });
+
+  it("never throws on a malformed rule snapshot (null nested condition, non-string effect fields)", async () => {
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(JSON.stringify({ kind: "no_match", explanation: "x" }));
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      fields: [{ name: "amount", type: "number", required: true }],
+      actionNames: ["create_purchase_request"],
+      rules: [
+        {
+          name: "broken_rule",
+          label: "Broken rule",
+          triggerActions: ["create_purchase_request"],
+          effectType: "warn",
+          // Runtime-malformed payloads despite the static types: non-string
+          // effect fields would crash sanitizeText (.replace), and a null
+          // nested condition would crash the `in` narrowing.
+          effect: { type: undefined, message: 123, level: { x: 1 } } as never,
+          conditionKind: "declarative",
+          condition: {
+            operator: "and",
+            conditions: [{ field: "amount", operator: "gt", value: 1 }, null],
+          } as never,
+          roundTrippable: false,
+        },
+      ],
+    };
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["purchase_request"],
+      describeEntity: () => entity,
+    };
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the broken rule" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    // The pipeline survives: the prompt is built (the AI got called) and the
+    // canned no_match reply flows through instead of an exception path.
+    expect(outcome.kind).toBe("no_match");
+    expect(calls.length).toBe(1);
+    const systemPrompt = calls[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(systemPrompt).toContain("broken_rule");
+    // Non-string effect fields are guarded: type falls back to "", non-string
+    // message/level are omitted rather than serialized raw.
+    expect(systemPrompt).not.toContain('"message": 123');
   });
 });
