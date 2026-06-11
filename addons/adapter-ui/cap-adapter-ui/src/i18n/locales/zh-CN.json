@@ -175,6 +175,27 @@
     "stateTransition": "状态变更",
     "rulesEvaluated": "规则评估"
   },
+  "aiTraces": {
+    "title": "AI 调用追踪",
+    "subtitle": "近期 AI 生成记录 — 审计成本、token 与结果。",
+    "refresh": "刷新",
+    "allStatuses": "全部状态",
+    "statusLabel": "状态",
+    "status": {
+      "ok": "成功",
+      "error": "错误",
+      "partial": "部分"
+    },
+    "time": "时间",
+    "name": "名称",
+    "origin": "来源",
+    "tokens": "Token（输入 / 输出）",
+    "cost": "成本",
+    "traceId": "追踪 ID",
+    "empty": "暂无 AI 调用追踪记录",
+    "denied": "您没有查看 AI 调用追踪的权限。",
+    "fetchError": "加载 AI 调用追踪失败"
+  },
   "viewTabs": {
     "newView": "新视图",
     "saveView": "将当前筛选条件保存为视图",

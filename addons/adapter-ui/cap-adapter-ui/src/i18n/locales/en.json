@@ -175,6 +175,27 @@
     "stateTransition": "State Transition",
     "rulesEvaluated": "Rules Evaluated"
   },
+  "aiTraces": {
+    "title": "AI Traces",
+    "subtitle": "Recent AI generations — audit cost, tokens, and outcomes.",
+    "refresh": "Refresh",
+    "allStatuses": "All Statuses",
+    "statusLabel": "Status",
+    "status": {
+      "ok": "OK",
+      "error": "Error",
+      "partial": "Partial"
+    },
+    "time": "Time",
+    "name": "Name",
+    "origin": "Origin",
+    "tokens": "Tokens (in / out)",
+    "cost": "Cost",
+    "traceId": "Trace ID",
+    "empty": "No AI traces recorded yet",
+    "denied": "You don't have permission to view AI traces.",
+    "fetchError": "Failed to load AI traces"
+  },
   "viewTabs": {
     "newView": "New View",
     "saveView": "Save current filters as view",

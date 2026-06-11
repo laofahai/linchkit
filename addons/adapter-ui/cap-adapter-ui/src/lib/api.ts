@@ -9,7 +9,7 @@ import { getTenantHeaders } from "./tenant";
 
 // ── Auth header helper ──────────────────────────────────
 
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("linchkit:token");
   const tenantHeaders = getTenantHeaders();
   if (token) {
@@ -18,7 +18,7 @@ function getAuthHeaders(): Record<string, string> {
   return { ...tenantHeaders };
 }
 
-function handleUnauthorized(res: Response): void {
+export function handleUnauthorized(res: Response): void {
   if (res.status === 401) {
     localStorage.removeItem("linchkit:token");
     localStorage.removeItem("linchkit:authenticated");
@@ -1138,6 +1138,10 @@ export async function queryExecutionLogs(options: {
   }));
   return { items, total: raw.total };
 }
+
+// AI Traces client (Spec 69 — Langfuse-class observability) lives in
+// `./ai-traces-client.ts` to keep this file within the file-size cap. It reuses
+// the exported `getAuthHeaders` / `handleUnauthorized` helpers above.
 
 // ── State Transition History ────────────────────────────
 
