@@ -191,6 +191,14 @@ export function instrumentRawStream(opts: InstrumentRawStreamOptions): RawStream
       const inputTokens = usage?.inputTokens ?? 0;
       const outputTokens = usage?.outputTokens ?? 0;
       const completion = typeof event.text === "string" ? event.text : "";
+      // Estimate cost defensively — a throwing custom estimator must NOT cost us
+      // the whole generation record (and must not flip the parent to "error").
+      let cost: number | undefined;
+      try {
+        cost = costEstimator.estimateCost(opts.model, inputTokens, outputTokens);
+      } catch (err) {
+        logTracingError("raw-stream-cost", err);
+      }
       recordGeneration({
         traceId: parent.traceId,
         context: opts.trace,
@@ -200,7 +208,7 @@ export function instrumentRawStream(opts: InstrumentRawStreamOptions): RawStream
         completion,
         inputTokens,
         outputTokens,
-        cost: costEstimator.estimateCost(opts.model, inputTokens, outputTokens),
+        cost,
         latencyMs: endedAt - startTime,
         temperature: opts.temperature,
         responseFormat: "text",
@@ -211,12 +219,14 @@ export function instrumentRawStream(opts: InstrumentRawStreamOptions): RawStream
         sampling: opts.sampling,
         forcedSampled: parent.sampled,
       });
-      parent.end("ok");
     } catch (err) {
-      // recordGeneration is itself non-throwing; this guards estimateCost and
-      // keeps the SDK callback from ever throwing into the consumer's stream.
+      // recordGeneration is itself non-throwing; this guards any other sync
+      // throw and keeps the SDK callback from throwing into the consumer's stream.
       logTracingError("raw-stream-finish", err);
-      parent.end("error");
+    } finally {
+      // `onFinish` only fires on a SUCCESSFUL stream — a tracing/estimation
+      // failure must NOT flip the parent trace to "error". End "ok" exactly once.
+      parent.end("ok");
     }
   };
 

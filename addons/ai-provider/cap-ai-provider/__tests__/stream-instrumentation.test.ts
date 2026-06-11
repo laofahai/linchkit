@@ -82,6 +82,28 @@ describe("instrumentRawStream", () => {
     expect(gen?.outputTokens).toBe(0);
   });
 
+  it("a throwing cost estimator on success still records ok and never flips the trace to error", () => {
+    const throwingEstimator = {
+      estimateCost: () => {
+        throw new Error("pricing boom");
+      },
+    } as unknown as CostEstimator;
+    const trace = instrumentRawStream({ ...BASE, costEstimator: throwingEstimator });
+
+    expect(() =>
+      trace.onFinish({ text: "ok", totalUsage: { inputTokens: 10, outputTokens: 5 } }),
+    ).not.toThrow();
+
+    // The generation is still recorded as a success — a thrown estimator drops
+    // only the cost, not the record.
+    const gen = sink.query()[0];
+    expect(gen?.status).toBe("ok");
+    expect(gen?.cost).toBeUndefined();
+    // And the parent trace stays "ok" — onFinish fired because the AI call
+    // succeeded; a tracing/estimation failure must not report it as errored.
+    expect(sink.queryTraces()[0]?.status).toBe("ok");
+  });
+
   it("onError records one partial/error generation with zero tokens", () => {
     const trace = instrumentRawStream(BASE);
 
