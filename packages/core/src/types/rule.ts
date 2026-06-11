@@ -62,6 +62,15 @@ export interface RuleConditionContext {
    * declarative `meta.*` field paths can.
    */
   meta?: ExecutionMeta;
+  /**
+   * The PERSISTED record, untouched by caller input. `target` is
+   * `{ ...record, ...input }` (input wins) — fine for enrich-style rules, but
+   * an authority/guard rule (block / require_approval) must read the stored
+   * value from here, or a caller can bypass it by spoofing the input field
+   * (e.g. approving a high-value record by sending `{ id, amount: 1 }`).
+   * Undefined when no stored row exists (create-shaped input, absent record).
+   */
+  record?: Record<string, unknown>;
   /** AbortSignal propagated when a timeout is configured */
   signal?: AbortSignal;
 }

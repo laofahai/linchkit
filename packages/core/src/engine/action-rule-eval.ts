@@ -176,15 +176,21 @@ export async function evaluateActionRules(
     typeof recordIdRaw === "string" && recordIdRaw.length > 0 ? recordIdRaw : undefined;
 
   // Record-state context: for an update (input carries an id), read the current
-  // record so conditions can reference existing field values.
+  // record so conditions can reference existing field values. The pristine
+  // stored row is ALSO threaded through separately (`record` on the condition
+  // context) so guard rules can read values a caller cannot spoof via input.
   let ruleTarget: Record<string, unknown> = effectiveInput;
+  let storedRecord: Record<string, unknown> | undefined;
   if (entity && recordId) {
     try {
       const existing = await readProvider.get(entity, recordId, queryOptions);
       // A falsy result = the record is genuinely absent (create-shaped input, a
       // soft-deleted / missing row). Evaluating against input only is correct
       // here — it is not a read failure.
-      if (existing) ruleTarget = { ...existing, ...effectiveInput };
+      if (existing) {
+        storedRecord = existing;
+        ruleTarget = { ...existing, ...effectiveInput };
+      }
     } catch (err) {
       // A "record not found" read = the row is genuinely absent (create-shaped
       // input with a caller id, a deleted / tenant-filtered row). That is a
@@ -233,6 +239,7 @@ export async function evaluateActionRules(
       target: ruleTarget,
       actor: { type: actor.type, id: actor.id, groups: actor.groups ?? [] },
       meta,
+      record: storedRecord,
     },
     { skipRules, metrics },
   );

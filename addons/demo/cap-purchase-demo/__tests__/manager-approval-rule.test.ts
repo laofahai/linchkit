@@ -166,6 +166,27 @@ describe("manager_approval_threshold rule — fires in approve_purchase_request"
     expect(updated.approved_by).toBe(purchaseManager.id);
   });
 
+  test(`SPOOF: input amount cannot bypass the gate — stored amount governs`, async () => {
+    // codex P1 regression: rule eval merges caller input OVER the stored record
+    // in `target`, so a rule reading `target.amount` could be bypassed by
+    // sending `{ id, amount: 1 }` while the transition approves the stored
+    // high-value record. The rule must read the PERSISTED amount via
+    // `ctx.record` and block regardless of what the caller claims.
+    const id = await seedPending(store, MANAGER_APPROVAL_THRESHOLD + 1);
+
+    const result = (await executor.execute(
+      "approve_purchase_request",
+      { id, amount: 1 },
+      purchaseUser,
+    )) as ActionResult;
+
+    expect(result.success).toBe(false);
+    const after = await store.get("purchase_request", id);
+    expect(after.status).toBe("pending");
+    // The stored amount must be untouched by the spoofed input.
+    expect(after.amount).toBe(MANAGER_APPROVAL_THRESHOLD + 1);
+  });
+
   test("a generic 'manager' / 'admin' actor also satisfies the manager check", async () => {
     const id = await seedPending(store, MANAGER_APPROVAL_THRESHOLD + 1);
     const adminActor: Actor = { type: "human", id: "admin-1", groups: ["admin"] };

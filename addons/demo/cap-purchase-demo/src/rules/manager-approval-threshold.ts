@@ -54,9 +54,18 @@ function actorIsManager(groups: string[]): boolean {
  * manager. When triggered, the `block` effect aborts the approval before any
  * write. A code condition (not a declarative one) keeps the two-part check —
  * amount AND role — in one readable, type-safe place.
+ *
+ * SECURITY: the amount is read from `record` (the persisted row, threaded
+ * through untouched by caller input) — NEVER from `target`, which merges the
+ * caller's input over the stored values. Reading `target.amount` would let any
+ * caller bypass the gate by spoofing `{ id, amount: 1 }` while the state
+ * transition still approves the stored high-value request (codex P1 on the
+ * scenario-P1 review). `target` is only the fallback when no stored row exists
+ * (which cannot satisfy approve's pending→approved transition anyway).
  */
-const overThresholdNonManager: CodeCondition = ({ target, actor }) => {
-  const amount = typeof target.amount === "number" ? target.amount : Number(target.amount);
+const overThresholdNonManager: CodeCondition = ({ target, actor, record }) => {
+  const raw = record !== undefined ? record.amount : target.amount;
+  const amount = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(amount)) return false;
   if (amount <= MANAGER_APPROVAL_THRESHOLD) return false;
   return !actorIsManager(actor.groups);

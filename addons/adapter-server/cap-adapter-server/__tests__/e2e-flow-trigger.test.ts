@@ -87,7 +87,10 @@ const flagForReviewAction: ActionDefinition = {
   entity: "purchase_request",
   label: "Flag for Review",
   policy: { mode: "sync", transaction: true },
-  exposure: "all",
+  // Mirrors the capability action's internal-only exposure: a flow-step helper,
+  // not callable from external channels. The flow engine runs it on the
+  // default "internal" channel.
+  exposure: { http: false, mcp: false, cli: false, ui: false, internal: true },
   handler: async (ctx) => {
     const id = ctx.input.id as string;
     return ctx.update("purchase_request", id, {

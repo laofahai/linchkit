@@ -156,4 +156,33 @@ describe("E2E: manager_approval_threshold rule over REST", () => {
     expect(body.success).toBe(true);
     expect((body.data as Record<string, unknown>).status).toBe("approved");
   });
+
+  test("SPOOF over REST: `{ id, amount: 1 }` cannot bypass the gate", async () => {
+    // codex P1 regression at the real HTTP seam: the rule must read the stored
+    // amount (condition-context `record`), not the caller-merged `target`.
+    const id = await createPending(MANAGER_APPROVAL_THRESHOLD + 5000);
+
+    const { body } = await restAction("approve_purchase_request", { id, amount: 1 }, "user");
+
+    expect(body.success).toBe(false);
+    const result = await gql(`{ purchaseRequest(id: "${id}") { status amount } }`);
+    const pr = (result.data as Record<string, unknown>).purchaseRequest as Record<string, unknown>;
+    expect(pr.status).toBe("pending");
+    expect(pr.amount).toBe(MANAGER_APPROVAL_THRESHOLD + 5000);
+  });
+
+  test("flag_purchase_for_review is NOT callable over HTTP (internal-only)", async () => {
+    // codex P2 regression: the flow-step helper must not be reachable from
+    // external channels, or any caller could overwrite audit_notes.
+    const id = await createPending(MANAGER_APPROVAL_THRESHOLD + 5000);
+
+    const { body } = await restAction(
+      "flag_purchase_for_review",
+      { id, audit_notes: "forged" },
+      "user",
+    );
+
+    expect(body.success).toBe(false);
+    expect(JSON.stringify(body)).toContain("not exposed");
+  });
 });

@@ -27,7 +27,14 @@ export const flagForReviewAction: ActionDefinition = {
     },
   },
   policy: { mode: "sync", transaction: true },
-  exposure: "all",
+  // Internal-only: this is a flow-step helper, not a user-facing operation.
+  // Publishing it to HTTP/GraphQL/MCP would let any external caller overwrite
+  // `audit_notes` on a request in any status, undermining the audit trail it
+  // exists to record (codex P2 on the scenario-P1 review). Unset exposure keys
+  // default to ALLOWED (`isExposed` checks `!== false`), so every external
+  // channel must be switched off explicitly; the flow engine executes with the
+  // default "internal" channel and passes.
+  exposure: { http: false, mcp: false, cli: false, ui: false, internal: true },
   // No stateTransition: the request stays `pending`. The declarative write path
   // fires because `setFields` is present (action-engine Step 4c/7).
   setFields: {
