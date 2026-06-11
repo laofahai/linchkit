@@ -26,6 +26,7 @@ import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
 import { type AppConfig, fetchAppConfig } from "./lib/api";
+import { AITracesPage } from "./pages/ai-traces";
 import { ConfigCenterPage } from "./pages/config-center";
 import { DashboardPage } from "./pages/dashboard";
 import { EntityFormPage } from "./pages/entity-form";
@@ -230,6 +231,14 @@ function buildRouter(appConfig: AppConfig) {
     beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
   });
 
+  // Read-only AI trace observability surface (Spec 69 / issue #350).
+  const aiTracesRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/admin/ai-traces",
+    component: AITracesPage,
+    beforeLoad: buildPageBeforeLoad("required", "/login", authEnabled),
+  });
+
   // Real human-gated proposal review surface — list / approve / reject / graduate.
   const proposalReviewRoute = createRoute({
     getParentRoute: () => shellRoute,
@@ -264,6 +273,7 @@ function buildRouter(appConfig: AppConfig) {
       configCenterRoute,
       relationGraphRoute,
       metricsDashboardRoute,
+      aiTracesRoute,
       proposalReviewRoute,
       proposalReviewDemoRoute,
       ...pageRegistrations

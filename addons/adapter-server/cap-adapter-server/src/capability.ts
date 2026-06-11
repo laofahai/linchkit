@@ -58,6 +58,14 @@ export const capAdapterServer = defineCapability({
         section: "admin",
         order: 95,
       },
+      {
+        id: "ai-traces",
+        label: "t:aiTraces.title",
+        path: "/admin/ai-traces",
+        icon: "Activity",
+        section: "admin",
+        order: 100,
+      },
     ],
     commands: [
       {
