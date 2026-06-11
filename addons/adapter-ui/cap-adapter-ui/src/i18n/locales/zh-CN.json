@@ -283,6 +283,17 @@
     "selectTenant": "选择租户",
     "clearTenant": "清除租户"
   },
+  "devRole": {
+    "switchRole": "切换开发角色",
+    "selectRole": "以角色查看（仅开发模式）",
+    "devOnlyHint": "开发辅助功能，不是认证机制。",
+    "roles": {
+      "user": "普通用户",
+      "manager": "经理",
+      "admin": "管理员",
+      "default": "默认（匿名）"
+    }
+  },
   "language": {
     "label": "语言",
     "en": "English",

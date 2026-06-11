@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { consoleLogger } from "@linchkit/core/server";
 import { assembleDevSchema } from "./assemble-schema";
 import { loadConfig } from "./config-loader";
+import { resolveDevRoleActor } from "./dev-actor-resolver";
 import { buildDevEvolutionRuntime, buildDevOntologyRegistry } from "./dev-app";
 import { createServer } from "./server";
 import { wireAITraceSink } from "./wire-ai-trace-sink";
@@ -162,6 +163,11 @@ const server = createServer(graphqlSchema, {
   linchKitConfig: config,
   states: capContributions.states,
   flows: [],
+  // Dev-only role switching (`x-dev-role` header) — a development affordance,
+  // NOT an auth mechanism. Lives in this dev entry wiring only; absent or
+  // unrecognized header resolves to the same elevated no-auth actor as before,
+  // so every existing channel (REST scripts, flows, AI endpoints) is unchanged.
+  resolveRequestActor: resolveDevRoleActor,
   dataProvider: runtime.dataProvider,
   onchangeEvaluator,
   ontologyRegistry,

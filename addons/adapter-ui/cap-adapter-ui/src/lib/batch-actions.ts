@@ -16,6 +16,7 @@ import type {
   BatchActionsResult,
   BatchTransactionStrategy,
 } from "@linchkit/core/types";
+import { getDevRoleHeaders } from "./dev-role";
 import { getTenantHeaders } from "./tenant";
 
 /**
@@ -89,14 +90,15 @@ export function aggregateBatchResults(results: BatchActionsResult[]): BatchActio
 
 // ── Fetch ──────────────────────────────────────────────────
 
-/** Auth/tenant headers — mirrors api.ts to keep wire conventions identical. */
+/** Auth/tenant/dev-role headers — mirrors api.ts to keep wire conventions identical. */
 function getAuthHeaders(): Record<string, string> {
   const token = typeof localStorage !== "undefined" ? localStorage.getItem("linchkit:token") : null;
   const tenantHeaders = getTenantHeaders();
+  const devRoleHeaders = getDevRoleHeaders();
   if (token) {
-    return { Authorization: `Bearer ${token}`, ...tenantHeaders };
+    return { Authorization: `Bearer ${token}`, ...tenantHeaders, ...devRoleHeaders };
   }
-  return { ...tenantHeaders };
+  return { ...tenantHeaders, ...devRoleHeaders };
 }
 
 /** Build a synthetic failed item for transport errors so callers see them inline. */

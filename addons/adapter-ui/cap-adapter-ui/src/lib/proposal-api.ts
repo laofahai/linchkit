@@ -5,15 +5,18 @@
 // Type-only import (erased at compile time — no core runtime reaches the UI),
 // mirroring proposal-impact-preview.tsx which renders this same shape.
 import type { ProposalPreAnalysisResult } from "@linchkit/core";
+import { getDevRoleHeaders } from "./dev-role";
 
 // ── Auth header helper (reuse from api.ts pattern) ──────
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("linchkit:token");
+  // Dev-only role switching header — empty unless explicitly chosen.
+  const devRoleHeaders = getDevRoleHeaders();
   if (token) {
-    return { Authorization: `Bearer ${token}` };
+    return { Authorization: `Bearer ${token}`, ...devRoleHeaders };
   }
-  return {};
+  return { ...devRoleHeaders };
 }
 
 // ── Types ─────────────────────────────────────────────────

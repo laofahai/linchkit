@@ -32,6 +32,7 @@ import type {
 import { EventType, HttpAgent } from "@ag-ui/client";
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 import { getToolName, isToolUIPart } from "ai";
+import { getDevRoleHeaders } from "./dev-role";
 
 // ── Event source seam ────────────────────────────────────────
 
@@ -71,6 +72,10 @@ function createHttpRunAgent(url: string): AgUiRunAgentFn {
     const agent = new HttpAgent({
       url,
       threadId: input.threadId,
+      // Dev-only role switching: empty unless an explicit dev role was chosen
+      // in the switcher, so the AI-assistant channel runs as the same actor as
+      // REST/GraphQL. Ignored by servers with a real auth resolver.
+      headers: getDevRoleHeaders(),
       fetch: (req, init) => globalThis.fetch(req, init),
     });
     if (abortSignal) {

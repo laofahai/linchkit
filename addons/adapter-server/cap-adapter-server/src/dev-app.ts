@@ -45,6 +45,7 @@ import {
   type AssembledDevSchema,
   assembleDevSchema,
 } from "./assemble-schema";
+import { resolveDevRoleActor } from "./dev-actor-resolver";
 import { createServer, type ServerOptions } from "./server";
 
 /**
@@ -303,6 +304,13 @@ export function createDevApp(
   // share one wiring path.
   const app = createServer(schema, {
     ...serverOverrides,
+    // Dev-only role switching (`x-dev-role` header) — mirrors dev.ts so the
+    // boot smoke test and the real dev server share one wiring path. A caller-
+    // supplied resolver (e.g. an auth integration test) takes precedence; this
+    // default is a development affordance, NOT an auth mechanism, and never
+    // ships as a `createServer` default. Header absent/unrecognized → same
+    // elevated no-auth actor as before, so existing tests are unaffected.
+    resolveRequestActor: serverOverrides.resolveRequestActor ?? resolveDevRoleActor,
     executor: runtime.executor,
     commandLayer: runtime.commandLayer,
     approvalEngine: runtime.approvalEngine,
