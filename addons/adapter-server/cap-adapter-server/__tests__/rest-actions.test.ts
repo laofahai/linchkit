@@ -316,3 +316,131 @@ describe("REST action endpoint — input passthrough", () => {
     expect(data.title).toBe("Provided");
   });
 });
+
+// ── Production sanitization: policy messages are exempt ───
+//
+// In production the failure envelope is sanitized to a generic message —
+// EXCEPT a rule `block` reason (constraint: "rule_block"), which is the rule
+// author's user-facing policy text and must reach the caller verbatim, or
+// every policy block would read "Action execution failed" exactly where the
+// message matters.
+
+const POLICY_MESSAGE = "金额超过 10000 需要经理审批 / Amounts over 10000 require manager approval";
+
+const gatedAction: ActionDefinition = {
+  name: "do_gated",
+  entity: "item",
+  label: "Gated",
+  policy: { mode: "sync", transaction: false },
+  handler: async () => ({ ok: true }),
+};
+
+const alwaysBlockRule = {
+  name: "always_block_gated",
+  label: "Always Block (test)",
+  description: "Blocks do_gated unconditionally to exercise the rule_block envelope",
+  trigger: { action: "do_gated" },
+  condition: () => true,
+  effect: { type: "block" as const, message: POLICY_MESSAGE },
+};
+
+const blockingExecutor = createActionExecutor({
+  dataProvider: store,
+  executionLogger,
+  rules: [alwaysBlockRule],
+});
+blockingExecutor.registry.register(gatedAction);
+blockingExecutor.registry.register(throwAction);
+const blockingApp = createServer(buildGraphQLSchema([itemSchema]), { executor: blockingExecutor });
+
+async function postBlocking(
+  name: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const res = await blockingApp.handle(
+    new Request(actionUrl(name), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+  );
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+
+describe("production sanitization — rule_block policy text is exempt", () => {
+  test("NODE_ENV=production: a rule-block reason reaches the caller verbatim", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { body } = await postBlocking("do_gated");
+      expect(body.success).toBe(false);
+      const error = body.error as Record<string, unknown>;
+      expect(error.message).toBe(POLICY_MESSAGE);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  test("NODE_ENV=production: a non-policy failure is still sanitized", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { body } = await postBlocking("do_throw");
+      expect(body.success).toBe(false);
+      const error = body.error as Record<string, unknown>;
+      expect(error.message).toBe("Action execution failed");
+      expect(JSON.stringify(body)).not.toContain("Something went wrong");
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  test("dev mode: both messages pass through unchanged (regression)", async () => {
+    const { body: blocked } = await postBlocking("do_gated");
+    expect((blocked.error as Record<string, unknown>).message).toBe(POLICY_MESSAGE);
+    const { body: thrown } = await postBlocking("do_throw");
+    expect(String((thrown.error as Record<string, unknown>).message)).toContain(
+      "Something went wrong",
+    );
+  });
+});
+
+// ── Failure envelope hardening: non-string data.error ─────
+//
+// The envelope's `message` must be strictly a string at runtime: a
+// (mis)behaving executor putting a non-string value on `data.error` must fall
+// back to the generic message — a type cast alone only satisfies the compiler
+// and would serialize the raw value to the client. The stub executor below is
+// injected through createServer options (same DI seam as the real one); the
+// route only calls `execute` on it.
+
+const nonStringFailureExecutor = {
+  execute: async () => ({
+    success: false,
+    data: { error: { internal: "raw-failure-object" } },
+    executionId: "exec-nonstring",
+  }),
+} as unknown as ReturnType<typeof createActionExecutor>;
+
+const nonStringApp = createServer(buildGraphQLSchema([itemSchema]), {
+  executor: nonStringFailureExecutor,
+});
+
+describe("failure envelope hardening — non-string data.error never leaks", () => {
+  test("falls back to the generic message and omits the raw value (dev mode included)", async () => {
+    const res = await nonStringApp.handle(
+      new Request(actionUrl("do_anything"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = (await res.json()) as Record<string, unknown>;
+
+    // No structured code and no string message → default business-failure 422
+    // (resolveStatusCode must not crash on the non-string error either).
+    expect(res.status).toBe(422);
+    expect(body.success).toBe(false);
+    expect((body.error as Record<string, unknown>).message).toBe("Action execution failed");
+    expect(JSON.stringify(body)).not.toContain("raw-failure-object");
+  });
+});

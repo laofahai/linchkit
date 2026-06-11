@@ -141,7 +141,8 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
       // `success` and the per-item arrays. (Consider HTTP 207 Multi-Status
       // for `partial` mode with mixed outcomes in a follow-up.) In production
       // we strip per-item error messages to prevent internal-detail leakage,
-      // matching the single-action route below.
+      // matching the single-action route below — including its rule_block
+      // exemption (policy text survives; see sanitizeBatchResult).
       return sanitizeBatchResult(result);
     })
     // REST action endpoint — executes via ActionExecutor
@@ -231,11 +232,25 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
 
       set.status = resolveStatusCode(result);
       const errData = result.data as Record<string, unknown> | undefined;
-      const rawMessage = (errData?.error as string) ?? "Action execution failed";
+      // Strictly require a string: a cast alone only satisfies the compiler —
+      // a non-string `data.error` value must fall back to the generic message
+      // instead of being serialized to the client.
+      const rawMessage =
+        typeof errData?.error === "string" ? errData.error : "Action execution failed";
 
-      // In production, sanitize internal error details to prevent information leakage
+      // In production, sanitize internal error details to prevent information
+      // leakage. EXCEPTION: a rule `block` reason is the rule author's
+      // user-facing policy text (e.g. "Amounts over 10000 require manager
+      // approval") — written precisely to be shown to the caller. Sanitizing
+      // it would flatten every policy block to "Action execution failed" in
+      // production, hiding the rule's message exactly where it matters.
       const isDevMode = process.env.NODE_ENV !== "production";
-      const safeMessage = isDevMode ? rawMessage : "Action execution failed";
+      const constraint = (errData?.context as Record<string, unknown> | undefined)?.constraint;
+      // rawMessage's assignment above already guarantees a string (the
+      // non-string fallback is non-empty); the length guard keeps an
+      // empty-string policy message from reaching the client verbatim.
+      const isPolicyMessage = constraint === "rule_block" && rawMessage.length > 0;
+      const safeMessage = isDevMode || isPolicyMessage ? rawMessage : "Action execution failed";
 
       return {
         success: false,

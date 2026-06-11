@@ -14,6 +14,7 @@ import type { EnrichedSubmitData } from "../components/auto-form/types";
 import type { StateTransitionInfo } from "../components/status-bar";
 import type { ResolvedEntityBundle } from "../hooks/use-entity-bundle";
 import { pushNotification } from "../hooks/use-notifications";
+import { resolveActionErrorMessage } from "../lib/action-errors";
 import {
   createRecord,
   deleteRecord,
@@ -37,7 +38,7 @@ export interface HeaderActionApi {
   executeAction: (
     actionName: string,
     input: Record<string, unknown>,
-  ) => Promise<{ success: boolean }>;
+  ) => Promise<{ success: boolean; error?: { message?: string }; data?: unknown }>;
   queryRecord: (
     schema: string,
     id: string,
@@ -49,7 +50,7 @@ export interface HeaderActionApi {
 export type HeaderActionOutcome =
   | { kind: "transition_success"; updated: Record<string, unknown> | null }
   | { kind: "action_success" }
-  | { kind: "failed" };
+  | { kind: "failed"; message?: string };
 
 /**
  * Execute a header action click.
@@ -82,7 +83,15 @@ export async function executeHeaderAction(opts: {
   const transition = availableTransitions.find((tr) => tr.action === actionName);
 
   const result = await api.executeAction(actionName, { id: recordId });
-  if (!result.success) return { kind: "failed" };
+  // The optional chain is a defensive null guard: a (mis)implemented api
+  // could resolve to null/undefined despite the type — treat it as a plain
+  // failure so the caller falls back to its generic message, not a throw.
+  if (!result?.success) {
+    // Surface the server's failure reason (e.g. a rule-block message) so the
+    // caller can show it instead of a generic "Action failed" toast.
+    const message = resolveActionErrorMessage(result);
+    return message ? { kind: "failed", message } : { kind: "failed" };
+  }
 
   if (!transition) return { kind: "action_success" };
 
@@ -358,7 +367,9 @@ export function useFormActions(opts: UseFormActionsOptions) {
           });
           await fetchRecord();
         } else {
-          toast.error(t("toast.actionFailed", "Action failed"));
+          // Prefer the server's failure reason (e.g. "Amounts over 10000
+          // require manager approval" from a rule block) over the generic text.
+          toast.error(outcome.message ?? t("toast.actionFailed", "Action failed"));
           pushNotification({
             type: "action_failure",
             message: t("notifications.actionFailed", { action: actionName }),

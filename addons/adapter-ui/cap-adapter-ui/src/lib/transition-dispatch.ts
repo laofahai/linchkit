@@ -18,13 +18,14 @@
  */
 
 import type { Transition } from "@linchkit/core/types";
+import { resolveActionErrorMessage } from "./action-errors";
 
 /** Minimal API surface consumed by executeTransition — injectable in tests. */
 export interface TransitionDispatchApi {
   executeAction: (
     actionName: string,
     input: Record<string, unknown>,
-  ) => Promise<{ success: boolean; error?: { message?: string } }>;
+  ) => Promise<{ success: boolean; error?: { message?: string }; data?: unknown }>;
   transitionRecord: (
     schema: string,
     id: string,
@@ -92,8 +93,13 @@ export async function executeTransition(opts: {
   }
 
   const result = await api.executeAction(boundAction, { id: recordId });
-  if (!result.success) {
-    return { kind: "failed", message: result.error?.message };
+  // The optional chain is a defensive null guard: a (mis)implemented api
+  // could resolve to null/undefined despite the type — treat it as a plain
+  // failure (generic fallback message) instead of throwing here.
+  if (!result?.success) {
+    // Same defensive extraction as executeHeaderAction: the failure reason
+    // may live on `error.message` or as a raw rule-block `data.error` string.
+    return { kind: "failed", message: resolveActionErrorMessage(result) };
   }
 
   // Bound action succeeded — re-query the record so the caller can refresh

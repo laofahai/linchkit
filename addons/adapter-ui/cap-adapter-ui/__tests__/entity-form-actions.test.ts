@@ -41,6 +41,7 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
+import { resolveActionErrorMessage } from "../src/lib/action-errors";
 import {
   executeHeaderAction,
   type HeaderActionApi,
@@ -58,12 +59,20 @@ function makeApi(opts: {
   actionSuccess?: boolean;
   record?: Record<string, unknown> | null;
   queryThrows?: boolean;
+  /** Failure envelope from the REST endpoint (`error.message`). */
+  actionError?: { message?: string };
+  /** Core ActionResult shape — rule blocks may carry a raw `data.error` string. */
+  actionData?: unknown;
 }): { api: HeaderActionApi; calls: ApiCalls } {
   const calls: ApiCalls = { executeAction: [], queryRecord: [] };
   const api: HeaderActionApi = {
     executeAction: async (actionName, input) => {
       calls.executeAction.push({ actionName, input });
-      return { success: opts.actionSuccess ?? true };
+      return {
+        success: opts.actionSuccess ?? true,
+        ...(opts.actionError ? { error: opts.actionError } : {}),
+        ...(opts.actionData !== undefined ? { data: opts.actionData } : {}),
+      };
     },
     queryRecord: async (schema, id, fields) => {
       calls.queryRecord.push({ schema, id, fields });
@@ -175,5 +184,172 @@ describe("executeHeaderAction — plain (non-transition) actions", () => {
     const outcome = await executeHeaderAction({ ...BASE, actionName: "send_reminder", api });
 
     expect(outcome).toEqual({ kind: "failed" });
+  });
+});
+
+describe("executeHeaderAction — failure message surfacing", () => {
+  // Regression: a rule block (e.g. "Amounts over 10000 require manager
+  // approval") used to be dropped — the user only saw a generic "Action
+  // failed" toast. The outcome must carry the server's message so the hook
+  // can show it.
+  test("surfaces error.message from the REST failure envelope", async () => {
+    const { api } = makeApi({
+      actionSuccess: false,
+      actionError: { message: "金额超过 10000 需要经理审批" },
+    });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed", message: "金额超过 10000 需要经理审批" });
+  });
+
+  // Core-seam shape, NOT the REST envelope: REST failures carry no `data`
+  // key, so this arm is unreachable via today's REST transport. It covers
+  // direct core-seam consumers / non-REST transports, gated on the same
+  // `constraint === "rule_block"` exemption the server applies before
+  // un-sanitizing a message.
+  test("surfaces a rule-block data.error string (core ActionResult seam, unreachable via REST)", async () => {
+    const { api } = makeApi({
+      actionSuccess: false,
+      actionData: {
+        error: "Amounts over 10000 require manager approval",
+        context: { constraint: "rule_block" },
+      },
+    });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({
+      kind: "failed",
+      message: "Amounts over 10000 require manager approval",
+    });
+  });
+
+  test("does NOT surface a data.error string without the rule_block constraint (mirrors server sanitization)", async () => {
+    const { api } = makeApi({
+      actionSuccess: false,
+      actionData: { error: "internal failure detail" },
+    });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed" });
+    expect("message" in outcome).toBe(false);
+  });
+
+  test("omits the message when the failure carries none (caller falls back to generic i18n)", async () => {
+    const { api } = makeApi({ actionSuccess: false, actionData: { error: 42 } });
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed" });
+    expect("message" in outcome).toBe(false);
+  });
+
+  test("null action result (misimplemented api) reports a generic failed outcome instead of throwing", async () => {
+    const api: HeaderActionApi = {
+      executeAction: async () =>
+        null as unknown as Awaited<ReturnType<HeaderActionApi["executeAction"]>>,
+      queryRecord: async () => null,
+    };
+
+    const outcome = await executeHeaderAction({
+      ...BASE,
+      actionName: "approve_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed" });
+    expect("message" in outcome).toBe(false);
+  });
+});
+
+// ── resolveActionErrorMessage (pure helper, chokepoint for both shapes) ─────
+
+describe("resolveActionErrorMessage", () => {
+  test("prefers error.message when present", () => {
+    const message = resolveActionErrorMessage({
+      success: false,
+      error: { message: "rule says no" },
+      data: { error: "shadowed" },
+    });
+    expect(message).toBe("rule says no");
+  });
+
+  test("falls back to a rule-block data.error (core seam shape, gated on the constraint)", () => {
+    const message = resolveActionErrorMessage({
+      success: false,
+      data: { error: "blocked by rule", context: { constraint: "rule_block" } },
+    });
+    expect(message).toBe("blocked by rule");
+  });
+
+  test("ignores a data.error WITHOUT the rule_block constraint (server-sanitization parity)", () => {
+    expect(
+      resolveActionErrorMessage({ success: false, data: { error: "internal detail" } }),
+    ).toBeUndefined();
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        data: { error: "internal detail", context: { constraint: "tenant_scope" } },
+      }),
+    ).toBeUndefined();
+    // A non-object context never satisfies the gate.
+    expect(
+      resolveActionErrorMessage({ success: false, data: { error: "x", context: "rule_block" } }),
+    ).toBeUndefined();
+  });
+
+  test("ignores empty strings and non-string data.error", () => {
+    expect(
+      resolveActionErrorMessage({ success: false, error: { message: "" }, data: { error: "" } }),
+    ).toBeUndefined();
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        data: { error: "", context: { constraint: "rule_block" } },
+      }),
+    ).toBeUndefined();
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        data: { error: { nested: true }, context: { constraint: "rule_block" } },
+      }),
+    ).toBeUndefined();
+  });
+
+  test("ignores a non-string error.message (runtime shape mismatch)", () => {
+    expect(
+      resolveActionErrorMessage({
+        success: false,
+        error: { message: 42 as unknown as string },
+      }),
+    ).toBeUndefined();
+  });
+
+  test("returns undefined when no message exists anywhere", () => {
+    expect(resolveActionErrorMessage({ success: false })).toBeUndefined();
+    expect(resolveActionErrorMessage({ success: false, data: null })).toBeUndefined();
+  });
+
+  test("returns undefined for a nullish result instead of throwing", () => {
+    expect(resolveActionErrorMessage(null)).toBeUndefined();
+    expect(resolveActionErrorMessage(undefined)).toBeUndefined();
   });
 });

@@ -121,6 +121,23 @@ describe("executeTransition — transition with a bound Action", () => {
     expect(calls.transitionRecord).toHaveLength(0);
   });
 
+  test("null action result (misimplemented api) reports failed with the generic fallback instead of throwing", async () => {
+    const api: TransitionDispatchApi = {
+      executeAction: async () =>
+        null as unknown as Awaited<ReturnType<TransitionDispatchApi["executeAction"]>>,
+      transitionRecord: async () => ({}),
+      queryRecord: async () => null,
+    };
+
+    const outcome = await executeTransition({
+      ...BASE,
+      boundAction: "submit_purchase_request",
+      api,
+    });
+
+    expect(outcome).toEqual({ kind: "failed", message: undefined });
+  });
+
   test("re-query failure still reports success with updated: null (caller falls back to full refetch)", async () => {
     const { api } = makeApi({ queryThrows: true });
 

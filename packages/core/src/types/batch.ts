@@ -55,8 +55,16 @@ export interface BatchFailedItem {
   index: number;
   /** Child execution ID, if the executor produced one before failing. */
   executionId?: string;
-  /** Structured error. */
-  error: { code: string; message: string; field?: string };
+  /**
+   * Structured error.
+   *
+   * `constraint` is the engine-stamped policy marker copied from the child
+   * result's `data.context.constraint` (e.g. `"rule_block"` for a rule
+   * `block` effect). It is server-controlled — transports use it to decide
+   * whether `message` is user-facing policy text that survives production
+   * sanitization.
+   */
+  error: { code: string; message: string; field?: string; constraint?: string };
 }
 
 /** Top-level batch result returned by `executeBatch` / `CommandLayer.executeBatch`. */

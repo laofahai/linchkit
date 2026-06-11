@@ -184,6 +184,8 @@ class BatchAbortError extends Error {
     public readonly failedErrorCode: string,
     public readonly failedErrorMessage: string,
     public readonly accumulatedSucceeded: BatchSucceededItem[],
+    /** Engine-stamped policy marker (e.g. "rule_block"), when present. */
+    public readonly failedErrorConstraint?: string,
   ) {
     super(`Batch aborted at index ${failedIndex}: ${failedErrorMessage}`);
     this.name = "BatchAbortError";
@@ -250,13 +252,23 @@ function extractErrorFromResult(result: { data?: unknown }): {
   code: string;
   message: string;
   field?: string;
+  constraint?: string;
 } {
   const data = result.data as Record<string, unknown> | undefined;
-  const message = (data?.error as string) ?? "Action execution failed";
+  const message = typeof data?.error === "string" ? data.error : "Action execution failed";
   const code = (data?.code as string) ?? "ACTION.EXECUTION.FAILED";
   const ctx = data?.context as Record<string, unknown> | undefined;
   const field = ctx?.field as string | undefined;
-  return field ? { code, message, field } : { code, message };
+  // Engine-stamped policy marker (e.g. "rule_block"). Threaded onto the
+  // failed item so transports can exempt policy text from production
+  // sanitization without inspecting message content.
+  const constraint = typeof ctx?.constraint === "string" ? ctx.constraint : undefined;
+  return {
+    code,
+    message,
+    ...(field !== undefined ? { field } : {}),
+    ...(constraint !== undefined ? { constraint } : {}),
+  };
 }
 
 /**
@@ -408,7 +420,14 @@ async function runAllOrNothing(
         });
         if (!result.success) {
           const err = extractErrorFromResult(result);
-          throw new BatchAbortError(i, result.executionId, err.code, err.message, succeededInside);
+          throw new BatchAbortError(
+            i,
+            result.executionId,
+            err.code,
+            err.message,
+            succeededInside,
+            err.constraint,
+          );
         }
         succeededInside.push(toSucceededItem(i, result.executionId, result));
       }
@@ -428,7 +447,13 @@ async function runAllOrNothing(
           {
             index: err.failedIndex,
             executionId: err.failedExecutionId,
-            error: { code: err.failedErrorCode, message: err.failedErrorMessage },
+            error: {
+              code: err.failedErrorCode,
+              message: err.failedErrorMessage,
+              ...(err.failedErrorConstraint !== undefined
+                ? { constraint: err.failedErrorConstraint }
+                : {}),
+            },
           },
         ],
         rolledBack: err.accumulatedSucceeded,

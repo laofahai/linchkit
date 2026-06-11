@@ -8,6 +8,13 @@
  * failures. `rolledBack` items are successes (no error message), so they
  * are passed through untouched.
  *
+ * EXCEPTION: a rule `block` reason is the rule author's user-facing policy
+ * text (e.g. "Amounts over 10000 require manager approval") — written
+ * precisely to be shown to the caller. The batch engine threads the
+ * server-stamped `constraint: "rule_block"` marker onto the failed item, so
+ * detection never depends on message content. This mirrors the single-action
+ * exemption in `routes/action-api.ts`.
+ *
  * Shared by REST (`/api/actions/batch`) and GraphQL (`Mutation.batch_actions`)
  * so both transports apply identical dev-mode parity (full message visible)
  * and prod-mode safety.
@@ -22,9 +29,20 @@ export function sanitizeBatchResult(result: BatchActionsResult): BatchActionsRes
   if (isDevMode) return result;
   return {
     ...result,
-    failed: result.failed.map((f) => ({
-      ...f,
-      error: { ...f.error, message: GENERIC_FAILURE_MESSAGE },
-    })),
+    failed: result.failed.map((f) => {
+      // Engine-stamped policy marker — keep the rule author's policy text.
+      // Re-check the message type at runtime: upstream casts could smuggle a
+      // non-string value past the compiler. A zero-length message offers the
+      // client nothing — fall through to the generic fallback instead.
+      const isPolicyMessage =
+        f.error.constraint === "rule_block" &&
+        typeof f.error.message === "string" &&
+        f.error.message.length > 0;
+      if (isPolicyMessage) return f;
+      return {
+        ...f,
+        error: { ...f.error, message: GENERIC_FAILURE_MESSAGE },
+      };
+    }),
   };
 }
