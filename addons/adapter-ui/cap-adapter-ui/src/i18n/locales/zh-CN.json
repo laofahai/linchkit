@@ -269,7 +269,8 @@
     "roles": {
       "user": "普通用户",
       "manager": "经理",
-      "admin": "管理员"
+      "admin": "管理员",
+      "default": "默认（匿名）"
     }
   },
   "language": {

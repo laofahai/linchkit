@@ -37,20 +37,30 @@ export const DEV_ROLE_HEADER = "x-dev-role";
  * role-gated demo behavior ("only managers may approve large purchases") is
  * demonstrable out of the box.
  */
+/**
+ * Deep-freeze an actor: `Object.freeze` is shallow, and the resolver hands out
+ * these SHARED references — a downstream `actor.groups.push(...)` would
+ * otherwise silently corrupt the actor for every later request in-process.
+ */
+function freezeActor(actor: Actor): Actor {
+  Object.freeze(actor.groups);
+  return Object.freeze(actor);
+}
+
 export const DEV_ROLE_ACTORS: Readonly<Record<string, Actor>> = Object.freeze({
-  user: {
+  user: freezeActor({
     type: "human",
     id: "dev-user",
     name: "Dev User",
     groups: ["purchase_user", "user"],
-  },
-  manager: {
+  }),
+  manager: freezeActor({
     type: "human",
     id: "dev-manager",
     name: "Dev Manager",
     groups: ["purchase_manager", "manager", "user"],
-  },
-  admin: {
+  }),
+  admin: freezeActor({
     type: "human",
     id: "dev-admin",
     name: "Dev Admin",
@@ -60,7 +70,7 @@ export const DEV_ROLE_ACTORS: Readonly<Record<string, Actor>> = Object.freeze({
     // "elevated" admin without them would be LESS capable than manager once
     // cap-permission is enabled (codex P2 on this branch).
     groups: ["purchase_manager", "purchase_user", "admin", "manager", "user"],
-  },
+  }),
 });
 
 /**
@@ -73,8 +83,14 @@ export const DEV_ROLE_ACTORS: Readonly<Record<string, Actor>> = Object.freeze({
 export function resolveDevRoleActor(request: Request): Actor {
   const raw = request.headers.get(DEV_ROLE_HEADER);
   if (raw) {
-    const actor = DEV_ROLE_ACTORS[raw.trim().toLowerCase()];
-    if (actor) return actor;
+    const key = raw.trim().toLowerCase();
+    // Object.hasOwn guards against prototype-chain lookups: a header like
+    // `x-dev-role: constructor` would otherwise resolve to Object.prototype
+    // members and crash downstream when `.groups` / `.id` are read.
+    if (Object.hasOwn(DEV_ROLE_ACTORS, key)) {
+      const actor = DEV_ROLE_ACTORS[key];
+      if (actor) return actor;
+    }
   }
   // Back-compat: same elevated default as the historical no-resolver dev mode.
   return NO_AUTH_ACTOR;

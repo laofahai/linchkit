@@ -66,6 +66,13 @@ export function setDevRole(role: DevRole | null): void {
  * so setups that never touch the switcher behave exactly as before.
  */
 export function getDevRoleHeaders(): Record<string, string> {
+  // Production guard: the switcher UI is dev-only, but this helper is called
+  // from the always-bundled API modules — without the gate, a stale
+  // localStorage value from a dev session would silently downgrade (or alter)
+  // the caller's identity on a production deployment. `import.meta.env.PROD`
+  // is statically replaced by Vite, so production builds compile this to an
+  // unconditional empty return.
+  if (import.meta.env.PROD) return {};
   const role = getStoredDevRole();
   if (role) {
     return { [DEV_ROLE_HEADER]: role };

@@ -29,11 +29,16 @@ import { CheckIcon, UserCogIcon } from "lucide-react";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { isAuthEnabled } from "@/lib/api";
-import { DEV_ROLES, type DevRole, getDevRole, setDevRole } from "@/lib/dev-role";
+import { DEV_ROLES, type DevRole, getStoredDevRole, setDevRole } from "@/lib/dev-role";
 
 export function DevRoleSwitcher() {
   const { t } = useTranslation();
-  const activeRole = getDevRole();
+  // The STORED choice (null when none): with no choice, NO header is sent and
+  // the server resolves the anonymous no-auth default — which is NOT the same
+  // actor as an explicit "admin" selection. Displaying "Admin" there would
+  // claim an identity the server isn't using, so the trigger shows a distinct
+  // "Default" label and no role gets a check mark until one is chosen.
+  const activeRole = getStoredDevRole();
 
   const handleSelect = useCallback((role: DevRole) => {
     setDevRole(role);
@@ -54,7 +59,7 @@ export function DevRoleSwitcher() {
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground">
               <UserCogIcon className="size-4" />
               <span className="hidden text-xs sm:inline-flex max-w-[120px] truncate">
-                {t(`devRole.roles.${activeRole}`)}
+                {activeRole ? t(`devRole.roles.${activeRole}`) : t("devRole.roles.default")}
               </span>
             </Button>
           </DropdownMenuTrigger>

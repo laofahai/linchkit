@@ -83,6 +83,26 @@ describe("resolveDevRoleActor (unit)", () => {
     expect(resolveDevRoleActor(req("garbage"))).toBeDefined();
     expect(resolveDevRoleActor(req())).toBeDefined();
   });
+
+  it("prototype-chain header values resolve to the safe fallback, not Object members", () => {
+    // Without an own-property guard, `x-dev-role: constructor` would look up
+    // Object.prototype.constructor and hand back a FUNCTION as the actor.
+    for (const value of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      const actor = resolveDevRoleActor(req(value));
+      expect(actor).toBe(NO_AUTH_ACTOR);
+      expect(typeof actor).toBe("object");
+    }
+  });
+
+  it("actors are deep-frozen — shared references cannot be mutated downstream", () => {
+    const admin = resolveDevRoleActor(req("admin"));
+    expect(Object.isFrozen(admin)).toBe(true);
+    expect(Object.isFrozen(admin.groups)).toBe(true);
+    expect(() => {
+      (admin.groups as string[]).push("evil");
+    }).toThrow();
+    expect(admin.groups).not.toContain("evil");
+  });
 });
 
 // ── In-process HTTP: dev wiring default ───────────────────

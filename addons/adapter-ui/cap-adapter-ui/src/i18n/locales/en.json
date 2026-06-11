@@ -269,7 +269,8 @@
     "roles": {
       "user": "User",
       "manager": "Manager",
-      "admin": "Admin"
+      "admin": "Admin",
+      "default": "Default (anonymous)"
     }
   },
   "language": {
