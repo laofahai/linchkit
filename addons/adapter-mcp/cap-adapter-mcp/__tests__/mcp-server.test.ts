@@ -45,6 +45,18 @@ const hiddenAction = defineAction({
   exposure: { mcp: false, internal: true },
 });
 
+// Internal-only WITHOUT an explicit `mcp: false` — exercises the implicit
+// exclusion path (`internal: true` alone must hide the action from MCP), which
+// `hiddenAction` cannot: its explicit `mcp: false` already excluded it under
+// the pre-fix filter.
+const internalOnlyAction = defineAction({
+  name: "internal_audit",
+  entity: "order",
+  label: "Internal Audit",
+  policy: { mode: "sync", transaction: false },
+  exposure: { internal: true },
+});
+
 interface RegisteredTool {
   handler: (
     args: Record<string, unknown>,
@@ -683,6 +695,31 @@ describe("createMcpAdapter — list_actions exposure filter", () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].name).toBe("create_order");
     expect(parsed.find((a: { name: string }) => a.name === "internal_cleanup")).toBeUndefined();
+  });
+
+  test("list_actions excludes actions with only internal:true (no explicit mcp:false)", async () => {
+    const entityRegistry = createEntityRegistry();
+    entityRegistry.register(testEntity);
+
+    const actionRegistry = new ActionRegistry();
+    actionRegistry.register(testAction);
+    actionRegistry.register(internalOnlyAction);
+
+    const commandLayer = createMockCommandLayer();
+
+    const { server } = await createMcpAdapter({
+      commandLayer,
+      entityRegistry,
+      actionRegistry,
+    });
+
+    const tools = getTools(server);
+    const result = await tools.list_actions?.handler({}, {});
+
+    const parsed = JSON.parse(result.content[0]?.text);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe("create_order");
+    expect(parsed.find((a: { name: string }) => a.name === "internal_audit")).toBeUndefined();
   });
 
   test("list_actions includes actions with exposure 'all'", async () => {
