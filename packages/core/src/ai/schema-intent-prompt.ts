@@ -130,11 +130,17 @@ export function buildSchemaIntentSystemPrompt(
     // are structured data (safe to serialize); code conditions expose their
     // description only (conditionKind: "code"), never function source.
     existingRules: (e.rules ?? []).map((r) => ({
-      name: r.name,
+      // Identifiers are sanitized too: by convention they carry no control
+      // characters, but a malicious overlay / custom OntologyRegistry could
+      // craft them, and prior NL-drafted rules are a prompt carrier —
+      // defence-in-depth is cheap here.
+      name: typeof r.name === "string" ? sanitizeText(r.name) : "",
       label: r.label ? sanitizeText(r.label) : undefined,
       description: r.description ? sanitizeText(r.description) : undefined,
-      triggerActions: r.triggerActions,
-      effectType: r.effectType,
+      triggerActions: Array.isArray(r.triggerActions)
+        ? r.triggerActions.map((a) => (typeof a === "string" ? sanitizeText(a) : ""))
+        : r.triggerActions,
+      effectType: typeof r.effectType === "string" ? sanitizeText(r.effectType) : r.effectType,
       // Full sanitized effect payload + priority so an update can keep
       // unchanged fields IDENTICAL instead of fabricating replacements.
       ...(r.effect ? { effect: sanitizeEffect(r.effect) } : {}),
