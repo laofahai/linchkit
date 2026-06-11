@@ -149,6 +149,9 @@ export function AITracesPage() {
   // Monotonic request token: a slow in-flight fetch (e.g. an older status
   // filter) must not overwrite the result of a newer one that already resolved.
   const reqSeq = useRef(0);
+  // Controller for the manual Refresh fetch — tracked separately from the
+  // effect's controller so an in-flight Refresh is also aborted on unmount.
+  const manualCtrlRef = useRef<AbortController | null>(null);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -171,7 +174,10 @@ export function AITracesPage() {
   useEffect(() => {
     const controller = new AbortController();
     load(controller.signal);
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      manualCtrlRef.current?.abort();
+    };
   }, [load]);
 
   const traces = result?.kind === "ok" ? result.traces : [];
@@ -207,7 +213,17 @@ export function AITracesPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              manualCtrlRef.current?.abort();
+              const ctrl = new AbortController();
+              manualCtrlRef.current = ctrl;
+              load(ctrl.signal);
+            }}
+            disabled={loading}
+          >
             <RefreshCwIcon className={`size-4 mr-1 ${loading ? "animate-spin" : ""}`} />
             {t("aiTraces.refresh", "Refresh")}
           </Button>
