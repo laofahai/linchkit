@@ -7,7 +7,7 @@
  * the rule fires inside `approve_purchase_request` execution, reads the stored
  * `amount` and the acting actor's `groups`, and BLOCKS or ALLOWS accordingly.
  *
- * This is the object a future "说→有" NL loop edits to change the policy.
+ * This is the object a future describe-to-exists NL loop edits to change the policy.
  *
  * Coverage:
  *   - amount <= threshold → a purchase_user can approve.

@@ -15,6 +15,10 @@ export {
   type PendingEvent,
   type TransactionManager,
 } from "../../engine/action-engine";
+// Exposure helper — lets transports decide whether to PUBLISH an action at
+// all (e.g. omit non-http actions from the GraphQL schema, not just reject
+// calls), using the same semantics the executor enforces.
+export { isExposed } from "../../engine/action-helpers";
 export {
   type ApprovalEngine,
   type ApprovalEngineOptions,

@@ -179,6 +179,18 @@ describe("E2E: manager_approval_threshold rule over REST", () => {
     expect(pr.amount).toBe(MANAGER_APPROVAL_THRESHOLD + 5000);
   });
 
+  test("flag_purchase_for_review has NO GraphQL mutation (introspection does not leak it)", async () => {
+    // Rejecting calls is not enough: generating the mutation field would still
+    // leak the internal action's existence and input shape via introspection.
+    const result = await gql(`{ __schema { mutationType { fields { name } } } }`);
+    const schema = (result.data as Record<string, unknown>).__schema as Record<string, unknown>;
+    const mutationType = schema.mutationType as Record<string, unknown>;
+    const names = (mutationType.fields as Array<{ name: string }>).map((f) => f.name);
+    expect(names).not.toContain("flagPurchaseForReview");
+    // The http-exposed actions keep their mutations.
+    expect(names).toContain("approvePurchaseRequest");
+  });
+
   test("flag_purchase_for_review is NOT callable over HTTP (internal-only)", async () => {
     // codex P2 regression: the flow-step helper must not be reachable from
     // external channels, or any caller could overwrite audit_notes.
