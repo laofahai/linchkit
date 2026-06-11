@@ -73,7 +73,10 @@ function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
     };
   }
   return {
-    field: sanitizeText(cond.field),
+    // typeof guard: a malformed SimpleCondition without a `field` (possible
+    // through overlays / a custom OntologyRegistry) must not throw inside
+    // sanitizeText's .replace — same never-throws contract as the guards above.
+    field: typeof cond.field === "string" ? sanitizeText(cond.field) : "",
     operator: cond.operator,
     ...(cond.value !== undefined ? { value: sanitizeStringLeaves(cond.value) } : {}),
   };

@@ -1500,13 +1500,18 @@ describe("resolveSchemaIntent — prompt serializes the full sanitized rule snap
           triggerActions: ["create_purchase_request"],
           effectType: "warn",
           // Runtime-malformed payloads despite the static types: non-string
-          // effect fields would crash sanitizeText (.replace), and a null
-          // nested condition would crash the `in` narrowing.
+          // effect fields would crash sanitizeText (.replace), a null nested
+          // condition would crash the `in` narrowing, and a SimpleCondition
+          // missing its `field` would crash sanitizeText on undefined.
           effect: { type: undefined, message: 123, level: { x: 1 } } as never,
           conditionKind: "declarative",
           condition: {
             operator: "and",
-            conditions: [{ field: "amount", operator: "gt", value: 1 }, null],
+            conditions: [
+              { field: "amount", operator: "gt", value: 1 },
+              null,
+              { operator: "gt", value: 5000 },
+            ],
           } as never,
           roundTrippable: false,
         },
