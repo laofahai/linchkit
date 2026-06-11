@@ -28,10 +28,10 @@ import { useTranslation } from "react-i18next";
 import {
   type AIGeneration,
   type AITrace,
-  type AITraceGenerationsResult,
   type AITraceStatus,
   fetchTraceGenerations,
 } from "../lib/ai-traces-client";
+import { resolveStoredResult, type StoredGenerationsResult } from "../lib/trace-detail-state";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -199,8 +199,11 @@ export function TraceDetailPanel({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const [result, setResult] = useState<AITraceGenerationsResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  // The fetched result, tagged with the traceId it belongs to. Rendering goes
+  // through `resolveStoredResult` so a result for trace A is NEVER shown under
+  // trace B's header (not even for the one frame before the fetch effect for B
+  // commits) — the skeleton shows instead.
+  const [stored, setStored] = useState<StoredGenerationsResult | null>(null);
 
   // Monotonic request token: a slow in-flight fetch for a previously selected
   // trace must not overwrite the result of a newer selection (same stale-guard
@@ -209,11 +212,14 @@ export function TraceDetailPanel({
 
   const traceId = trace?.traceId;
   useEffect(() => {
-    if (!traceId) return;
+    if (!traceId) {
+      // Panel closed: drop the previous trace's generations instead of
+      // retaining them in memory for the lifetime of the page.
+      setStored(null);
+      return;
+    }
     const seq = ++reqSeq.current;
     const controller = new AbortController();
-    setResult(null);
-    setLoading(true);
     fetchTraceGenerations({
       traceId,
       limit: GENERATION_LIMIT,
@@ -223,20 +229,23 @@ export function TraceDetailPanel({
         // Drop a stale response superseded by a newer selection, or one whose
         // request was aborted (panel closed / unmounted).
         if (seq !== reqSeq.current || controller.signal.aborted) return;
-        setResult(next);
-        setLoading(false);
+        setStored({ traceId, result: next });
       })
       .catch(() => {
         // fetchTraceGenerations never rejects by construction; this guard only
         // keeps the skeleton from sticking forever if that invariant changes.
         if (seq !== reqSeq.current || controller.signal.aborted) return;
-        setResult({ kind: "error", message: "Failed to load trace generations" });
-        setLoading(false);
+        setStored({
+          traceId,
+          result: { kind: "error", message: "Failed to load trace generations" },
+        });
       });
     // Abort the in-flight fetch when the selection changes or the panel closes.
     return () => controller.abort();
   }, [traceId]);
 
+  // Null while closed, loading, or when `stored` belongs to a previous trace.
+  const result = resolveStoredResult(stored, traceId);
   const generations = result?.kind === "ok" ? result.generations : [];
 
   return (
@@ -255,8 +264,10 @@ export function TraceDetailPanel({
         </SheetHeader>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          {/* Loading skeleton */}
-          {loading && !result && <PanelSkeleton />}
+          {/* Loading skeleton — panel open but no result for THIS trace yet
+              (covers both the in-flight fetch and the pre-effect frame after
+              switching traces). */}
+          {traceId !== undefined && result === null && <PanelSkeleton />}
 
           {/* Permission-denied state */}
           {result?.kind === "denied" && (

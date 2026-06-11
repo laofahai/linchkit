@@ -94,29 +94,31 @@ function TraceRow({ trace, onSelect }: { trace: AITrace; onSelect: (trace: AITra
     ? "—"
     : formatRelativeTime(started.toISOString(), t);
   return (
-    <TableRow
-      role="button"
-      tabIndex={0}
-      // Include the trace name: `role="button"` makes aria-label the row's
-      // ENTIRE accessible name (cell content is no longer announced), so a
-      // fixed label would make every row indistinguishable to screen readers.
-      aria-label={`${t("aiTraces.detail.open", "View trace detail")}: ${trace.name}`}
-      className="cursor-pointer"
-      onClick={() => onSelect(trace)}
-      onKeyDown={(e) => {
-        // Keyboard activation parity with a native button (Enter / Space).
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect(trace);
-        }
-      }}
-    >
+    // No role/tabIndex on the row: `role="button"` on a <tr> destroys table
+    // semantics for screen readers (the row collapses into one button and the
+    // cells are no longer announced). The row's onClick is a mouse-only
+    // convenience; the accessible + keyboard entry point is the real <button>
+    // in the name cell below.
+    <TableRow className="cursor-pointer" onClick={() => onSelect(trace)}>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         <div>{startedLabel}</div>
         {duration && <div className="text-[10px] opacity-70">{duration}</div>}
       </TableCell>
       <TableCell>
-        <div className="font-medium text-sm">{trace.name}</div>
+        <button
+          type="button"
+          // Plain text-button styled to match the cell typography; Enter/Space
+          // activation is native. stopPropagation keeps the row's onClick from
+          // firing a second (idempotent, but redundant) select.
+          className="block text-left font-medium text-sm hover:underline underline-offset-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(trace);
+          }}
+        >
+          {trace.name}
+          <span className="sr-only"> — {t("aiTraces.detail.open", "View trace detail")}</span>
+        </button>
         {trace.scenario && <div className="text-xs text-muted-foreground">{trace.scenario}</div>}
       </TableCell>
       <TableCell className="text-xs text-muted-foreground">{trace.origin}</TableCell>
