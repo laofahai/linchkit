@@ -59,6 +59,10 @@ function sanitizeCondition(cond: DeclarativeCondition): DeclarativeCondition {
   if (!cond || typeof cond !== "object") return cond;
   // Structural narrowing: composite carries `conditions`, not carries `condition`.
   if ("conditions" in cond) {
+    // Defensive: a malformed composite can carry a non-array `conditions`
+    // (e.g. null) at runtime despite the static type — `.map` would throw,
+    // so the value is returned untouched like other malformed shapes.
+    if (!Array.isArray(cond.conditions)) return cond;
     return { operator: cond.operator, conditions: cond.conditions.map(sanitizeCondition) };
   }
   if ("condition" in cond) {

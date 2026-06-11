@@ -62,6 +62,12 @@ export interface ProposalDiff {
   operation: "create" | "update";
   /** The generated definition (for create/update) */
   definition?: RuleDefinition | EventHandlerDefinition | Record<string, unknown>;
+  /**
+   * Name of the EXISTING definition an update targets. Carried explicitly
+   * because diff-only updates (non-round-trippable rules) intentionally have
+   * no `definition` to read the name from.
+   */
+  targetName?: string;
   /** Human-readable summary of the change */
   summary: string;
 }
@@ -486,11 +492,14 @@ export class ProposalEngine {
       add_default: "modify_schema",
     };
 
-    const targetName = proposal.diff.definition
-      ? "name" in (proposal.diff.definition as Record<string, unknown>)
-        ? String((proposal.diff.definition as Record<string, unknown>).name)
-        : "unknown"
-      : "unknown";
+    // Prefer the definition's own name; diff-only updates carry no
+    // definition, so fall back to the diff's explicit target name before
+    // giving up — the security record should name the real rule.
+    const definition = proposal.diff.definition as Record<string, unknown> | undefined;
+    const targetName =
+      definition && "name" in definition
+        ? String(definition.name)
+        : (proposal.diff.targetName ?? "unknown");
 
     return [
       {

@@ -760,6 +760,9 @@ describe("resolveSchemaIntent — update_rule proposal draft", () => {
     expect(p.diff.operation).toBe("update");
     // Honest: NO declarative definition is fabricated for a code condition.
     expect(p.diff.definition).toBeUndefined();
+    // The diff still names the real rule explicitly so downstream security
+    // change records never fall through to "unknown".
+    expect(p.diff.targetName).toBe("manager_approval_threshold");
     expect(p.diff.summary).toBe("Change the manager-approval threshold from 10000 to 20000.");
   });
 
@@ -1526,5 +1529,44 @@ describe("resolveSchemaIntent — prompt serializes the full sanitized rule snap
     // Non-string effect fields are guarded: type falls back to "", non-string
     // message/level are omitted rather than serialized raw.
     expect(systemPrompt).not.toContain('"message": 123');
+  });
+
+  it("never throws on a malformed composite condition (conditions: null)", async () => {
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(JSON.stringify({ kind: "no_match", explanation: "x" }));
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      fields: [{ name: "amount", type: "number", required: true }],
+      actionNames: ["create_purchase_request"],
+      rules: [
+        {
+          name: "broken_composite",
+          label: "Broken composite",
+          triggerActions: ["create_purchase_request"],
+          effectType: "warn",
+          effect: { type: "warn", message: "x" },
+          conditionKind: "declarative",
+          // Runtime-malformed composite despite the static type: it passes
+          // the `"conditions" in cond` narrowing but `.map` would throw on a
+          // null `conditions` array.
+          condition: { operator: "and", conditions: null } as never,
+          roundTrippable: false,
+        },
+      ],
+    };
+    const ontology: SchemaIntentOntology = {
+      listEntities: () => ["purchase_request"],
+      describeEntity: () => entity,
+    };
+    const outcome = await resolveSchemaIntent(
+      { utterance: "change the broken composite rule" },
+      { provider: service, ontology, proposalEngine: engine },
+    );
+    // Prompt building survives — the malformed composite is serialized as-is
+    // instead of crashing the resolver.
+    expect(outcome.kind).toBe("no_match");
+    expect(calls.length).toBe(1);
+    const systemPrompt = calls[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(systemPrompt).toContain("broken_composite");
   });
 });

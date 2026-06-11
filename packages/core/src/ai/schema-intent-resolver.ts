@@ -348,7 +348,9 @@ function draftRuleUpdate(opts: {
       confidence,
       // NO definition — the rule cannot be rebuilt faithfully from what the
       // AI saw. The summary is the reviewable spec of the change.
-      diff: { target: "rule", operation: "update", summary },
+      // `targetName` carries the rule name so downstream security change
+      // records still report the real target without a definition.
+      diff: { target: "rule", operation: "update", targetName: existing.name, summary },
     });
     return {
       kind: "proposal_draft",
@@ -386,7 +388,13 @@ function draftRuleUpdate(opts: {
     description: explanation,
     reasoning: utterance,
     confidence,
-    diff: { target: "rule", operation: "update", definition: ruleDef, summary },
+    diff: {
+      target: "rule",
+      operation: "update",
+      definition: ruleDef,
+      targetName: existing.name,
+      summary,
+    },
   });
   return {
     kind: "proposal_draft",
