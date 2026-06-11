@@ -233,9 +233,17 @@ export function mountActionRoutes(app: Elysia, options: ServerOptions): void {
       const errData = result.data as Record<string, unknown> | undefined;
       const rawMessage = (errData?.error as string) ?? "Action execution failed";
 
-      // In production, sanitize internal error details to prevent information leakage
+      // In production, sanitize internal error details to prevent information
+      // leakage. EXCEPTION: a rule `block` reason is the rule author's
+      // user-facing policy text (e.g. "金额超过 10000 需要经理审批 / Amounts
+      // over 10000 require manager approval") — written precisely to be shown
+      // to the caller. Sanitizing it would flatten every policy block to
+      // "Action execution failed" in production, hiding the rule's message
+      // exactly where it matters.
       const isDevMode = process.env.NODE_ENV !== "production";
-      const safeMessage = isDevMode ? rawMessage : "Action execution failed";
+      const constraint = (errData?.context as Record<string, unknown> | undefined)?.constraint;
+      const isPolicyMessage = constraint === "rule_block" && typeof errData?.error === "string";
+      const safeMessage = isDevMode || isPolicyMessage ? rawMessage : "Action execution failed";
 
       return {
         success: false,

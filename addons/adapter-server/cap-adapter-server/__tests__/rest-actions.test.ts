@@ -316,3 +316,90 @@ describe("REST action endpoint — input passthrough", () => {
     expect(data.title).toBe("Provided");
   });
 });
+
+// ── Production sanitization: policy messages are exempt ───
+//
+// In production the failure envelope is sanitized to a generic message —
+// EXCEPT a rule `block` reason (constraint: "rule_block"), which is the rule
+// author's user-facing policy text and must reach the caller verbatim, or
+// every policy block would read "Action execution failed" exactly where the
+// message matters.
+
+const POLICY_MESSAGE = "金额超过 10000 需要经理审批 / Amounts over 10000 require manager approval";
+
+const gatedAction: ActionDefinition = {
+  name: "do_gated",
+  entity: "item",
+  label: "Gated",
+  policy: { mode: "sync", transaction: false },
+  handler: async () => ({ ok: true }),
+};
+
+const alwaysBlockRule = {
+  name: "always_block_gated",
+  label: "Always Block (test)",
+  description: "Blocks do_gated unconditionally to exercise the rule_block envelope",
+  trigger: { action: "do_gated" },
+  condition: () => true,
+  effect: { type: "block" as const, message: POLICY_MESSAGE },
+};
+
+const blockingExecutor = createActionExecutor({
+  dataProvider: store,
+  executionLogger,
+  rules: [alwaysBlockRule],
+});
+blockingExecutor.registry.register(gatedAction);
+blockingExecutor.registry.register(throwAction);
+const blockingApp = createServer(buildGraphQLSchema([itemSchema]), { executor: blockingExecutor });
+
+async function postBlocking(
+  name: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const res = await blockingApp.handle(
+    new Request(actionUrl(name), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }),
+  );
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+
+describe("production sanitization — rule_block policy text is exempt", () => {
+  test("NODE_ENV=production: a rule-block reason reaches the caller verbatim", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { body } = await postBlocking("do_gated");
+      expect(body.success).toBe(false);
+      const error = body.error as Record<string, unknown>;
+      expect(error.message).toBe(POLICY_MESSAGE);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  test("NODE_ENV=production: a non-policy failure is still sanitized", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const { body } = await postBlocking("do_throw");
+      expect(body.success).toBe(false);
+      const error = body.error as Record<string, unknown>;
+      expect(error.message).toBe("Action execution failed");
+      expect(JSON.stringify(body)).not.toContain("Something went wrong");
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  test("dev mode: both messages pass through unchanged (regression)", async () => {
+    const { body: blocked } = await postBlocking("do_gated");
+    expect((blocked.error as Record<string, unknown>).message).toBe(POLICY_MESSAGE);
+    const { body: thrown } = await postBlocking("do_throw");
+    expect(String((thrown.error as Record<string, unknown>).message)).toContain(
+      "Something went wrong",
+    );
+  });
+});
