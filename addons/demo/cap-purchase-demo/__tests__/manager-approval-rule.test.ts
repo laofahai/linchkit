@@ -211,6 +211,29 @@ describe("manager_approval_threshold rule — fires in approve_purchase_request"
     expect((await store.get("purchase_request", id)).status).toBe("pending");
   });
 
+  test("FAIL-CLOSED: a stored empty-string amount blocks a purchase_user", async () => {
+    // Number("") is 0, NOT NaN — a coercion-based normalization would let an
+    // empty-string amount sail under the threshold. The rule accepts only a
+    // real `typeof "number"` amount; everything else requires a manager.
+    const record = await store.create("purchase_request", {
+      title: "Empty-amount request",
+      amount: "",
+      requester: "Alice User",
+      requester_email: "alice@example.com",
+      status: "pending",
+    });
+    const id = record.id as string;
+
+    const result = (await executor.execute(
+      "approve_purchase_request",
+      { id },
+      purchaseUser,
+    )) as ActionResult;
+
+    expect(result.success).toBe(false);
+    expect((await store.get("purchase_request", id)).status).toBe("pending");
+  });
+
   test("FAIL-CLOSED: a manager can still approve a record with NO amount", async () => {
     const record = await store.create("purchase_request", {
       title: "No-amount request",

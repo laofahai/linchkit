@@ -72,10 +72,12 @@ const overThresholdNonManager: CodeCondition = ({ target, actor, record }) => {
   // authoritative even if nullish — falling back to caller-controlled `target`
   // there would reopen the input-spoof bypass this rule exists to close.
   const raw = record != null ? record.amount : target.amount;
-  // `Number(null)` is 0 and `Number(undefined)` is NaN — normalize BOTH nullish
-  // cases (and any other non-numeric value) to NaN so they hit the fail-closed
-  // branch below instead of silently passing as a 0 amount.
-  const amount = typeof raw === "number" ? raw : raw == null ? Number.NaN : Number(raw);
+  // Accept ONLY a real number. Coercing other types is a fail-open trap:
+  // Number(null) and Number("") are both 0, which would sail under the
+  // threshold. Legitimate amounts stored through the action layer are always
+  // typeof "number"; everything else is authoritative-unknown → NaN → the
+  // fail-closed branch below.
+  const amount = typeof raw === "number" ? raw : Number.NaN;
   if (!Number.isFinite(amount)) {
     // Fail CLOSED: an absent / unparseable amount cannot prove the request is
     // under the threshold, so only a manager may approve it. Returning false
