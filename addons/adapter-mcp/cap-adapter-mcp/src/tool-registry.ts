@@ -19,6 +19,7 @@ function isMcpExposed(action: ActionDefinition): boolean {
   if (action.exposure === undefined || action.exposure === "all") {
     return true;
   }
+  if (action.exposure.internal === true) return false;
   return action.exposure.mcp !== false;
 }
 

@@ -617,6 +617,7 @@ function registerBuiltinTools(
         .filter((a) => {
           // Only show actions exposed to MCP (consistent with tool registration)
           if (a.exposure === undefined || a.exposure === "all") return true;
+          if (a.exposure.internal === true) return false;
           return a.exposure.mcp !== false;
         })
         .map((a) => ({
