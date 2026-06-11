@@ -161,14 +161,23 @@ function GenerationCard({ generation }: { generation: AIGeneration }) {
       {/* Prompt messages (redacted server-side, displayed as-is) */}
       <div className="space-y-2">
         <div className="text-xs font-medium">{t("aiTraces.detail.prompt", "Prompt")}</div>
-        {generation.messages.map((message, i) => (
-          <ContentBlock
-            // biome-ignore lint/suspicious/noArrayIndexKey: messages are static per generation
-            key={i}
-            label={t(`aiTraces.detail.role.${message.role}`, message.role)}
-            content={message.content}
-          />
-        ))}
+        {generation.messages.length === 0 ? (
+          // Mirror the completion section's empty fallback: an empty messages
+          // array (fully redacted / never recorded) must not leave the heading
+          // orphaned with nothing beneath it.
+          <p className="text-xs italic text-muted-foreground">
+            {t("aiTraces.detail.noMessages", "No prompt messages recorded")}
+          </p>
+        ) : (
+          generation.messages.map((message, i) => (
+            <ContentBlock
+              // biome-ignore lint/suspicious/noArrayIndexKey: messages are static per generation
+              key={i}
+              label={t(`aiTraces.detail.role.${message.role}`, message.role)}
+              content={message.content}
+            />
+          ))
+        )}
       </div>
 
       {/* Completion (redacted server-side; empty for streaming calls) */}

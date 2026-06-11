@@ -234,6 +234,9 @@ export function AITracesPage() {
             onClick={() => {
               effectCtrlRef.current?.abort();
               manualCtrlRef.current?.abort();
+              // Same list/panel desync risk as the filter change: the refreshed
+              // window (100 most-recent) may no longer contain the selected trace.
+              setSelectedTrace(null);
               const ctrl = new AbortController();
               manualCtrlRef.current = ctrl;
               load(ctrl.signal);
