@@ -38,12 +38,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ConfigHistoryEntry, ConfigItem } from "../lib/config-api";
-import {
-  fetchConfig,
-  fetchConfigHistory,
-  fetchConfigs,
-  updateConfigValues,
-} from "../lib/config-api";
+import { fetchConfig, fetchConfigHistory, fetchConfigs, updateConfigValues } from "../lib/config-api";
 
 // ── Field Editor (reused for inline editing) ──────────────
 

@@ -61,7 +61,7 @@ export function isNaturalLanguageQuery(query: string): boolean {
   if (enPatterns.test(q)) return true;
 
   // If the query has significant Chinese content (sentence-like), treat as NL
-  const chineseChars = q.match(/[\u4e00-\u9fff]/g);
+  const chineseChars = q.match(/[一-鿿]/g);
   if (chineseChars && chineseChars.length >= 4) return true;
 
   return false;
