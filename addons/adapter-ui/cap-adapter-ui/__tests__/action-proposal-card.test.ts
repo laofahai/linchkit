@@ -33,8 +33,8 @@ if (typeof globalThis.localStorage === "undefined") {
 }
 
 import { swapAlternative } from "../src/components/action-proposal-card";
-import type { IntentAlternative, IntentResolution } from "../src/lib/api";
-import { resolveIntent } from "../src/lib/api";
+import type { IntentAlternative, IntentResolution } from "../src/lib/ai-api";
+import { resolveIntent } from "../src/lib/ai-api";
 
 // ── Fixtures ────────────────────────────────────────────────
 

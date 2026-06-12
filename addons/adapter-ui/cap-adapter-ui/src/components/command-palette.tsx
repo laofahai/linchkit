@@ -37,7 +37,7 @@ import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { aiSearch } from "@/lib/api";
+import { aiSearch } from "@/lib/ai-api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 interface CommandPaletteProps {

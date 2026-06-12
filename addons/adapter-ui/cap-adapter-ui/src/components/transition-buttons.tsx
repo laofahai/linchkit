@@ -22,13 +22,13 @@ import {
 import { ArrowRight, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { executeAction } from "../lib/api";
 import {
   type AvailableTransition,
-  executeAction,
   queryAvailableTransitions,
   queryRecord,
   transitionRecord,
-} from "../lib/api";
+} from "../lib/entity-api";
 import { executeTransition } from "../lib/transition-dispatch";
 
 interface TransitionButtonsProps {

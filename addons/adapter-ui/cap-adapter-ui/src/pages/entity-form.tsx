@@ -30,7 +30,8 @@ import { useEntityBundle } from "../hooks/use-entity-bundle";
 import { useOverlayFields } from "../hooks/use-overlay-fields";
 import { useTransitionPermissions } from "../hooks/use-transition-permissions";
 import { useEntityLabel } from "../i18n/use-entity-label";
-import { getActiveCapabilities, isAiEnabled, queryRecord } from "../lib/api";
+import { getActiveCapabilities, isAiEnabled } from "../lib/app-config";
+import { queryRecord } from "../lib/entity-api";
 import {
   deriveStatusSteps,
   generateFallbackFormView,

@@ -13,7 +13,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
-import { queryList } from "../lib/api";
+import { queryList } from "../lib/entity-api";
 import type { AutoListViewDefinition } from "./auto-list/types";
 import { ListView } from "./list-view";
 

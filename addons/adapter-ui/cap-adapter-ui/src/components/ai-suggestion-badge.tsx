@@ -8,7 +8,7 @@
 import { Button } from "@linchkit/ui-kit/components";
 import { Check, Info, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { AiFieldSuggestion } from "../lib/api";
+import type { AiFieldSuggestion } from "../lib/ai-api";
 
 export interface AiSuggestionBadgeProps {
   suggestion: AiFieldSuggestion;

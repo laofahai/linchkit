@@ -8,8 +8,8 @@
 import type { EntityDefinition } from "@linchkit/core/types";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { AiFieldSuggestion } from "../lib/api";
-import { requestAiAutoFill } from "../lib/api";
+import type { AiFieldSuggestion } from "../lib/ai-api";
+import { requestAiAutoFill } from "../lib/ai-api";
 
 export interface AiSuggestionState {
   /** Suggestions keyed by field name */

@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type ResolveSchemaIntentResult, resolveSchemaIntent } from "../lib/api";
+import { type ResolveSchemaIntentResult, resolveSchemaIntent } from "../lib/ai-api";
 
 /**
  * Format a confidence score (0-1) as a percentage. Defensive against

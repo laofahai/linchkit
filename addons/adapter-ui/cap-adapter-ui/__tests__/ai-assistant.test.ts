@@ -23,7 +23,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { decideIntentRouting } from "../src/components/ai-assistant";
-import type { IntentResolution } from "../src/lib/api";
+import type { IntentResolution } from "../src/lib/ai-api";
 
 function makeIntent(overrides: Partial<IntentResolution> = {}): IntentResolution {
   return {

@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type AvailableTransition, queryAvailableTransitions } from "../lib/api";
+import { type AvailableTransition, queryAvailableTransitions } from "../lib/entity-api";
 
 export interface TransitionPermission {
   allowed: boolean;

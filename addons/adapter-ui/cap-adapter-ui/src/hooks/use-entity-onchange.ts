@@ -8,7 +8,7 @@
 
 import type { OnchangeDefinition } from "@linchkit/core/types";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { requestEntityOnchange } from "../lib/api";
+import { requestEntityOnchange } from "../lib/entity-api";
 import {
   DEFAULT_ONCHANGE_DEBOUNCE_MS,
   OnchangeDispatcher,

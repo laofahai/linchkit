@@ -56,8 +56,10 @@ import {
 } from "recharts";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { type EntityInfo, type ExecutionLogEntry, graphql, queryExecutionLogs } from "@/lib/api";
+import { graphql } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
+import type { EntityInfo } from "@/lib/entity-api";
+import { type ExecutionLogEntry, queryExecutionLogs } from "@/lib/execution-log-api";
 
 // CSS for react-grid-layout drag/resize handles
 

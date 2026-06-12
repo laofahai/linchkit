@@ -8,7 +8,7 @@ import type {
   RelationDefinition,
   ViewDefinition,
 } from "@linchkit/core/types";
-import type { AiFieldSuggestion } from "../../lib/api";
+import type { AiFieldSuggestion } from "../../lib/ai-api";
 import type { OnchangeFetcher } from "../../lib/onchange-dispatcher";
 import type { FieldOverlayRecord } from "../../lib/overlay-types";
 

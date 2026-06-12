@@ -7,7 +7,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { isAuthEnabled } from "@/lib/api";
+import { isAuthEnabled } from "@/lib/app-config";
 import { logout as authLogout, loginWithPassword } from "@/lib/auth-client";
 
 const TOKEN_STORAGE_KEY = "linchkit:token";

@@ -8,7 +8,7 @@
 import type { EntityDefinition } from "@linchkit/core/types";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type AISearchResult, aiSearch } from "../lib/api";
+import { type AISearchResult, aiSearch } from "../lib/ai-api";
 
 /** AI search state exposed to consumers */
 export interface AISearchState {

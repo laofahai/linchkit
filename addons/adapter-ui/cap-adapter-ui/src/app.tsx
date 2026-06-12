@@ -25,7 +25,7 @@ import { AuthProvider } from "./hooks/use-auth";
 import { CenteredLayout } from "./layouts/centered";
 import { FullscreenLayout } from "./layouts/fullscreen";
 import { ShellLayout } from "./layouts/shell";
-import { type AppConfig, fetchAppConfig } from "./lib/api";
+import { type AppConfig, fetchAppConfig } from "./lib/app-config";
 import { AITracesPage } from "./pages/ai-traces";
 import { ConfigCenterPage } from "./pages/config-center";
 import { DashboardPage } from "./pages/dashboard";

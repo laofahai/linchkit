@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/api";
+import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/execution-log-api";
 
 interface ActivityPanelProps {
   entityName: string;

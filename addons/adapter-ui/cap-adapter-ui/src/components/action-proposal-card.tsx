@@ -22,12 +22,8 @@ import {
 import { AlertTriangleIcon, CheckCircle2Icon, Loader2Icon, PlayIcon, XIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  ActionResult,
-  IntentAlternative,
-  IntentFieldSchema,
-  IntentResolution,
-} from "../lib/api";
+import type { IntentAlternative, IntentFieldSchema, IntentResolution } from "../lib/ai-api";
+import type { ActionResult } from "../lib/api";
 import { executeAction } from "../lib/api";
 
 // ── Types ────────────────────────────────────────────────

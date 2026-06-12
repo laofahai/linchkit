@@ -62,12 +62,12 @@ describe("toPascalCase", () => {
 describe("isAuthEnabled / isAiEnabled — default state", () => {
   test("isAuthEnabled returns false when no config is cached", async () => {
     // Fresh import — cachedAppConfig is null
-    const { isAuthEnabled } = await import("../src/lib/api");
+    const { isAuthEnabled } = await import("../src/lib/app-config");
     expect(isAuthEnabled()).toBe(false);
   });
 
   test("isAiEnabled returns false when no config is cached", async () => {
-    const { isAiEnabled } = await import("../src/lib/api");
+    const { isAiEnabled } = await import("../src/lib/app-config");
     expect(isAiEnabled()).toBe(false);
   });
 });

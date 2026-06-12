@@ -43,7 +43,7 @@ import type { SavedViewFilter } from "../hooks/use-saved-views";
 import { useSavedViews } from "../hooks/use-saved-views";
 import { buildEntitySubscriptionQuery, useSubscription } from "../hooks/use-subscription";
 import { useEntityLabel } from "../i18n/use-entity-label";
-import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/api";
+import { bulkDeleteRecords, deleteRecord, queryList } from "../lib/entity-api";
 
 type ActiveView = "list" | "calendar" | "kanban" | "tree";
 

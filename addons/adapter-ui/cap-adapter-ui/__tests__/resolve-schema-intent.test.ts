@@ -32,7 +32,7 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
-import { resolveSchemaIntent } from "../src/lib/api";
+import { resolveSchemaIntent } from "../src/lib/ai-api";
 
 /** Build a JSON Response with a given status + body. */
 function jsonResponse(status: number, body: unknown): Response {

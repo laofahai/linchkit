@@ -15,14 +15,14 @@ import type { StateTransitionInfo } from "../components/status-bar";
 import type { ResolvedEntityBundle } from "../hooks/use-entity-bundle";
 import { pushNotification } from "../hooks/use-notifications";
 import { resolveActionErrorMessage } from "../lib/action-errors";
+import { executeAction } from "../lib/api";
 import {
   createRecord,
   deleteRecord,
-  executeAction,
   queryRecord,
   queryStateTransitions,
   updateRecord,
-} from "../lib/api";
+} from "../lib/entity-api";
 import { CLONE_STRIP_FIELDS, getMutationReturnFields } from "../lib/entity-form-utils";
 
 /** Transition descriptor from useTransitionPermissions */
