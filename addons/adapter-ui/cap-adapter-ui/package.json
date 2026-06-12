@@ -16,12 +16,15 @@
     "./route-registry": "./src/lib/route-registry.ts",
     "./hooks/use-subscription": "./src/hooks/use-subscription.ts",
     "./lib/api": "./src/lib/api.ts",
+    "./lib/action-api": "./src/lib/action-api.ts",
     "./lib/ai-api": "./src/lib/ai-api.ts",
     "./lib/app-config": "./src/lib/app-config.ts",
     "./lib/chatter-api": "./src/lib/chatter-api.ts",
     "./lib/config-api": "./src/lib/config-api.ts",
     "./lib/entity-api": "./src/lib/entity-api.ts",
-    "./lib/execution-log-api": "./src/lib/execution-log-api.ts"
+    "./lib/entity-meta": "./src/lib/entity-meta.ts",
+    "./lib/execution-log-api": "./src/lib/execution-log-api.ts",
+    "./lib/graphql": "./src/lib/graphql.ts"
   },
   "scripts": {
     "dev": "vite --configLoader runner",

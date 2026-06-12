@@ -6,7 +6,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { type EntityInfo, fetchEntities } from "@/lib/entity-api";
+import { type EntityInfo, fetchEntities } from "@/lib/entity-meta";
 
 interface EntitiesContextValue {
   entities: EntityInfo[];

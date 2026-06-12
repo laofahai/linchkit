@@ -44,7 +44,7 @@ import {
   fetchEntities,
   fetchRelations,
   fetchSemanticRelations,
-} from "@/lib/entity-api";
+} from "@/lib/entity-meta";
 
 // ── Layout constants ─────────────────────────────────────
 

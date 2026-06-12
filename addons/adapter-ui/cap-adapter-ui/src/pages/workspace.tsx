@@ -27,10 +27,10 @@ import { useTranslation } from "react-i18next";
 import { AIInsightsPanel } from "@/components/ai-insights-panel";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { graphql } from "@/lib/api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
-import { type EntityInfo, fetchEntityBundle } from "@/lib/entity-api";
+import { type EntityInfo, fetchEntityBundle } from "@/lib/entity-meta";
 import { type ExecutionLogEntry, queryExecutionLogs } from "@/lib/execution-log-api";
+import { graphql } from "@/lib/graphql";
 import { getStateBadgeClass } from "@/lib/state-colors";
 
 // ── Types ────────────────────────────────────────────────

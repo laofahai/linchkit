@@ -10,7 +10,7 @@
 
 import { createParser } from "eventsource-parser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toPascalCase } from "../lib/api";
+import { toPascalCase } from "../lib/entity-api";
 
 // ═══════════════════════════════════════════════════════════════
 // GraphQL Subscription (existing — unchanged)

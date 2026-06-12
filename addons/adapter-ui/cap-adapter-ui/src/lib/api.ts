@@ -1,5 +1,5 @@
 /**
- * API client foundations: auth helpers and app-config.
+ * API client foundations: auth helpers.
  *
  * Domain-specific clients live in focused sibling modules:
  *   entity-api.ts     — Entity CRUD, list/query, state transitions
@@ -10,8 +10,10 @@
  *   execution-log-api.ts — Execution logs, state transition history
  *   config-api.ts     — Runtime config + ConfigStore KV (Spec 42)
  *   graphql.ts        — Low-level GraphQL fetch helper
+ *   app-config.ts     — App config cache (fetchAppConfig, isAuthEnabled, …)
  */
 
+import { isAuthEnabled } from "./app-config";
 import { getDevRoleHeaders } from "./dev-role";
 import { getTenantHeaders } from "./tenant";
 
@@ -40,80 +42,8 @@ export function handleUnauthorized(res: Response): void {
   }
 }
 
-// ── App config ──────────────────────────────────────────
-
-export interface MenuItemConfig {
-  id: string;
-  label: string;
-  path: string;
-  icon?: string;
-  section?: "main" | "admin";
-  order?: number;
-  auth?: "required" | "anonymous" | "optional";
-}
-
-export interface AppConfig {
-  authEnabled: boolean;
-  aiEnabled: boolean;
-  capabilities: string[];
-  pages: Array<{
-    name: string;
-    path: string;
-    label?: string;
-    layout: string;
-    auth: string;
-    redirectOnFail?: string;
-    component: string;
-    props?: Record<string, unknown>;
-    order?: number;
-    showInNav?: boolean;
-  }>;
-  menuItems?: MenuItemConfig[];
-}
-
-let cachedAppConfig: AppConfig | null = null;
-
-/**
- * Fetch app config from the server.
- * Only caches on successful fetch — errors are not cached so the next
- * page load will retry (prevents permanent empty menus after startup glitch).
- */
-export async function fetchAppConfig(): Promise<AppConfig> {
-  if (cachedAppConfig) return cachedAppConfig;
-  const fallback: AppConfig = {
-    authEnabled: false,
-    aiEnabled: false,
-    capabilities: [],
-    pages: [],
-    menuItems: [],
-  };
-  try {
-    const res = await fetch("/api/app-config");
-    const json = await res.json();
-    if (json.data) {
-      cachedAppConfig = json.data;
-      return cachedAppConfig as AppConfig;
-    }
-    // Server responded but returned no data — don't cache, return fallback
-    return fallback;
-  } catch {
-    // Server unreachable — return fallback without caching so next load retries
-    return fallback;
-  }
-}
-
-export function isAuthEnabled(): boolean {
-  return cachedAppConfig?.authEnabled ?? false;
-}
-
-export function isAiEnabled(): boolean {
-  return cachedAppConfig?.aiEnabled ?? false;
-}
-
-export function getMenuItems(): MenuItemConfig[] {
-  return cachedAppConfig?.menuItems ?? [];
-}
-
-export function getActiveCapabilities(): string[] {
-  return cachedAppConfig?.capabilities ?? [];
-}
+// ── Backward-compat re-exports ──────────────────────────
+// External consumers (cap-audit-ui, cap-search-ui) import graphql from
+// this module path; re-export so they don't need a coordinated update.
+export type { GraphQLResponse } from "./graphql";
+export { graphql, throwOnErrors } from "./graphql";

@@ -50,8 +50,8 @@ export { changeLanguage, default as i18n, languageNames, supportedLanguages } fr
 export { resolveEntityLabel, useEntityLabel, useSchemaLabel } from "./i18n/use-entity-label";
 // Layout components
 export { ShellLayout } from "./layouts/shell";
-export type { EntityOnchangeResult } from "./lib/entity-api";
-export { requestEntityOnchange } from "./lib/entity-api";
+export type { EntityOnchangeResult } from "./lib/entity-meta";
+export { requestEntityOnchange } from "./lib/entity-meta";
 export type {
   ComputeEntityLockStateArgs,
   ComputeFieldLockStateArgs,

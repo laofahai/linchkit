@@ -16,7 +16,7 @@ import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "../../i18n/use-entity-label";
-import { executeAction } from "../../lib/api";
+import { executeAction } from "../../lib/action-api";
 import { queryRecord, transitionRecord } from "../../lib/entity-api";
 import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
 import { executeTransition, resolveBoundAction } from "../../lib/transition-dispatch";

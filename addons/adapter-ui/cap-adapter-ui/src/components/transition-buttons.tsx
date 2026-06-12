@@ -22,7 +22,7 @@ import {
 import { ArrowRight, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { executeAction } from "../lib/api";
+import { executeAction } from "../lib/action-api";
 import {
   type AvailableTransition,
   queryAvailableTransitions,
