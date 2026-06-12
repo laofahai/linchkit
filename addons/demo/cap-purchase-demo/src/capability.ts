@@ -21,20 +21,29 @@ import {
   notifyHighPrioritySubmission,
 } from "./automations/purchase-status";
 import { departmentEntity } from "./entities/department";
+import { productEntity } from "./entities/product";
 import { purchaseItemEntity } from "./entities/purchase-item";
 import { purchaseRequestEntity } from "./entities/purchase-request";
 import { purchaseApprovalFlow } from "./flows/purchase-approval";
 import i18nEn from "./i18n/en.json";
 import i18nZhCN from "./i18n/zh-CN.json";
 import { auditableInterface } from "./interfaces/auditable";
-import { requestToDepartment, requestToItems } from "./relations";
+import { itemToProduct, requestToDepartment, requestToItems } from "./relations";
 import { managerApprovalThresholdRule } from "./rules/manager-approval-threshold";
-import { departmentSeedData, purchaseItemSeedData, purchaseRequestSeedData } from "./seed";
+import {
+  departmentSeedData,
+  productSeedData,
+  purchaseItemSeedData,
+  purchaseRequestSeedData,
+} from "./seed";
 import { purchaseRejectionPattern } from "./sensors/purchase-rejection-pattern";
 import { purchaseRequestState } from "./states/purchase-request";
 import { departmentListView } from "./views/department-list";
 import { purchaseRequestFormView } from "./views/form";
 import { purchaseRequestListView } from "./views/list";
+import { productFormView } from "./views/product-form";
+import { productListView } from "./views/product-list";
+import { purchaseItemFormView } from "./views/purchase-item-form";
 
 export const capPurchaseDemo = defineCapability({
   name: "cap-purchase-demo",
@@ -47,12 +56,19 @@ export const capPurchaseDemo = defineCapability({
   version: "0.1.0",
 
   interfaces: [auditableInterface],
-  entities: [purchaseRequestEntity, departmentEntity, purchaseItemEntity],
+  entities: [purchaseRequestEntity, departmentEntity, purchaseItemEntity, productEntity],
   actions: [submitAction, approveAction, rejectAction, flagForReviewAction],
   rules: [managerApprovalThresholdRule],
   states: [purchaseRequestState],
-  views: [purchaseRequestListView, purchaseRequestFormView, departmentListView],
-  relations: [requestToDepartment, requestToItems],
+  views: [
+    purchaseRequestListView,
+    purchaseRequestFormView,
+    departmentListView,
+    purchaseItemFormView,
+    productListView,
+    productFormView,
+  ],
+  relations: [requestToDepartment, requestToItems, itemToProduct],
   flows: [purchaseApprovalFlow],
   eventHandlers: [autoSetSubmittedAt, autoSetApprovedFields, notifyHighPrioritySubmission],
 
@@ -101,5 +117,6 @@ export const capPurchaseDemo = defineCapability({
     purchase_request: purchaseRequestSeedData,
     department: departmentSeedData,
     purchase_item: purchaseItemSeedData,
+    product: productSeedData,
   },
 });

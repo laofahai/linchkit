@@ -49,6 +49,59 @@ describe("generateZodSchema", () => {
     expect(zodSchema.safeParse({ amount: 101 }).success).toBe(false);
   });
 
+  test("number field with integer: true rejects fractional values", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        count: { type: "number", required: true, min: 1, integer: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    expect(zodSchema.safeParse({ count: 1.5 }).success).toBe(false);
+    expect(zodSchema.safeParse({ count: 3 }).success).toBe(true);
+    // The integer constraint composes with min
+    expect(zodSchema.safeParse({ count: 0 }).success).toBe(false);
+  });
+
+  test('a blank "" on a CONSTRAINED optional string normalizes to absent; plain strings keep ""', () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        // Constrained optional strings: a blank submission must NOT trip the
+        // pattern/format, and must normalize to undefined so it is exempt from a
+        // unique index.
+        code: { type: "string", pattern: "^[0-9]{3}$" },
+        sku: { type: "string", unique: true },
+        contact: { type: "string", format: "email" },
+        // Unconstrained optional string: "" is preserved verbatim (so an explicit
+        // clear-to-empty is not silently dropped to a no-op on partial updates).
+        plain: { type: "text" },
+        label: { type: "string", required: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    const blank = zodSchema.safeParse({ label: "x", code: "", sku: "", contact: "", plain: "" });
+    expect(blank.success).toBe(true);
+    expect(blank.data?.code).toBeUndefined();
+    expect(blank.data?.sku).toBeUndefined();
+    expect(blank.data?.contact).toBeUndefined();
+    expect(blank.data?.plain).toBe("");
+
+    // A real value still flows through the pattern validation
+    expect(zodSchema.safeParse({ label: "x", code: "123" }).success).toBe(true);
+    expect(zodSchema.safeParse({ label: "x", code: "12" }).success).toBe(false);
+
+    // Coercion is optional-only: a required field keeps its raw value ("" is not
+    // turned into undefined, so it does not become a missing-required error here).
+    const reqBlank = zodSchema.safeParse({ label: "" });
+    expect(reqBlank.success).toBe(true);
+    expect(reqBlank.data?.label).toBe("");
+  });
+
   test("required fields are not optional", () => {
     const schema: EntityDefinition = {
       name: "test",

@@ -29,6 +29,12 @@ export interface FieldConstraints {
   unique?: boolean;
   min?: number;
   max?: number;
+  /**
+   * Number fields only: require a whole-number value (no fractional part).
+   * Use for physical counts that cannot be fractional, e.g. a case-pack
+   * quantity or an item count. Ignored for non-number field types.
+   */
+  integer?: boolean;
   format?: "email" | "url" | "phone" | "uuid" | (string & {});
   /** Regex pattern for string field validation */
   pattern?: string;

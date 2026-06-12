@@ -33,6 +33,80 @@ export const departmentSeedData = [
   },
 ];
 
+/**
+ * Office-supply product catalog. Barcodes are valid EAN-13 (China "690"
+ * company prefix range) with correct check digits; case_pack_quantity is
+ * units per case (箱规).
+ */
+export const productSeedData = [
+  {
+    id: "prod_001",
+    name: "中性笔（黑色 0.5mm）",
+    category: "stationery",
+    specification: "0.5mm 子弹头，黑色墨水，12支/盒",
+    barcode: "6901234560015",
+    case_pack_quantity: 144,
+    unit: "支",
+    unit_price: 2.5,
+    status: "active",
+  },
+  {
+    id: "prod_002",
+    name: "A4复印纸（70g）",
+    category: "paper",
+    specification: "70g/m²，500张/包，全木浆",
+    barcode: "6901234560022",
+    case_pack_quantity: 8,
+    unit: "包",
+    unit_price: 25,
+    status: "active",
+  },
+  {
+    id: "prod_003",
+    name: "订书机（标准型）",
+    category: "stationery",
+    specification: "适用 24/6、26/6 订书钉，装订 25 张",
+    barcode: "6901234560039",
+    case_pack_quantity: 20,
+    unit: "个",
+    unit_price: 18,
+    status: "active",
+  },
+  {
+    id: "prod_004",
+    name: "文件夹（A4 双夹）",
+    category: "stationery",
+    specification: "A4，PP 材质，双强力夹",
+    barcode: "6901234560046",
+    case_pack_quantity: 60,
+    unit: "个",
+    unit_price: 6.5,
+    status: "active",
+  },
+  {
+    id: "prod_005",
+    name: "透明胶带（48mm）",
+    category: "other",
+    specification: "48mm × 100m，高粘度封箱胶带",
+    barcode: "6901234560053",
+    case_pack_quantity: 72,
+    unit: "卷",
+    unit_price: 3.2,
+    status: "active",
+  },
+  {
+    id: "prod_006",
+    name: "打印墨盒（黑色）",
+    category: "electronics",
+    specification: "适配 HP 803 系列，约 600 页",
+    barcode: "6901234560060",
+    case_pack_quantity: 10,
+    unit: "个",
+    unit_price: 165,
+    status: "inactive",
+  },
+];
+
 export const purchaseRequestSeedData = [
   {
     id: "pr_001",
