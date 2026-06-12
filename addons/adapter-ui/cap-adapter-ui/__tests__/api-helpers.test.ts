@@ -56,6 +56,17 @@ describe("isAuthEnabled / isAiEnabled — default state", () => {
   });
 });
 
+describe("isAppConfigLoaded / isConfigFetching — default state", () => {
+  test("isAppConfigLoaded returns false before any fetch", async () => {
+    const { isAppConfigLoaded } = await import("../src/lib/app-config");
+    expect(isAppConfigLoaded()).toBe(false);
+  });
+  test("isConfigFetching returns false when no fetch is in flight", async () => {
+    const { isConfigFetching } = await import("../src/lib/app-config");
+    expect(isConfigFetching()).toBe(false);
+  });
+});
+
 describe("GraphQL response parsing logic", () => {
   test("throwOnErrors logic — errors array triggers throw", () => {
     function throwOnErrors(res: { errors?: { message: string }[] }): void {
