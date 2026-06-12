@@ -163,6 +163,37 @@ describe("resolveSchemaIntent — add_entity proposal draft (exemplar #575)", ()
     expect(engine.list("applied").length).toBe(0);
   });
 
+  it("defaults relation fromName/toName/name when the AI omits them", async () => {
+    // The AI emits a relation with only from/to/cardinality — no semantic names.
+    // `normalizeRuleName` returns `undefined` (NOT "") for the omitted fields, so
+    // the `?? default` fallbacks fire: fromName = to, toName = `${from}s`,
+    // name = `${from}_${to}`. (Guards against a regression where the helper would
+    // return "" and silently defeat the nullish fallbacks.)
+    const responseWithBareRelation = JSON.stringify({
+      kind: "add_entity",
+      entity: {
+        name: "product",
+        fields: [{ name: "barcode", type: "string", required: false, label: "条码", unique: true }],
+      },
+      relation: { from: "purchase_item", to: "product", cardinality: "many_to_one" },
+      confidence: 0.9,
+      explanation: "默认命名。",
+    });
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(responseWithBareRelation);
+
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品管理，采购明细可以选择。" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+
+    expect(outcome.kind).toBe("entity_proposal_draft");
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+    expect(outcome.relation?.fromName).toBe("product");
+    expect(outcome.relation?.toName).toBe("purchase_items");
+    expect(outcome.relation?.name).toBe("purchase_item_product");
+  });
+
   it("never auto-submits or applies — engine stays at draft only", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(exemplarEntityResponse);
