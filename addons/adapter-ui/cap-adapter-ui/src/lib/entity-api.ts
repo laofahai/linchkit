@@ -261,7 +261,9 @@ export const fetchSchemas = fetchEntities;
  * Fetch a full entity bundle (entity + views) by name.
  */
 export async function fetchEntityBundle(name: string): Promise<EntityBundle | null> {
-  const res = await fetch(`/api/entities/${name}`, { headers: getAuthHeaders() });
+  const res = await fetch(`/api/entities/${encodeURIComponent(name)}`, {
+    headers: getAuthHeaders(),
+  });
   handleUnauthorized(res);
   if (!res.ok) return null;
   const json = await res.json();

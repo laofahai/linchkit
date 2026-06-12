@@ -19,7 +19,6 @@ export interface ExecutionLogEntry {
   recordId?: string;
   actor: { type: string; id: string };
   input?: string;
-  output?: string;
   status: "succeeded" | "failed" | "blocked" | "pending_approval";
   error?: { code?: string; message: string };
   stateTransition?: { from: string; to: string };

@@ -61,6 +61,7 @@ export async function fetchAppConfig(): Promise<AppConfig> {
   fetchPromise = (async () => {
     try {
       const res = await fetch("/api/app-config");
+      if (!res.ok) return fallback;
       const json = await res.json();
       if (json.data) {
         cachedAppConfig = json.data;
