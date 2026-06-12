@@ -37,7 +37,14 @@ export async function requestAiAutoFill(params: {
   });
   handleUnauthorized(res);
   if (!res.ok) {
-    throw new Error("AI auto-fill failed");
+    let message = "AI auto-fill failed";
+    try {
+      const errJson = await res.json();
+      message = errJson.error?.message ?? errJson.message ?? message;
+    } catch {
+      /* non-JSON body — keep generic message */
+    }
+    throw new Error(message);
   }
   const json = await res.json();
   if (!json.success) {
@@ -72,7 +79,14 @@ export async function aiSearch(request: AISearchRequest): Promise<AISearchResult
   });
   handleUnauthorized(res);
   if (!res.ok) {
-    throw new Error("AI search request failed");
+    let message = "AI search request failed";
+    try {
+      const errJson = await res.json();
+      message = errJson.error?.message ?? errJson.message ?? message;
+    } catch {
+      /* non-JSON body — keep generic message */
+    }
+    throw new Error(message);
   }
   const json = await res.json();
   return json.data ?? null;
