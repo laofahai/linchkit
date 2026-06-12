@@ -1,11 +1,17 @@
 /**
- * API client core — auth headers, GraphQL transport, naming utilities, and action execution.
+ * API client foundations: auth helpers and app-config.
  *
- * Focused modules for entity CRUD, AI endpoints, app config, chatter,
- * execution logs, and runtime config live in dedicated files alongside this one.
+ * Domain-specific clients live in focused sibling modules:
+ *   entity-api.ts     — Entity CRUD, list/query, state transitions
+ *   entity-meta.ts    — Entity metadata, relations, onchange (Spec 64)
+ *   action-api.ts     — REST action execution
+ *   ai-api.ts         — AI endpoints (auto-fill, search, intent resolution)
+ *   chatter-api.ts    — Chatter timeline
+ *   execution-log-api.ts — Execution logs, state transition history
+ *   config-api.ts     — Runtime config + ConfigStore KV (Spec 42)
+ *   graphql.ts        — Low-level GraphQL fetch helper
  */
 
-import { isAuthEnabled, isConfigFetching } from "./app-config";
 import { getDevRoleHeaders } from "./dev-role";
 import { getTenantHeaders } from "./tenant";
 
@@ -27,85 +33,87 @@ export function handleUnauthorized(res: Response): void {
   if (res.status === 401) {
     localStorage.removeItem("linchkit:token");
     localStorage.removeItem("linchkit:authenticated");
-    // Redirect when auth is enabled, or when the config request is still in-flight
-    // (so early 401s during startup are not silently dropped).
-    // If config already settled without caching (e.g. non-OK response) and auth
-    // is disabled, skip the redirect to avoid breaking no-auth deployments.
-    if (isConfigFetching() || isAuthEnabled()) {
+    // Only redirect to login if auth capability is loaded
+    if (isAuthEnabled()) {
       window.location.href = "/login";
     }
   }
 }
 
-// ── GraphQL ─────────────────────────────────────────────
+// ── App config ──────────────────────────────────────────
 
-export interface GraphQLResponse<T = unknown> {
-  data?: T;
-  errors?: { message: string; locations?: unknown[]; path?: string[] }[];
+export interface MenuItemConfig {
+  id: string;
+  label: string;
+  path: string;
+  icon?: string;
+  section?: "main" | "admin";
+  order?: number;
+  auth?: "required" | "anonymous" | "optional";
 }
+
+export interface AppConfig {
+  authEnabled: boolean;
+  aiEnabled: boolean;
+  capabilities: string[];
+  pages: Array<{
+    name: string;
+    path: string;
+    label?: string;
+    layout: string;
+    auth: string;
+    redirectOnFail?: string;
+    component: string;
+    props?: Record<string, unknown>;
+    order?: number;
+    showInNav?: boolean;
+  }>;
+  menuItems?: MenuItemConfig[];
+}
+
+let cachedAppConfig: AppConfig | null = null;
 
 /**
- * Execute a GraphQL query or mutation.
+ * Fetch app config from the server.
+ * Only caches on successful fetch — errors are not cached so the next
+ * page load will retry (prevents permanent empty menus after startup glitch).
  */
-export async function graphql<T = unknown>(
-  query: string,
-  variables?: Record<string, unknown>,
-): Promise<GraphQLResponse<T>> {
-  const res = await fetch("/graphql", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ query, variables }),
-  });
-  handleUnauthorized(res);
-  return res.json();
+export async function fetchAppConfig(): Promise<AppConfig> {
+  if (cachedAppConfig) return cachedAppConfig;
+  const fallback: AppConfig = {
+    authEnabled: false,
+    aiEnabled: false,
+    capabilities: [],
+    pages: [],
+    menuItems: [],
+  };
+  try {
+    const res = await fetch("/api/app-config");
+    const json = await res.json();
+    if (json.data) {
+      cachedAppConfig = json.data;
+      return cachedAppConfig as AppConfig;
+    }
+    // Server responded but returned no data — don't cache, return fallback
+    return fallback;
+  } catch {
+    // Server unreachable — return fallback without caching so next load retries
+    return fallback;
+  }
 }
 
-// ── GraphQL naming ──────────────────────────────────────
-
-/** Regex for valid GraphQL names */
-const GRAPHQL_NAME_RE = /^[_A-Za-z][_0-9A-Za-z]*$/;
-
-/**
- * Convert a snake_case/kebab-case entity name to PascalCase for GraphQL names.
- *
- * CONSUMER side of the GraphQL naming contract: the server generates type,
- * mutation, and subscription field names (e.g. `on{Pascal}Created`) with its
- * own identical helper — addons/adapter-server/cap-adapter-server/src/graphql/naming.ts.
- * The UI must not import server code (module boundary), so this copy must
- * stay behaviorally identical: "purchase_request" → "PurchaseRequest".
- * Pinned by __tests__/subscription-naming.test.ts here and
- * __tests__/graphql-naming.test.ts on the server.
- */
-export function toPascalCase(name: string): string {
-  const raw = name
-    .split(/[_-]/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-  const sanitized = raw.replace(/[^_0-9A-Za-z]/g, "");
-  return GRAPHQL_NAME_RE.test(sanitized) ? sanitized : `_${sanitized}`;
+export function isAuthEnabled(): boolean {
+  return cachedAppConfig?.authEnabled ?? false;
 }
 
-// ── REST Action execution ───────────────────────────────
-
-export interface ActionResult {
-  success: boolean;
-  data?: unknown;
-  error?: { code: string; message: string; details?: unknown };
-  meta?: { executionId?: string };
+export function isAiEnabled(): boolean {
+  return cachedAppConfig?.aiEnabled ?? false;
 }
 
-/**
- * Execute a named action via REST API.
- */
-export async function executeAction(
-  actionName: string,
-  input: Record<string, unknown>,
-): Promise<ActionResult> {
-  const res = await fetch(`/api/actions/${actionName}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify(input),
-  });
-  if (actionName !== "login") handleUnauthorized(res);
-  return res.json();
+export function getMenuItems(): MenuItemConfig[] {
+  return cachedAppConfig?.menuItems ?? [];
+}
+
+export function getActiveCapabilities(): string[] {
+  return cachedAppConfig?.capabilities ?? [];
 }
