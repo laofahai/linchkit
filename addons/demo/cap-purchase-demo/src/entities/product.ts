@@ -51,8 +51,10 @@ export const productEntity: EntityDefinition = {
     barcode: {
       type: "string",
       unique: true,
-      // EAN-8 through GTIN-14 — digits only
-      pattern: "^[0-9]{8,14}$",
+      // EAN-8 through GTIN-14 — digits only. The trailing `?` lets an empty
+      // string through (the field is optional; a blank UI input submits "")
+      // while still enforcing 8–14 digits whenever a value is provided.
+      pattern: "^([0-9]{8,14})?$",
       label: "t:entities.product.fields.barcode",
       ui: { importance: "primary", width: 4 },
     },
@@ -61,13 +63,13 @@ export const productEntity: EntityDefinition = {
       min: 1,
       default: 1,
       label: "t:entities.product.fields.case_pack_quantity",
-      description: "Units per case (箱规)",
+      description: "Units per case",
       ui: { importance: "secondary", width: 3 },
     },
     unit: {
       type: "string",
       label: "t:entities.product.fields.unit",
-      description: "Unit of measure, e.g. 个/盒/箱",
+      description: "Unit of measure, e.g. pcs/box/case",
       ui: { importance: "secondary", width: 3 },
     },
     unit_price: {

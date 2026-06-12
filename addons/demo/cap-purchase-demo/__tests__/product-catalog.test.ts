@@ -182,9 +182,12 @@ describe("Product validation — generateZodSchema constraints", () => {
     expect(zod.safeParse({ ...validProduct, barcode: "12345678" }).success).toBe(true);
   });
 
-  test("barcode is optional (products without barcodes are allowed)", () => {
+  test("barcode is optional (omitted or empty string are both allowed)", () => {
     const { barcode: _barcode, ...rest } = validProduct;
     expect(zod.safeParse(rest).success).toBe(true);
+    // A blank UI input submits "" — the `^([0-9]{8,14})?$` pattern accepts it
+    // rather than failing validation on an optional field.
+    expect(zod.safeParse({ ...validProduct, barcode: "" }).success).toBe(true);
   });
 
   test("rejects an unknown status", () => {
@@ -262,16 +265,32 @@ describe("Product CRUD round-trip — InMemoryStore + zod gate", () => {
     expect(updated.unit_price).toBe(2.8);
     expect(updated.status).toBe("inactive");
 
-    // A purchase item can reference the product via the relation FK column
+    // A purchase item references BOTH its parent request (NOT-NULL FK column
+    // purchase_request_id from the request_to_items cascade relation) and the
+    // catalog product (product_id FK from item_to_product). InMemoryStore does
+    // not enforce FKs, but we wire the request_id the way PG requires so the
+    // round-trip mirrors production rather than passing on a half-built row.
+    const request = await store.create("purchase_request", {
+      title: "Stationery restock",
+      amount: 28,
+      requester_email: "buyer@example.com",
+    });
     const item = await store.create("purchase_item", {
       name: validProduct.name,
       quantity: 10,
       unit_price: 2.8,
+      purchase_request_id: request.id,
       product_id: created.id,
     });
+    expect(item.purchase_request_id).toBe(request.id);
     expect(item.product_id).toBe(created.id);
 
-    // Delete (soft delete in InMemoryStore — subsequent reads throw)
+    // Delete order honors the item_to_product FK semantics (RESTRICT — the
+    // relation declares no cascade): a product still referenced by an item
+    // cannot be hard-deleted in PG, so production deactivates via
+    // status=inactive instead. Here we remove the referencing item first, then
+    // the product (soft delete in InMemoryStore — subsequent reads throw).
+    await store.delete("purchase_item", String(item.id));
     await store.delete("product", String(created.id));
     await expect(store.get("product", String(created.id))).rejects.toThrow("Record not found");
   });
