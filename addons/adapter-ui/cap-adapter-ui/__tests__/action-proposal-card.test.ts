@@ -102,6 +102,10 @@ describe("swapAlternative", () => {
     expect(next.alternatives?.length).toBe(1);
     const r = next.alternatives?.[0];
     expect(r?.action).toBe("primary_action");
+    expect(r?.input).toEqual({ x: 1 });
+    expect(r?.confidence).toBe(0.6);
+    expect(r?.missingFields).toEqual(["m"]);
+    expect(r?.explanation).toBe("Primary explanation");
     expect(r?.schema).toBe("primary_entity");
     expect(r?.actionLabel).toBe("Primary");
     expect(r?.actionDescription).toBe("Primary description");
@@ -125,8 +129,11 @@ describe("swapAlternative", () => {
     // biome-ignore lint/style/noNonNullAssertion: after is validated by the expect above
     const restored = swapAlternative(after!, 0);
     expect(restored?.action).toBe("primary_action");
+    expect(restored?.input).toEqual({ x: 1 });
+    expect(restored?.confidence).toBe(0.6);
     expect(restored?.schema).toBe("primary_entity");
     expect(restored?.actionLabel).toBe("Primary");
+    expect(restored?.actionDescription).toBe("Primary description");
     expect(restored?.inputSchema).toEqual({ x: { type: "number", required: false } });
   });
   test("swap-IN uses backend-enriched alternative metadata when present", () => {

@@ -54,8 +54,15 @@ export async function queryChatterMessages(
     limit: options.limit ?? 50,
     offset: options.offset ?? 0,
   });
-  // Graceful fallback: if cap-chatter not installed, return empty
+  // Graceful fallback only for the "cap-chatter not installed" case (field not
+  // in schema). Auth errors, permission failures, and server regressions must surface.
   if (res.errors && res.errors.length > 0) {
+    const isMissingCapability = res.errors.every((e) =>
+      e.message.toLowerCase().includes("cannot query field"),
+    );
+    if (!isMissingCapability) {
+      throw new Error(res.errors[0]?.message ?? "GraphQL error");
+    }
     return { items: [], totalCount: 0, hasMore: false };
   }
   return res.data?.chatterMessages ?? { items: [], totalCount: 0, hasMore: false };

@@ -178,7 +178,12 @@ export async function bulkDeleteRecords(
   let failed = 0;
   for (const result of results) {
     if (result.status === "fulfilled") {
-      succeeded++;
+      if (result.value) {
+        succeeded++;
+      } else {
+        failed++;
+        errors.push("Delete mutation returned false");
+      }
     } else {
       failed++;
       errors.push(result.reason instanceof Error ? result.reason.message : String(result.reason));

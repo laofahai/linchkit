@@ -43,7 +43,9 @@ export async function fetchEntities(): Promise<EntityInfo[]> {
 export const fetchSchemas = fetchEntities;
 
 export async function fetchEntityBundle(name: string): Promise<EntityBundle | null> {
-  const res = await fetch(`/api/entities/${name}`, { headers: getAuthHeaders() });
+  const res = await fetch(`/api/entities/${encodeURIComponent(name)}`, {
+    headers: getAuthHeaders(),
+  });
   handleUnauthorized(res);
   if (!res.ok) return null;
   const json = await res.json();
