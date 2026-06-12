@@ -347,6 +347,75 @@ describe("POST /api/ai/resolve-schema-intent — governed persistence", () => {
 
 // ── Scenario 3: AI cannot draft a rule ───────────────────────
 
+// ── Scenario: add_entity draft over the HTTP layer (#575) ──
+
+describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence", () => {
+  let server: ReturnType<typeof createServer>;
+  const ai = fakeAiService({
+    responseContent: JSON.stringify({
+      kind: "add_entity",
+      entity: {
+        name: "product",
+        label: "Product",
+        fields: [
+          { name: "barcode", type: "string", required: false, unique: true },
+          { name: "case_pack_quantity", type: "number", required: false, min: 1 },
+        ],
+      },
+      confidence: 0.9,
+      explanation: "Add a product catalog entity.",
+    }),
+  });
+
+  beforeAll(() => {
+    server = createServer(graphqlSchema, {
+      aiService: ai,
+      ontologyRegistry: buildOntology(),
+    });
+  });
+
+  test("returns an entity_proposal_draft and persists it (draft) into the shared engine", async () => {
+    const { status, json } = await postSchemaIntent(server, {
+      prompt: "增加一个商品管理，支持条码和箱规",
+    });
+    expect(status).toBe(200);
+    const body = json as {
+      outcome: string;
+      entityName?: string;
+      fields?: Array<{ name: string }>;
+      proposalId?: string;
+      proposalStatus?: string;
+      proposal?: { type: string; status: string; diff: { target: string; operation: string } };
+    };
+    expect(body.outcome).toBe("entity_proposal_draft");
+    expect(body.entityName).toBe("product");
+    expect((body.fields ?? []).map((f) => f.name).sort()).toEqual(
+      ["barcode", "case_pack_quantity"].sort(),
+    );
+    // Governed proposal: modify_schema / entity / create, never applied.
+    expect(body.proposal?.type).toBe("modify_schema");
+    expect(body.proposal?.status).toBe("draft");
+    expect(body.proposal?.diff.target).toBe("entity");
+    expect(body.proposal?.diff.operation).toBe("create");
+    expect(typeof body.proposalId).toBe("string");
+    expect(body.proposalStatus).toBe("draft");
+
+    // Persisted into the SAME engine /api/proposals serves, scoped to the entity.
+    const list = await getProposals(server, "product");
+    expect(list.status).toBe(200);
+    expect(list.json.success).toBe(true);
+    const found = list.json.data.items.find((p) => p.id === body.proposalId);
+    expect(found).toBeDefined();
+    if (!found) throw new Error("expected the governed entity draft in /api/proposals");
+    expect(found.status).toBe("draft");
+    const changes = found.changes as Array<{ target: string; operation: string; name: string }>;
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.target).toBe("entity");
+    expect(changes[0]?.operation).toBe("create");
+    expect(changes[0]?.name).toBe("product");
+  });
+});
+
 describe("POST /api/ai/resolve-schema-intent — no match", () => {
   let server: ReturnType<typeof createServer>;
   const ai = fakeAiService({

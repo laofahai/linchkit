@@ -471,20 +471,33 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
     // `add_entity` draft becomes a governed Proposal in the shared engine
     // `/api/proposals` reads from.
     let governed: ProposalDefinition | undefined;
-    if (outcome.kind === "proposal_draft") {
-      governed = persistGovernedRuleDraft({
-        engine: governedEngine,
-        outcome,
-        reasoning: parsed.data.prompt,
-        actor,
-      });
-    } else if (outcome.kind === "entity_proposal_draft") {
-      governed = persistGovernedEntityDraft({
-        engine: governedEngine,
-        outcome,
-        reasoning: parsed.data.prompt,
-        actor,
-      });
+    try {
+      if (outcome.kind === "proposal_draft") {
+        governed = persistGovernedRuleDraft({
+          engine: governedEngine,
+          outcome,
+          reasoning: parsed.data.prompt,
+          actor,
+        });
+      } else if (outcome.kind === "entity_proposal_draft") {
+        governed = persistGovernedEntityDraft({
+          engine: governedEngine,
+          outcome,
+          reasoning: parsed.data.prompt,
+          actor,
+        });
+      }
+    } catch (err) {
+      // persistGovernedEntityDraft throws on a malformed/missing definition (a
+      // defensive guard that should never fire in normal flow). Keep the
+      // structured-error envelope instead of leaking Elysia's default
+      // unstructured 500.
+      const message = err instanceof Error ? err.message : "Failed to persist governed proposal";
+      set.status = 500;
+      return {
+        success: false as const,
+        error: { code: "AI.RESOLVE_SCHEMA_INTENT.FAILED", message },
+      };
     }
 
     return toResponse(outcome, governed);
