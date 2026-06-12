@@ -1,16 +1,4 @@
-/**
- * Execution log API client — query action execution history.
- */
-
-import { type GraphQLResponse, graphql } from "./api";
-
-function throwOnErrors(res: GraphQLResponse): void {
-  const errors = res.errors;
-  if (errors && errors.length > 0) {
-    const firstError = errors.at(0);
-    throw new Error(firstError?.message ?? "Unknown GraphQL error");
-  }
-}
+import { graphql, throwOnErrors } from "./graphql";
 
 export interface ExecutionLogEntry {
   id: string;
@@ -19,6 +7,7 @@ export interface ExecutionLogEntry {
   recordId?: string;
   actor: { type: string; id: string };
   input?: string;
+  output?: string;
   status: "succeeded" | "failed" | "blocked" | "pending_approval";
   error?: { code?: string; message: string };
   stateTransition?: { from: string; to: string };
@@ -32,10 +21,14 @@ export interface ExecutionLogListResult {
   total: number;
 }
 
-/**
- * Query execution logs for a specific schema/record via GraphQL.
- * Uses the auto-generated executionLogList query with standard filter/sort/pagination.
- */
+export interface StateTransitionEntry {
+  from: string;
+  to: string;
+  action: string;
+  actorId: string;
+  startedAt: string;
+}
+
 export async function queryExecutionLogs(options: {
   schema?: string;
   page?: number;
@@ -51,7 +44,6 @@ export async function queryExecutionLogs(options: {
           input
           status duration_ms started_at completed_at
           error_code error_message
-          state_transition_from state_transition_to
         }
         total
       }
@@ -76,25 +68,48 @@ export async function queryExecutionLogs(options: {
     entity: r.entity_name as string | undefined,
     recordId: r.record_id as string | undefined,
     actor: { type: (r.actor_type as string) ?? "system", id: (r.actor_id as string) ?? "unknown" },
-    input:
-      r.input && typeof r.input === "object"
-        ? JSON.stringify(r.input)
-        : (r.input as string | undefined),
+    input: typeof r.input === "object" ? JSON.stringify(r.input) : (r.input as string | undefined),
     status: r.status as ExecutionLogEntry["status"],
     error:
       r.error_code || r.error_message
         ? { code: r.error_code as string | undefined, message: (r.error_message as string) ?? "" }
-        : undefined,
-    stateTransition:
-      r.state_transition_from || r.state_transition_to
-        ? {
-            from: (r.state_transition_from as string) ?? "",
-            to: (r.state_transition_to as string) ?? "",
-          }
         : undefined,
     duration: (r.duration_ms as number) ?? 0,
     startedAt: r.started_at as string,
     completedAt: r.completed_at as string,
   }));
   return { items, total: raw.total };
+}
+
+export async function queryStateTransitions(
+  entityName: string,
+  recordId: string,
+): Promise<StateTransitionEntry[]> {
+  const filter = JSON.stringify({ entity_name: entityName, record_id: recordId });
+  const query = `
+    query ($filter: String) {
+      executionLogList(filter: $filter, pageSize: 50, sortField: "started_at", sortOrder: "asc") {
+        items {
+          action_name actor_id started_at
+          state_transition_from state_transition_to
+        }
+      }
+    }
+  `;
+  const res = await graphql<{
+    executionLogList: {
+      items: Array<Record<string, unknown>>;
+    };
+  }>(query, { filter });
+  const items = res.data?.executionLogList?.items ?? [];
+  // Only return entries that have state transition data
+  return items
+    .filter((r) => r.state_transition_to)
+    .map((r) => ({
+      from: (r.state_transition_from as string) ?? "",
+      to: r.state_transition_to as string,
+      action: r.action_name as string,
+      actorId: (r.actor_id as string) ?? "system",
+      startedAt: r.started_at as string,
+    }));
 }

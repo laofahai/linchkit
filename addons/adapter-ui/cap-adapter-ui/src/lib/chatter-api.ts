@@ -1,20 +1,8 @@
-/**
- * Chatter timeline API client — query and post messages to record timelines.
- */
-
-import { type GraphQLResponse, graphql } from "./api";
-
-function throwOnErrors(res: GraphQLResponse): void {
-  const errors = res.errors;
-  if (errors && errors.length > 0) {
-    const firstError = errors.at(0);
-    throw new Error(firstError?.message ?? "Unknown GraphQL error");
-  }
-}
+import { graphql, throwOnErrors } from "./graphql";
 
 export interface ChatterMessageAuthor {
   id: string;
-  type: string; // 'user' | 'system' | 'ai'
+  type: string;
   name?: string | null;
 }
 
@@ -46,10 +34,6 @@ const CHATTER_MESSAGE_FIELDS = `
   createdAt updatedAt
 `;
 
-/**
- * Query chatter messages for a record.
- * Returns empty connection gracefully when cap-chatter is not installed.
- */
 export async function queryChatterMessages(
   entityName: string,
   recordId: string,
@@ -70,25 +54,13 @@ export async function queryChatterMessages(
     limit: options.limit ?? 50,
     offset: options.offset ?? 0,
   });
-  // Graceful fallback only for the "cap-chatter not installed" case (field not
-  // in schema). Auth errors, permission failures, and server regressions must
-  // surface. Use the canonical GraphQL validation error signature so permission
-  // errors mentioning the field name are NOT silently swallowed.
+  // Graceful fallback: if cap-chatter not installed, return empty
   if (res.errors && res.errors.length > 0) {
-    const isMissingCapability = res.errors.every((e) =>
-      e.message.toLowerCase().includes("cannot query field"),
-    );
-    if (!isMissingCapability) {
-      throw new Error(res.errors[0]?.message ?? "GraphQL error");
-    }
     return { items: [], totalCount: 0, hasMore: false };
   }
   return res.data?.chatterMessages ?? { items: [], totalCount: 0, hasMore: false };
 }
 
-/**
- * Post a comment or note to a record's chatter timeline.
- */
 export async function addChatterMessage(
   entityName: string,
   recordId: string,

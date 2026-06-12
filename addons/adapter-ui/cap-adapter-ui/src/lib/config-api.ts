@@ -1,10 +1,6 @@
-/**
- * Runtime config and ConfigStore KV API client.
- */
-
 import { getAuthHeaders, handleUnauthorized } from "./api";
 
-// ── Runtime Config API ──────────────────────────────────
+// ── Runtime Config API ───────────────────────────────────
 
 export interface ConfigFieldDef {
   type: "string" | "number" | "boolean" | "json";
@@ -33,18 +29,13 @@ export interface ConfigHistoryEntry {
   changedBy?: string;
 }
 
-/** List all registered runtime config namespaces */
 export async function fetchConfigs(): Promise<ConfigItem[]> {
   const res = await fetch("/api/configs", { headers: getAuthHeaders() });
   handleUnauthorized(res);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch configs: ${res.statusText}`);
-  }
   const json = await res.json();
   return json.data?.items ?? [];
 }
 
-/** Get a single runtime config namespace by name */
 export async function fetchConfig(name: string): Promise<ConfigItem | null> {
   const res = await fetch(`/api/configs/${encodeURIComponent(name)}`, {
     headers: getAuthHeaders(),
@@ -55,7 +46,6 @@ export async function fetchConfig(name: string): Promise<ConfigItem | null> {
   return json.data ?? null;
 }
 
-/** Update field values for a runtime config namespace */
 export async function updateConfigValues(
   name: string,
   values: Record<string, unknown>,
@@ -71,7 +61,6 @@ export async function updateConfigValues(
   return json.data;
 }
 
-/** Get version history for a runtime config namespace */
 export async function fetchConfigHistory(
   name: string,
   field?: string,
@@ -85,7 +74,7 @@ export async function fetchConfigHistory(
   return json.data?.items ?? [];
 }
 
-// ── ConfigStore KV API (spec 42 — dynamic config with scope cascade) ──
+// ── ConfigStore KV API (Spec 42 — dynamic config with scope cascade) ────────
 
 export type ConfigStoreScope = "global" | "tenant" | "department" | "user";
 
@@ -121,7 +110,6 @@ export interface ConfigStoreVersion {
   changeReason?: string;
 }
 
-/** List all entries in a ConfigStore namespace */
 export async function fetchConfigStoreEntries(
   namespace: string,
   scope?: ConfigStoreScopeRef,
@@ -137,7 +125,6 @@ export async function fetchConfigStoreEntries(
   return json.data?.items ?? [];
 }
 
-/** Get a single ConfigStore value */
 export async function fetchConfigStoreValue(
   namespace: string,
   key: string,
@@ -154,7 +141,6 @@ export async function fetchConfigStoreValue(
   return json.data?.value;
 }
 
-/** Set a ConfigStore value */
 export async function setConfigStoreValue(
   namespace: string,
   key: string,
@@ -178,7 +164,6 @@ export async function setConfigStoreValue(
   if (!json.success) throw new Error(json.error?.message ?? "Failed to set config value");
 }
 
-/** Delete a ConfigStore entry */
 export async function deleteConfigStoreEntry(
   namespace: string,
   key: string,
@@ -195,7 +180,6 @@ export async function deleteConfigStoreEntry(
   if (!json.success) throw new Error(json.error?.message ?? "Failed to delete config entry");
 }
 
-/** Get version history for a ConfigStore key */
 export async function fetchConfigStoreHistory(
   namespace: string,
   key: string,
@@ -212,7 +196,6 @@ export async function fetchConfigStoreHistory(
   return json.data?.items ?? [];
 }
 
-/** Rollback a ConfigStore key to a specific version */
 export async function rollbackConfigStoreEntry(
   namespace: string,
   key: string,
