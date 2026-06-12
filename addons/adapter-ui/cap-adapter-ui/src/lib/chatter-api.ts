@@ -75,10 +75,8 @@ export async function queryChatterMessages(
   // surface. Use the canonical GraphQL validation error signature so permission
   // errors mentioning the field name are NOT silently swallowed.
   if (res.errors && res.errors.length > 0) {
-    const isMissingCapability = res.errors.every(
-      (e) =>
-        (e as { extensions?: { code?: string } }).extensions?.code ===
-          "GRAPHQL_VALIDATION_FAILED" && e.message.toLowerCase().includes("cannot query field"),
+    const isMissingCapability = res.errors.every((e) =>
+      e.message.toLowerCase().includes("cannot query field"),
     );
     if (!isMissingCapability) {
       throw new Error(res.errors[0]?.message ?? "GraphQL error");

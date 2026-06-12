@@ -41,6 +41,11 @@ export function isAppConfigLoaded(): boolean {
   return cachedAppConfig !== null;
 }
 
+/** Returns true while an in-flight fetchAppConfig() request is pending. */
+export function isConfigFetching(): boolean {
+  return fetchPromise !== null;
+}
+
 /**
  * Fetch app config from the server.
  * Only caches on successful fetch — errors are not cached so the next
