@@ -38,11 +38,13 @@
   },
   "devDependencies": {
     "@linchkit/cap-adapter-ag-ui": "workspace:*",
+    "@linchkit/cap-adapter-mcp": "workspace:*",
     "@linchkit/cap-ai-provider": "workspace:*",
     "@linchkit/cap-chatter": "workspace:*",
     "@linchkit/cap-dry-run": "workspace:*",
     "@linchkit/cap-permission": "workspace:*",
     "@linchkit/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "typescript": "^6.0.2"
   },
   "linchkit": {
