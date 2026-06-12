@@ -47,6 +47,14 @@ function makeOntology(): SchemaIntentOntology {
   };
 }
 
+/** A fresh, zero-entity deployment — the 说→有 first-entity case. */
+function makeEmptyOntology(): SchemaIntentOntology {
+  return {
+    listEntities: () => [],
+    describeEntity: () => undefined,
+  };
+}
+
 // ── Fake AIService (dependency injection — no global reassignment) ──
 
 function makeFakeAi(content: string): { service: AIService; calls: AICompletionOptions[] } {
@@ -231,6 +239,53 @@ describe("resolveSchemaIntent — add_entity proposal draft (exemplar #575)", ()
     expect(outcome.relation).toBeUndefined();
     const def = outcome.proposal.diff.definition as Record<string, unknown>;
     expect(def.relation).toBeUndefined();
+  });
+});
+
+// ── Empty catalog: add_entity must work on a fresh deployment ─
+
+describe("resolveSchemaIntent — add_entity on an empty catalog (说→有 first entity)", () => {
+  const firstEntityResponse = JSON.stringify({
+    kind: "add_entity",
+    entity: {
+      name: "product",
+      fields: [{ name: "barcode", type: "string", required: false, label: "条码", unique: true }],
+    },
+    confidence: 0.9,
+    explanation: "第一个实体。",
+  });
+
+  it("drafts the first entity instead of returning no_entities_in_scope", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(firstEntityResponse);
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品管理" },
+      { provider: service, ontology: makeEmptyOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("entity_proposal_draft");
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+    expect(outcome.entityName).toBe("product");
+    expect(engine.size).toBe(1);
+  });
+
+  it("still rejects an add_rule on an empty catalog (guard moved, not removed)", async () => {
+    const ruleResponse = JSON.stringify({
+      kind: "add_rule",
+      entity: "product",
+      rule: { name: "r", condition: {}, effect: {} },
+      confidence: 0.9,
+      explanation: "x",
+    });
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(ruleResponse);
+    const outcome = await resolveSchemaIntent(
+      { utterance: "当金额大于100时拦截" },
+      { provider: service, ontology: makeEmptyOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("no_entities_in_scope");
+    expect(engine.size).toBe(0);
   });
 });
 

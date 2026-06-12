@@ -150,11 +150,11 @@ export async function resolveSchemaIntent(
     utterance = result.sanitized;
   }
 
-  // Step 2 — Build the entity catalog (grounding metadata).
+  // Step 2 — Build the entity catalog (grounding metadata). An EMPTY catalog is
+  // NOT rejected here: `add_entity` must work on a fresh, zero-entity deployment
+  // (the 说→有 first-entity case). The empty-catalog guard is applied later, only
+  // to the rule paths, which always need an existing target entity.
   const catalog = buildEntityCatalog(deps.ontology);
-  if (catalog.length === 0) {
-    return noMatch("no_entities_in_scope", SCHEMA_INTENT_MESSAGES.noEntitiesInScope);
-  }
   const catalogIndex = new Map(catalog.map((entry) => [entry.name, entry]));
 
   // Step 3 — Build the focused system prompt + compose messages. History is
@@ -219,7 +219,11 @@ export async function resolveSchemaIntent(
     return resolveAddEntity(parsed, deps, minConfidence, utterance);
   }
 
-  // kind === "add_rule" | "update_rule"
+  // kind === "add_rule" | "update_rule": both target an EXISTING entity, so an
+  // empty catalog cannot satisfy them (unlike add_entity, handled above).
+  if (catalog.length === 0) {
+    return noMatch("no_entities_in_scope", SCHEMA_INTENT_MESSAGES.noEntitiesInScope);
+  }
   const confidence = clampConfidence(parsed.confidence);
   if (confidence < minConfidence) {
     return {
