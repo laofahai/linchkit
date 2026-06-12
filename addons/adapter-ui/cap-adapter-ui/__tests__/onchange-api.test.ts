@@ -25,7 +25,7 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
-import { requestEntityOnchange } from "../src/lib/entity-api";
+import { requestEntityOnchange } from "../src/lib/entity-meta";
 
 interface CapturedRequest {
   url: string;
