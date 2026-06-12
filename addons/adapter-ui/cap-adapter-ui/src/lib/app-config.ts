@@ -34,6 +34,7 @@ export interface AppConfig {
 }
 
 let cachedAppConfig: AppConfig | null = null;
+let fetchPromise: Promise<AppConfig> | null = null;
 
 /** Returns true once fetchAppConfig() has successfully populated the cache. */
 export function isAppConfigLoaded(): boolean {
@@ -44,9 +45,12 @@ export function isAppConfigLoaded(): boolean {
  * Fetch app config from the server.
  * Only caches on successful fetch — errors are not cached so the next
  * page load will retry (prevents permanent empty menus after startup glitch).
+ * Concurrent callers share one in-flight request; the promise is cleared on
+ * settlement so a subsequent call after an error will retry.
  */
 export async function fetchAppConfig(): Promise<AppConfig> {
   if (cachedAppConfig) return cachedAppConfig;
+  if (fetchPromise) return fetchPromise;
   const fallback: AppConfig = {
     authEnabled: false,
     aiEnabled: false,
@@ -54,19 +58,22 @@ export async function fetchAppConfig(): Promise<AppConfig> {
     pages: [],
     menuItems: [],
   };
-  try {
-    const res = await fetch("/api/app-config");
-    const json = await res.json();
-    if (json.data) {
-      cachedAppConfig = json.data;
-      return cachedAppConfig as AppConfig;
+  fetchPromise = (async () => {
+    try {
+      const res = await fetch("/api/app-config");
+      const json = await res.json();
+      if (json.data) {
+        cachedAppConfig = json.data;
+        return cachedAppConfig as AppConfig;
+      }
+      return fallback;
+    } catch {
+      return fallback;
+    } finally {
+      fetchPromise = null;
     }
-    // Server responded but returned no data — don't cache, return fallback
-    return fallback;
-  } catch {
-    // Server unreachable — return fallback without caching so next load retries
-    return fallback;
-  }
+  })();
+  return fetchPromise;
 }
 
 /**
