@@ -53,7 +53,17 @@ export function generateZodSchema(
 
     // Apply optional/required — nullable for types that use null as empty value
     if (!field.required) {
-      zodType = zodType.nullable().optional();
+      const optional = zodType.nullable().optional();
+      // A blank submission ("") for an optional string/text field is treated as
+      // absent rather than an empty value. Two reasons: (1) it must not trip
+      // pattern/format validation meant for real values, and (2) — critically —
+      // a NULL is exempt from a PostgreSQL unique index, whereas "" is a concrete
+      // value that collides across rows. A blank UI input therefore normalizes to
+      // undefined here instead of failing validation or being stored as "".
+      zodType =
+        field.type === "string" || field.type === "text"
+          ? z.preprocess((v) => (v === "" ? undefined : v), optional)
+          : optional;
     }
 
     shape[fieldName] = zodType;
@@ -147,6 +157,9 @@ function applyStringConstraints(schema: z.ZodString, field: FieldDefinition): z.
 function applyNumberConstraints(schema: z.ZodNumber, field: FieldDefinition): z.ZodNumber {
   let result = schema;
 
+  if (field.integer) {
+    result = result.int();
+  }
   if (field.min != null) {
     result = result.min(field.min);
   }

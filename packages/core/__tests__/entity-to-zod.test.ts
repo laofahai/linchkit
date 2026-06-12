@@ -49,6 +49,52 @@ describe("generateZodSchema", () => {
     expect(zodSchema.safeParse({ amount: 101 }).success).toBe(false);
   });
 
+  test("number field with integer: true rejects fractional values", () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        count: { type: "number", required: true, min: 1, integer: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    expect(zodSchema.safeParse({ count: 1.5 }).success).toBe(false);
+    expect(zodSchema.safeParse({ count: 3 }).success).toBe(true);
+    // The integer constraint composes with min
+    expect(zodSchema.safeParse({ count: 0 }).success).toBe(false);
+  });
+
+  test('optional string/text fields normalize a blank "" to absent (undefined)', () => {
+    const schema: EntityDefinition = {
+      name: "test",
+      fields: {
+        // Optional + pattern: a blank submission must NOT trip the pattern, and
+        // must normalize to undefined so it is exempt from any unique index.
+        code: { type: "string", pattern: "^[0-9]{3}$" },
+        note: { type: "text" },
+        label: { type: "string", required: true },
+      },
+    };
+
+    const zodSchema = generateZodSchema(schema);
+
+    const blank = zodSchema.safeParse({ label: "x", code: "", note: "" });
+    expect(blank.success).toBe(true);
+    expect(blank.data?.code).toBeUndefined();
+    expect(blank.data?.note).toBeUndefined();
+
+    // A real value still flows through the pattern validation
+    expect(zodSchema.safeParse({ label: "x", code: "123" }).success).toBe(true);
+    expect(zodSchema.safeParse({ label: "x", code: "12" }).success).toBe(false);
+
+    // Coercion is optional-only: a required field keeps its raw value ("" is not
+    // turned into undefined, so it does not become a missing-required error here).
+    const reqBlank = zodSchema.safeParse({ label: "" });
+    expect(reqBlank.success).toBe(true);
+    expect(reqBlank.data?.label).toBe("");
+  });
+
   test("required fields are not optional", () => {
     const schema: EntityDefinition = {
       name: "test",

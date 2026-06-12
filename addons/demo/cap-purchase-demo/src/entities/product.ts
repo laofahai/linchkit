@@ -51,16 +51,17 @@ export const productEntity: EntityDefinition = {
     barcode: {
       type: "string",
       unique: true,
-      // EAN-8 through GTIN-14 — digits only. The trailing `?` lets an empty
-      // string through (the field is optional; a blank UI input submits "")
-      // while still enforcing 8–14 digits whenever a value is provided.
-      pattern: "^([0-9]{8,14})?$",
+      // EAN-8 through GTIN-14 — digits only. The field is optional; a blank UI
+      // input ("") is normalized to absent (NULL) by the schema generator, so it
+      // neither trips this pattern nor collides on the unique index.
+      pattern: "^[0-9]{8,14}$",
       label: "t:entities.product.fields.barcode",
       ui: { importance: "primary", width: 4 },
     },
     case_pack_quantity: {
       type: "number",
       min: 1,
+      integer: true,
       default: 1,
       label: "t:entities.product.fields.case_pack_quantity",
       description: "Units per case",

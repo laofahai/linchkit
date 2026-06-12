@@ -170,6 +170,11 @@ describe("Product validation — generateZodSchema constraints", () => {
     expect(zod.safeParse({ ...validProduct, case_pack_quantity: 1 }).success).toBe(true);
   });
 
+  test("rejects a fractional case_pack_quantity (a case pack is a whole count)", () => {
+    expect(zod.safeParse({ ...validProduct, case_pack_quantity: 1.5 }).success).toBe(false);
+    expect(zod.safeParse({ ...validProduct, case_pack_quantity: 12 }).success).toBe(true);
+  });
+
   test("rejects a negative unit_price", () => {
     expect(zod.safeParse({ ...validProduct, unit_price: -0.01 }).success).toBe(false);
     expect(zod.safeParse({ ...validProduct, unit_price: 0 }).success).toBe(true);
@@ -182,12 +187,16 @@ describe("Product validation — generateZodSchema constraints", () => {
     expect(zod.safeParse({ ...validProduct, barcode: "12345678" }).success).toBe(true);
   });
 
-  test("barcode is optional (omitted or empty string are both allowed)", () => {
+  test('barcode is optional — a blank input normalizes to absent, not stored as ""', () => {
     const { barcode: _barcode, ...rest } = validProduct;
     expect(zod.safeParse(rest).success).toBe(true);
-    // A blank UI input submits "" — the `^([0-9]{8,14})?$` pattern accepts it
-    // rather than failing validation on an optional field.
-    expect(zod.safeParse({ ...validProduct, barcode: "" }).success).toBe(true);
+    // A blank UI input submits "". The schema generator normalizes it to absent
+    // (undefined) rather than storing "" — "" is a concrete value that would
+    // collide on the barcode unique index, whereas an omitted/NULL barcode is
+    // unique-exempt in PostgreSQL.
+    const blank = zod.safeParse({ ...validProduct, barcode: "" });
+    expect(blank.success).toBe(true);
+    expect(blank.data?.barcode).toBeUndefined();
   });
 
   test("rejects an unknown status", () => {
