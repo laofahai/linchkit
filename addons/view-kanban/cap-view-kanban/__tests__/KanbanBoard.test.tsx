@@ -26,9 +26,9 @@ const transitionRecordMock = mock(
   }),
 );
 
-const apiActual = await import("@linchkit/cap-adapter-ui/lib/api");
-mock.module("@linchkit/cap-adapter-ui/lib/api", () => ({
-  ...apiActual,
+const entityApiActual = await import("@linchkit/cap-adapter-ui/lib/entity-api");
+mock.module("@linchkit/cap-adapter-ui/lib/entity-api", () => ({
+  ...entityApiActual,
   transitionRecord: transitionRecordMock,
 }));
 
