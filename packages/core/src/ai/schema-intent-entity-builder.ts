@@ -162,8 +162,17 @@ export function buildEntityDefinition(
   }
 
   // ── Optional relation ──
+  // Treat the relation as ABSENT when it is undefined, null, or an empty object
+  // with no `from` endpoint. LLMs sometimes emit `relation: {}` as a "no relation"
+  // placeholder instead of omitting the key — without this, `{}` would reach
+  // buildRelation, fail on the missing `from`, and reject the entire (valid)
+  // entity draft rather than just dropping the empty relation.
   let relation: BuiltEntityDraft["relation"];
-  if (relationRaw !== undefined && relationRaw !== null) {
+  const hasRelationBody =
+    relationRaw !== undefined &&
+    relationRaw !== null &&
+    typeof (relationRaw as Record<string, unknown>).from !== "undefined";
+  if (hasRelationBody) {
     const built = buildRelation(relationRaw, entityName, ontology);
     if (!built.ok) return { ok: false, reason: built.reason };
     relation = built.value;

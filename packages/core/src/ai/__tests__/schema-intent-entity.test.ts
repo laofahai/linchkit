@@ -365,6 +365,29 @@ describe("resolveSchemaIntent — add_entity validation", () => {
     expect(outcome.relation?.toName).toBe("categories");
   });
 
+  it("treats an empty `relation: {}` placeholder as absent, not a hard failure", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: { name: "product", fields: [{ name: "barcode", type: "string", required: false }] },
+        // LLMs sometimes emit `{}` instead of omitting the key — must not kill
+        // the otherwise-valid entity draft.
+        relation: {},
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("entity_proposal_draft");
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+    expect(outcome.relation).toBeUndefined();
+    expect(engine.size).toBe(1);
+  });
+
   it("rejects an entity declaring a server-managed system field", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(
