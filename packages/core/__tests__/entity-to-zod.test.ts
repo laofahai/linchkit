@@ -65,24 +65,31 @@ describe("generateZodSchema", () => {
     expect(zodSchema.safeParse({ count: 0 }).success).toBe(false);
   });
 
-  test('optional string/text fields normalize a blank "" to absent (undefined)', () => {
+  test('a blank "" on a CONSTRAINED optional string normalizes to absent; plain strings keep ""', () => {
     const schema: EntityDefinition = {
       name: "test",
       fields: {
-        // Optional + pattern: a blank submission must NOT trip the pattern, and
-        // must normalize to undefined so it is exempt from any unique index.
+        // Constrained optional strings: a blank submission must NOT trip the
+        // pattern/format, and must normalize to undefined so it is exempt from a
+        // unique index.
         code: { type: "string", pattern: "^[0-9]{3}$" },
-        note: { type: "text" },
+        sku: { type: "string", unique: true },
+        contact: { type: "string", format: "email" },
+        // Unconstrained optional string: "" is preserved verbatim (so an explicit
+        // clear-to-empty is not silently dropped to a no-op on partial updates).
+        plain: { type: "text" },
         label: { type: "string", required: true },
       },
     };
 
     const zodSchema = generateZodSchema(schema);
 
-    const blank = zodSchema.safeParse({ label: "x", code: "", note: "" });
+    const blank = zodSchema.safeParse({ label: "x", code: "", sku: "", contact: "", plain: "" });
     expect(blank.success).toBe(true);
     expect(blank.data?.code).toBeUndefined();
-    expect(blank.data?.note).toBeUndefined();
+    expect(blank.data?.sku).toBeUndefined();
+    expect(blank.data?.contact).toBeUndefined();
+    expect(blank.data?.plain).toBe("");
 
     // A real value still flows through the pattern validation
     expect(zodSchema.safeParse({ label: "x", code: "123" }).success).toBe(true);

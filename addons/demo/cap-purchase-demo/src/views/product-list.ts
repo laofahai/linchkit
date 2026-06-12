@@ -28,12 +28,10 @@ export const productListView: ViewDefinition = {
       variant: "default",
     },
     { action: "edit", label: "t:common.edit", position: "row" },
-    {
-      action: "delete",
-      label: "t:common.delete",
-      position: "row",
-      variant: "destructive",
-      confirm: "t:confirm.deleteDescription",
-    },
+    // No destructive hard-delete on the catalog list: a product referenced by a
+    // purchase_item cannot be removed (itemToProduct is FK-RESTRICT, which keeps
+    // historical purchase records intact). Catalog lifecycle is handled by the
+    // `status` field — a discontinued product is set to `inactive` via edit,
+    // not deleted.
   ],
 };

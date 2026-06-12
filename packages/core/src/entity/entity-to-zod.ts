@@ -54,16 +54,21 @@ export function generateZodSchema(
     // Apply optional/required — nullable for types that use null as empty value
     if (!field.required) {
       const optional = zodType.nullable().optional();
-      // A blank submission ("") for an optional string/text field is treated as
-      // absent rather than an empty value. Two reasons: (1) it must not trip
-      // pattern/format validation meant for real values, and (2) — critically —
-      // a NULL is exempt from a PostgreSQL unique index, whereas "" is a concrete
-      // value that collides across rows. A blank UI input therefore normalizes to
-      // undefined here instead of failing validation or being stored as "".
-      zodType =
-        field.type === "string" || field.type === "text"
-          ? z.preprocess((v) => (v === "" ? undefined : v), optional)
-          : optional;
+      // A blank submission ("") for an optional string/text field that carries a
+      // value-shape constraint (unique / pattern / format) is normalized to absent
+      // rather than treated as an empty value. Two reasons: (1) "" must not trip a
+      // pattern/format meant for real values, and (2) — critically — a NULL is
+      // exempt from a PostgreSQL unique index, whereas "" is a concrete value that
+      // collides across rows. The coercion is scoped to constrained fields on
+      // purpose: an unconstrained optional string keeps "" verbatim, so callers
+      // that intentionally clear a field to "" are not silently turned into a
+      // no-op (undefined) on partial updates.
+      const isConstrainedString =
+        (field.type === "string" || field.type === "text") &&
+        Boolean(field.unique || field.pattern != null || field.format != null);
+      zodType = isConstrainedString
+        ? z.preprocess((v) => (v === "" ? undefined : v), optional)
+        : optional;
     }
 
     shape[fieldName] = zodType;
