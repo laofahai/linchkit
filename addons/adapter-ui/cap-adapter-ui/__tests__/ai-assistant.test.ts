@@ -6,13 +6,27 @@ import { decideIntentRouting } from "../src/components/ai-assistant";
 import type { IntentResolution } from "../src/lib/ai-api";
 
 function makeIntent(overrides: Partial<IntentResolution> = {}): IntentResolution {
-  return { action: "create_department", schema: "department", input: { name: "Operations Management Center" }, missingFields: [], confidence: 0.6, explanation: "Create a department", actionLabel: "Create Department", actionDescription: "Create a new department record", inputSchema: { name: { type: "string", required: true } }, ...overrides };
+  return {
+    action: "create_department",
+    schema: "department",
+    input: { name: "Operations Management Center" },
+    missingFields: [],
+    confidence: 0.6,
+    explanation: "Create a department",
+    actionLabel: "Create Department",
+    actionDescription: "Create a new department record",
+    inputSchema: { name: { type: "string", required: true } },
+    ...overrides,
+  };
 }
 
 describe("decideIntentRouting (issue #238)", () => {
   test("routes a high-confidence proposal to the proposal card", () => {
     const proposal = makeIntent({ confidence: 0.9 });
-    expect(decideIntentRouting({ kind: "proposal", proposal })).toEqual({ kind: "proposal", proposal });
+    expect(decideIntentRouting({ kind: "proposal", proposal })).toEqual({
+      kind: "proposal",
+      proposal,
+    });
   });
   test("routes a low-confidence proposal to the proposal card (no chat fallback)", () => {
     const proposal = makeIntent({ confidence: 0.3 });
@@ -30,7 +44,10 @@ describe("decideIntentRouting (issue #238)", () => {
     expect(decideIntentRouting({ kind: "no-match" })).toEqual({ kind: "chat-fallback" });
   });
   test("routes an unavailable outcome to chat fallback with service-unavailable notice", () => {
-    expect(decideIntentRouting({ kind: "unavailable" })).toEqual({ kind: "chat-fallback", notify: "service-unavailable" });
+    expect(decideIntentRouting({ kind: "unavailable" })).toEqual({
+      kind: "chat-fallback",
+      notify: "service-unavailable",
+    });
   });
   test("routes a transport-error outcome to chat fallback (no toast)", () => {
     expect(decideIntentRouting({ kind: "transport-error" })).toEqual({ kind: "chat-fallback" });
