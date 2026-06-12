@@ -304,7 +304,11 @@ function resolveAddEntity(
   if (confidence < minConfidence) {
     return {
       kind: "clarification",
-      question: SCHEMA_INTENT_MESSAGES.lowConfidenceClarification,
+      // Entity-specific wording: this branch is only reached for an `add_entity`
+      // intent, so the rule-oriented `lowConfidenceClarification` ("what rule…
+      // what condition") would be confusing — the user asked to create a record
+      // type, not a rule.
+      question: SCHEMA_INTENT_MESSAGES.lowConfidenceEntityClarification,
       bestConfidence: confidence,
     };
   }

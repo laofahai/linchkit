@@ -41,6 +41,8 @@ export const SCHEMA_INTENT_MESSAGES = {
   missingUpdateDiff: "AI proposed a code-backed rule update without describing what should change",
   lowConfidenceClarification:
     "I'm not sure what rule you want. Could you describe the condition and what should happen when it matches?",
+  lowConfidenceEntityClarification:
+    "I'm not sure what to create. Could you describe the record type you want and the key fields it should have?",
   multiIntentClarification:
     "I detected both a request to create a new entity and a business rule. Should I draft the new entity first? The rule can be a separate follow-up.",
 } as const;

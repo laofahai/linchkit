@@ -237,6 +237,28 @@ describe("resolveSchemaIntent — add_entity proposal draft (exemplar #575)", ()
 // ── Validation: system fields / relation endpoints ───────────
 
 describe("resolveSchemaIntent — add_entity validation", () => {
+  it("asks an entity-specific clarification (not the rule one) on low confidence", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: { name: "product", fields: [{ name: "barcode", type: "string", required: false }] },
+        confidence: 0.2,
+        explanation: "unsure",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "搞个商品什么的" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("clarification");
+    if (outcome.kind !== "clarification") throw new Error("expected clarification");
+    // The add_entity path must not fall back to the rule-oriented wording.
+    expect(outcome.question).not.toMatch(/rule|condition/i);
+    expect(outcome.question.toLowerCase()).toContain("create");
+    expect(engine.size).toBe(0);
+  });
+
   it("rejects an entity declaring a server-managed system field", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(
