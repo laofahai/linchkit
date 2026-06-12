@@ -29,11 +29,19 @@
 import type {
   Actor,
   AIService,
+  EntityDefinition,
   ProposalChange,
   ProposalDefinition,
   RuleDefinition,
 } from "@linchkit/core";
-import type { Proposal, SchemaIntentOutcome, SchemaIntentProposalDraft } from "@linchkit/core/ai";
+import type {
+  Proposal,
+  SchemaIntentEntityFieldDraft,
+  SchemaIntentEntityProposalDraft,
+  SchemaIntentOutcome,
+  SchemaIntentProposalDraft,
+  SchemaIntentRelationDraft,
+} from "@linchkit/core/ai";
 import {
   ProposalEngine,
   REQUIRES_CODE_CHANGE_MARKER,
@@ -94,6 +102,12 @@ export interface ResolveSchemaIntentResponse {
   operation?: "create" | "update";
   ruleName?: string;
   targetEntity?: string;
+  /** Present only for `entity_proposal_draft` — the new entity's name. */
+  entityName?: string;
+  /** Present only for `entity_proposal_draft` — the validated field drafts. */
+  fields?: SchemaIntentEntityFieldDraft[];
+  /** Present only for `entity_proposal_draft` when a relation was drafted. */
+  relation?: SchemaIntentRelationDraft;
   confidence?: number;
   explanation?: string;
   /** Present only for update drafts — human-readable diff vs the existing rule. */
@@ -110,6 +124,11 @@ export interface ResolveSchemaIntentResponse {
   /** Present only for `clarification`. */
   question?: string;
   bestConfidence?: number;
+  /**
+   * Present only for `clarification` when the utterance carried BOTH an entity
+   * and a rule intent (issue #575 multi-intent guard).
+   */
+  detectedIntents?: Array<"add_entity" | "add_rule">;
   /** Present only for `no_match`. */
   reason?: string;
   message?: string;
@@ -140,11 +159,24 @@ function toResponse(
         ...(outcome.diffSummary !== undefined ? { diffSummary: outcome.diffSummary } : {}),
         ...(outcome.requiresCodeChange ? { requiresCodeChange: true } : {}),
       };
+    case "entity_proposal_draft":
+      return {
+        outcome: "entity_proposal_draft",
+        proposal: outcome.proposal,
+        proposalId: governed?.id,
+        proposalStatus: governed?.status,
+        entityName: outcome.entityName,
+        fields: outcome.fields,
+        ...(outcome.relation ? { relation: outcome.relation } : {}),
+        confidence: outcome.confidence,
+        explanation: outcome.explanation,
+      };
     case "clarification":
       return {
         outcome: "clarification",
         question: outcome.question,
         bestConfidence: outcome.bestConfidence,
+        ...(outcome.detectedIntents ? { detectedIntents: outcome.detectedIntents } : {}),
       };
     case "no_match":
       return {
@@ -238,6 +270,64 @@ function persistGovernedRuleDraft(opts: {
     // proposal-api.ts (capability = entity name).
     capability: targetEntity,
     // Adding or updating a single business rule is a minor change.
+    changeType: "minor",
+    changes: [change],
+  });
+}
+
+/**
+ * Persist a resolver-produced `add_entity` draft into the shared GOVERNED engine
+ * (issue #575). The resolver runs ALL of its structural validation first
+ * (snake_case singular name, no system-field collisions, valid field types,
+ * valid relation endpoints). By the time we reach here the draft carries a
+ * validated, typed `EntityDefinition`; we translate it into a single governed
+ * `ProposalChange` (`{ target: "entity", operation: "create", name, definition }`)
+ * in `draft` status. It is NEVER submitted, approved, or applied here.
+ *
+ * A drafted relation rides along inside the resolver draft's definition (so the
+ * downstream code generator can emit both); the governed change records the
+ * entity as the primary target. Persisting the relation as its own first-class
+ * governed change is a deferred follow-up — there is no `"relation"` governed
+ * ProposalChangeTarget today.
+ *
+ * Returns `undefined` when the draft does not carry a usable entity definition
+ * (defensive — the resolver only emits `entity_proposal_draft` with a built
+ * entity, but we never want a malformed change to reach the engine).
+ */
+function persistGovernedEntityDraft(opts: {
+  engine: GovernedProposalEngine;
+  outcome: SchemaIntentEntityProposalDraft;
+  reasoning: string;
+  actor: Actor;
+}): ProposalDefinition | undefined {
+  const { engine, outcome, reasoning, actor } = opts;
+  const { proposal: draft, entityName, explanation } = outcome;
+
+  const definition = draft.diff?.definition;
+  if (!definition || typeof definition !== "object") return undefined;
+  // The resolver draft carries a drafted relation alongside the entity
+  // (`{ ...entityDef, relation }`). The governed `entity` change's `definition`
+  // must be a clean `EntityDefinition`, so strip the relation extra here — the
+  // relation surfaces separately in the API response (`outcome.relation`) for the
+  // review UI; persisting it as its own governed change is a deferred follow-up.
+  const { relation: _relation, ...entityRest } = definition as Record<string, unknown>;
+  const entityDefinition = entityRest as unknown as EntityDefinition;
+
+  const change: ProposalChange = {
+    target: "entity",
+    operation: "create",
+    name: entityName,
+    definition: entityDefinition,
+    diff: explanation,
+  };
+
+  return engine.createProposal({
+    title: explanation,
+    description: `${reasoning}\n\n(Requested by ${actor.type}:${actor.id})`,
+    author: { type: "ai", id: "schema-intent-resolver", name: "Schema Intent Resolver" },
+    // The new entity is its own governed capability/grouping key.
+    capability: entityName,
+    // A new entity is an additive, minor change.
     changeType: "minor",
     changes: [change],
   });
@@ -352,13 +442,21 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
       draftEngine.clear();
     }
 
-    // ── Persist the GOVERNED draft (only for a real proposed rule) ──
+    // ── Persist the GOVERNED draft (only for a real proposed rule/entity) ──
     // `clarification` / `no_match` are NOT governed changes — nothing is
-    // persisted for them. Only a validated `add_rule` draft becomes a governed
-    // Proposal in the shared engine `/api/proposals` reads from.
+    // persisted for them. Only a validated `add_rule` / `update_rule` /
+    // `add_entity` draft becomes a governed Proposal in the shared engine
+    // `/api/proposals` reads from.
     let governed: ProposalDefinition | undefined;
     if (outcome.kind === "proposal_draft") {
       governed = persistGovernedRuleDraft({
+        engine: governedEngine,
+        outcome,
+        reasoning: parsed.data.prompt,
+        actor,
+      });
+    } else if (outcome.kind === "entity_proposal_draft") {
+      governed = persistGovernedEntityDraft({
         engine: governedEngine,
         outcome,
         reasoning: parsed.data.prompt,

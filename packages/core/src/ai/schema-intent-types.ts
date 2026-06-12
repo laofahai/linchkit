@@ -12,21 +12,23 @@
  *     `draft` status. Nothing is ever auto-submitted or applied — that is
  *     the repo principle "AI Never Modifies Production Directly".
  *
- * Scope (intentionally narrow):
- *   - `add_rule` + `update_rule` ONLY (no rename/delete, no multi-rule edits).
- *     Entity / field / view creation are later slices.
- *   - Single-shot (no multi-turn). The resolver returns one of three
- *     outcomes and stops.
+ * Scope:
+ *   - `add_rule` + `update_rule` (no rename/delete, no multi-rule edits).
+ *   - `add_entity` — draft a new `defineEntity()` (+ an optional first-class
+ *     `defineRelation()` to an existing entity). Field/view creation beyond a
+ *     single new entity + one relation are later slices (issue #575).
+ *   - Single-shot (no multi-turn). The resolver returns one outcome and stops.
  *   - Stops at `draft`. The caller never submits/applies from this path.
  *
  * The headline type is `SchemaIntentOutcome` — a discriminated union
- * mirroring the four-state shape of `Intent`, collapsed to the three
- * outcomes meaningful for a schema-change proposal:
+ * mirroring the four-state shape of `Intent`, collapsed to the outcomes
+ * meaningful for a schema-change proposal:
  *
- *   - `SchemaIntentProposalDraft` — a governed `add_rule` / `update_rule`
+ *   - `SchemaIntentProposalDraft`       — a governed `add_rule` / `update_rule`
  *     Proposal (draft).
- *   - `SchemaIntentClarification` — low confidence; ask the user a question.
- *   - `SchemaIntentNoMatch`       — graceful degradation / no usable rule.
+ *   - `SchemaIntentEntityProposalDraft` — a governed `add_entity` Proposal (draft).
+ *   - `SchemaIntentClarification`       — low confidence / mixed intent; ask the user.
+ *   - `SchemaIntentNoMatch`             — graceful degradation / no usable draft.
  */
 
 import type { DeclarativeCondition } from "../types/rule";
@@ -84,6 +86,77 @@ export interface SchemaIntentProposalDraft {
   requiresCodeChange?: boolean;
 }
 
+// ── Entity-draft outcome (issue #575) ────────────────────────
+
+/**
+ * A single validated field of a proposed new entity. Mirrors the subset of
+ * `FieldDefinition` the resolver can safely draft from a natural-language
+ * request: a type, required-ness, and (for `enum`) the option set. System
+ * fields (`id`, `tenant_id`, …) are NEVER present here — they are
+ * server-managed and rejected during validation.
+ */
+export interface SchemaIntentEntityFieldDraft {
+  /** snake_case field name. */
+  name: string;
+  /** One of the core `FieldType` values (string/text/number/.../enum). */
+  type: string;
+  /** Whether the field is required. */
+  required: boolean;
+  /** Short human label for the review card. */
+  label?: string;
+  /** Enum option values — present (non-empty) ONLY when `type === "enum"`. */
+  options?: string[];
+  /** Whether the field value must be unique (e.g. a barcode). */
+  unique?: boolean;
+  /** Minimum numeric value (e.g. case-pack quantity ≥ 1). `number` fields only. */
+  min?: number;
+  /** Maximum numeric value. `number` fields only. */
+  max?: number;
+}
+
+/**
+ * A validated first-class relation from an existing entity to the newly
+ * proposed entity (e.g. "采购明细可以直接选择" → `purchase_item → product`).
+ * Endpoints are allowlisted: `from` MUST be an existing ontology entity and
+ * `to` MUST be the new entity being drafted.
+ */
+export interface SchemaIntentRelationDraft {
+  /** snake_case relation name (e.g. `purchase_item_product`). */
+  name: string;
+  /** Source entity — MUST be an existing entity in the ontology. */
+  from: string;
+  /** Target entity — MUST equal the proposed new entity's name. */
+  to: string;
+  /** Structural cardinality. */
+  cardinality: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many";
+  /** Semantic navigation name from the `from` side (e.g. `product`). */
+  fromName: string;
+  /** Semantic navigation name from the `to` side (e.g. `purchase_items`). */
+  toName: string;
+}
+
+/**
+ * A confident entity-creation intent that produced a governed `add_entity`
+ * Proposal (a `modify_schema`-typed Proposal whose `diff.target === "entity"`).
+ * The Proposal is created via `ProposalEngine.createProposal()` and is ALWAYS
+ * in `draft` status — the resolver never submits or applies it.
+ */
+export interface SchemaIntentEntityProposalDraft {
+  kind: "entity_proposal_draft";
+  /** The governed draft Proposal. Always `draft` status, `modify_schema` type. */
+  proposal: Proposal;
+  /** Generated entity name (snake_case, singular). */
+  entityName: string;
+  /** The validated field drafts that will become `defineEntity().fields`. */
+  fields: SchemaIntentEntityFieldDraft[];
+  /** Optional relation to an existing entity (undefined when none was drafted). */
+  relation?: SchemaIntentRelationDraft;
+  /** Confidence in [0, 1] carried from the AI response. */
+  confidence: number;
+  /** Short human-readable summary suitable for the Proposal review card. */
+  explanation: string;
+}
+
 // ── Clarification outcome ────────────────────────────────────
 
 /**
@@ -100,6 +173,14 @@ export interface SchemaIntentClarification {
    * for this shape; included for telemetry and UI ranking.
    */
   bestConfidence: number;
+  /**
+   * Set when the utterance carried BOTH an entity-creation intent and a
+   * separate rule-ish constraint (issue #575 multi-intent guard). The UI uses
+   * this to render a "detected entity-creation + possible rule; confirm scope"
+   * prompt rather than a generic low-confidence question. Absent for ordinary
+   * single-intent clarifications.
+   */
+  detectedIntents?: Array<"add_entity" | "add_rule">;
 }
 
 // ── No-match outcome ─────────────────────────────────────────
@@ -122,6 +203,7 @@ export interface SchemaIntentNoMatch {
     | "unknown_entity"
     | "unknown_rule"
     | "invalid_rule"
+    | "invalid_entity"
     | "no_rule_drafted";
   /** Human-readable explanation, suitable for surfacing in the UI. */
   message: string;
@@ -137,6 +219,7 @@ export interface SchemaIntentNoMatch {
  */
 export type SchemaIntentOutcome =
   | SchemaIntentProposalDraft
+  | SchemaIntentEntityProposalDraft
   | SchemaIntentClarification
   | SchemaIntentNoMatch;
 
