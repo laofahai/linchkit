@@ -13,6 +13,7 @@ import { loadConfig } from "./config-loader";
 import { resolveDevRoleActor } from "./dev-actor-resolver";
 import { buildDevEvolutionRuntime, buildDevOntologyRegistry } from "./dev-app";
 import { createServer } from "./server";
+import { startDevTransports } from "./start-dev-transports";
 import { wireAITraceSink } from "./wire-ai-trace-sink";
 
 // ── Resolve project root ────────────────────────────────
@@ -176,6 +177,22 @@ const server = createServer(graphqlSchema, {
 
 server.listen(port);
 
+// ── Start non-HTTP transports (e.g. MCP) ─────────────────
+// The HTTP/GraphQL server above is the `http` transport, started directly.
+// Every OTHER transport a capability contributes through the generic
+// `extensions.transports` seam (e.g. cap-adapter-mcp's SSE transport on :3002
+// in the purchase demo config) is started here — mirroring the `linch dev` CLI
+// path — so the MCP channel is reachable out of the box without a hard runtime
+// import of cap-adapter-mcp (#573). Non-throwing per-transport: a failure is
+// logged and skipped so the HTTP server (already listening) stays up.
+const transportLifecycles = await startDevTransports({
+  config,
+  capabilities: config.capabilities ?? [],
+  assembled,
+  ontologyRegistry,
+  evolutionRuntime,
+});
+
 // ── Startup summary ──────────────────────────────────────
 
 const aiSummary = config.ai
@@ -189,6 +206,9 @@ console.log(`  GraphQL:    http://${host}:${port}/graphql`);
 console.log(`  Health:     http://${host}:${port}/health`);
 console.log(`  REST API:   http://${host}:${port}/api/actions/:name`);
 console.log(`  Exec Logs:  http://${host}:${port}/api/executions`);
+if (transportLifecycles.length > 0) {
+  console.log(`  Transports: ${transportLifecycles.length} extra started (e.g. MCP)`);
+}
 console.log(`───────────────────────────────────`);
 const capNames = (config.capabilities ?? []).map((c) => c.name).join(", ") || "none";
 const mwCount = capContributions.middlewares.length;
