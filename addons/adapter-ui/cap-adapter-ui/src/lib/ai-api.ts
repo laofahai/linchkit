@@ -36,6 +36,9 @@ export async function requestAiAutoFill(params: {
     body: JSON.stringify(params),
   });
   handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error("AI auto-fill failed");
+  }
   const json = await res.json();
   if (!json.success) {
     throw new Error(json.error?.message ?? "AI auto-fill failed");

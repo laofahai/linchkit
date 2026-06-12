@@ -37,6 +37,9 @@ export interface ConfigHistoryEntry {
 export async function fetchConfigs(): Promise<ConfigItem[]> {
   const res = await fetch("/api/configs", { headers: getAuthHeaders() });
   handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch configs: ${res.statusText}`);
+  }
   const json = await res.json();
   return json.data?.items ?? [];
 }

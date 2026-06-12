@@ -5,7 +5,7 @@
  * execution logs, and runtime config live in dedicated files alongside this one.
  */
 
-import { isAuthEnabled } from "./app-config";
+import { isAppConfigLoaded, isAuthEnabled } from "./app-config";
 import { getDevRoleHeaders } from "./dev-role";
 import { getTenantHeaders } from "./tenant";
 
@@ -27,8 +27,10 @@ export function handleUnauthorized(res: Response): void {
   if (res.status === 401) {
     localStorage.removeItem("linchkit:token");
     localStorage.removeItem("linchkit:authenticated");
-    // Only redirect to login if auth capability is loaded
-    if (isAuthEnabled()) {
+    // Skip redirect only when config has loaded and explicitly reports auth disabled.
+    // When config is still loading (isAppConfigLoaded() === false) we redirect
+    // anyway — treating "not yet loaded" as "disabled" would silently drop early 401s.
+    if (!isAppConfigLoaded() || isAuthEnabled()) {
       window.location.href = "/login";
     }
   }

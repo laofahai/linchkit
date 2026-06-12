@@ -9,7 +9,7 @@
  * imports the named helpers directly.
  */
 
-import { transitionRecord } from "@linchkit/cap-adapter-ui/lib/api";
+import { transitionRecord } from "@linchkit/cap-adapter-ui/lib/entity-api";
 import type { StateDefinition, Transition } from "@linchkit/core/types";
 import { useMemo } from "react";
 import type { DropValidation, KanbanRecord, TransitionFn } from "./types";

@@ -194,7 +194,12 @@ export async function bulkDeleteRecords(
   let failed = 0;
   for (const result of results) {
     if (result.status === "fulfilled") {
-      succeeded++;
+      if (result.value) {
+        succeeded++;
+      } else {
+        failed++;
+        errors.push("Delete mutation returned false");
+      }
     } else {
       failed++;
       errors.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
@@ -242,6 +247,9 @@ export type SchemaBundle = EntityBundle;
 export async function fetchEntities(): Promise<EntityInfo[]> {
   const res = await fetch("/api/entities", { headers: getAuthHeaders() });
   handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch entities: ${res.statusText}`);
+  }
   const json = await res.json();
   return json.data ?? [];
 }
@@ -269,6 +277,9 @@ export const fetchSchemaBundle = fetchEntityBundle;
 export async function fetchRelations(): Promise<RelationDefinition[]> {
   const res = await fetch("/api/relations", { headers: getAuthHeaders() });
   handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch relations: ${res.statusText}`);
+  }
   const json = await res.json();
   return json.data ?? [];
 }
@@ -279,6 +290,9 @@ export async function fetchRelations(): Promise<RelationDefinition[]> {
 export async function fetchSemanticRelations(): Promise<SemanticRelation[]> {
   const res = await fetch("/api/semantic-relations", { headers: getAuthHeaders() });
   handleUnauthorized(res);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch semantic relations: ${res.statusText}`);
+  }
   const json = await res.json();
   return json.data ?? [];
 }
@@ -425,6 +439,7 @@ export async function queryStateTransitions(
       items: Array<Record<string, unknown>>;
     };
   }>(query, { filter });
+  throwOnErrors(res);
   const items = res.data?.executionLogList?.items ?? [];
   // Only return entries that have state transition data
   return items

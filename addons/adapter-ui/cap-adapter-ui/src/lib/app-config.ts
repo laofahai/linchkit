@@ -35,6 +35,11 @@ export interface AppConfig {
 
 let cachedAppConfig: AppConfig | null = null;
 
+/** Returns true once fetchAppConfig() has successfully populated the cache. */
+export function isAppConfigLoaded(): boolean {
+  return cachedAppConfig !== null;
+}
+
 /**
  * Fetch app config from the server.
  * Only caches on successful fetch — errors are not cached so the next

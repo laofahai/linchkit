@@ -52,6 +52,7 @@ export async function queryExecutionLogs(options: {
           input
           status duration_ms started_at completed_at
           error_code error_message
+          state_transition_from state_transition_to
         }
         total
       }
@@ -76,11 +77,21 @@ export async function queryExecutionLogs(options: {
     entity: r.entity_name as string | undefined,
     recordId: r.record_id as string | undefined,
     actor: { type: (r.actor_type as string) ?? "system", id: (r.actor_id as string) ?? "unknown" },
-    input: typeof r.input === "object" ? JSON.stringify(r.input) : (r.input as string | undefined),
+    input:
+      r.input && typeof r.input === "object"
+        ? JSON.stringify(r.input)
+        : (r.input as string | undefined),
     status: r.status as ExecutionLogEntry["status"],
     error:
       r.error_code || r.error_message
         ? { code: r.error_code as string | undefined, message: (r.error_message as string) ?? "" }
+        : undefined,
+    stateTransition:
+      r.state_transition_from || r.state_transition_to
+        ? {
+            from: (r.state_transition_from as string) ?? "",
+            to: (r.state_transition_to as string) ?? "",
+          }
         : undefined,
     duration: (r.duration_ms as number) ?? 0,
     startedAt: r.started_at as string,
