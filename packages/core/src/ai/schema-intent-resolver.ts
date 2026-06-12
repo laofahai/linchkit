@@ -207,7 +207,13 @@ export async function resolveSchemaIntent(
           ? parsed.question
           : isMultiIntent
             ? SCHEMA_INTENT_MESSAGES.multiIntentClarification
-            : SCHEMA_INTENT_MESSAGES.lowConfidenceClarification,
+            : // A model can emit `clarification` directly for a low-confidence
+              // entity request (prompt rule 5), skipping resolveAddEntity — so a
+              // sole add_entity intent must still get the entity-specific wording
+              // rather than the rule-oriented default.
+              detectedIntents?.length === 1 && detectedIntents[0] === "add_entity"
+              ? SCHEMA_INTENT_MESSAGES.lowConfidenceEntityClarification
+              : SCHEMA_INTENT_MESSAGES.lowConfidenceClarification,
       bestConfidence: clampConfidence(parsed.confidence),
       ...(detectedIntents ? { detectedIntents } : {}),
     };

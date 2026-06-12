@@ -508,6 +508,25 @@ describe("resolveSchemaIntent — multi-intent clarification (#575)", () => {
     expect(outcome.detectedIntents).toEqual(["add_entity", "add_rule"]);
     expect(outcome.question).toContain("new entity");
   });
+
+  it("uses the entity-specific fallback when AI omits the question for a sole add_entity intent", async () => {
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "clarification",
+        detectedIntents: ["add_entity"],
+        confidence: 0.3,
+        // no `question` — the resolver must pick the fallback by intent
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "搞个商品" },
+      { provider: service, ontology: makeOntology(), proposalEngine: new ProposalEngine() },
+    );
+    expect(outcome.kind).toBe("clarification");
+    if (outcome.kind !== "clarification") throw new Error("expected clarification");
+    expect(outcome.question).not.toMatch(/rule|condition/i);
+    expect(outcome.question.toLowerCase()).toContain("create");
+  });
 });
 
 // ── add_rule regression smoke ────────────────────────────────
