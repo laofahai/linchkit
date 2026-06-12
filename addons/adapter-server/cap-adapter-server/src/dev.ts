@@ -193,6 +193,28 @@ const transportLifecycles = await startDevTransports({
   evolutionRuntime,
 });
 
+// Stop the started transports gracefully on shutdown. Without this, the SSE
+// server (e.g. MCP on :3002) keeps its socket open across a fast `bun --watch`
+// restart and the next boot hits EADDRINUSE; clients also miss a clean close.
+if (transportLifecycles.length > 0) {
+  let shuttingDown = false;
+  const stopTransports = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    for (const lifecycle of transportLifecycles) {
+      try {
+        await lifecycle.stop();
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error(`Failed to stop a dev transport: ${error.message}`);
+      }
+    }
+    process.exit(0);
+  };
+  process.once("SIGINT", stopTransports);
+  process.once("SIGTERM", stopTransports);
+}
+
 // ── Startup summary ──────────────────────────────────────
 
 const aiSummary = config.ai

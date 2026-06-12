@@ -108,10 +108,46 @@ export async function buildDevTransportContext(
   await overlayRegistry.initialize();
 
   // AI boundary + audit logger — the MCP adapter wires these into its AI
-  // security tools. Built minimally over the assembled AI service (noop unless
-  // one was configured), mirroring dev-wiring.ts's lightweight construction.
-  const aiAuditLogger = new AIAuditLogger();
-  const aiBoundary = new AIBoundary({ aiService: runtime.ai ?? createNoopAIService() });
+  // security tools. Mirrors dev-wiring.ts so AI calls made through non-HTTP
+  // transports (MCP) are audited and their usage logged, closing the
+  // observability gap a bare construction would leave versus the `linch dev` path.
+  const aiAuditLogger = new AIAuditLogger({
+    onAuditEntry: (entry) => {
+      consoleLogger.debug(
+        `AI audit: ${entry.eventType} risk=${entry.riskLevel}${entry.actionName ? ` action=${entry.actionName}` : ""}`,
+      );
+    },
+  });
+  const aiBoundary = new AIBoundary({
+    aiService: runtime.ai ?? createNoopAIService(),
+    onUsageRecord: (record) => {
+      // Forward usage records to the audit logger as AI call events.
+      aiAuditLogger.logCall({
+        actorId: record.actorId,
+        tenantId: record.tenantId,
+        agentModel: record.model,
+        input: `[${record.source}] ${record.actionName ?? "unknown"}`,
+        output: record.status,
+        actionName: record.actionName,
+        tokenUsage: {
+          inputTokens: record.inputTokens,
+          outputTokens: record.outputTokens,
+          totalTokens: record.totalTokens,
+        },
+        metadata: {
+          cost: record.cost,
+          duration: record.duration,
+          policyName: record.policyName,
+          blockReason: record.blockReason,
+        },
+      });
+    },
+    onBudgetAlert: (tenantId, budget, threshold) => {
+      consoleLogger.warn(
+        `AI budget alert: tenant=${tenantId ?? "global"} threshold=${threshold} costToday=$${budget.costToday.toFixed(2)}`,
+      );
+    },
+  });
 
   return {
     commandLayer: runtime.commandLayer,
@@ -154,7 +190,20 @@ export async function startDevTransports(
   const transports = collectDevTransports(input.capabilities);
   if (transports.length === 0) return [];
 
-  const transportCtx = await buildDevTransportContext(input);
+  // Context creation can throw (e.g. ConfigRegistry validation). The HTTP dev
+  // server is already listening by this point, so a failure here must not crash
+  // the process — log and skip all transports, mirroring the per-transport
+  // non-throwing contract below.
+  let transportCtx: TransportContext;
+  try {
+    transportCtx = await buildDevTransportContext(input);
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    consoleLogger.error(`Failed to build dev transport context: ${error.message}`, {
+      error: error.stack,
+    });
+    return [];
+  }
   const lifecycles: TransportLifecycle[] = [];
 
   for (const transport of transports) {
