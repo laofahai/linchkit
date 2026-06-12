@@ -1,4 +1,3 @@
-import { getAuthHeaders } from "./api";
 import { graphql, throwOnErrors } from "./graphql";
 
 export interface ListQueryOptions {
