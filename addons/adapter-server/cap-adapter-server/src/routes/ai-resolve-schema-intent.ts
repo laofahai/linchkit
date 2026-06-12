@@ -321,6 +321,19 @@ function persistGovernedEntityDraft(opts: {
   // relation surfaces separately in the API response (`outcome.relation`) for the
   // review UI; persisting it as its own governed change is a deferred follow-up.
   const { relation: _relation, ...entityRest } = definition as Record<string, unknown>;
+  // Minimal structural assertion before the unchecked cast. The resolver
+  // validated this upstream, but persisting a governed EntityDefinition is
+  // integrity-critical, so guard against future drift in the stored shape rather
+  // than trusting `as unknown as EntityDefinition` to silently absorb it.
+  if (
+    typeof entityRest.name !== "string" ||
+    typeof entityRest.fields !== "object" ||
+    entityRest.fields === null
+  ) {
+    throw new Error(
+      `persistGovernedEntityDraft: entity definition missing a string name or fields object (entityName=${entityName})`,
+    );
+  }
   const entityDefinition = entityRest as unknown as EntityDefinition;
 
   const change: ProposalChange = {

@@ -314,6 +314,57 @@ describe("resolveSchemaIntent — add_entity validation", () => {
     expect(engine.size).toBe(0);
   });
 
+  it("rejects a number field whose min is greater than max", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "product",
+          fields: [{ name: "qty", type: "number", required: false, min: 100, max: 1 }],
+        },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "create product with a bad numeric bound" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(engine.size).toBe(0);
+  });
+
+  it("pluralizes the default relation toName correctly (category → categories)", async () => {
+    const categoryOntology: SchemaIntentOntology = {
+      listEntities: () => ["category"],
+      describeEntity: (n) =>
+        n === "category"
+          ? { name: "category", label: "Category", description: "", fields: [], actionNames: [] }
+          : undefined,
+    };
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: { name: "product", fields: [{ name: "barcode", type: "string", required: false }] },
+        // Relation from an existing `category` entity, no explicit toName — the
+        // builder must default it to the correct plural, not "categorys".
+        relation: { from: "category", to: "product", cardinality: "many_to_one" },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品，按分类组织" },
+      { provider: service, ontology: categoryOntology, proposalEngine: new ProposalEngine() },
+    );
+    expect(outcome.kind).toBe("entity_proposal_draft");
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+    expect(outcome.relation?.toName).toBe("categories");
+  });
+
   it("rejects an entity declaring a server-managed system field", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(

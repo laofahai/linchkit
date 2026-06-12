@@ -55,6 +55,20 @@ const ALLOWED_CARDINALITIES: ReadonlySet<RelationCardinality> = new Set<Relation
 ]);
 
 /**
+ * Pluralize a snake_case entity name for a default relation collection name.
+ * Covers the common English suffix rules so a default `toName` is grammatical:
+ * consonant+y → -ies (category → categories), sibilants (s/x/z/ch/sh) → -es
+ * (status → statuses), otherwise +s (purchase_item → purchase_items). Only a
+ * fallback when the AI omits an explicit `toName`; the result is still validated
+ * as a snake_case identifier by the caller.
+ */
+function pluralizeSnake(name: string): string {
+  if (/[^aeiou]y$/.test(name)) return `${name.slice(0, -1)}ies`;
+  if (/(s|x|z|ch|sh)$/.test(name)) return `${name}es`;
+  return `${name}s`;
+}
+
+/**
  * System fields (Spec convention) that are server-managed and must NEVER be
  * declared by an AI-drafted entity. Declaring one is a hard validation failure
  * (not a silent drop) so the user sees exactly why the draft was refused.
@@ -213,6 +227,14 @@ function buildField(raw: unknown): FieldResult {
   if (type === "number") {
     if (typeof rec.min === "number" && Number.isFinite(rec.min)) draft.min = rec.min;
     if (typeof rec.max === "number" && Number.isFinite(rec.max)) draft.max = rec.max;
+    // Reject an inverted range here rather than letting `{ min: 100, max: 1 }`
+    // reach a human reviewer / the code generator and fail much later.
+    if (draft.min !== undefined && draft.max !== undefined && draft.min > draft.max) {
+      return {
+        ok: false,
+        reason: `field "${name}" has min (${draft.min}) greater than max (${draft.max})`,
+      };
+    }
   }
 
   // Enum options.
@@ -331,8 +353,10 @@ function buildRelation(
   const cardinality = cardStr as RelationCardinality;
 
   // Semantic navigation names. Default them from the entity names when absent.
+  // The toName is the collection of `from` records on the `to` side, so it is
+  // pluralized — `${from}s` is wrong for names ending in y / s / x / z / ch / sh.
   const fromName = normalizeRuleName(raw.fromName) ?? to;
-  const toName = normalizeRuleName(raw.toName) ?? `${from}s`;
+  const toName = normalizeRuleName(raw.toName) ?? pluralizeSnake(from);
   if (!isSnakeCaseName(fromName) || !isSnakeCaseName(toName)) {
     return { ok: false, reason: "relation fromName / toName must be snake_case identifiers" };
   }
