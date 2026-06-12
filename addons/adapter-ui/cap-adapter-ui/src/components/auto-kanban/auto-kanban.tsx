@@ -40,7 +40,7 @@ interface DragState {
   fromState: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────
 
 /** Format a date value for card display. */
 function formatDate(value: unknown): string {
@@ -65,7 +65,7 @@ function displayValue(value: unknown): string {
   return String(value);
 }
 
-// ── Column component ─────────────────────────────────────
+// ── Column component ─────────────────────────────────────────
 
 interface KanbanColumnProps {
   stateValue: string;
@@ -234,7 +234,7 @@ function KanbanColumn({
   );
 }
 
-// ── Main component ───────────────────────────────────────
+// ── Main component ─────────────────────────────────────────
 
 export function AutoKanban({
   schema,

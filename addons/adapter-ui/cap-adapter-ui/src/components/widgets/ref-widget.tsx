@@ -423,7 +423,7 @@ export function RefInput({
   );
 }
 
-// ── Quick create dialog ──────────────────────────────────
+// ── Quick create dialog ──────────────────────────────────────────
 
 interface QuickCreateDialogField {
   name: string;
