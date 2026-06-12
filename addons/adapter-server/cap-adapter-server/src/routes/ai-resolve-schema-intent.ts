@@ -290,21 +290,31 @@ function persistGovernedRuleDraft(opts: {
  * governed change is a deferred follow-up — there is no `"relation"` governed
  * ProposalChangeTarget today.
  *
- * Returns `undefined` when the draft does not carry a usable entity definition
- * (defensive — the resolver only emits `entity_proposal_draft` with a built
- * entity, but we never want a malformed change to reach the engine).
+ * Always returns a persisted governed `ProposalDefinition` (mirroring
+ * `persistGovernedRuleDraft`). If the draft somehow lacks a usable entity
+ * definition it THROWS rather than returning `undefined` — a silent undefined
+ * would let the route report a successful `entity_proposal_draft` while nothing
+ * was actually governed.
  */
 function persistGovernedEntityDraft(opts: {
   engine: GovernedProposalEngine;
   outcome: SchemaIntentEntityProposalDraft;
   reasoning: string;
   actor: Actor;
-}): ProposalDefinition | undefined {
+}): ProposalDefinition {
   const { engine, outcome, reasoning, actor } = opts;
   const { proposal: draft, entityName, explanation } = outcome;
 
   const definition = draft.diff?.definition;
-  if (!definition || typeof definition !== "object") return undefined;
+  if (!definition || typeof definition !== "object") {
+    // Defensive: the resolver only emits entity_proposal_draft with a built
+    // entity, so this is unreachable in normal flow. Throw rather than return
+    // undefined — a silent undefined would let the route claim a successful
+    // entity_proposal_draft while persisting no governed proposal.
+    throw new Error(
+      `persistGovernedEntityDraft: missing or non-object entity definition (entityName=${entityName})`,
+    );
+  }
   // The resolver draft carries a drafted relation alongside the entity
   // (`{ ...entityDef, relation }`). The governed `entity` change's `definition`
   // must be a clean `EntityDefinition`, so strip the relation extra here — the
