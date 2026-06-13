@@ -228,6 +228,7 @@ export type {
 } from "./schema-intent-prompt";
 export {
   buildSchemaIntentSystemPrompt,
+  isSafeValueLiteral,
   parseSchemaIntentResponse,
 } from "./schema-intent-prompt";
 export type {

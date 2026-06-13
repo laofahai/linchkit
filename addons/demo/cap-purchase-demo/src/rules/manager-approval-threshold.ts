@@ -4,7 +4,11 @@
  * This is the single, first-class object that encodes the procurement policy
  * "large purchases need a manager". A future "说→有" NL loop edits THIS rule
  * (and the {@link MANAGER_APPROVAL_THRESHOLD} constant it owns) to change the
- * policy — no action / flow code has to change.
+ * policy — no action / flow code has to change. The rule opts into that loop by
+ * declaring a `patchTarget` (#566): because its condition is CODE (not
+ * declaratively rebuildable), a "把经理审批阈值改成 20000" request graduates by
+ * patching the {@link MANAGER_APPROVAL_THRESHOLD} constant IN PLACE rather than
+ * fabricating a replacement rule.
  *
  * Enforcement: the rule fires inside `approve_purchase_request` execution via
  * the real rule-in-action wiring (core `evaluateActionRules`, PRs #460-#475).
@@ -108,5 +112,15 @@ export const managerApprovalThresholdRule: RuleDefinition = {
     message:
       `金额超过 ${MANAGER_APPROVAL_THRESHOLD} 需要经理审批 / ` +
       `Amounts over ${MANAGER_APPROVAL_THRESHOLD} require manager approval`,
+  },
+  // Opt-in graduation target for "说→改阈值" (#566). This rule's condition is
+  // code (it cannot be rebuilt declaratively), so a "raise the manager-approval
+  // threshold to 20000" request graduates by patching the MANAGER_APPROVAL_THRESHOLD
+  // constant above IN PLACE rather than fabricating a new declarative rule. The
+  // resolver assembles a `sourcePatch` from this when the AI returns a safe
+  // `newValueLiteral`; an injected TS-AST patcher rewrites the constant.
+  patchTarget: {
+    sourcePath: "addons/demo/cap-purchase-demo/src/rules/manager-approval-threshold.ts",
+    constantName: "MANAGER_APPROVAL_THRESHOLD",
   },
 };

@@ -125,6 +125,10 @@ export function buildSchemaIntentOntology(opts: {
       conditionKind: isCode ? "code" : "declarative",
       ...(isCode ? {} : { condition: rule.condition as SchemaIntentRule["condition"] }),
       roundTrippable,
+      // Pass through the rule's opt-in graduation target (#566) so the resolver
+      // can assemble a `sourcePatch` for a code-condition threshold change. Only
+      // present when the rule declared it (deterministic, reviewable).
+      ...(rule.patchTarget ? { patchTarget: rule.patchTarget } : {}),
     };
   };
 
