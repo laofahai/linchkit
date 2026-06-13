@@ -259,8 +259,9 @@ const RULE_REQUIRED_FIELDS = ["trigger", "condition", "effect"] as const;
  *       `JSON.stringify` silently DROPS it, emitting a broken rule with the field
  *       lost. We refuse rather than corrupt.
  *
- * The fix a caller is pointed at: a `requiresCodeChange` update needs a
- * materialized `generatedSource` (the AI materializer), not deterministic codegen.
+ * The fix a caller is pointed at: such a code-condition change (create or
+ * update) needs a materialized `generatedSource` (the AI materializer), not
+ * deterministic codegen.
  */
 function assertGraduatable(proposal: ProposalDefinition, change: ProposalChange): void {
   const target = assertWritableTarget(change.target);
@@ -274,8 +275,10 @@ function assertGraduatable(proposal: ProposalDefinition, change: ProposalChange)
   // Common prefix names the proposal id, change name and target (the required
   // "what"); each branch appends the specific "why" + the materialization fix.
   const where = `${target} "${change.name}" (proposal "${proposal.id}")`;
+  // Operation-aware so the message reads correctly for BOTH a code-condition
+  // update and a brand-new create that carries a function condition.
   const fix =
-    "such a requiresCodeChange update needs a materialized `generatedSource` " +
+    `such a code-condition ${change.operation} needs a materialized \`generatedSource\` ` +
     "(the AI materializer), not deterministic codegen — refusing to write an invalid stub.";
 
   for (const field of RULE_REQUIRED_FIELDS) {

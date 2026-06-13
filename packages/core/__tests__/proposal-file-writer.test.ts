@@ -442,6 +442,27 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     expect(existsSync(rulesDir)).toBe(false);
   });
 
+  it("guard message is operation-aware — says 'create', not 'update', on a create (#587)", async () => {
+    // The guard fires on create too (a brand-new rule with a function condition).
+    // The hint message must reflect the actual operation, not hardcode "update"
+    // (claude review on #587).
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "rule",
+          operation: "create",
+          name: "brand_new_code_rule",
+          // No definition → default guard rejects; the message must say "create".
+        },
+      ],
+    });
+
+    // The message reads "…code-condition create needs…" — operation-accurate,
+    // and therefore free of the misleading hardcoded "update".
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(/code-condition create/);
+  });
+
   it("writes generatedSource verbatim for a code-condition rule update (guard skipped) (#566)", async () => {
     const writer = new ProposalFileWriter({ rootDir: tmpDir });
     const GENERATED = [
