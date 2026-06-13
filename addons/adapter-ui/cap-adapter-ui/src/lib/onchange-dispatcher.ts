@@ -13,7 +13,7 @@
  */
 
 import type { OnchangeDefinition } from "@linchkit/core/types";
-import type { EntityOnchangeResult } from "./api";
+import type { EntityOnchangeResult } from "./entity-meta";
 
 /** Default debounce — Spec 64 §6.1 mandates a 300ms minimum between calls. */
 export const DEFAULT_ONCHANGE_DEBOUNCE_MS = 300;

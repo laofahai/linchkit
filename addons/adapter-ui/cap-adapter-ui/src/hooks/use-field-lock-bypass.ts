@@ -26,7 +26,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { graphql } from "../lib/api";
+import { graphql } from "../lib/graphql";
 
 interface FieldLockBypassQueryResult {
   fieldLockBypass?: { canBypass?: boolean; reason?: string | null } | null;

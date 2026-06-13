@@ -10,7 +10,7 @@ import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@linchkit/ui-ki
 import { ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { graphql } from "../lib/api";
+import { graphql } from "../lib/graphql";
 
 interface RelatedRecordsPanelProps {
   entityName: string;

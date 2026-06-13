@@ -1,11 +1,6 @@
 /**
  * ActivityPanel — Timeline-style audit trail for a record.
- *
- * Displays execution logs as a vertical timeline showing record creation,
- * field changes (old -> new), state transitions, and actor information
- * with relative timestamps.
  */
-
 import { Badge, Button } from "@linchkit/ui-kit/components";
 import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import {
@@ -25,14 +20,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/api";
+import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/execution-log-api";
 
 interface ActivityPanelProps {
   entityName: string;
   recordId?: string;
 }
-
-// ── Action type detection ─────────────────────────────────
 
 type ActionKind = "create" | "update" | "delete" | "approval" | "custom";
 
@@ -51,7 +44,6 @@ const ACTION_KIND_ICON = {
   approval: ShieldCheck,
   custom: CircleDot,
 } as const;
-
 const ACTION_KIND_COLOR = {
   create: "text-green-600 dark:text-green-400",
   update: "text-blue-600 dark:text-blue-400",
@@ -59,7 +51,6 @@ const ACTION_KIND_COLOR = {
   approval: "text-amber-600 dark:text-amber-400",
   custom: "text-purple-600 dark:text-purple-400",
 } as const;
-
 const ACTION_KIND_DOT_BG = {
   create: "bg-green-100 dark:bg-green-950 border-green-300 dark:border-green-700",
   update: "bg-blue-100 dark:bg-blue-950 border-blue-300 dark:border-blue-700",
@@ -68,34 +59,24 @@ const ACTION_KIND_DOT_BG = {
   custom: "bg-purple-100 dark:bg-purple-950 border-purple-300 dark:border-purple-700",
 } as const;
 
-// ── Status config ──────────────────────────────────────────
-
 interface StatusConfig {
   variant: "default" | "destructive" | "outline" | "secondary";
 }
-
 const STATUS_CONFIG: Record<string, StatusConfig> = {
   succeeded: { variant: "default" },
   failed: { variant: "destructive" },
   blocked: { variant: "secondary" },
   pending_approval: { variant: "outline" },
 };
-
 const DEFAULT_STATUS_CONFIG: StatusConfig = { variant: "outline" };
 
-// ── Helpers ───────────────────────────────────────────────
-
 function formatActionLabel(action: string, status?: string): string {
-  // Strip schema prefix: "create_purchase_order" -> "create"
-  // "update_purchase_order" -> "update"
   const kind = detectActionKind(action, status);
   if (kind === "approval") return "pending approval";
   if (kind !== "custom") return kind;
-  // Custom actions: remove underscores, capitalize
   return action.replace(/_/g, " ");
 }
 
-/** Parse JSON-encoded input string, return field entries excluding system fields. */
 function parseInputChanges(
   input: string | undefined,
   _kind: ActionKind,
@@ -128,17 +109,9 @@ function formatFieldValue(value: unknown): string {
   return String(value);
 }
 
-// ── Timeline Entry Component ──────────────────────────────
-
-interface TimelineEntryProps {
-  entry: ExecutionLogEntry;
-  isLast: boolean;
-}
-
-function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
+function TimelineEntry({ entry, isLast }: { entry: ExecutionLogEntry; isLast: boolean }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-
   const kind = detectActionKind(entry.action, entry.status);
   const KindIcon = ACTION_KIND_ICON[kind];
   const kindColor = ACTION_KIND_COLOR[kind];
@@ -148,22 +121,15 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
 
   return (
     <div className="relative flex gap-3 pb-4 last:pb-0">
-      {/* Timeline connector line */}
       {!isLast && <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />}
-
-      {/* Timeline dot */}
       <div
         className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${dotBg}`}
       >
         <KindIcon className={`size-3.5 ${kindColor}`} />
       </div>
-
-      {/* Content */}
       <div className="flex-1 min-w-0 pt-0.5">
-        {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            {/* Action label + status badge */}
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-sm font-medium capitalize ${kindColor}`}>
                 {t(`detail.actionKind.${kind}`, formatActionLabel(entry.action, entry.status))}
@@ -183,8 +149,6 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
                 </Badge>
               )}
             </div>
-
-            {/* State transition */}
             {entry.stateTransition && (
               <div className="flex items-center gap-1.5 mt-1">
                 <Badge
@@ -199,8 +163,6 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
                 </Badge>
               </div>
             )}
-
-            {/* Actor + timestamp meta */}
             <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
               <User className="size-3" />
               <span>{entry.actor.id}</span>
@@ -211,8 +173,6 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
               </span>
             </div>
           </div>
-
-          {/* Expand toggle (only if there are details to show) */}
           {(changes.length > 0 || entry.error) && (
             <button
               type="button"
@@ -223,11 +183,8 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
             </button>
           )}
         </div>
-
-        {/* Expanded detail: field changes */}
         {expanded && (
           <div className="mt-2 space-y-1.5">
-            {/* Field changes */}
             {changes.length > 0 && (
               <div className="rounded border border-border/50 bg-muted/30 overflow-hidden">
                 <table className="w-full text-xs">
@@ -256,8 +213,6 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
                 </table>
               </div>
             )}
-
-            {/* Error detail */}
             {entry.error && (
               <div className="rounded border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
                 <span className="font-medium">{t("executionLog.error", "Error")}:</span>{" "}
@@ -265,8 +220,6 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
                 {entry.error.message}
               </div>
             )}
-
-            {/* Timestamp + execution ID */}
             <div className="text-[11px] text-muted-foreground/70 px-0.5">
               {new Date(entry.startedAt).toLocaleString()} · ID: {entry.id}
             </div>
@@ -276,8 +229,6 @@ function TimelineEntry({ entry, isLast }: TimelineEntryProps) {
     </div>
   );
 }
-
-// ── Main Panel Component ──────────────────────────────────
 
 const MAX_SCROLL_HEIGHT = 480;
 
@@ -289,13 +240,7 @@ export function ActivityPanel({ entityName, recordId }: ActivityPanelProps) {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await queryExecutionLogs({
-        schema: entityName,
-        page: 1,
-        pageSize: 50,
-      });
-      // Filter by recordId on client side if provided
-      // (server does not support recordId filter yet)
+      const result = await queryExecutionLogs({ schema: entityName, page: 1, pageSize: 50 });
       const filtered = recordId
         ? result.items.filter((e) => e.recordId === recordId)
         : result.items;
@@ -313,7 +258,6 @@ export function ActivityPanel({ entityName, recordId }: ActivityPanelProps) {
 
   return (
     <div className="bg-background rounded shadow-sm border border-border/50 px-6 py-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-muted-foreground">
           {t("detail.activity", "Activity")}
@@ -322,8 +266,6 @@ export function ActivityPanel({ entityName, recordId }: ActivityPanelProps) {
           <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
-
-      {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />

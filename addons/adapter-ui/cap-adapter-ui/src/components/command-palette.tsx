@@ -1,16 +1,6 @@
 /**
  * CommandPalette — Global command palette triggered by Cmd+K / Ctrl+K.
- *
- * Features:
- * - Navigate to pages (Workspace, Executions, Settings, etc.)
- * - Search and jump to any registered entity
- * - AI Search mode: type natural language queries to filter entity data
- * - Theme switching (light / dark / system)
- * - Global keyboard shortcut: Cmd+K / Ctrl+K to toggle
- *
- * Spec ref: 13_view_and_ui.md §2.3 Intent Preview, §9.2 Top Command Bar.
  */
-
 import {
   CommandDialog,
   CommandEmpty,
@@ -37,7 +27,7 @@ import { useTranslation } from "react-i18next";
 import { isNaturalLanguageQuery } from "@/hooks/use-ai-search";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { aiSearch } from "@/lib/api";
+import { aiSearch } from "@/lib/ai-api";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 interface CommandPaletteProps {
@@ -52,8 +42,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
   const { entities } = useEntities();
   const { resolveLabel } = useEntityLabel();
   const { theme, setTheme } = useTheme();
-
-  // AI search state within the palette
   const [aiMode, setAiMode] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<string | null>(null);
@@ -65,7 +53,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
       setInternalOpen(value);
       onOpenChange?.(value);
       if (!value) {
-        // Reset AI mode when closing
         setAiMode(false);
         setAiLoading(false);
         setAiResult(null);
@@ -75,7 +62,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
     [onOpenChange],
   );
 
-  // Cmd+K / Ctrl+K to toggle the palette
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
@@ -94,7 +80,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
     },
     [setOpen],
   );
-
   const navigate = useCallback(
     (href: string) => {
       runCommand(() => {
@@ -104,27 +89,18 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
     },
     [runCommand],
   );
-
-  // Stable ref for navigate to avoid stale closure in handleAISearch
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
-  // Handle AI search execution from the palette
   const handleAISearch = useCallback(
     async (query: string, entityName: string) => {
       setAiLoading(true);
       setAiResult(null);
       setAiQuery(query);
       try {
-        const result = await aiSearch({
-          query,
-          schema: entityName,
-          fields: {},
-        });
+        const result = await aiSearch({ query, schema: entityName, fields: {} });
         if (result) {
           setAiResult(result.explanation);
-          // Navigate to the entity page — the AI filter will be applied via URL or state
-          // For now, navigate and show the explanation
           setTimeout(() => {
             navigateRef.current(`/entities/${entityName}`);
           }, 1500);
@@ -159,8 +135,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
       />
       <CommandList>
         <CommandEmpty>{t("commandPalette.noResults")}</CommandEmpty>
-
-        {/* AI Search mode items */}
         {aiMode ? (
           <>
             {aiLoading && (
@@ -188,9 +162,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                       key={schema.name}
                       onSelect={() => {
                         const query = inputValueRef.current || aiQuery;
-                        if (query) {
-                          handleAISearch(query, schema.name);
-                        }
+                        if (query) handleAISearch(query, schema.name);
                       }}
                     >
                       <Icon />
@@ -207,7 +179,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
           </>
         ) : (
           <>
-            {/* AI Search entry point */}
             <CommandGroup heading={t("aiSearch.title", "AI Search")}>
               <CommandItem
                 onSelect={() => {
@@ -224,10 +195,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <span>{t("aiSearch.paletteAction", "AI Search — natural language filter")}</span>
               </CommandItem>
             </CommandGroup>
-
             <CommandSeparator />
-
-            {/* Navigation commands */}
             <CommandGroup heading={t("commandPalette.navigation")}>
               <CommandItem onSelect={() => navigate("/")}>
                 <LayoutDashboardIcon />
@@ -246,8 +214,6 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 <span>{t("rules.title")}</span>
               </CommandItem>
             </CommandGroup>
-
-            {/* Dynamic entity list */}
             {entities.length > 0 && (
               <>
                 <CommandSeparator />
@@ -267,10 +233,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange }: CommandPa
                 </CommandGroup>
               </>
             )}
-
             <CommandSeparator />
-
-            {/* Theme preferences */}
             <CommandGroup heading={t("commandPalette.preferences")}>
               {theme !== "light" && (
                 <CommandItem onSelect={() => runCommand(() => setTheme("light"))}>

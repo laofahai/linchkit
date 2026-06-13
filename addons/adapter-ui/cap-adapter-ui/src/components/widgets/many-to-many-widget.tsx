@@ -24,7 +24,7 @@ import { Check } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "@/hooks/use-entity-bundle";
-import { queryList } from "@/lib/api";
+import { queryList } from "@/lib/entity-api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import { getRecordLabel, type RelatedRecord } from "./relation-utils";
 

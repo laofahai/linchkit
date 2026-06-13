@@ -12,7 +12,7 @@ import type {
   ViewDefinition,
 } from "@linchkit/core/types";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { fetchEntityBundle } from "@/lib/api";
+import { fetchEntityBundle } from "@/lib/entity-meta";
 
 export interface ResolvedEntityBundle {
   schema: EntityDefinition;

@@ -14,7 +14,7 @@ import {
   addChatterMessage,
   type ChatterMessage,
   queryChatterMessages,
-} from "@linchkit/cap-adapter-ui/lib/api";
+} from "@linchkit/cap-adapter-ui/lib/chatter-api";
 import { Badge, Button, Textarea } from "@linchkit/ui-kit/components";
 import { formatRelativeTime } from "@linchkit/ui-kit/lib/utils";
 import {

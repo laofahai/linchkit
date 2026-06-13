@@ -1,31 +1,26 @@
 /**
  * `requestEntityOnchange` transport tests (Spec 64 §4.1).
- *
- * Covers the wire shape sent to `POST /api/entities/:name/onchange` and how the
- * helper normalizes the response (`{ updates, warnings }` vs partial bodies).
  */
-
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-// Minimal localStorage shim — api.ts reads `linchkit:token` for auth headers.
 const _store = new Map<string, string>();
 if (typeof globalThis.localStorage === "undefined") {
   Object.defineProperty(globalThis, "localStorage", {
     value: {
-      getItem: (key: string) => _store.get(key) ?? null,
-      setItem: (key: string, value: string) => _store.set(key, value),
-      removeItem: (key: string) => _store.delete(key),
+      getItem: (k: string) => _store.get(k) ?? null,
+      setItem: (k: string, v: string) => _store.set(k, v),
+      removeItem: (k: string) => _store.delete(k),
       clear: () => _store.clear(),
       get length() {
         return _store.size;
       },
-      key: (index: number) => [..._store.keys()][index] ?? null,
+      key: (i: number) => [..._store.keys()][i] ?? null,
     },
     configurable: true,
   });
 }
 
-import { requestEntityOnchange } from "../src/lib/api";
+import { requestEntityOnchange } from "../src/lib/entity-meta";
 
 interface CapturedRequest {
   url: string;
@@ -34,10 +29,8 @@ interface CapturedRequest {
   headers: Record<string, string>;
   signal?: AbortSignal | null;
 }
-
 let captured: CapturedRequest | null;
 let originalFetch: typeof fetch;
-
 function installFetch(response: { status: number; body: unknown }) {
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -54,11 +47,9 @@ function installFetch(response: { status: number; body: unknown }) {
     });
   }) as typeof fetch;
 }
-
 beforeEach(() => {
   captured = null;
 });
-
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
@@ -79,7 +70,6 @@ describe("requestEntityOnchange", () => {
     });
     expect(result.updates).toEqual({ unit_price: 9.99 });
   });
-
   test("returns { updates: {} } when the response omits updates", async () => {
     installFetch({ status: 200, body: {} });
     const result = await requestEntityOnchange({
@@ -90,12 +80,8 @@ describe("requestEntityOnchange", () => {
     expect(result.updates).toEqual({});
     expect(result.warnings).toBeUndefined();
   });
-
   test("forwards warnings array when present", async () => {
-    installFetch({
-      status: 200,
-      body: { updates: {}, warnings: ["budget exceeded"] },
-    });
+    installFetch({ status: 200, body: { updates: {}, warnings: ["budget exceeded"] } });
     const result = await requestEntityOnchange({
       entity: "purchase_item",
       changedField: "product_id",
@@ -103,17 +89,11 @@ describe("requestEntityOnchange", () => {
     });
     expect(result.warnings).toEqual(["budget exceeded"]);
   });
-
   test("URL-encodes the entity name", async () => {
     installFetch({ status: 200, body: { updates: {} } });
-    await requestEntityOnchange({
-      entity: "weird name",
-      changedField: "x",
-      values: {},
-    });
+    await requestEntityOnchange({ entity: "weird name", changedField: "x", values: {} });
     expect(captured?.url).toBe("/api/entities/weird%20name/onchange");
   });
-
   test("throws with the server-provided error message on non-2xx", async () => {
     installFetch({
       status: 400,
@@ -123,7 +103,6 @@ describe("requestEntityOnchange", () => {
       requestEntityOnchange({ entity: "x", changedField: "y", values: {} }),
     ).rejects.toThrow("field unknown");
   });
-
   test("throws a generic message when the error body is non-JSON", async () => {
     globalThis.fetch = (async () =>
       new Response("Internal Server Error", {
@@ -134,7 +113,6 @@ describe("requestEntityOnchange", () => {
       requestEntityOnchange({ entity: "x", changedField: "y", values: {} }),
     ).rejects.toThrow("Onchange request failed (500)");
   });
-
   test("forwards AbortSignal so callers can cancel stale requests", async () => {
     installFetch({ status: 200, body: { updates: {} } });
     const controller = new AbortController();

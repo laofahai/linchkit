@@ -16,7 +16,8 @@ import { Clock, GripVertical, Inbox, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "../../i18n/use-entity-label";
-import { executeAction, queryRecord, transitionRecord } from "../../lib/api";
+import { executeAction } from "../../lib/action-api";
+import { queryRecord, transitionRecord } from "../../lib/entity-api";
 import { getStateBadgeClass, resolveStateColor } from "../../lib/state-colors";
 import { executeTransition, resolveBoundAction } from "../../lib/transition-dispatch";
 
@@ -39,7 +40,7 @@ interface DragState {
   fromState: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────
 
 /** Format a date value for card display. */
 function formatDate(value: unknown): string {
@@ -64,7 +65,7 @@ function displayValue(value: unknown): string {
   return String(value);
 }
 
-// ── Column component ─────────────────────────────────────
+// ── Column component ─────────────────────────────────────────
 
 interface KanbanColumnProps {
   stateValue: string;
@@ -233,7 +234,7 @@ function KanbanColumn({
   );
 }
 
-// ── Main component ───────────────────────────────────────
+// ── Main component ─────────────────────────────────────────
 
 export function AutoKanban({
   schema,

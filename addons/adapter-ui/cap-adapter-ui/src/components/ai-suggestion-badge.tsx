@@ -1,14 +1,10 @@
 /**
  * AiSuggestionBadge — Inline overlay for an AI-suggested field value.
- *
- * Shows the suggested value in blue with accept/reject mini buttons.
- * Appears below the field input when the field has an AI suggestion.
  */
-
 import { Button } from "@linchkit/ui-kit/components";
 import { Check, Info, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { AiFieldSuggestion } from "../lib/api";
+import type { AiFieldSuggestion } from "../lib/ai-api";
 
 export interface AiSuggestionBadgeProps {
   suggestion: AiFieldSuggestion;
@@ -16,7 +12,6 @@ export interface AiSuggestionBadgeProps {
   onReject: () => void;
 }
 
-/** Format a suggestion value for display */
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -26,7 +21,6 @@ function formatValue(value: unknown): string {
 
 export function AiSuggestionBadge({ suggestion, onAccept, onReject }: AiSuggestionBadgeProps) {
   const { t } = useTranslation();
-
   return (
     <div className="mt-1 flex items-start gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs dark:border-blue-800 dark:bg-blue-950/50 animate-in fade-in slide-in-from-top-1 duration-200">
       <div className="flex-1 min-w-0">

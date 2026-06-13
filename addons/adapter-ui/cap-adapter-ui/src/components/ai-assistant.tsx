@@ -39,14 +39,10 @@ import type { UIMessage } from "ai";
 import { BotIcon, Loader2Icon, SendIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { ActionResult } from "../lib/action-api";
 import { AgUiChatTransport } from "../lib/agui-chat-transport";
-import {
-  type ActionResult,
-  type IntentResolution,
-  isAiEnabled,
-  type ResolveIntentResult,
-  resolveIntent,
-} from "../lib/api";
+import { type IntentResolution, type ResolveIntentResult, resolveIntent } from "../lib/ai-api";
+import { isAiEnabled } from "../lib/app-config";
 import { ActionProposalCard } from "./action-proposal-card";
 import { MessageBubble } from "./ai-message-bubble";
 

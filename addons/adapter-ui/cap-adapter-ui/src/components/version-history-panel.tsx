@@ -27,7 +27,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type ExecutionLogEntry, queryExecutionLogs, updateRecord } from "../lib/api";
+import { updateRecord } from "../lib/entity-api";
+import { type ExecutionLogEntry, queryExecutionLogs } from "../lib/execution-log-api";
 
 // ── Types ────────────────────────────────────────────────
 

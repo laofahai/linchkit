@@ -1,48 +1,33 @@
 /**
  * Tests for the `resolveSchemaIntent` client (Spec 52 — "说→有").
- *
- * The client maps the server's discriminated `ResolveSchemaIntentResponse`
- * (proposal_draft / clarification / no_match, plus 503 / 4xx-5xx / transport
- * error) onto a discriminated `ResolveSchemaIntentResult` the UI renders.
- *
- * We inject a stub `fetch` via the `fetchImpl` option so the assertions never
- * rely on a GLOBAL fetch mock — a global stub would leak across the batched
- * suite and clobber other tests' network calls. Each case builds its own
- * `Response` and asserts the mapping.
  */
-
 import { beforeEach, describe, expect, test } from "bun:test";
 
-// Minimal localStorage shim — the client calls getAuthHeaders() which reads
-// localStorage. The bun test runner has no DOM; mirror tenant.test.ts.
 const store = new Map<string, string>();
 if (typeof globalThis.localStorage === "undefined") {
   Object.defineProperty(globalThis, "localStorage", {
     value: {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => store.set(key, value),
-      removeItem: (key: string) => store.delete(key),
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+      removeItem: (k: string) => store.delete(k),
       clear: () => store.clear(),
       get length() {
         return store.size;
       },
-      key: (index: number) => [...store.keys()][index] ?? null,
+      key: (i: number) => [...store.keys()][i] ?? null,
     },
     configurable: true,
   });
 }
 
-import { resolveSchemaIntent } from "../src/lib/api";
+import { resolveSchemaIntent } from "../src/lib/ai-api";
 
-/** Build a JSON Response with a given status + body. */
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
-
-/** A `fetch` stub that always returns the given response and records the call. */
 function stubFetch(response: Response | (() => Response | Promise<Response>)): {
   fetchImpl: typeof fetch;
   calls: Array<{ url: string; init?: RequestInit }>;
@@ -70,8 +55,7 @@ describe("resolveSchemaIntent client", () => {
     expect(calls[0]?.init?.method).toBe("POST");
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ prompt: "hello world" });
   });
-
-  test("maps proposal_draft to a draft result with id/status/confidence", async () => {
+  test("maps proposal_draft to a draft result", async () => {
     const { fetchImpl } = stubFetch(
       jsonResponse(200, {
         outcome: "proposal_draft",
@@ -95,8 +79,7 @@ describe("resolveSchemaIntent client", () => {
       explanation: "Require an approver when total > 10000",
     });
   });
-
-  test("maps clarification to a clarification result with the question", async () => {
+  test("maps clarification to a clarification result", async () => {
     const { fetchImpl } = stubFetch(
       jsonResponse(200, {
         outcome: "clarification",
@@ -110,8 +93,7 @@ describe("resolveSchemaIntent client", () => {
     expect(result.question).toBe("Which entity should this rule apply to?");
     expect(result.bestConfidence).toBe(0.4);
   });
-
-  test("maps no_match to a no_match result with the reason", async () => {
+  test("maps no_match to a no_match result", async () => {
     const { fetchImpl } = stubFetch(
       jsonResponse(200, {
         outcome: "no_match",
@@ -125,15 +107,11 @@ describe("resolveSchemaIntent client", () => {
     expect(result.reason).toBe("No entity matched the description.");
     expect(result.message).toBe("try again");
   });
-
-  test("maps 503 to an unavailable result with the structured message", async () => {
+  test("maps 503 to an unavailable result", async () => {
     const { fetchImpl } = stubFetch(
       jsonResponse(503, {
         success: false,
-        error: {
-          code: "SERVICE.UNAVAILABLE",
-          message: "AI service is not configured.",
-        },
+        error: { code: "SERVICE.UNAVAILABLE", message: "AI service is not configured." },
       }),
     );
     const result = await resolveSchemaIntent("draft a rule", { fetchImpl });
@@ -141,7 +119,6 @@ describe("resolveSchemaIntent client", () => {
     if (result.kind !== "unavailable") return;
     expect(result.message).toBe("AI service is not configured.");
   });
-
   test("maps a 400 validation error to an error result", async () => {
     const { fetchImpl } = stubFetch(
       jsonResponse(400, {
@@ -154,7 +131,6 @@ describe("resolveSchemaIntent client", () => {
     if (result.kind !== "error") return;
     expect(result.message).toBe("prompt must be a non-empty string");
   });
-
   test("maps a 500 to an error result", async () => {
     const { fetchImpl } = stubFetch(
       jsonResponse(500, {
@@ -167,7 +143,6 @@ describe("resolveSchemaIntent client", () => {
     if (result.kind !== "error") return;
     expect(result.message).toBe("boom");
   });
-
   test("maps a transport-level throw to an error result", async () => {
     const fetchImpl = (async () => {
       throw new Error("network down");
@@ -177,20 +152,16 @@ describe("resolveSchemaIntent client", () => {
     if (result.kind !== "error") return;
     expect(result.message).toBe("network down");
   });
-
   test("maps an unknown outcome to an error result", async () => {
     const { fetchImpl } = stubFetch(jsonResponse(200, { outcome: "something_new" }));
     const result = await resolveSchemaIntent("draft a rule", { fetchImpl });
     expect(result.kind).toBe("error");
   });
-
   test("falls back to a generic 503 message when the body is non-JSON", async () => {
     const { fetchImpl } = stubFetch(new Response("not json", { status: 503 }));
     const result = await resolveSchemaIntent("draft a rule", { fetchImpl });
     expect(result.kind).toBe("unavailable");
     if (result.kind !== "unavailable") return;
-    // No structured message — `message` is undefined; the UI shows its own
-    // localized "not configured" fallback.
     expect(result.message).toBeUndefined();
   });
 });

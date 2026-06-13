@@ -25,10 +25,10 @@ import { AlertCircle, CheckCircle2, Pencil } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "../../i18n/use-entity-label";
-import { updateRecord } from "../../lib/api";
+import { updateRecord } from "../../lib/entity-api";
 import { widgetRegistry } from "../../lib/widget-registry";
 
-// ── Types ────────────────────────────────────────────────────
+// ── Types ───────────────────────────────────────────────────
 
 type BulkEditPhase = "select" | "applying" | "done";
 
@@ -49,7 +49,7 @@ interface BulkEditDialogProps {
   onCompleted?: () => void;
 }
 
-// ── Fields excluded from bulk edit ──────────────────────────
+// ── Fields excluded from bulk edit ────────────────────────────
 
 const EXCLUDED_FIELDS = new Set([
   "id",
@@ -65,7 +65,7 @@ const EXCLUDED_FIELDS = new Set([
 /** Field types that cannot be bulk-edited. */
 const EXCLUDED_FIELD_TYPES = new Set(["computed", "has_many", "many_to_many"]);
 
-// ── Component ────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────
 
 export function BulkEditDialog({
   open,
@@ -234,7 +234,7 @@ export function BulkEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* ── Field selection phase ─────────────────────────── */}
+        {/* ── Field selection phase ───────────────────────────────────── */}
         {phase === "select" && (
           <div className="space-y-4">
             {/* Field selector */}
@@ -290,7 +290,7 @@ export function BulkEditDialog({
           </div>
         )}
 
-        {/* ── Applying phase ────────────────────────────────── */}
+        {/* ── Applying phase ────────────────────────────────────────── */}
         {phase === "applying" && (
           <div className="space-y-4 py-6">
             <div className="text-center text-sm text-muted-foreground">
@@ -309,7 +309,7 @@ export function BulkEditDialog({
           </div>
         )}
 
-        {/* ── Done phase ────────────────────────────────────── */}
+        {/* ── Done phase ────────────────────────────────────────────── */}
         {phase === "done" && result && (
           <div className="space-y-4">
             {/* Summary */}

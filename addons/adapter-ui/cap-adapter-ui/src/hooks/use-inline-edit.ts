@@ -7,7 +7,7 @@
 
 import type { FieldType } from "@linchkit/core/types";
 import { useCallback, useRef, useState } from "react";
-import { updateRecord } from "../lib/api";
+import { updateRecord } from "../lib/entity-api";
 
 /** Field types that support inline editing */
 const EDITABLE_FIELD_TYPES: ReadonlySet<FieldType> = new Set(["string", "number", "enum"]);

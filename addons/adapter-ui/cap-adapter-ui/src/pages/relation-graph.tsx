@@ -39,7 +39,12 @@ import { ArrowRightIcon, DatabaseIcon, NetworkIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { type EntityInfo, fetchEntities, fetchRelations, fetchSemanticRelations } from "@/lib/api";
+import {
+  type EntityInfo,
+  fetchEntities,
+  fetchRelations,
+  fetchSemanticRelations,
+} from "@/lib/entity-meta";
 
 // ── Layout constants ─────────────────────────────────────
 

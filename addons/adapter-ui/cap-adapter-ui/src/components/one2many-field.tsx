@@ -32,7 +32,8 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
-import { createRecord, deleteRecord, graphql, updateRecord } from "../lib/api";
+import { createRecord, deleteRecord, updateRecord } from "../lib/entity-api";
+import { graphql } from "../lib/graphql";
 
 // ── Types ────────────────────────────────────────────────
 

@@ -1,11 +1,6 @@
 /**
  * RelatedRecordsTab — Odoo-style tab content for one_to_many relationships.
- *
- * Renders a full list view (AutoList) of child records filtered by parent FK.
- * Supports sorting, pagination, row click navigation, and a "New" button
- * that navigates to create form with FK pre-filled.
  */
-
 import type { EntityDefinition, RelationDefinition } from "@linchkit/core/types";
 import { Button, Skeleton } from "@linchkit/ui-kit/components";
 import { useNavigate } from "@tanstack/react-router";
@@ -13,24 +8,16 @@ import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "../hooks/use-entity-bundle";
-import { queryList } from "../lib/api";
+import { queryList } from "../lib/entity-api";
 import type { AutoListViewDefinition } from "./auto-list/types";
 import { ListView } from "./list-view";
 
-// ── Types ────────────────────────────────────────────────
-
 interface RelatedRecordsTabProps {
-  /** Parent schema name */
   parentSchema: string;
-  /** Parent record ID */
   parentId: string;
-  /** Link definition describing the one_to_many relationship */
   link: RelationDefinition;
 }
 
-// ── Helpers ──────────────────────────────────────────────
-
-/** System fields to exclude from auto-generated list columns */
 const SYSTEM_FIELDS = new Set([
   "id",
   "tenant_id",
@@ -42,43 +29,22 @@ const SYSTEM_FIELDS = new Set([
   "is_deleted",
 ]);
 
-/**
- * Derive the FK column name on the child table pointing to parent.
- * Convention matches schema-to-drizzle.ts generateRelationColumns():
- * - one_to_many: FK = `{from}_id` on the `to` (child) table
- * - many_to_one: FK = `{to}_id` on the `from` (child) table
- */
 function deriveFkField(link: RelationDefinition, _parentSchema: string): string {
-  if (link.cardinality === "one_to_many") {
-    return `${link.from}_id`;
-  }
-  if (link.cardinality === "many_to_one") {
-    return `${link.to}_id`;
-  }
+  if (link.cardinality === "one_to_many") return `${link.from}_id`;
+  if (link.cardinality === "many_to_one") return `${link.to}_id`;
   return `${_parentSchema}_id`;
 }
 
-/** Derive the child schema name from the link */
 function deriveChildSchema(link: RelationDefinition, parentSchema: string): string {
-  if (link.cardinality === "one_to_many" && link.from === parentSchema) {
-    return link.to;
-  }
-  if (link.cardinality === "many_to_one" && link.to === parentSchema) {
-    return link.from;
-  }
-  // Fallback
+  if (link.cardinality === "one_to_many" && link.from === parentSchema) return link.to;
+  if (link.cardinality === "many_to_one" && link.to === parentSchema) return link.from;
   return link.from === parentSchema ? link.to : link.from;
 }
 
-/**
- * Generate a list view from child schema fields when no explicit list view is defined.
- * Shows up to 6 fields excluding system and FK fields.
- */
 function generateChildListView(schema: EntityDefinition, fkField: string): AutoListViewDefinition {
   const fieldNames = Object.keys(schema.fields)
     .filter((f) => !SYSTEM_FIELDS.has(f) && f !== fkField)
     .slice(0, 6);
-
   return {
     name: `${schema.name}_list_auto`,
     entity: schema.name,
@@ -91,43 +57,30 @@ function generateChildListView(schema: EntityDefinition, fkField: string): AutoL
   };
 }
 
-// ── Component ────────────────────────────────────────────
-
 export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecordsTabProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const childSchemaName = deriveChildSchema(link, parentSchema);
   const fkField = deriveFkField(link, parentSchema);
-
   const { bundle: childBundle, loading: bundleLoading } = useEntityBundle(childSchemaName);
   const childSchema = childBundle?.schema;
 
-  // Build or use existing list view
   const listView = useMemo((): AutoListViewDefinition | undefined => {
     if (!childSchema) return undefined;
-
-    // Try to find an explicit list view from the child bundle
     const explicitList = Object.values(childBundle?.views ?? {}).find((v) => v.type === "list") as
       | AutoListViewDefinition
       | undefined;
-
-    if (explicitList) {
-      // Filter out the FK field from columns so it's not shown
+    if (explicitList)
       return {
         ...explicitList,
         fields: explicitList.fields.filter((f) => f.field !== fkField),
         pageSize: explicitList.pageSize ?? 10,
       };
-    }
-
     return generateChildListView(childSchema, fkField);
   }, [childSchema, childBundle?.views, fkField]);
 
-  // Data state
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Build relation field name set for detecting object-type GraphQL fields
   const childRelations = childBundle?.relations;
   const relationFieldNames = useMemo(() => {
     if (!childRelations || !childSchema) return new Set<string>();
@@ -139,7 +92,6 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
     return names;
   }, [childRelations, childSchema]);
 
-  // Build query fields from view — relation fields get { id name } subfield selections
   const queryFields = useMemo(() => {
     if (!listView) return ["id"];
     const fields = new Set<string>(["id"]);
@@ -148,16 +100,11 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
       const isRelation =
         relationFieldNames.has(f.field) ||
         (!childSchema?.fields[f.field] && !SYSTEM_FIELDS.has(f.field));
-      if (isRelation) {
-        fields.add(`${f.field} { id name }`);
-      } else {
-        fields.add(f.field);
-      }
+      fields.add(isRelation ? `${f.field} { id name }` : f.field);
     }
     return Array.from(fields);
   }, [listView, relationFieldNames, childSchema]);
 
-  // Stable ref for query fields
   const queryFieldsRef = useRef(queryFields);
   queryFieldsRef.current = queryFields;
 
@@ -181,22 +128,13 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
   }, [childSchema, childSchemaName, fkField, parentId, listView]);
 
   useEffect(() => {
-    if (childSchema && listView) {
-      fetchData();
-    }
+    if (childSchema && listView) fetchData();
   }, [childSchema, listView, fetchData]);
 
-  // Navigation handlers
   function handleRowClick(recordId: string) {
-    navigate({
-      to: "/entities/$name/$id",
-      params: { name: childSchemaName, id: recordId },
-    });
+    navigate({ to: "/entities/$name/$id", params: { name: childSchemaName, id: recordId } });
   }
-
   function handleCreateNew() {
-    // Navigate to create form — the FK field will need to be set
-    // We pass the parent FK as a search param so the form can pre-fill it
     navigate({
       to: "/entities/$name/new",
       params: { name: childSchemaName },
@@ -204,8 +142,7 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
     });
   }
 
-  // Loading skeleton
-  if (bundleLoading) {
+  if (bundleLoading)
     return (
       <div className="space-y-2 py-4">
         <Skeleton className="h-8 w-full" />
@@ -213,13 +150,8 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
         <Skeleton className="h-8 w-full" />
       </div>
     );
-  }
+  if (!childSchema || !listView) return null;
 
-  if (!childSchema || !listView) {
-    return null;
-  }
-
-  // "New" button for creating related records
   const newButton = (
     <Button size="sm" variant="outline" onClick={handleCreateNew}>
       <Plus className="mr-1.5 size-3.5" />
@@ -227,7 +159,6 @@ export function RelatedRecordsTab({ parentSchema, parentId, link }: RelatedRecor
     </Button>
   );
 
-  // Show empty state with create button when no records exist
   if (!loading && data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">

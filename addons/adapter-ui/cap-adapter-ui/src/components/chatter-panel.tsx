@@ -27,7 +27,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSubscription } from "../hooks/use-subscription";
-import { addChatterMessage, type ChatterMessage, queryChatterMessages } from "../lib/api";
+import { addChatterMessage, type ChatterMessage, queryChatterMessages } from "../lib/chatter-api";
 
 interface ChatterPanelProps {
   entityName: string;

@@ -29,7 +29,7 @@ import {
 import { CheckIcon, UserCogIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchAppConfig } from "@/lib/api";
+import { fetchAppConfig } from "@/lib/app-config";
 import { DEV_ROLES, type DevRole, getStoredDevRole, setDevRole } from "@/lib/dev-role";
 
 /**

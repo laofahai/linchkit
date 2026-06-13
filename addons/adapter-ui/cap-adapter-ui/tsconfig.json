@@ -16,6 +16,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],

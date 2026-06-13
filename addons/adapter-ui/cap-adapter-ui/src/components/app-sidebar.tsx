@@ -20,7 +20,7 @@ import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import { useEntities } from "@/hooks/use-entities";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { getMenuItems } from "@/lib/api";
+import { getMenuItems } from "@/lib/app-config";
 import { getLucideIcon } from "@/lib/dynamic-icon";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

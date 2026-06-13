@@ -35,7 +35,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useEntityBundle } from "@/hooks/use-entity-bundle";
 import { useEntityLabel } from "@/i18n/use-entity-label";
-import { queryList } from "@/lib/api";
+import { queryList } from "@/lib/entity-api";
 import type { WidgetDisplayProps, WidgetInputProps } from "@/lib/widget-registry";
 import type { RelatedRecord } from "./relation-utils";
 import { requiredBg } from "./utils";
@@ -423,7 +423,7 @@ export function RefInput({
   );
 }
 
-// ── Quick create dialog ──────────────────────────────────
+// ── Quick create dialog ──────────────────────────────────────────
 
 interface QuickCreateDialogField {
   name: string;

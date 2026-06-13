@@ -1,4 +1,4 @@
-import { executeAction } from "./api";
+import { executeAction } from "./action-api";
 
 const AUTH_STORAGE_KEY = "linchkit:authenticated";
 const TOKEN_STORAGE_KEY = "linchkit:token";
