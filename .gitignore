@@ -1,5 +1,8 @@
 # Dependencies
-node_modules/
+# No trailing slash so a `node_modules` SYMLINK (used in git worktrees to share
+# the main checkout's deps) is ignored too — a dir-only `node_modules/` pattern
+# does not match a symlink and lets `git add -A` track a machine-local path.
+node_modules
 bun.lockb
 
 # Build
