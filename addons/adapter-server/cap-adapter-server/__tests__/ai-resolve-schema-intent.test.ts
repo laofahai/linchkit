@@ -427,12 +427,13 @@ describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence
     expect(changes[0]?.name).toBe("product");
   });
 
-  test("surfaces a drafted relation in the response, yet STRIPS it from the governed change", async () => {
+  test("surfaces a drafted relation in the response and emits it as a second governed `relation` change", async () => {
     // The AI drafts a NEW entity that relates to an EXISTING one. The relation
-    // must (a) round-trip in the HTTP response for the review UI, and (b) be
-    // ABSENT from the governed change's definition — entity targets are not
-    // materialized to code yet, so carrying the relation through graduation is a
-    // tracked follow-up (#580). This test pins both halves of that contract.
+    // must (a) round-trip in the HTTP response for the review UI, (b) be ABSENT
+    // from the ENTITY change's definition (that change stays a clean
+    // EntityDefinition), and (c) be carried as a SECOND, first-class `relation`
+    // governed change so graduation emits both defineEntity() and
+    // defineRelation() (#580). This test pins all three halves of that contract.
     const relAi = fakeAiService({
       responseContent: JSON.stringify({
         kind: "add_entity",
@@ -485,21 +486,49 @@ describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence
     expect(body.relation?.fromName).toBe("line_items");
     expect(body.relation?.toName).toBe("purchase_request");
 
-    // (b) The governed change carries the ENTITY only — its definition has NO
-    // `relation` key. This is the deliberate, deferred strip (#580), pinned here
-    // so a future change that accidentally leaks the relation into the governed
-    // definition fails loudly instead of silently changing the graduation shape.
+    // (b) The governed proposal carries TWO changes: the ENTITY change (whose
+    // definition has NO `relation` key — it stays a clean EntityDefinition) and
+    // (c) a first-class `relation` change carrying the full RelationDefinition,
+    // so graduation emits both defineEntity() and defineRelation() (#580).
     const list = await getProposals(relServer, "purchase_item");
     const found = list.json.data.items.find((p) => p.id === body.proposalId);
     if (!found) throw new Error("expected the governed entity draft in /api/proposals");
     const changes = found.changes as Array<{
       target: string;
+      operation: string;
+      name: string;
       definition?: Record<string, unknown>;
     }>;
-    expect(changes).toHaveLength(1);
-    expect(changes[0]?.target).toBe("entity");
-    expect(changes[0]?.definition).toBeDefined();
-    expect(changes[0]?.definition && "relation" in changes[0].definition).toBe(false);
+    expect(changes).toHaveLength(2);
+
+    // (b) Entity change first, clean of the relation extra.
+    const entityChange = changes.find((c) => c.target === "entity");
+    expect(entityChange).toBeDefined();
+    expect(entityChange?.operation).toBe("create");
+    expect(entityChange?.definition).toBeDefined();
+    expect(entityChange?.definition && "relation" in entityChange.definition).toBe(false);
+
+    // (c) Relation change carrying the full RelationDefinition (graduates to
+    // defineRelation()).
+    const relationChange = changes.find((c) => c.target === "relation");
+    expect(relationChange).toBeDefined();
+    expect(relationChange?.operation).toBe("create");
+    expect(relationChange?.name).toBe("purchase_request_items");
+    const relDef = relationChange?.definition as
+      | {
+          name?: string;
+          from?: string;
+          to?: string;
+          cardinality?: string;
+          fromName?: string;
+          toName?: string;
+        }
+      | undefined;
+    expect(relDef?.from).toBe("purchase_request");
+    expect(relDef?.to).toBe("purchase_item");
+    expect(relDef?.cardinality).toBe("one_to_many");
+    expect(relDef?.fromName).toBe("line_items");
+    expect(relDef?.toName).toBe("purchase_request");
   });
 });
 

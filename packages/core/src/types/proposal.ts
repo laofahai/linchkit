@@ -13,6 +13,7 @@ import type { DryRunOutcome, DryRunStatus } from "./dry-run";
 import type { EntityDefinition } from "./entity";
 import type { EventDefinition } from "./event";
 import type { FieldOverlayDefinition } from "./overlay";
+import type { RelationDefinition } from "./relation";
 import type { RuleDefinition } from "./rule";
 import type { StateDefinition } from "./state";
 import type { ViewDefinition } from "./view";
@@ -44,6 +45,8 @@ export interface ProposalAuthor {
 
 export type ProposalChangeTarget =
   | "entity"
+  /** A first-class semantic relation (`defineRelation()`) — entity-adjacent. */
+  | "relation"
   | "action"
   | "rule"
   | "view"
@@ -67,6 +70,7 @@ export type ProposalChangeOperation = "create" | "update" | "delete";
 
 export type ChangeDefinition =
   | EntityDefinition
+  | RelationDefinition
   | ActionDefinition
   | RuleDefinition
   | ViewDefinition

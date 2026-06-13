@@ -32,6 +32,7 @@ import type {
   EntityDefinition,
   ProposalChange,
   ProposalDefinition,
+  RelationDefinition,
   RuleDefinition,
 } from "@linchkit/core";
 import type {
@@ -280,25 +281,27 @@ function persistGovernedRuleDraft(opts: {
  * (issue #575). The resolver runs ALL of its structural validation first
  * (snake_case singular name, no system-field collisions, valid field types,
  * valid relation endpoints). By the time we reach here the draft carries a
- * validated, typed `EntityDefinition`; we translate it into a single governed
- * `ProposalChange` (`{ target: "entity", operation: "create", name, definition }`)
- * in `draft` status. It is NEVER submitted, approved, or applied here.
+ * validated, typed `EntityDefinition`; we translate it into a governed
+ * `entity` `ProposalChange`
+ * (`{ target: "entity", operation: "create", name, definition }`) in `draft`
+ * status. It is NEVER submitted, approved, or applied here.
  *
- * A drafted relation rides along inside the resolver draft's definition, but it
- * is NOT carried into the governed change: the governed `entity` change records
- * the entity ONLY (the relation is stripped below). The relation still surfaces
- * in the HTTP response (`outcome.relation`) for the review UI, but it does NOT
- * reach the graduation path. Note this is not a live regression today — entity
- * targets are not materialized to code yet (only `"action"` is in the
- * materializer's MATERIALIZABLE_TARGETS), so neither the entity NOR its relation
- * graduates. Carrying the relation through as a first-class governed change
- * needs a `"relation"` ProposalChangeTarget and is a tracked follow-up (#580).
+ * A drafted relation rides along inside the resolver draft's definition
+ * (`{ ...entityDef, relation }`). It is carried into the governed proposal as a
+ * SECOND, first-class `relation` change
+ * (`{ target: "relation", operation: "create", name, definition }`, #580) so
+ * graduation emits BOTH `defineEntity(...)` and `defineRelation(...)`. The
+ * relation is still removed from the `entity` change's definition (that change
+ * carries a clean `EntityDefinition`); it also still surfaces in the HTTP
+ * response (`outcome.relation`) for the review UI. The two changes are pushed
+ * entity-first, then relation when present.
  *
  * Always returns a persisted governed `ProposalDefinition` (mirroring
  * `persistGovernedRuleDraft`). If the draft somehow lacks a usable entity
- * definition it THROWS rather than returning `undefined` — a silent undefined
+ * definition — or carries a relation that is present but malformed — it THROWS
+ * rather than returning `undefined` / silently dropping: a silent undefined
  * would let the route report a successful `entity_proposal_draft` while nothing
- * was actually governed.
+ * was governed, and a silently-dropped relation would regress the #580 contract.
  */
 function persistGovernedEntityDraft(opts: {
   engine: GovernedProposalEngine;
@@ -320,13 +323,13 @@ function persistGovernedEntityDraft(opts: {
     );
   }
   // The resolver draft carries a drafted relation alongside the entity
-  // (`{ ...entityDef, relation }`). The governed `entity` change's `definition`
-  // must be a clean `EntityDefinition`, so strip the relation extra here — the
-  // relation surfaces separately in the API response (`outcome.relation`) for the
-  // review UI; persisting it as its own governed change is a deferred follow-up
-  // (#580). The HTTP test pins this strip (governed definition has no `relation`
-  // key) so the deferral is a tested contract, not a silent drop.
-  const { relation: _relation, ...entityRest } = definition as Record<string, unknown>;
+  // (`{ ...entityDef, relation }`). Separate the relation from the entity here:
+  // the governed `entity` change's `definition` must be a clean `EntityDefinition`
+  // (relation removed), while the relation becomes its OWN first-class governed
+  // `relation` change below (#580) so graduation emits both `defineEntity(...)`
+  // and `defineRelation(...)`. The relation also still surfaces in the API
+  // response (`outcome.relation`) for the review UI.
+  const { relation: relationDef, ...entityRest } = definition as Record<string, unknown>;
   // Minimal structural assertion before the unchecked cast. The resolver
   // validated this upstream, but persisting a governed EntityDefinition is
   // integrity-critical, so guard against future drift in the stored shape rather
@@ -342,13 +345,41 @@ function persistGovernedEntityDraft(opts: {
   }
   const entityDefinition = entityRest as unknown as EntityDefinition;
 
-  const change: ProposalChange = {
+  const entityChange: ProposalChange = {
     target: "entity",
     operation: "create",
     name: entityName,
     definition: entityDefinition,
     diff: explanation,
   };
+
+  const changes: ProposalChange[] = [entityChange];
+
+  // Carry the drafted relation as a SECOND, first-class governed change so it
+  // graduates to `defineRelation(...)` source (#580). The resolver already
+  // validated the relation endpoints upstream; mirror the entity guard and
+  // assert the minimal RelationDefinition shape (non-null object with a string
+  // `name`) before trusting the cast. If the relation is PRESENT but malformed,
+  // THROW rather than silently drop — a silent drop would regress the #580
+  // contract while still reporting a successful entity_proposal_draft.
+  if (relationDef !== undefined && relationDef !== null) {
+    if (
+      typeof relationDef !== "object" ||
+      typeof (relationDef as Record<string, unknown>).name !== "string"
+    ) {
+      throw new Error(
+        `persistGovernedEntityDraft: relation present but malformed — expected an object with a string name (entityName=${entityName})`,
+      );
+    }
+    const relationDefinition = relationDef as unknown as RelationDefinition;
+    changes.push({
+      target: "relation",
+      operation: "create",
+      name: relationDefinition.name,
+      definition: relationDefinition,
+      diff: explanation,
+    });
+  }
 
   return engine.createProposal({
     title: explanation,
@@ -358,7 +389,7 @@ function persistGovernedEntityDraft(opts: {
     capability: entityName,
     // A new entity is an additive, minor change.
     changeType: "minor",
-    changes: [change],
+    changes,
   });
 }
 
