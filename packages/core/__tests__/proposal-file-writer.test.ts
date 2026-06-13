@@ -965,9 +965,9 @@ describe("ProposalFileWriter source patch (#566)", () => {
 
     const written = await writer.writeApprovedProposal(sourcePatchProposal(relPath));
 
-    // The change still resolves to that file (reported in written[])...
-    expect(written).toEqual([absPath]);
-    // ...but the file was NOT rewritten — content is the original, not the marker.
+    // A no-op is NOT reported as written (claude #590)...
+    expect(written).toEqual([]);
+    // ...and the file was NOT rewritten — content is the original, not the marker.
     expect(await readFile(absPath, "utf8")).toBe(ORIGINAL);
   });
 

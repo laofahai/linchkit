@@ -467,8 +467,10 @@ export class ProposalFileWriter {
       // `sourcePatch` fall through to the unchanged materialized-source / codegen
       // path below.
       if (change.sourcePatch) {
+        // null on a no-op (value already at target) — do not report an unchanged
+        // file as written (#590).
         const patched = await this.applySourcePatch(proposal, change);
-        written.push(patched);
+        if (patched) written.push(patched);
         continue;
       }
 
@@ -547,7 +549,7 @@ export class ProposalFileWriter {
   private async applySourcePatch(
     proposal: ProposalDefinition,
     change: ProposalChange,
-  ): Promise<string> {
+  ): Promise<string | null> {
     // `change.sourcePatch` is guaranteed present by the caller, but narrow it
     // locally so this helper is self-contained.
     const patch = change.sourcePatch;
@@ -615,19 +617,26 @@ export class ProposalFileWriter {
       constantName: patch.constantName,
       newValueLiteral: patch.newValueLiteral,
     });
-    // Skip the write when the value is already at target (changed === false):
-    // rewriting identical bytes is wasteful I/O and bumps the file's mtime,
-    // needlessly tripping file watchers / HMR / build tools (gemini #590).
-    if (result.changed) {
-      await writeFile(abs, result.source, { encoding: "utf8", flag: "w" });
+    // No-op when the value is already at target (changed === false): skip the
+    // write (rewriting identical bytes is wasteful I/O and bumps mtime, tripping
+    // watchers / HMR — gemini #590) AND return null so the caller does NOT report
+    // an unchanged file as "written" (claude #590).
+    if (!result.changed) {
+      this.logger?.info?.(`ProposalFileWriter: sourcePatch no-op for ${abs} (already at target)`, {
+        proposalId: proposal.id,
+        target: change.target,
+        name: change.name,
+        constantName: patch.constantName,
+      });
+      return null;
     }
 
+    await writeFile(abs, result.source, { encoding: "utf8", flag: "w" });
     this.logger?.info?.(`ProposalFileWriter: patched ${abs}`, {
       proposalId: proposal.id,
       target: change.target,
       name: change.name,
       constantName: patch.constantName,
-      changed: result.changed,
     });
 
     return abs;
