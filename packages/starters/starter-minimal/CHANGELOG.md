@@ -1,8 +1,14 @@
-# @linchkit/cap-flow-restate
+# @linchkit/starter-minimal
 
-## 2.0.0
+## 1.0.0
 
 ### Patch Changes
+
+- 0357153: feat(core): wire the capability resolver into the boot path + ship `starter-minimal` (Spec 14, #121, first slice)
+
+  New `@linchkit/core/server` exports `mergeCapabilityPool(explicit, discovered)` (dedup by `name`, explicit wins) and `resolveCapabilities(explicit, discovered)` (runs `resolveDependencies` then `resolveAutoInstall` over the merged pool). The CLI gains `resolveActiveCapabilities(config)` in `load-config.ts`, and `linch dev` now activates the resolved set (config capabilities + `addons_path` discovery → pulled deps → auto-installed companions) instead of only the explicitly-listed ones. The other CLI commands are migrated in a fast-follow.
+
+  New package `@linchkit/starter-minimal`: a baseline starter capability (`name: "starter-minimal"`) declaring `dependencies: ["cap-auth", "cap-permission"]`, so adding it to a project's config pulls in the auth + permission stack through the resolver.
 
 - Updated dependencies [aa4fe90]
 - Updated dependencies [74ea5ba]
@@ -56,19 +62,3 @@
 - Updated dependencies [76511f7]
 - Updated dependencies [db10790]
   - @linchkit/core@0.3.0
-
-## 1.0.0
-
-### Minor Changes
-
-- b117c2c: Initial public release — M3 milestone
-
-  - Runtime Entity Overlay (Spec 59): JSONB \_extensions, overlay registry, GraphQL hot-reload
-  - AI Workspace (Spec 60): linch doctor, linch info, linch agents-md, linch mcp-dev
-  - Core i18n: capability-owned translations, resolveLabel for CLI/MCP
-  - Publishing infrastructure: tsup builds, OCA source addons, changesets
-
-### Patch Changes
-
-- Updated dependencies [b117c2c]
-  - @linchkit/core@0.2.0

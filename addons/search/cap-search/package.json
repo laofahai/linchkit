@@ -1,6 +1,6 @@
 {
   "name": "@linchkit/cap-search",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -19,7 +19,7 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@linchkit/core": "^0.2.0",
+    "@linchkit/core": "^0.3.0",
     "drizzle-orm": "^0.45.1",
     "graphql": "^16.13.1"
   },
