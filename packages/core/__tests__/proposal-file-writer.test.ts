@@ -490,6 +490,39 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     expect(contents).toContain('"operator": "lt"');
   });
 
+  it("does NOT apply the guard when a custom codegen is supplied (escape hatch) (#566)", async () => {
+    // A caller-supplied `codegen` is the escape hatch for unusual ChangeDefinition
+    // shapes — it may legitimately handle a code-condition / definition-less rule
+    // update itself. The graduatability guard encodes `defaultCodegen`'s limits
+    // only, so it must NOT pre-empt a custom generator (gemini review on #587).
+    const CUSTOM = "// custom generator output\nexport default {/* hand-rolled */};\n";
+    let sawChange = false;
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      codegen: () => {
+        sawChange = true;
+        return CUSTOM;
+      },
+    });
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          // The shape the default guard rejects (no definition, no generatedSource)
+          // — but the custom codegen owns it, so no throw.
+          diff: "把经理审批阈值改成 2 万",
+        },
+      ],
+    });
+
+    const [written] = await writer.writeApprovedProposal(proposal);
+    expect(sawChange).toBe(true);
+    const contents = await readFile(written as string, "utf8");
+    expect(contents).toBe(CUSTOM);
+  });
+
   it("throws when proposal is not approved", async () => {
     const writer = new ProposalFileWriter({ rootDir: tmpDir });
     const draft = makeApprovedProposal({ status: "draft" });

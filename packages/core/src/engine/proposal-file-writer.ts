@@ -364,11 +364,21 @@ export class ProposalFileWriter {
   private readonly pathResolver?: (proposal: ProposalDefinition, change: ProposalChange) => string;
   private readonly codegen: (proposal: ProposalDefinition, change: ProposalChange) => string;
   private readonly formatter?: ProposalSourceFormatter;
+  /**
+   * Whether the deterministic {@link defaultCodegen} is in use (no custom
+   * `codegen` was supplied). The {@link assertGraduatable} guard encodes the
+   * constraints of `defaultCodegen` specifically (JSON.stringify drops
+   * functions; a rule needs trigger/condition/effect). A caller-supplied
+   * `codegen` is an escape hatch for unusual `ChangeDefinition` shapes and may
+   * handle exactly those cases — so the guard must NOT pre-empt it.
+   */
+  private readonly usesDefaultCodegen: boolean;
 
   constructor(options: ProposalFileWriterOptions) {
     this.rootDir = options.rootDir;
     this.logger = options.logger;
     this.pathResolver = options.pathResolver;
+    this.usesDefaultCodegen = options.codegen === undefined;
     this.codegen = options.codegen ?? defaultCodegen;
     this.formatter = resolveFormatter(options.formatter);
   }
@@ -443,8 +453,13 @@ export class ProposalFileWriter {
         // No trusted materialized source — deterministically serialize
         // `change.definition`, but refuse FIRST if it can't round-trip to valid
         // source so a code-condition / requiresCodeChange:true draft FAILS LOUD
-        // here instead of graduating a corrupt stub (#566).
-        assertGraduatable(proposal, change);
+        // here instead of graduating a corrupt stub (#566). The guard only
+        // applies to `defaultCodegen`; a caller-supplied `codegen` is an escape
+        // hatch that may legitimately handle code-condition / function-bearing
+        // definitions itself, so we must not pre-empt it.
+        if (this.usesDefaultCodegen) {
+          assertGraduatable(proposal, change);
+        }
         rawSource = this.codegen(proposal, change);
       }
       const source = await this.maybeFormat(rawSource, targetPath, proposal);
