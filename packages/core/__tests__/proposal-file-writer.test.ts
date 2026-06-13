@@ -8,7 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProposalEngine, ProposalFileWriter } from "../src/server-entry";
@@ -1005,6 +1005,38 @@ describe("ProposalFileWriter source patch (#566)", () => {
 
     // Patcher never invoked — nothing was read or written outside the repo.
     expect(calls).toHaveLength(0);
+  });
+
+  it("rejects a symlink INSIDE repoRoot that resolves OUTSIDE it (coderabbit #590)", async () => {
+    // A symlink whose own path is inside repoRoot but whose target is outside
+    // must not be patchable — the string-level check passes, so only the realpath
+    // containment catches it. Proves the symlink-escape defense.
+    const outsideDir = await mkdtemp(join(tmpdir(), "sp-outside-"));
+    const outsideFile = join(outsideDir, "secret.ts");
+    const ORIGINAL = "export const MANAGER_APPROVAL_THRESHOLD = 10000;\n";
+    await writeFile(outsideFile, ORIGINAL, "utf8");
+    await mkdir(join(tmpDir, "rules"), { recursive: true });
+    const linkRel = join("rules", "link.ts");
+    await symlink(outsideFile, join(tmpDir, linkRel));
+
+    try {
+      const { calls, patcher } = makeFakePatcher();
+      const writer = new ProposalFileWriter({
+        rootDir: tmpDir,
+        repoRoot: tmpDir,
+        sourcePatcher: patcher,
+      });
+
+      await expect(writer.writeApprovedProposal(sourcePatchProposal(linkRel))).rejects.toThrow(
+        /symlink|outside repoRoot/i,
+      );
+
+      // The outside target was neither patched nor even read.
+      expect(calls).toHaveLength(0);
+      expect(await readFile(outsideFile, "utf8")).toBe(ORIGINAL);
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it("THROWS when the sourcePatch target file is missing", async () => {

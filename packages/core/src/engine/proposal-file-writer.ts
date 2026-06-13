@@ -21,7 +21,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import { dirname, join } from "node:path";
 import type { Logger } from "../types/logger";
@@ -566,7 +566,8 @@ export class ProposalFileWriter {
       );
     }
 
-    // Path safety: resolve under repoRoot and reject anything that escapes it.
+    // Path safety, step 1 — cheap string-level containment: reject an obvious
+    // traversal before touching the filesystem.
     const abs = path.resolve(this.repoRoot, patch.filePath);
     const rel = path.relative(this.repoRoot, abs);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
@@ -577,13 +578,37 @@ export class ProposalFileWriter {
       );
     }
 
-    if (!existsSync(abs)) {
+    // Path safety, step 2 — resolve symlinks and re-check containment against the
+    // REAL paths: a symlink INSIDE repoRoot could otherwise point outside it
+    // (coderabbit #590). `realpath(abs)` doubles as the existence check — its
+    // ENOENT becomes the descriptive "missing" error with no `existsSync`→read
+    // TOCTOU gap (claude #590).
+    const realRoot = await realpath(this.repoRoot);
+    let realAbs: string;
+    try {
+      realAbs = await realpath(abs);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(
+          `ProposalFileWriter: sourcePatch target file "${abs}" does not exist ` +
+            `(proposal "${proposal.id}" change "${change.name}") — the file to patch is missing.`,
+        );
+      }
+      throw err;
+    }
+    const realRel = path.relative(realRoot, realAbs);
+    if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
       throw new Error(
-        `ProposalFileWriter: sourcePatch target file "${abs}" does not exist ` +
-          `(proposal "${proposal.id}" change "${change.name}") — the file to patch is missing.`,
+        `ProposalFileWriter: sourcePatch.filePath "${patch.filePath}" resolves (via a symlink) to ` +
+          `"${realAbs}" outside repoRoot "${realRoot}" (proposal "${proposal.id}" change ` +
+          `"${change.name}") — refusing to patch a file outside the repository.`,
       );
     }
 
+    // Read / write / report via `abs` (the logical path under repoRoot, which is
+    // what git tracks); `realAbs` was only needed to make the symlink-containment
+    // and existence checks above honest. `writeFile` follows the symlink to the
+    // same bytes anyway, and `abs === realAbs` for the real no-symlink case.
     const source = await readFile(abs, "utf8");
     const result = this.sourcePatcher({
       source,
