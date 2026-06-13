@@ -201,8 +201,20 @@ export function validatePhase1(options: {
     // and the patcher re-validates at graduation). Skip the MISSING_DEFINITION
     // requirement — like revert/delete — so the governed draft can reach the
     // approval gate and graduate. Without this, every NL rule-threshold update
-    // fails Phase 1 and is unapprovable.
-    if (change.sourcePatch) continue;
+    // fails Phase 1 and is unapprovable. Still validate the patch's OWN shape
+    // here so a malformed sourcePatch is caught early at Phase 1 rather than
+    // failing opaquely during graduation.
+    if (change.sourcePatch) {
+      const { filePath, constantName, newValueLiteral } = change.sourcePatch;
+      if (!filePath || !constantName || !newValueLiteral) {
+        errors.push({
+          code: "INVALID_SOURCE_PATCH",
+          message: `Change for "${change.name}" has an invalid or incomplete sourcePatch specification`,
+          target: change.name,
+        });
+      }
+      continue;
+    }
     if (!change.definition) {
       errors.push({
         code: "MISSING_DEFINITION",

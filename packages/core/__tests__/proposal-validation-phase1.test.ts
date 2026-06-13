@@ -351,6 +351,28 @@ describe("validatePhase1", () => {
     expect(result.status).toBe("passed");
     expect(result.errors).toHaveLength(0);
   });
+
+  it("fails a code-rule update carrying an invalid (empty filePath) sourcePatch", () => {
+    // The carve-out skips MISSING_DEFINITION but still validates the patch's own
+    // shape: a malformed sourcePatch is caught at Phase 1, not opaquely at graduation.
+    const result = validatePhase1({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          sourcePatch: {
+            filePath: "",
+            constantName: "MANAGER_APPROVAL_THRESHOLD",
+            newValueLiteral: "20000",
+          },
+        },
+      ],
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errors.some((e) => e.code === "INVALID_SOURCE_PATCH")).toBe(true);
+  });
 });
 
 // ── validatePhase1: duplicate detection ─────────────────
