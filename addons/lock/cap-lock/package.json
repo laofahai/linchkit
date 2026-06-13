@@ -24,7 +24,7 @@
     "typescript": "^6.0.2"
   },
   "linchkit": {
-    "coreVersion": "^0.2.0",
+    "coreVersion": "^0.3.0",
     "type": "standard",
     "category": "system"
   }

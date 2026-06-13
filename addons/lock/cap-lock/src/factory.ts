@@ -69,7 +69,7 @@ export function createCapLock(options?: CapLockOptions): CapabilityDefinition {
     type: "standard",
     category: "system",
     version: "1.0.0",
-    coreVersion: "^0.2.0",
+    coreVersion: "^0.3.0",
 
     configSchema: capLockConfig.schema,
     config: policy,
