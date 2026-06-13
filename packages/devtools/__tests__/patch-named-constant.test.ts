@@ -92,6 +92,22 @@ describe("patchNamedConstant", () => {
     );
   });
 
+  // (8a) `export let` is a mutable binding → NOT a const → throws NOT FOUND
+  it("throws NOT FOUND for an export let (const-only contract)", () => {
+    const source = "export let X = 1;\n";
+    expect(() => patchNamedConstant({ source, constantName: "X", newValueLiteral: "3" })).toThrow(
+      /NOT FOUND/,
+    );
+  });
+
+  // (8b) `export var` is a mutable binding → NOT a const → throws NOT FOUND
+  it("throws NOT FOUND for an export var (const-only contract)", () => {
+    const source = "export var X = 1;\n";
+    expect(() => patchNamedConstant({ source, constantName: "X", newValueLiteral: "3" })).toThrow(
+      /NOT FOUND/,
+    );
+  });
+
   // (9) ambiguous: two top-level `export const X` → throws AMBIGUOUS
   it("throws AMBIGUOUS when two top-level export consts share the name", () => {
     const source = "export const X = 1;\nexport const X = 2;\n";

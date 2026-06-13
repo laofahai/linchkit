@@ -34,16 +34,13 @@ interface ConstantMatch {
 /**
  * Returns true when the variable statement carries an `export` modifier.
  *
- * The `export` keyword lives on the statement's modifiers; reading it via the
- * first declaration's combined modifier flags also folds in `declare`, which is
- * fine here — we only care whether the declaration is exported.
+ * The `export` keyword lives directly on the statement's own modifiers, so we
+ * read it from there. Inspecting `statement.modifiers` (instead of the first
+ * declaration's combined modifier flags) avoids depending on parent pointers,
+ * which lets the parse run with `setParentNodes: false`.
  */
 function isExported(statement: ts.VariableStatement): boolean {
-  const declaration = statement.declarationList.declarations[0];
-  if (declaration === undefined) {
-    return false;
-  }
-  return (ts.getCombinedModifierFlags(declaration) & ts.ModifierFlags.Export) !== 0;
+  return statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) ?? false;
 }
 
 /**
@@ -58,12 +55,14 @@ function isExported(statement: ts.VariableStatement): boolean {
 export function patchNamedConstant(request: SourcePatchRequest): SourcePatchResult {
   const { source, constantName, newValueLiteral } = request;
 
-  // `setParentNodes = true` so `getStart(sourceFile)` works on nested nodes.
+  // No parent pointers needed: `export` is read from the statement's own
+  // modifiers, and `initializer.getStart(sourceFile)` is given the source file
+  // explicitly, so `setParentNodes: false` keeps the parse lean.
   const sourceFile = ts.createSourceFile(
     "patch-input.ts",
     source,
     ts.ScriptTarget.Latest,
-    /* setParentNodes */ true,
+    /* setParentNodes */ false,
   );
 
   const matches: ConstantMatch[] = [];
@@ -76,6 +75,12 @@ export function patchNamedConstant(request: SourcePatchRequest): SourcePatchResu
   // inside functions/blocks are never visited, so they stay unmatchable.
   for (const statement of sourceFile.statements) {
     if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+    // `const`-only contract: `export let` / `export var` are deliberately NOT
+    // patchable. The error messages and the SourcePatcher semantics all speak
+    // of an `export const`, so a mutable binding must never match.
+    if ((statement.declarationList.flags & ts.NodeFlags.Const) === 0) {
       continue;
     }
     if (!isExported(statement)) {
