@@ -245,12 +245,21 @@ function persistGovernedRuleDraft(opts: {
   // reviewer in /admin/proposals distinguish it from a malformed change.
   // (Text-only on purpose: ProposalChange has no structured extension point.)
   const diffText = outcome.diffSummary ?? explanation;
+  // Carry an assembled in-place named-constant patch (#566) onto the governed
+  // change so graduation can rewrite the real `export const … = …` via the
+  // injected SourcePatcher. Present ONLY when the resolver could turn the
+  // diff-only code-condition update into a machine-applicable patch (the rule
+  // was CODE-condition, declared a `patchTarget`, and the AI produced a SAFE
+  // `newValueLiteral`); absent otherwise (the update stays a developer
+  // change-request). The patch values were validated upstream by the resolver.
+  const sourcePatch = outcome.sourcePatch;
   const change: ProposalChange = {
     target: "rule",
     operation,
     name: ruleName,
     ...(definition ? { definition } : {}),
     diff: diffOnly ? `${REQUIRES_CODE_CHANGE_MARKER} ${diffText}` : diffText,
+    ...(sourcePatch ? { sourcePatch } : {}),
   };
 
   const codeChangeNote = diffOnly

@@ -227,9 +227,18 @@ B) The user wants to CHANGE an EXISTING rule (the request clearly refers to one 
      "ruleName": "<the EXISTING rule's name from existingRules — never invent one>",
      "rule": { <the FULL UPDATED rule definition, same shape as in (A)> },
      "diff": "<one short human-readable sentence describing exactly what changes vs the existing rule>",
+     "newValueLiteral": "<OPTIONAL — see rule below>",
      "confidence": <number in [0, 1]>,
      "explanation": "<one short sentence for the review card, in the user's language>"
    }
+
+   - \`newValueLiteral\` (OPTIONAL): include it ONLY when this is a "code" rule
+     (\`conditionKind: "code"\`) AND the request is a SINGLE constant/threshold
+     value change (e.g. "把经理审批阈值改成 20000"). Emit the raw JavaScript
+     literal for the NEW value: a bare number like \`"20000"\` or \`"-1.5"\`, a
+     \`"true"\`/\`"false"\`/\`"null"\` keyword, or a double-quoted string like
+     \`"\\"manager\\""\`. OMIT it when the change is not a simple literal swap
+     (anything involving an expression, multiple values, or a renamed target).
 
    - If the existing rule's \`conditionKind\` is "declarative" AND its \`roundTrippable\`
      is not false: return the FULL updated definition in \`rule\`. Keep everything you
@@ -354,6 +363,15 @@ export interface ParsedSchemaIntent {
   ruleName?: string;
   /** `update_rule` only — human-readable diff summary vs the existing rule. */
   diff?: string;
+  /**
+   * `update_rule` only — the raw JavaScript literal for the NEW value when the
+   * change is a single constant/threshold swap on a CODE-condition rule (#566).
+   * Spliced into source by the graduation patcher, so it is admitted ONLY when
+   * it passes {@link isSafeValueLiteral} (a number / boolean / null / a
+   * double-quoted JSON string). An unsafe / absent value is dropped — no
+   * `sourcePatch` is built from it.
+   */
+  newValueLiteral?: string;
   /** Present for `kind === "add_entity"`. */
   entity?: ParsedEntityShape;
   /** Optional relation accompanying an `add_entity` draft. */
@@ -367,6 +385,48 @@ export interface ParsedSchemaIntent {
   confidence?: number;
   explanation?: string;
   question?: string;
+}
+
+/**
+ * SECURITY GATE for `newValueLiteral` (#566). This string is later SPLICED
+ * verbatim into capability source code by the graduation patcher, so it must be
+ * a self-contained, side-effect-free VALUE literal — never an expression that
+ * could execute. Accepts ONLY:
+ *
+ *   - an integer / decimal number literal, optionally signed (`20000`, `-1.5`,
+ *     `.5`, `42.`),
+ *   - the keyword literals `true` / `false` / `null`,
+ *   - a double-quoted JSON string literal (`"manager"`) that round-trips through
+ *     `JSON.parse` to a string (rejects unterminated / multi-token strings).
+ *
+ * Everything else is REJECTED: identifiers, function calls (`foo()`), operators,
+ * template literals (`` `x` ``), arrow functions (`() => 9`), object / array
+ * literals, statement separators (`1;DROP`), comments, whitespace-wrapped
+ * multi-token input. The caller DROPS a failing value (treats it as absent) so
+ * no `sourcePatch` is ever built from unsafe input.
+ */
+export function isSafeValueLiteral(value: string): boolean {
+  if (typeof value !== "string") return false;
+  // No leading/trailing whitespace, no internal separators — a single token.
+  // (A trimmed-then-checked approach would let `" 1 ; DROP "` look single after
+  // trim; instead we forbid any whitespace outright for the non-string forms.)
+  // Number literal: optional sign, digits with an optional single decimal point
+  // on either side of the dot, but at least one digit overall. No exponent,
+  // hex, underscores, or `Infinity`/`NaN` (those are identifiers, not literals).
+  if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(value)) return true;
+  // Keyword literals.
+  if (value === "true" || value === "false" || value === "null") return true;
+  // Double-quoted JSON string literal. JSON.parse rejects single quotes,
+  // unterminated strings, and trailing tokens (`"a" + b`), and we additionally
+  // require the parse result to BE a string so only the string form passes here.
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    try {
+      return typeof JSON.parse(value) === "string";
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 /**
@@ -395,6 +455,14 @@ export function parseSchemaIntentResponse(raw: string): ParsedSchemaIntent | nul
     rule: rec.rule && typeof rec.rule === "object" ? (rec.rule as ParsedRuleShape) : undefined,
     ruleName: typeof rec.ruleName === "string" ? rec.ruleName : undefined,
     diff: typeof rec.diff === "string" ? rec.diff : undefined,
+    // SECURITY: admit `newValueLiteral` ONLY when it is a safe value literal —
+    // it is spliced into source by graduation. An unsafe (or non-string) value
+    // is DROPPED here (treated as absent) so no `sourcePatch` is ever built
+    // from it (#566).
+    newValueLiteral:
+      typeof rec.newValueLiteral === "string" && isSafeValueLiteral(rec.newValueLiteral)
+        ? rec.newValueLiteral
+        : undefined,
     entity:
       rec.entity && typeof rec.entity === "object" ? (rec.entity as ParsedEntityShape) : undefined,
     relation:

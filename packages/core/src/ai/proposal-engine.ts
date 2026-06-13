@@ -70,6 +70,23 @@ export interface ProposalDiff {
   targetName?: string;
   /** Human-readable summary of the change */
   summary: string;
+  /**
+   * Structured in-place named-constant patch for a "say→change a constant this
+   * rule owns" update (#566). Present ONLY on a diff-only CODE-condition update
+   * whose rule declared a `patchTarget` AND for which the AI produced a SAFE
+   * `newValueLiteral`. The graduation pipeline copies this onto the governed
+   * `ProposalChange.sourcePatch`, where the injected `SourcePatcher` rewrites
+   * the real `export const <constantName> = <literal>;`. Absent for every other
+   * update (those stay diff-only — a developer applies the change in source).
+   */
+  sourcePatch?: {
+    /** Repo-root-relative path to the existing source file to patch. */
+    filePath: string;
+    /** Name of the exported constant to patch. */
+    constantName: string;
+    /** Already-validated literal to write as the new value, e.g. "20000". */
+    newValueLiteral: string;
+  };
 }
 
 /** A complete proposal with lifecycle state */

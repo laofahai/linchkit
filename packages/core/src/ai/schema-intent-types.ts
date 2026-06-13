@@ -84,6 +84,23 @@ export interface SchemaIntentProposalDraft {
    * honest, governed change REQUEST.
    */
   requiresCodeChange?: boolean;
+  /**
+   * Present ONLY for a `requiresCodeChange` update that the resolver could turn
+   * into an in-place named-constant patch (#566): the rule was CODE-condition,
+   * declared a `patchTarget`, and the AI produced a SAFE `newValueLiteral`.
+   * Mirrors `proposal.diff.sourcePatch`; the graduation pipeline copies it onto
+   * the governed `ProposalChange.sourcePatch` so the real `export const … = …`
+   * is rewritten. Absent when the diff-only update has no machine-applicable
+   * patch (a developer applies it in source).
+   */
+  sourcePatch?: {
+    /** Repo-root-relative path to the existing source file to patch. */
+    filePath: string;
+    /** Name of the exported constant to patch. */
+    constantName: string;
+    /** Already-validated literal to write as the new value, e.g. "20000". */
+    newValueLiteral: string;
+  };
 }
 
 // ── Entity-draft outcome (issue #575) ────────────────────────
@@ -286,6 +303,14 @@ export interface SchemaIntentRule {
    * snapshots) means round-trippable when `conditionKind` is `"declarative"`.
    */
   roundTrippable?: boolean;
+  /**
+   * Opt-in graduation target projected from `RuleDefinition.patchTarget` (#566)
+   * — the repo-root-relative source file and the exported constant a
+   * code-condition "say→change the threshold" update should patch in place. The
+   * resolver reads this to assemble a `sourcePatch`. Absent for rules that did
+   * not declare a patch target (the update stays diff-only).
+   */
+  patchTarget?: { sourcePath: string; constantName: string };
 }
 
 /**

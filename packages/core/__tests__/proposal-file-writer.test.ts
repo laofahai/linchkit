@@ -10,7 +10,13 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+// `ai`-side proposal engine + the resolver's update-draft path: used by the
+// full #566 assembly→graduation loop test below. Imported directly (not via the
+// public barrel) because `draftRuleUpdate` is an internal resolver helper.
+import { ProposalEngine as AiProposalEngine } from "../src/ai/proposal-engine";
+import { draftRuleUpdate } from "../src/ai/schema-intent-rule-updater";
+import type { SchemaIntentEntity } from "../src/ai/schema-intent-types";
 import { createProposalEngine, ProposalFileWriter } from "../src/server-entry";
 import type { ProposalChange, ProposalDefinition } from "../src/types/proposal";
 import type { SourcePatchRequest, SourcePatchResult } from "../src/types/source-patch";
@@ -938,6 +944,84 @@ describe("ProposalFileWriter source patch (#566)", () => {
     expect(calls[0].constantName).toBe("MANAGER_APPROVAL_THRESHOLD");
     expect(calls[0].newValueLiteral).toBe("20000");
     expect(calls[0].source).toContain("= 10000");
+  });
+
+  it("graduates the sourcePatch ASSEMBLED by draftRuleUpdate (full #566 loop)", async () => {
+    // End-to-end seam: the sourcePatch the resolver's draftRuleUpdate assembles
+    // for the demo manager-approval rule drives the writer to rewrite the real
+    // MANAGER_APPROVAL_THRESHOLD constant via the injected fake patcher. This
+    // proves the two halves (assembly + graduation) compose without the runtime
+    // TS-AST patcher (that injection is a separate follow-up PR).
+    const entity: SchemaIntentEntity = {
+      name: "purchase_request",
+      label: "Purchase Request",
+      fields: [{ name: "amount", type: "number", required: true }],
+      actionNames: ["approve_purchase_request"],
+      rules: [
+        {
+          name: "manager_approval_threshold",
+          label: "Manager approval threshold",
+          triggerActions: ["approve_purchase_request"],
+          effectType: "block",
+          conditionKind: "code",
+          patchTarget: {
+            // Patch the file we create under tmpDir below (relative to repoRoot).
+            sourcePath: join("rules", "manager-approval-threshold.ts"),
+            constantName: "MANAGER_APPROVAL_THRESHOLD",
+          },
+        },
+      ],
+    };
+    const drafted = draftRuleUpdate({
+      parsed: {
+        kind: "update_rule",
+        targetEntity: "purchase_request",
+        ruleName: "manager_approval_threshold",
+        diff: "Raise the manager-approval threshold to 20000.",
+        newValueLiteral: "20000",
+        confidence: 0.9,
+        explanation: "把经理审批阈值改成2万。",
+      },
+      entity,
+      confidence: 0.9,
+      utterance: "把经理审批阈值改成2万",
+      engine: new AiProposalEngine(),
+    });
+    expect(drafted.kind).toBe("proposal_draft");
+    if (drafted.kind !== "proposal_draft") throw new Error("expected proposal_draft");
+    const assembled = drafted.sourcePatch;
+    expect(assembled).toBeDefined();
+    if (!assembled) throw new Error("expected an assembled sourcePatch");
+
+    // Create the on-disk file the patch targets.
+    const absPath = join(tmpDir, assembled.filePath);
+    await mkdir(dirname(absPath), { recursive: true });
+    await writeFile(absPath, "export const MANAGER_APPROVAL_THRESHOLD = 10000;\n", "utf8");
+
+    // Build a governed proposal whose single change carries the ASSEMBLED patch.
+    const change: ProposalChange = {
+      target: "rule",
+      operation: "update",
+      name: "manager_approval_threshold",
+      diff: "Raise the manager-approval threshold to 20000.",
+      sourcePatch: assembled,
+    };
+    const { calls, patcher } = makeFakePatcher();
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      repoRoot: tmpDir,
+      sourcePatcher: patcher,
+    });
+
+    const written = await writer.writeApprovedProposal(makeApprovedProposal({ changes: [change] }));
+
+    expect(written).toEqual([absPath]);
+    expect(await readFile(absPath, "utf8")).toBe(
+      "export const MANAGER_APPROVAL_THRESHOLD = 20000;\n",
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].constantName).toBe("MANAGER_APPROVAL_THRESHOLD");
+    expect(calls[0].newValueLiteral).toBe("20000");
   });
 
   it("does NOT rewrite the file when the patch is a no-op (changed: false) (gemini #590)", async () => {

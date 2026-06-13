@@ -17,8 +17,12 @@
  */
 
 import type { RuleDefinition } from "../types/rule";
-import type { ProposalEngine } from "./proposal-engine";
-import type { ParsedRuleShape, ParsedSchemaIntent } from "./schema-intent-prompt";
+import type { ProposalDiff, ProposalEngine } from "./proposal-engine";
+import {
+  isSafeValueLiteral,
+  type ParsedRuleShape,
+  type ParsedSchemaIntent,
+} from "./schema-intent-prompt";
 import { SCHEMA_INTENT_MESSAGES } from "./schema-intent-resolver-messages";
 import { buildRuleDefinition } from "./schema-intent-rule-builder";
 import type {
@@ -86,6 +90,14 @@ export function draftRuleUpdate(opts: {
     if (!summary) {
       return noMatch("invalid_rule", SCHEMA_INTENT_MESSAGES.missingUpdateDiff);
     }
+    // Try to upgrade the diff-only change-request into a MACHINE-APPLICABLE
+    // in-place source patch (#566). This succeeds ONLY for the narrow,
+    // graduatable case: a CODE condition (declarative rules take the rebuild
+    // path above), an opt-in `patchTarget` declared on the rule, AND a SAFE
+    // `newValueLiteral` produced by the AI (it was validated at parse time;
+    // re-checked here defensively before it is ever spliced into source). Every
+    // other diff-only update stays a developer change-request (no sourcePatch).
+    const sourcePatch = buildSourcePatch(existing, parsed.newValueLiteral);
     const proposal = engine.createProposal({
       type: "update_rule",
       description: explanation,
@@ -95,7 +107,13 @@ export function draftRuleUpdate(opts: {
       // AI saw. The summary is the reviewable spec of the change.
       // `targetName` carries the rule name so downstream security change
       // records still report the real target without a definition.
-      diff: { target: "rule", operation: "update", targetName: existing.name, summary },
+      diff: {
+        target: "rule",
+        operation: "update",
+        targetName: existing.name,
+        summary,
+        ...(sourcePatch ? { sourcePatch } : {}),
+      },
     });
     return {
       kind: "proposal_draft",
@@ -107,6 +125,7 @@ export function draftRuleUpdate(opts: {
       explanation,
       diffSummary: summary,
       requiresCodeChange: true,
+      ...(sourcePatch ? { sourcePatch } : {}),
     };
   }
 
@@ -220,4 +239,36 @@ function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule):
 /** Narrow to a plain object record (not null, not an array). */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Assemble an in-place named-constant `sourcePatch` for a "say→change the
+ * threshold" code-condition update (#566). Returns `undefined` — leaving the
+ * update a plain diff-only change-request — UNLESS every graduatability
+ * precondition holds:
+ *
+ *   1. The existing rule's condition is CODE (`conditionKind === "code"`). A
+ *      declarative rule never reaches this helper (it takes the rebuild path).
+ *   2. The rule declared an opt-in `patchTarget` (source file + constant name).
+ *   3. The AI produced a `newValueLiteral` that passes {@link isSafeValueLiteral}
+ *      — re-checked here as DEFENCE IN DEPTH because the result is spliced
+ *      verbatim into capability source by the graduation patcher (it was already
+ *      validated at parse time; a second gate guards against any future caller
+ *      that builds a `ParsedSchemaIntent` without going through the parser).
+ */
+function buildSourcePatch(
+  existing: SchemaIntentRule,
+  newValueLiteral: string | undefined,
+): NonNullable<ProposalDiff["sourcePatch"]> | undefined {
+  if (existing.conditionKind !== "code") return undefined;
+  const target = existing.patchTarget;
+  if (!target) return undefined;
+  if (typeof newValueLiteral !== "string" || !isSafeValueLiteral(newValueLiteral)) {
+    return undefined;
+  }
+  return {
+    filePath: target.sourcePath,
+    constantName: target.constantName,
+    newValueLiteral,
+  };
 }

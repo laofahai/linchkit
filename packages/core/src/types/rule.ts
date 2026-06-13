@@ -195,6 +195,15 @@ export interface RuleDefinition {
   effect: RuleEffect;
   /** Semantic metadata for AI reasoning and ontology search (Spec 67) */
   semantics?: RuleSemantics;
+  /**
+   * Opt-in graduation target for "say→change a constant this rule owns" (#566).
+   * Declares the repo-root-relative source file and the top-level exported
+   * constant whose literal a code-condition update should patch (e.g. raising
+   * `MANAGER_APPROVAL_THRESHOLD`). Explicit and deterministic — no `import.meta`
+   * magic — so the patch target is reviewable. When absent, a code-condition
+   * update stays a diff-only change request (no in-place source patch).
+   */
+  patchTarget?: { sourcePath: string; constantName: string };
 }
 
 // ── Rule evaluation result ──────────────────────────────────
