@@ -55,7 +55,10 @@ function isImpactableChange(change: ProposalChange): boolean {
   // A relation create is additive (no prior rows to probe). Defensive belt — a
   // relation is not in DATA_TARGETS today, so this is already non-breaking via the
   // guard above; this keeps the create-is-non-breaking rule locally explicit if a
-  // future maintainer ever adds `relation` to DATA_TARGETS.
+  // future maintainer ever adds `relation` to DATA_TARGETS. NOTE: doing so ALSO
+  // requires teaching `resolveEntityName` below to map a `relation` change to an
+  // entity (it returns null for relation today, so a relation UPDATE would probe
+  // no table and be silently treated as zero-impact).
   if (change.target === "relation" && change.operation === "create") return false;
   return true;
 }
