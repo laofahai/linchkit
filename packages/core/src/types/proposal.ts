@@ -165,6 +165,25 @@ export interface ProposalChange {
    * `inputCaseId` that produced it. Undefined when the change was never dry-run.
    */
   dryRunOutcomes?: DryRunOutcome[];
+  /**
+   * When set, this change graduates by patching a named constant in an EXISTING
+   * source file IN PLACE (#566) — a THIRD graduation path alongside the
+   * declarative codegen and AI-materialized `generatedSource`.
+   *
+   * Used for changes like "把经理审批阈值改成 2 万" that map to editing a single
+   * named constant (`export const MANAGER_APPROVAL_THRESHOLD = 10000;`) rather
+   * than writing a new generated file. The in-place patch is performed by an
+   * injected `SourcePatcher` (the TS-AST patcher lives OUTSIDE core); core only
+   * resolves the path, reads the file, and writes the patcher's output back.
+   */
+  sourcePatch?: {
+    /** Repo-root-relative path to the existing source file to patch. */
+    filePath: string;
+    /** Name of the exported constant to patch. */
+    constantName: string;
+    /** Already-serialized literal to write as the new value, e.g. "20000". */
+    newValueLiteral: string;
+  };
 }
 
 // ── Impact analysis ──────────────────────────────────────
