@@ -238,9 +238,75 @@ function assertWritableTarget(target: ProposalChangeTarget): WritableChangeTarge
   return target;
 }
 
+/** Fields a `rule` definition must carry to be deterministically serialisable. */
+const RULE_REQUIRED_FIELDS = ["trigger", "condition", "effect"] as const;
+
+/**
+ * Refuse to deterministically serialise a change whose effective definition
+ * cannot round-trip to valid source — FAIL LOUD instead of writing a corrupt
+ * stub (#566). Only invoked WITHOUT a trusted `generatedSource`; a materialized
+ * change is written verbatim and never reaches this guard. Two un-serialisable
+ * cases are detected (today scoped to `rule`, the only target scaffolded from a
+ * structured definition):
+ *
+ *   (a) The effective definition (`change.definition ?? {}`) lacks a required
+ *       field (trigger / condition / effect). This is the code-condition
+ *       `requiresCodeChange:true` case where the NL resolver intentionally left
+ *       `definition` undefined; the old `?? { name: change.name }` fallback would
+ *       have emitted `defineRule({ "name": "…" })` — a stub missing the rule's
+ *       behaviour. We refuse instead.
+ *   (b) A required field carries a FUNCTION (e.g. a `CodeCondition`).
+ *       `JSON.stringify` silently DROPS it, emitting a broken rule with the field
+ *       lost. We refuse rather than corrupt.
+ *
+ * The fix a caller is pointed at: such a code-condition change (create or
+ * update) needs a materialized `generatedSource` (the AI materializer), not
+ * deterministic codegen.
+ */
+function assertGraduatable(proposal: ProposalDefinition, change: ProposalChange): void {
+  const target = assertWritableTarget(change.target);
+  // Only `rule` is scaffolded from a structured definition with mandatory
+  // behavioural fields today; other targets ship a self-contained declarative
+  // definition or arrive with `generatedSource`. Keep the guard scoped so we
+  // never regress them.
+  if (target !== "rule") return;
+
+  const definition = (change.definition ?? {}) as Record<string, unknown>;
+  // Common prefix names the proposal id, change name and target (the required
+  // "what"); each branch appends the specific "why" + the materialization fix.
+  const where = `${target} "${change.name}" (proposal "${proposal.id}")`;
+  // Operation-aware so the message reads correctly for BOTH a code-condition
+  // update and a brand-new create that carries a function condition.
+  const fix =
+    `such a code-condition ${change.operation} needs a materialized \`generatedSource\` ` +
+    "(the AI materializer), not deterministic codegen — refusing to write an invalid stub.";
+
+  for (const field of RULE_REQUIRED_FIELDS) {
+    const value = definition[field];
+    if (value === undefined || value === null) {
+      throw new Error(
+        `ProposalFileWriter: cannot deterministically serialize ${where} — its definition has ` +
+          `no "${field}" (the code-condition case where the NL resolver intentionally left the ` +
+          `definition undefined); ${fix}`,
+      );
+    }
+    if (typeof value === "function") {
+      throw new Error(
+        `ProposalFileWriter: cannot deterministically serialize ${where} — its "${field}" is a ` +
+          `function (code condition); JSON.stringify would silently drop it, emitting a rule ` +
+          `with "${field}" lost; ${fix}`,
+      );
+    }
+  }
+}
+
 /** Default codegen: import the matching `defineXxx` and re-emit the change. */
 function defaultCodegen(proposal: ProposalDefinition, change: ProposalChange): string {
   const factory = TARGET_FACTORY[assertWritableTarget(change.target)];
+  // `assertGraduatable` runs BEFORE codegen and refuses the un-serialisable
+  // cases, so a `rule` always carries trigger/condition/effect here. The
+  // `?? { name }` default only covers non-rule targets that serialise from a
+  // name-only definition.
   const definition = change.definition ?? { name: change.name };
   const header = buildHeader(proposal, change);
 
@@ -301,11 +367,21 @@ export class ProposalFileWriter {
   private readonly pathResolver?: (proposal: ProposalDefinition, change: ProposalChange) => string;
   private readonly codegen: (proposal: ProposalDefinition, change: ProposalChange) => string;
   private readonly formatter?: ProposalSourceFormatter;
+  /**
+   * Whether the deterministic {@link defaultCodegen} is in use (no custom
+   * `codegen` was supplied). The {@link assertGraduatable} guard encodes the
+   * constraints of `defaultCodegen` specifically (JSON.stringify drops
+   * functions; a rule needs trigger/condition/effect). A caller-supplied
+   * `codegen` is an escape hatch for unusual `ChangeDefinition` shapes and may
+   * handle exactly those cases — so the guard must NOT pre-empt it.
+   */
+  private readonly usesDefaultCodegen: boolean;
 
   constructor(options: ProposalFileWriterOptions) {
     this.rootDir = options.rootDir;
     this.logger = options.logger;
     this.pathResolver = options.pathResolver;
+    this.usesDefaultCodegen = options.codegen === undefined;
     this.codegen = options.codegen ?? defaultCodegen;
     this.formatter = resolveFormatter(options.formatter);
   }
@@ -373,9 +449,22 @@ export class ProposalFileWriter {
       // no generatedSource → codegen.
       const hasGeneratedSource =
         typeof change.generatedSource === "string" && change.generatedSource.trim().length > 0;
-      const rawSource = hasGeneratedSource
-        ? (change.generatedSource as string)
-        : this.codegen(proposal, change);
+      let rawSource: string;
+      if (hasGeneratedSource) {
+        rawSource = change.generatedSource as string;
+      } else {
+        // No trusted materialized source — deterministically serialize
+        // `change.definition`, but refuse FIRST if it can't round-trip to valid
+        // source so a code-condition / requiresCodeChange:true draft FAILS LOUD
+        // here instead of graduating a corrupt stub (#566). The guard only
+        // applies to `defaultCodegen`; a caller-supplied `codegen` is an escape
+        // hatch that may legitimately handle code-condition / function-bearing
+        // definitions itself, so we must not pre-empt it.
+        if (this.usesDefaultCodegen) {
+          assertGraduatable(proposal, change);
+        }
+        rawSource = this.codegen(proposal, change);
+      }
       const source = await this.maybeFormat(rawSource, targetPath, proposal);
       await mkdir(dirname(targetPath), { recursive: true });
 
