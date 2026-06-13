@@ -388,6 +388,9 @@
     "didYouMean": "Did you mean:",
     "swapAction": "Switch to {{action}} ({{pct}})",
     "serviceUnavailable": "AI service unavailable. Please try again later.",
+    "schemaChange": "Schema change detected",
+    "approveSchema": "Approve change",
+    "graduatePr": "Open PR",
     "insights": {
       "title": "AI Insights",
       "analyze": "Analyze Record",
@@ -397,6 +400,26 @@
       "apply": "Apply",
       "avg": "avg"
     }
+  },
+  "schemaProposal": {
+    "draftCreated": "Schema change draft",
+    "ruleKind": "Rule change",
+    "entityKind": "Entity change",
+    "requiresCode": "Requires code change",
+    "targetEntity": "Target",
+    "proposalId": "Proposal",
+    "approve": "Approve",
+    "openPr": "Open PR",
+    "dismiss": "Dismiss",
+    "openedPr": "View pull request",
+    "graduatedNoPr": "Changes committed (no pull request link).",
+    "missingId": "This draft has no proposal id and cannot be approved.",
+    "approveError": "Failed to approve the draft.",
+    "graduateError": "Failed to open a pull request.",
+    "graduateNotFound": "The proposal could not be found.",
+    "graduateNotApproved": "The proposal must be approved before opening a pull request.",
+    "graduateUnavailable": "Graduation is not configured on the server.",
+    "graduateDenied": "You do not have permission to open a pull request for this proposal."
   },
   "health": {
     "title": "System Health",
