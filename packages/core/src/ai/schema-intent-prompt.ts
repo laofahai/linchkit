@@ -412,8 +412,10 @@ export function isSafeValueLiteral(value: string): boolean {
   // trim; instead we forbid any whitespace outright for the non-string forms.)
   // Number literal: optional sign, digits with an optional single decimal point
   // on either side of the dot, but at least one digit overall. No exponent,
-  // hex, underscores, or `Infinity`/`NaN` (those are identifiers, not literals).
-  if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(value)) return true;
+  // hex, underscores, or `Infinity`/`NaN` (those are identifiers, not literals),
+  // and no leading zeros on an integer (`007` would splice in as an octal
+  // literal — a syntax error in strict-mode TypeScript).
+  if (/^[+-]?(?:0(?:\.\d*)?|[1-9]\d*\.?\d*|\.\d+)$/.test(value)) return true;
   // Keyword literals.
   if (value === "true" || value === "false" || value === "null") return true;
   // Double-quoted JSON string literal. JSON.parse rejects single quotes,

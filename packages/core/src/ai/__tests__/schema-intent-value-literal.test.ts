@@ -78,6 +78,10 @@ describe("isSafeValueLiteral — rejects unsafe / malformed input", () => {
     "0x1F",
     "1e3",
     "1_000",
+    // Leading zeros splice in as an octal literal → strict-mode TS syntax error.
+    "007",
+    "0123",
+    "00",
     "",
     ".",
     "-",
