@@ -100,19 +100,27 @@ export function SchemaProposalCard({ draft, onGraduated, onDismiss }: SchemaProp
     }
     setBusy(true);
     setErrorMessage(null);
-    const next = mapGraduateResult(await graduateProposal(display.proposalId));
-    if (next.status === "done") {
-      setPrUrl(next.prUrl);
-      setPhase("done");
-      onGraduated?.(next.prUrl);
-    } else {
-      // Stay in the graduate phase so the user can retry. `next.messageKey` is
-      // an i18n key; append the server's raw message (when present) so the
-      // reviewer sees the localized headline plus the specifics.
-      const headline = t(next.messageKey);
-      setErrorMessage(next.rawMessage ? `${headline} — ${next.rawMessage}` : headline);
+    try {
+      const next = mapGraduateResult(await graduateProposal(display.proposalId));
+      if (next.status === "done") {
+        setPrUrl(next.prUrl);
+        setPhase("done");
+        onGraduated?.(next.prUrl);
+      } else {
+        // Stay in the graduate phase so the user can retry. `next.messageKey` is
+        // an i18n key; append the server's raw message (when present) so the
+        // reviewer sees the localized headline plus the specifics.
+        const headline = t(next.messageKey);
+        setErrorMessage(next.rawMessage ? `${headline} — ${next.rawMessage}` : headline);
+      }
+    } catch (err) {
+      // A thrown graduateProposal (network/transport) must not leave the card
+      // stuck in `busy`. Surface the error and stay in the graduate phase so the
+      // user can retry.
+      setErrorMessage(err instanceof Error ? err.message : t("schemaProposal.graduateError"));
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }, [display.proposalId, onGraduated, t]);
 
   const handleDismiss = useCallback(() => {

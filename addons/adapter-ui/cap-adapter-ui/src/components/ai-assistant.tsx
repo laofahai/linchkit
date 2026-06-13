@@ -291,8 +291,21 @@ export function AIAssistant({
       // unavailable / error) falls through to the existing chat path so read-
       // only Q&A and chit-chat still work.
       setIsResolvingIntent(true);
-      const schemaOutcome = await resolveSchemaIntent(trimmed);
-      setIsResolvingIntent(false);
+      let schemaOutcome: ResolveSchemaIntentResult;
+      try {
+        schemaOutcome = await resolveSchemaIntent(trimmed);
+      } catch (err) {
+        // A thrown resolver (e.g. an auth/transport failure inside getAuthHeaders
+        // or handleUnauthorized) must NOT leave `isResolvingIntent` stuck true —
+        // that would permanently disable the input + send button. Treat it as a
+        // non-graduable outcome so we fall through to the chat path below.
+        schemaOutcome = {
+          kind: "error",
+          message: err instanceof Error ? err.message : "schema intent resolution failed",
+        };
+      } finally {
+        setIsResolvingIntent(false);
+      }
 
       const schemaDecision = decideSchemaFallback(schemaOutcome);
       if (schemaDecision.kind === "schema-proposal") {
