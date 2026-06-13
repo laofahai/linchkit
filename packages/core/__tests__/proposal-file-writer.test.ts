@@ -8,11 +8,12 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createProposalEngine, ProposalFileWriter } from "../src/server-entry";
 import type { ProposalChange, ProposalDefinition } from "../src/types/proposal";
+import type { SourcePatchRequest, SourcePatchResult } from "../src/types/source-patch";
 
 // ── Fixtures ────────────────────────────────────────────────
 
@@ -860,6 +861,210 @@ function selfContainedEntityChange(name = "widget"): ProposalChange {
     } as never,
   };
 }
+
+// ── In-place source patch (#566 — Option A capability-seam) ──────────────────
+//
+// A `sourcePatch` change graduates by patching a NAMED CONSTANT in an EXISTING
+// source file IN PLACE — a THIRD path alongside declarative codegen and
+// AI-materialized generatedSource. The concrete TS-AST patcher lives OUTSIDE
+// core and is INJECTED via `sourcePatcher`; these tests use a tiny fake.
+
+describe("ProposalFileWriter source patch (#566)", () => {
+  /**
+   * A tiny fake patcher: records the request it received and replaces
+   * `<constantName> = 10000` with `<constantName> = <newValueLiteral>`. Stands
+   * in for the real injected TS-AST `patchNamedConstant` (which lives outside
+   * core).
+   */
+  function makeFakePatcher() {
+    const calls: SourcePatchRequest[] = [];
+    const patcher = (request: SourcePatchRequest): SourcePatchResult => {
+      calls.push(request);
+      const needle = `${request.constantName} = 10000`;
+      const replacement = `${request.constantName} = ${request.newValueLiteral}`;
+      return {
+        source: request.source.replace(needle, replacement),
+        oldValueLiteral: "10000",
+        changed: request.source.includes(needle),
+      };
+    };
+    return { calls, patcher };
+  }
+
+  function sourcePatchProposal(
+    filePath: string,
+    overrides: Partial<NonNullable<ProposalChange["sourcePatch"]>> = {},
+  ): ProposalDefinition {
+    const change: ProposalChange = {
+      target: "rule",
+      operation: "update",
+      name: "manager_approval_threshold",
+      diff: "把经理审批阈值改成 2 万",
+      sourcePatch: {
+        filePath,
+        constantName: "MANAGER_APPROVAL_THRESHOLD",
+        newValueLiteral: "20000",
+        ...overrides,
+      },
+    };
+    return makeApprovedProposal({ changes: [change] });
+  }
+
+  it("patches the existing file IN PLACE via the injected patcher", async () => {
+    // Existing source file with a named constant to patch.
+    const relPath = join("rules", "x.ts");
+    const absPath = join(tmpDir, relPath);
+    await mkdir(join(tmpDir, "rules"), { recursive: true });
+    await writeFile(absPath, "export const MANAGER_APPROVAL_THRESHOLD = 10000;\n", "utf8");
+
+    const { calls, patcher } = makeFakePatcher();
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      repoRoot: tmpDir,
+      sourcePatcher: patcher,
+    });
+
+    const written = await writer.writeApprovedProposal(sourcePatchProposal(relPath));
+
+    // The returned written[] carries the absolute path of the patched file.
+    expect(written).toEqual([absPath]);
+
+    // File content was replaced in place with the patcher's output.
+    const contents = await readFile(absPath, "utf8");
+    expect(contents).toBe("export const MANAGER_APPROVAL_THRESHOLD = 20000;\n");
+
+    // The patcher received the right request.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].constantName).toBe("MANAGER_APPROVAL_THRESHOLD");
+    expect(calls[0].newValueLiteral).toBe("20000");
+    expect(calls[0].source).toContain("= 10000");
+  });
+
+  it("does NOT rewrite the file when the patch is a no-op (changed: false) (gemini #590)", async () => {
+    // The value is already at target → the patcher reports changed: false.
+    // Rewriting identical bytes would bump mtime and trip watchers/HMR, so the
+    // writer must SKIP the write. To prove it, the fake patcher reports no change
+    // but returns DIFFERENT bytes: if the writer wrote unconditionally the file
+    // would become the marker; skipping on changed:false keeps the original.
+    const relPath = join("rules", "noop.ts");
+    const absPath = join(tmpDir, relPath);
+    await mkdir(join(tmpDir, "rules"), { recursive: true });
+    const ORIGINAL = "export const MANAGER_APPROVAL_THRESHOLD = 20000;\n";
+    await writeFile(absPath, ORIGINAL, "utf8");
+
+    const patcher = (): SourcePatchResult => ({
+      source: "// MARKER — must never be written on a no-op\n",
+      oldValueLiteral: "20000",
+      changed: false,
+    });
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      repoRoot: tmpDir,
+      sourcePatcher: patcher,
+    });
+
+    const written = await writer.writeApprovedProposal(sourcePatchProposal(relPath));
+
+    // A no-op is NOT reported as written (claude #590)...
+    expect(written).toEqual([]);
+    // ...and the file was NOT rewritten — content is the original, not the marker.
+    expect(await readFile(absPath, "utf8")).toBe(ORIGINAL);
+  });
+
+  it("THROWS when a sourcePatch change has no injected sourcePatcher (names proposal/change)", async () => {
+    const relPath = join("rules", "x.ts");
+    const absPath = join(tmpDir, relPath);
+    await mkdir(join(tmpDir, "rules"), { recursive: true });
+    await writeFile(absPath, "export const MANAGER_APPROVAL_THRESHOLD = 10000;\n", "utf8");
+
+    // No sourcePatcher injected.
+    const writer = new ProposalFileWriter({ rootDir: tmpDir, repoRoot: tmpDir });
+    const proposal = sourcePatchProposal(relPath);
+
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(
+      /manager_approval_threshold/,
+    );
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(/sourcePatcher|injected/i);
+
+    // The file was left untouched (no patch applied).
+    const contents = await readFile(absPath, "utf8");
+    expect(contents).toBe("export const MANAGER_APPROVAL_THRESHOLD = 10000;\n");
+  });
+
+  it("THROWS on path traversal that escapes repoRoot, reading/writing nothing outside", async () => {
+    const { calls, patcher } = makeFakePatcher();
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      repoRoot: tmpDir,
+      sourcePatcher: patcher,
+    });
+    // An attempt to escape the repoRoot.
+    const proposal = sourcePatchProposal("../../etc/evil.ts");
+
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(/escapes repoRoot/);
+
+    // Patcher never invoked — nothing was read or written outside the repo.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects a symlink INSIDE repoRoot that resolves OUTSIDE it (coderabbit #590)", async () => {
+    // A symlink whose own path is inside repoRoot but whose target is outside
+    // must not be patchable — the string-level check passes, so only the realpath
+    // containment catches it. Proves the symlink-escape defense.
+    const outsideDir = await mkdtemp(join(tmpdir(), "sp-outside-"));
+    const outsideFile = join(outsideDir, "secret.ts");
+    const ORIGINAL = "export const MANAGER_APPROVAL_THRESHOLD = 10000;\n";
+    await writeFile(outsideFile, ORIGINAL, "utf8");
+    await mkdir(join(tmpDir, "rules"), { recursive: true });
+    const linkRel = join("rules", "link.ts");
+    await symlink(outsideFile, join(tmpDir, linkRel));
+
+    try {
+      const { calls, patcher } = makeFakePatcher();
+      const writer = new ProposalFileWriter({
+        rootDir: tmpDir,
+        repoRoot: tmpDir,
+        sourcePatcher: patcher,
+      });
+
+      await expect(writer.writeApprovedProposal(sourcePatchProposal(linkRel))).rejects.toThrow(
+        /symlink|outside repoRoot/i,
+      );
+
+      // The outside target was neither patched nor even read.
+      expect(calls).toHaveLength(0);
+      expect(await readFile(outsideFile, "utf8")).toBe(ORIGINAL);
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  it("THROWS when the sourcePatch target file is missing", async () => {
+    const { calls, patcher } = makeFakePatcher();
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      repoRoot: tmpDir,
+      sourcePatcher: patcher,
+    });
+    // Points at a file that does not exist (inside the repo, so traversal passes).
+    const proposal = sourcePatchProposal(join("rules", "does-not-exist.ts"));
+
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(/does not exist|missing/i);
+
+    // Patcher never invoked — the missing file is caught before patching.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("defaults repoRoot to process.cwd() when not supplied", async () => {
+    // Resolve a path relative to cwd that escapes into an unrelated dir — the
+    // default repoRoot (process.cwd()) is used, and a traversal still throws.
+    const { patcher } = makeFakePatcher();
+    const writer = new ProposalFileWriter({ rootDir: tmpDir, sourcePatcher: patcher });
+    const proposal = sourcePatchProposal("../../../../etc/passwd.ts");
+
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(/escapes repoRoot/);
+  });
+});
 
 describe("ProposalEngine.onApproved hook", () => {
   it("fires on approveProposal and persists the file", async () => {

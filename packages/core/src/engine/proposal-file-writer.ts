@@ -21,10 +21,12 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
+import * as path from "node:path";
 import { dirname, join } from "node:path";
 import type { Logger } from "../types/logger";
 import type { ProposalChange, ProposalChangeTarget, ProposalDefinition } from "../types/proposal";
+import type { SourcePatcher } from "../types/source-patch";
 
 // ── Formatter ───────────────────────────────────────────────
 
@@ -58,6 +60,21 @@ export interface ProposalFileWriterOptions {
    * must never block code generation).
    */
   formatter?: ProposalFormatterOption;
+  /**
+   * Injected source patcher for in-place named-constant edits (#566).
+   *
+   * Required to graduate a change carrying `change.sourcePatch`. The concrete
+   * TypeScript-AST patcher lives OUTSIDE `@linchkit/core` (it imports
+   * `typescript`); core only calls this seam. When absent, a `sourcePatch`
+   * change FAILS LOUD (it cannot be graduated by deterministic codegen).
+   */
+  sourcePatcher?: SourcePatcher;
+  /**
+   * Base directory for resolving `change.sourcePatch.filePath` (#566). The
+   * resolved absolute path is rejected if it escapes this root. Defaults to
+   * `process.cwd()`.
+   */
+  repoRoot?: string;
 }
 
 // ── Defaults ────────────────────────────────────────────────
@@ -376,6 +393,10 @@ export class ProposalFileWriter {
    * handle exactly those cases — so the guard must NOT pre-empt it.
    */
   private readonly usesDefaultCodegen: boolean;
+  /** Injected in-place source patcher for `sourcePatch` changes (#566). */
+  private readonly sourcePatcher?: SourcePatcher;
+  /** Base dir for resolving `sourcePatch.filePath`; defaults to `process.cwd()`. */
+  private readonly repoRoot: string;
 
   constructor(options: ProposalFileWriterOptions) {
     this.rootDir = options.rootDir;
@@ -384,6 +405,8 @@ export class ProposalFileWriter {
     this.usesDefaultCodegen = options.codegen === undefined;
     this.codegen = options.codegen ?? defaultCodegen;
     this.formatter = resolveFormatter(options.formatter);
+    this.sourcePatcher = options.sourcePatcher;
+    this.repoRoot = options.repoRoot ?? process.cwd();
   }
 
   /**
@@ -434,6 +457,20 @@ export class ProposalFileWriter {
           `ProposalFileWriter: skipping delete operation for "${change.name}" — manual removal required`,
           { proposalId: proposal.id, target: change.target, name: change.name },
         );
+        continue;
+      }
+
+      // In-place named-constant patch (#566) — a THIRD graduation path that
+      // takes precedence for a `sourcePatch` change. It does NOT use
+      // `pathResolver` / `rootDir` / codegen: the file already exists and is
+      // edited in place via the injected `SourcePatcher`. Changes WITHOUT a
+      // `sourcePatch` fall through to the unchanged materialized-source / codegen
+      // path below.
+      if (change.sourcePatch) {
+        // null on a no-op (value already at target) — do not report an unchanged
+        // file as written (#590).
+        const patched = await this.applySourcePatch(proposal, change);
+        if (patched) written.push(patched);
         continue;
       }
 
@@ -495,6 +532,114 @@ export class ProposalFileWriter {
     }
 
     return written;
+  }
+
+  /**
+   * Graduate a `sourcePatch` change by patching a named constant in an EXISTING
+   * file IN PLACE (#566). Returns the absolute path of the patched file.
+   *
+   * Steps (in order):
+   *   1. Require an injected `sourcePatcher` — a `sourcePatch` change cannot be
+   *      graduated by deterministic codegen, so FAIL LOUD if it is missing.
+   *   2. Resolve the absolute path under `repoRoot` and reject any path that
+   *      escapes it (path-traversal safety).
+   *   3. Read the existing file — FAIL LOUD if it is missing.
+   *   4. Call the injected patcher and write its output back in place.
+   */
+  private async applySourcePatch(
+    proposal: ProposalDefinition,
+    change: ProposalChange,
+  ): Promise<string | null> {
+    // `change.sourcePatch` is guaranteed present by the caller, but narrow it
+    // locally so this helper is self-contained.
+    const patch = change.sourcePatch;
+    if (!patch) {
+      throw new Error(
+        `ProposalFileWriter: applySourcePatch called without a sourcePatch ` +
+          `(proposal "${proposal.id}" change "${change.name}")`,
+      );
+    }
+
+    if (!this.sourcePatcher) {
+      throw new Error(
+        `ProposalFileWriter: change "${change.name}" (proposal "${proposal.id}") carries a ` +
+          `sourcePatch but no \`sourcePatcher\` was injected — an in-place named-constant edit ` +
+          `cannot be graduated by deterministic codegen. Inject a SourcePatcher to enable it.`,
+      );
+    }
+
+    // Path safety, step 1 — cheap string-level containment: reject an obvious
+    // traversal before touching the filesystem.
+    const abs = path.resolve(this.repoRoot, patch.filePath);
+    const rel = path.relative(this.repoRoot, abs);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      throw new Error(
+        `ProposalFileWriter: sourcePatch.filePath "${patch.filePath}" escapes repoRoot ` +
+          `"${this.repoRoot}" (proposal "${proposal.id}" change "${change.name}") — refusing to ` +
+          `patch a file outside the repository.`,
+      );
+    }
+
+    // Path safety, step 2 — resolve symlinks and re-check containment against the
+    // REAL paths: a symlink INSIDE repoRoot could otherwise point outside it
+    // (coderabbit #590). `realpath(abs)` doubles as the existence check — its
+    // ENOENT becomes the descriptive "missing" error with no `existsSync`→read
+    // TOCTOU gap (claude #590).
+    const realRoot = await realpath(this.repoRoot);
+    let realAbs: string;
+    try {
+      realAbs = await realpath(abs);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(
+          `ProposalFileWriter: sourcePatch target file "${abs}" does not exist ` +
+            `(proposal "${proposal.id}" change "${change.name}") — the file to patch is missing.`,
+        );
+      }
+      throw err;
+    }
+    const realRel = path.relative(realRoot, realAbs);
+    if (realRel.startsWith("..") || path.isAbsolute(realRel)) {
+      throw new Error(
+        `ProposalFileWriter: sourcePatch.filePath "${patch.filePath}" resolves (via a symlink) to ` +
+          `"${realAbs}" outside repoRoot "${realRoot}" (proposal "${proposal.id}" change ` +
+          `"${change.name}") — refusing to patch a file outside the repository.`,
+      );
+    }
+
+    // Read / write / report via `abs` (the logical path under repoRoot, which is
+    // what git tracks); `realAbs` was only needed to make the symlink-containment
+    // and existence checks above honest. `writeFile` follows the symlink to the
+    // same bytes anyway, and `abs === realAbs` for the real no-symlink case.
+    const source = await readFile(abs, "utf8");
+    const result = this.sourcePatcher({
+      source,
+      constantName: patch.constantName,
+      newValueLiteral: patch.newValueLiteral,
+    });
+    // No-op when the value is already at target (changed === false): skip the
+    // write (rewriting identical bytes is wasteful I/O and bumps mtime, tripping
+    // watchers / HMR — gemini #590) AND return null so the caller does NOT report
+    // an unchanged file as "written" (claude #590).
+    if (!result.changed) {
+      this.logger?.info?.(`ProposalFileWriter: sourcePatch no-op for ${abs} (already at target)`, {
+        proposalId: proposal.id,
+        target: change.target,
+        name: change.name,
+        constantName: patch.constantName,
+      });
+      return null;
+    }
+
+    await writeFile(abs, result.source, { encoding: "utf8", flag: "w" });
+    this.logger?.info?.(`ProposalFileWriter: patched ${abs}`, {
+      proposalId: proposal.id,
+      target: change.target,
+      name: change.name,
+      constantName: patch.constantName,
+    });
+
+    return abs;
   }
 
   /**

@@ -60,6 +60,7 @@ export type * from "./rule";
 export type * from "./runtime-config";
 export type * from "./semantic-relation";
 export { defineSemanticRelation } from "./semantic-relation";
+export type * from "./source-patch";
 export type * from "./state";
 export type * from "./template";
 export type * from "./transport";
