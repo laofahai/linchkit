@@ -46,10 +46,16 @@ function makeApprovedProposal(overrides: Partial<ProposalDefinition> = {}): Prop
     target: "rule",
     operation: "create",
     name: "auto_approve_small_orders",
+    // A complete DECLARATIVE rule definition (trigger + data condition + effect).
+    // The writer's graduatability guard refuses a rule definition missing any of
+    // those three (it would otherwise graduate as a corrupt `defineRule({name})`
+    // stub — #566), so every rule fixture carries a faithfully-serialisable shape.
     definition: {
       name: "auto_approve_small_orders",
-      trigger: { type: "manual" },
-      effect: { type: "set_field", field: "status", value: "approved" },
+      label: "Auto-approve small orders",
+      trigger: { action: "submit_order" },
+      condition: { field: "amount", operator: "lt", value: 100 },
+      effect: { type: "enrich", setFields: { status: "approved" } },
     } as never, // RuleDefinition shape varies; cast to keep test fixture compact.
     diff: "Auto-approve orders under $100.",
   };
@@ -75,6 +81,30 @@ function makeApprovedProposal(overrides: Partial<ProposalDefinition> = {}): Prop
     approvedAt: FIXED_NOW,
     approvedBy: { type: "human", id: "admin-1" },
     ...overrides,
+  };
+}
+
+/**
+ * A complete declarative rule change — trigger + data condition + effect — so
+ * the writer's graduatability guard (#566) accepts it. Use this anywhere a test
+ * needs a real, faithfully-serialisable rule (not the code-condition draft that
+ * the guard intentionally refuses).
+ */
+function declarativeRuleChange(
+  name: string,
+  operation: ProposalChange["operation"] = "create",
+): ProposalChange {
+  return {
+    target: "rule",
+    operation,
+    name,
+    definition: {
+      name,
+      label: name,
+      trigger: { action: "submit_order" },
+      condition: { field: "amount", operator: "lt", value: 100 },
+      effect: { type: "enrich", setFields: { status: "approved" } },
+    } as never,
   };
 }
 
@@ -234,12 +264,7 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     const proposal = makeApprovedProposal({
       changes: [
         // First change: a rule
-        {
-          target: "rule",
-          operation: "create",
-          name: "auto_approve_small_orders",
-          definition: { name: "auto_approve_small_orders" } as never,
-        },
+        declarativeRuleChange("auto_approve_small_orders"),
         // Second change: a view
         viewChange(),
       ],
@@ -258,20 +283,7 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
   it("writes two changes of the same target kind to distinct files (no collision)", async () => {
     const writer = new ProposalFileWriter({ rootDir: tmpDir });
     const proposal = makeApprovedProposal({
-      changes: [
-        {
-          target: "rule",
-          operation: "create",
-          name: "rule_one",
-          definition: { name: "rule_one" } as never,
-        },
-        {
-          target: "rule",
-          operation: "create",
-          name: "rule_two",
-          definition: { name: "rule_two" } as never,
-        },
-      ],
+      changes: [declarativeRuleChange("rule_one"), declarativeRuleChange("rule_two")],
     });
 
     const written = await writer.writeApprovedProposal(proposal);
@@ -320,7 +332,17 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
           target: "rule",
           operation: "update",
           name: "auto_approve_small_orders",
-          definition: { name: "auto_approve_small_orders", updated: true } as never,
+          // A full declarative update (trigger + data condition + effect) — the
+          // graduatability guard accepts it and the `w` flag overwrites the stale
+          // file. `updated` is an extra marker the assertion below pins on.
+          definition: {
+            name: "auto_approve_small_orders",
+            label: "Auto-approve small orders",
+            trigger: { action: "submit_order" },
+            condition: { field: "amount", operator: "lt", value: 100 },
+            effect: { type: "enrich", setFields: { status: "approved" } },
+            updated: true,
+          } as never,
         },
       ],
     });
@@ -345,6 +367,127 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     const contents = await readFile(target, "utf8");
     expect(contents).not.toBe("// stale");
     expect(contents).toContain('"updated": true');
+  });
+
+  // ── Graduatability guard (#566 — silent-corruption hole) ──────────────────
+  //
+  // A code-condition rule update is the canonical un-serialisable case: the NL
+  // resolver (schema-intent-rule-updater) honestly refuses to fabricate a
+  // definition (`requiresCodeChange: true`, no `definition`). Without the guard,
+  // the writer's `?? { name: change.name }` fallback graduated a corrupt
+  // `defineRule({ "name": "…" })` stub — missing trigger/condition/effect. The
+  // guard now FAILS LOUD instead of writing that stub. The full AI materializer
+  // (which regenerates the condition function → `generatedSource`) is a separate
+  // follow-up.
+
+  it("THROWS on a code-condition rule update with no definition and no generatedSource (#566)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    // The honest code-condition draft: an `update` with NO definition (the
+    // resolver intentionally left it undefined) and NO materialized source.
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          diff: "把经理审批阈值改成 2 万",
+          // No `definition`, no `generatedSource`.
+        },
+      ],
+    });
+
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(
+      /manager_approval_threshold/,
+    );
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(
+      /materialization|generatedSource/i,
+    );
+
+    // No corrupt stub was written.
+    const rulesDir = join(tmpDir, "addons", "demo", "cap-life-demo", "src", "rules");
+    expect(existsSync(rulesDir)).toBe(false);
+  });
+
+  it("THROWS on a rule update whose condition is a function (JSON.stringify would drop it) (#566)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    // A definition that LOOKS complete but carries a function condition — the
+    // deterministic codegen (`JSON.stringify`) would silently drop it, emitting
+    // a rule with `condition` lost. The guard refuses rather than corrupt.
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          definition: {
+            name: "manager_approval_threshold",
+            label: "Manager approval threshold",
+            trigger: { action: "submit_request" },
+            // Code condition — a real function, not declarative data.
+            condition: (ctx: { target: Record<string, unknown> }) =>
+              Number(ctx.target.amount) > 10000,
+            effect: { type: "require_approval", level: "manager" },
+          } as never,
+        },
+      ],
+    });
+
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(/function/i);
+    await expect(writer.writeApprovedProposal(proposal)).rejects.toThrow(
+      /manager_approval_threshold/,
+    );
+
+    // Nothing written.
+    const rulesDir = join(tmpDir, "addons", "demo", "cap-life-demo", "src", "rules");
+    expect(existsSync(rulesDir)).toBe(false);
+  });
+
+  it("writes generatedSource verbatim for a code-condition rule update (guard skipped) (#566)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const GENERATED = [
+      'import { defineRule } from "@linchkit/core";',
+      "export default defineRule({",
+      '  name: "manager_approval_threshold",',
+      '  label: "Manager approval threshold",',
+      '  trigger: { action: "submit_request" },',
+      "  condition: (ctx) => Number(ctx.target.amount) > 20000,",
+      '  effect: { type: "require_approval", level: "manager" },',
+      "});",
+      "",
+    ].join("\n");
+    const proposal = makeApprovedProposal({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          // Materialized source present → trusted, written verbatim, no guard.
+          generatedSource: GENERATED,
+        },
+      ],
+    });
+
+    const [written] = await writer.writeApprovedProposal(proposal);
+    expect(written).toBeDefined();
+    const contents = await readFile(written as string, "utf8");
+    expect(contents).toBe(GENERATED);
+    expect(contents).toContain("condition: (ctx) => Number(ctx.target.amount) > 20000");
+  });
+
+  it("writes a valid defineRule file for a full declarative rule update (no regression) (#566)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const proposal = makeApprovedProposal({
+      changes: [declarativeRuleChange("auto_approve_small_orders", "update")],
+    });
+
+    const [written] = await writer.writeApprovedProposal(proposal);
+    const contents = await readFile(written as string, "utf8");
+    // Valid defineRule(...) source with the declarative condition serialised.
+    expect(contents).toContain("export default defineRule(");
+    expect(contents).toContain('"trigger"');
+    expect(contents).toContain('"condition"');
+    expect(contents).toContain('"effect"');
+    expect(contents).toContain('"operator": "lt"');
   });
 
   it("throws when proposal is not approved", async () => {
