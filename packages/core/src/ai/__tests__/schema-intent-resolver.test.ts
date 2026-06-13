@@ -1611,3 +1611,217 @@ describe("resolveSchemaIntent — prompt serializes the full sanitized rule snap
     expect(systemPrompt).toContain("broken_composite");
   });
 });
+
+// ── add_entity (happy path) ──────────────────────────────────
+
+describe("resolveSchemaIntent — add_entity proposal draft", () => {
+  const cannedEntity = JSON.stringify({
+    kind: "add_entity",
+    entity: {
+      name: "product",
+      label: "Product",
+      description: "A product in the catalog",
+      fields: [
+        { name: "name", type: "string", required: true, label: "Product Name" },
+        { name: "category", type: "string", required: false, label: "Category" },
+        { name: "barcode", type: "string", required: false, label: "Barcode" },
+        { name: "case_pack", type: "number", required: false, label: "Case Pack" },
+      ],
+    },
+    confidence: 0.85,
+    explanation: "Create a product entity with catalog fields.",
+  });
+
+  it("produces a well-formed draft add_entity Proposal via the real ProposalEngine", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(cannedEntity);
+
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品管理，包含名称、分类、条码和箱规" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+
+    expect(outcome.kind).toBe("entity_proposal_draft");
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+
+    expect(outcome.entityName).toBe("product");
+    expect(outcome.fieldNames).toEqual(["name", "category", "barcode", "case_pack"]);
+    expect(outcome.confidence).toBeCloseTo(0.85, 5);
+    expect(outcome.explanation).toBe("Create a product entity with catalog fields.");
+
+    const p = outcome.proposal;
+    expect(p.type).toBe("add_entity");
+    expect(p.status).toBe("draft");
+    expect(p.diff.target).toBe("entity");
+    expect(p.diff.operation).toBe("create");
+
+    const def = p.diff.definition as Record<string, unknown>;
+    expect(def.name).toBe("product");
+    expect(def.label).toBe("Product");
+    expect(Array.isArray(def.fields)).toBe(true);
+    expect((def.fields as unknown[]).length).toBe(4);
+
+    // Engine queryability: draft-only guarantee
+    expect(engine.size).toBe(1);
+    expect(engine.get(p.id)?.status).toBe("draft");
+    expect(engine.list("draft").length).toBe(1);
+    expect(engine.list("pending").length).toBe(0);
+    expect(engine.list("applied").length).toBe(0);
+  });
+
+  it("forwards the utterance as proposal reasoning (audit trail)", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(cannedEntity);
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品管理" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+    expect(outcome.proposal.reasoning).toBe("增加一个商品管理");
+  });
+
+  it("returns no_match with invalid_entity when entity name is not snake_case", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "ProductCatalog",
+          fields: [{ name: "title", type: "string", required: true }],
+        },
+        confidence: 0.8,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add product catalog" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(outcome.message).toContain("ProductCatalog");
+  });
+
+  it("returns no_match with invalid_entity when a field type is unknown", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "product",
+          fields: [{ name: "price", type: "currency", required: true }],
+        },
+        confidence: 0.8,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add product with price" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(outcome.message).toContain("currency");
+  });
+
+  it("returns no_match with invalid_entity when entity has no fields", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: { name: "product", fields: [] },
+        confidence: 0.8,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add product entity" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+  });
+
+  it("returns clarification when confidence is below the floor", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "product",
+          fields: [{ name: "name", type: "string", required: true }],
+        },
+        confidence: 0.1,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add something" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("clarification");
+  });
+
+  it("system prompt mentions add_entity kind so the AI knows it is supported", async () => {
+    const engine = new ProposalEngine();
+    const { service, calls } = makeFakeAi(JSON.stringify({ kind: "no_match", explanation: "x" }));
+    await resolveSchemaIntent(
+      { utterance: "create a product entity" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    const systemPrompt = calls[0]?.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(systemPrompt).toContain('"add_entity"');
+  });
+
+  it("returns no_match with invalid_entity when field name is not snake_case", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "product",
+          fields: [{ name: "ProductName", type: "string", required: true }],
+        },
+        confidence: 0.8,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add product with name" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(outcome.message).toContain("ProductName");
+  });
+
+  it("returns no_match with invalid_entity when duplicate field names exist", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "product",
+          fields: [
+            { name: "name", type: "string", required: true },
+            { name: "name", type: "text", required: false },
+          ],
+        },
+        confidence: 0.8,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add product with name" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(outcome.message).toContain("duplicate");
+  });
+});

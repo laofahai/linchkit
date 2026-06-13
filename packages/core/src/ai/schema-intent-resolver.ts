@@ -48,20 +48,23 @@ import type { AIMessage, AIService } from "../types/ai";
 import type { RuleDefinition } from "../types/rule";
 import { sanitizePrompt } from "./prompt-sanitizer";
 import type { ProposalEngine } from "./proposal-engine";
+// Entity shape validation + draft minting live in a sibling module (keeps
+// the resolver file under the 500-line ceiling; draftEntityProposal lives
+// there to avoid a circular import back to this file).
+import { draftEntityProposal } from "./schema-intent-entity-builder";
 // System prompt + response parser live in a sibling module (mirrors the
 // intent-resolver.ts / intent-prompt.ts split) so this file stays focused on
 // the pipeline + the governed Proposal mint.
-import type { ParsedRuleShape, ParsedSchemaIntent } from "./schema-intent-prompt";
+import type { ParsedSchemaIntent } from "./schema-intent-prompt";
 import { buildSchemaIntentSystemPrompt, parseSchemaIntentResponse } from "./schema-intent-prompt";
-// Rule reconciliation + validation lives in a sibling module so this file
-// stays under the 500-line ceiling and focuses on the pipeline.
-import { buildRuleDefinition } from "./schema-intent-rule-builder";
+// Rule reconciliation + validation + update-backfill live in a sibling module
+// so this file stays under the 500-line ceiling.
+import { backfillUpdateShape, buildRuleDefinition } from "./schema-intent-rule-builder";
 import type {
   SchemaIntentEntity,
   SchemaIntentOntology,
   SchemaIntentOutcome,
   SchemaIntentResolverOptions,
-  SchemaIntentRule,
 } from "./schema-intent-types";
 
 // ── Tunable defaults ─────────────────────────────────────────
@@ -95,6 +98,7 @@ export const SCHEMA_INTENT_MESSAGES = {
   unknownRule: (rule: string, entity: string) =>
     `AI proposed an update to unknown rule "${rule}" on entity "${entity}".`,
   invalidRule: (detail: string) => `AI proposed an invalid rule: ${detail}.`,
+  invalidEntity: (detail: string) => `AI proposed an invalid entity: ${detail}.`,
   missingUpdateDiff: "AI proposed a code-backed rule update without describing what should change",
   lowConfidenceClarification:
     "I'm not sure what rule you want. Could you describe the condition and what should happen when it matches?",
@@ -221,6 +225,19 @@ export async function resolveSchemaIntent(
           : SCHEMA_INTENT_MESSAGES.lowConfidenceClarification,
       bestConfidence: clampConfidence(parsed.confidence),
     };
+  }
+
+  // add_entity path — validate the proposed shape and mint a governed draft.
+  // Entity proposals bypass the catalog lookup (the entity does not exist yet).
+  // Delegated to the entity builder to avoid a circular import.
+  if (parsed.kind === "add_entity") {
+    return draftEntityProposal({
+      parsed,
+      confidence: clampConfidence(parsed.confidence),
+      minConfidence,
+      utterance,
+      engine: deps.proposalEngine,
+    });
   }
 
   // kind === "add_rule" | "update_rule"
@@ -406,75 +423,6 @@ function draftRuleUpdate(opts: {
     explanation,
     diffSummary: summary,
   };
-}
-
-/**
- * Merge the AI-returned update shape with the EXISTING rule snapshot so
- * fields the AI did not change survive verbatim (review-integrity — the
- * persisted definition must match the human-readable diff):
- *
- *  - `name` is pinned to the existing rule's name (renames out of scope).
- *  - `priority` falls back to the existing value when the AI omits it.
- *  - `trigger` falls back to the existing rule's trigger actions when the AI
- *    omits it (LLMs frequently leave out fields they treat as "unchanged",
- *    and `buildTrigger(undefined)` would otherwise fail the whole update).
- *  - Effect payload: when the AI omits the effect entirely the existing
- *    payload is used verbatim; when the AI keeps the SAME effect type (or
- *    omits `type` — a partial update payload), payload fields it omitted
- *    (message / level / setFields) are back-filled from the snapshot, and
- *    `setFields` merges ONE level deep so a partial setFields (only the
- *    changed keys) never silently drops the snapshot's other entries. A
- *    deliberate effect-type change is passed through unmerged (the builder
- *    validates its required fields).
- */
-function backfillUpdateShape(rule: ParsedRuleShape, existing: SchemaIntentRule): ParsedRuleShape {
-  const out: ParsedRuleShape = { ...rule, name: existing.name };
-  if (out.priority === undefined && existing.priority !== undefined) {
-    out.priority = existing.priority;
-  }
-  if (
-    out.trigger === undefined &&
-    Array.isArray(existing.triggerActions) &&
-    existing.triggerActions.length > 0
-  ) {
-    out.trigger = {
-      action:
-        existing.triggerActions.length === 1 ? existing.triggerActions[0] : existing.triggerActions,
-    };
-  }
-  const existingEffect = existing.effect;
-  if (existingEffect) {
-    if (out.effect === undefined) {
-      out.effect = { ...existingEffect };
-    } else if (typeof out.effect === "object" && out.effect !== null) {
-      const aiEffect = out.effect as Record<string, unknown>;
-      // Merge when the AI kept the same effect type OR omitted `type`
-      // entirely (a partial payload). A type CHANGE skips the merge so
-      // stale fields never leak into the new effect shape.
-      if (aiEffect.type === undefined || aiEffect.type === existingEffect.type) {
-        const merged: Record<string, unknown> = {
-          ...existingEffect,
-          ...aiEffect,
-          // The merge only runs for same-or-omitted type, so the existing
-          // type always wins (covers an explicit `type: undefined` too).
-          type: existingEffect.type,
-        };
-        // `setFields` back-fills one level deep: a partial AI payload
-        // carrying only the changed keys must not REPLACE the snapshot's
-        // whole map (that would silently drop untouched entries).
-        if (isPlainRecord(existingEffect.setFields) && isPlainRecord(aiEffect.setFields)) {
-          merged.setFields = { ...existingEffect.setFields, ...aiEffect.setFields };
-        }
-        out.effect = merged;
-      }
-    }
-  }
-  return out;
-}
-
-/** Narrow to a plain object record (not null, not an array). */
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // ── Catalog construction ─────────────────────────────────────

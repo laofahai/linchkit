@@ -217,8 +217,18 @@ export type {
   RecordInsight,
 } from "./record-analyzer";
 export { analyzeRecord, buildAnalysisPrompt, parseAnalysisResponse } from "./record-analyzer";
+export type {
+  BuildEntityResult,
+  ParsedEntityField,
+  ParsedEntityShape,
+  ValidatedEntityDefinition,
+  ValidatedEntityField,
+} from "./schema-intent-entity-builder";
 // Schema Intent Resolver (Spec 52 "说→有" first slice — NL → add_rule ProposalDraft)
-export type { ParsedRuleShape, ParsedSchemaIntent } from "./schema-intent-prompt";
+export type {
+  ParsedRuleShape,
+  ParsedSchemaIntent,
+} from "./schema-intent-prompt";
 export {
   buildSchemaIntentSystemPrompt,
   parseSchemaIntentResponse,
@@ -237,6 +247,7 @@ export {
 export type {
   SchemaIntentClarification,
   SchemaIntentEntity,
+  SchemaIntentEntityProposalDraft,
   SchemaIntentNoMatch,
   SchemaIntentOntology,
   SchemaIntentOutcome,

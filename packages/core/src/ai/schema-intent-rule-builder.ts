@@ -26,7 +26,7 @@ import type {
   SimpleCondition,
 } from "../types/rule";
 import type { ParsedRuleShape } from "./schema-intent-prompt";
-import type { SchemaIntentEntity } from "./schema-intent-types";
+import type { SchemaIntentEntity, SchemaIntentRule } from "./schema-intent-types";
 
 // ── Allowlists (structural validation) ───────────────────────
 
@@ -356,4 +356,68 @@ export function normalizeRuleName(value: unknown): string | undefined {
 /** snake_case identifier: lowercase letters/digits/underscores, starts with a letter. */
 export function isSnakeCaseName(value: string): boolean {
   return /^[a-z][a-z0-9_]*$/.test(value);
+}
+
+// ── Update-shape backfill ─────────────────────────────────────
+// Extracted from schema-intent-resolver.ts to keep that file under 500 lines.
+
+/**
+ * Merge the AI-returned update shape with the EXISTING rule snapshot so
+ * fields the AI did not change survive verbatim (review-integrity — the
+ * persisted definition must match the human-readable diff):
+ *
+ *  - `name` is pinned to the existing rule's name (renames out of scope).
+ *  - `priority` falls back to the existing value when the AI omits it.
+ *  - `trigger` falls back to the existing rule's trigger actions when the AI
+ *    omits it (LLMs frequently leave out fields they treat as "unchanged").
+ *  - Effect payload: when the AI omits the effect entirely the existing
+ *    payload is used verbatim; when the AI keeps the SAME effect type (or
+ *    omits `type` — a partial update payload), payload fields it omitted
+ *    (message / level / setFields) are back-filled from the snapshot, and
+ *    `setFields` merges ONE level deep so a partial setFields (only the
+ *    changed keys) never silently drops the snapshot's other entries.
+ */
+export function backfillUpdateShape(
+  rule: ParsedRuleShape,
+  existing: SchemaIntentRule,
+): ParsedRuleShape {
+  const out: ParsedRuleShape = { ...rule, name: existing.name };
+  if (out.priority === undefined && existing.priority !== undefined) {
+    out.priority = existing.priority;
+  }
+  if (
+    out.trigger === undefined &&
+    Array.isArray(existing.triggerActions) &&
+    existing.triggerActions.length > 0
+  ) {
+    out.trigger = {
+      action:
+        existing.triggerActions.length === 1 ? existing.triggerActions[0] : existing.triggerActions,
+    };
+  }
+  const existingEffect = existing.effect;
+  if (existingEffect) {
+    if (out.effect === undefined) {
+      out.effect = { ...existingEffect };
+    } else if (isPlainRecord(out.effect)) {
+      const aiEffect = out.effect as Record<string, unknown>;
+      if (aiEffect.type === undefined || aiEffect.type === existingEffect.type) {
+        const merged: Record<string, unknown> = {
+          ...existingEffect,
+          ...aiEffect,
+          type: existingEffect.type,
+        };
+        if (isPlainRecord(existingEffect.setFields) && isPlainRecord(aiEffect.setFields)) {
+          merged.setFields = { ...existingEffect.setFields, ...aiEffect.setFields };
+        }
+        out.effect = merged;
+      }
+    }
+  }
+  return out;
+}
+
+/** Narrow to a plain object record (not null, not an array). */
+export function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

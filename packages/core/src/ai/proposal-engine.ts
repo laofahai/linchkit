@@ -36,7 +36,8 @@ export type ProposalType =
   | "update_rule"
   | "add_automation"
   | "modify_schema"
-  | "add_default";
+  | "add_default"
+  | "add_entity";
 
 export type AIProposalStatus =
   | "draft"
@@ -490,6 +491,7 @@ export class ProposalEngine {
       add_automation: "create_flow",
       modify_schema: "modify_schema",
       add_default: "modify_schema",
+      add_entity: "modify_schema",
     };
 
     // Prefer the definition's own name; diff-only updates carry no

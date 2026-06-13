@@ -122,9 +122,33 @@ export interface SchemaIntentNoMatch {
     | "unknown_entity"
     | "unknown_rule"
     | "invalid_rule"
+    | "invalid_entity"
     | "no_rule_drafted";
   /** Human-readable explanation, suitable for surfacing in the UI. */
   message: string;
+}
+
+// ── Entity-proposal-draft outcome ───────────────────────────
+
+/**
+ * A proposed entity creation that produced a governed `add_entity` Proposal
+ * in `draft` status. Parallel to `SchemaIntentProposalDraft` but entity-
+ * specific: carries the entity name + field names instead of rule-specific
+ * fields. Nothing is submitted or applied — the caller surfaces the draft for
+ * human review in the Proposal review UI (Spec 52 §2).
+ */
+export interface SchemaIntentEntityProposalDraft {
+  kind: "entity_proposal_draft";
+  /** The governed draft Proposal; `proposal.status` is always `"draft"`. */
+  proposal: Proposal;
+  /** Proposed entity name (snake_case). */
+  entityName: string;
+  /** Proposed field names derived from the AI-returned definition. */
+  fieldNames: string[];
+  /** Confidence in [0, 1] from the AI response. */
+  confidence: number;
+  /** Short human-readable summary suitable for the Proposal review card. */
+  explanation: string;
 }
 
 // ── Union ────────────────────────────────────────────────────
@@ -132,11 +156,12 @@ export interface SchemaIntentNoMatch {
 /**
  * The full discriminated union covering every schema-intent outcome.
  * Callers narrow on `kind` and render the matching UI: a Proposal review
- * card (`proposal_draft`), a clarification prompt (`clarification`), or an
- * "AI unavailable / no match" banner (`no_match`).
+ * card (`proposal_draft` / `entity_proposal_draft`), a clarification prompt
+ * (`clarification`), or an "AI unavailable / no match" banner (`no_match`).
  */
 export type SchemaIntentOutcome =
   | SchemaIntentProposalDraft
+  | SchemaIntentEntityProposalDraft
   | SchemaIntentClarification
   | SchemaIntentNoMatch;
 

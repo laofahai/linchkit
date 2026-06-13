@@ -55,6 +55,11 @@ const typeGuidance: Record<ProposalType, string> = {
     "Modify an EntityDefinition to add default values to fields.",
     "Use the `default` property on the relevant field definition.",
   ].join("\n"),
+  add_entity: [
+    "Generate a new EntityDefinition using defineEntity().",
+    "Include: name, label, fields with type/required/label.",
+    "Do not include system fields (id, tenant_id, created_at, updated_at, etc.).",
+  ].join("\n"),
 };
 
 // ── ProposalCodeGenerator ────────────────────────────────────

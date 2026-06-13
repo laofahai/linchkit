@@ -113,6 +113,9 @@ export interface ResolveSchemaIntentResponse {
   /** Present only for `no_match`. */
   reason?: string;
   message?: string;
+  /** Present only for `entity_proposal_draft`. */
+  entityName?: string;
+  fieldNames?: string[];
 }
 
 /**
@@ -145,6 +148,17 @@ function toResponse(
         outcome: "clarification",
         question: outcome.question,
         bestConfidence: outcome.bestConfidence,
+      };
+    case "entity_proposal_draft":
+      return {
+        outcome: "entity_proposal_draft",
+        proposal: outcome.proposal,
+        proposalId: governed?.id,
+        proposalStatus: governed?.status,
+        entityName: outcome.entityName,
+        fieldNames: outcome.fieldNames,
+        confidence: outcome.confidence,
+        explanation: outcome.explanation,
       };
     case "no_match":
       return {
