@@ -91,7 +91,10 @@ const MAX_ENTITY_FIELDS = 50;
 
 /** The validated, typed output of `buildEntityDefinition`. */
 export interface BuiltEntityDraft {
-  /** snake_case singular entity name. */
+  /**
+   * snake_case entity name. Singular form is a prompt-guided convention
+   * (validated by human review), not hard-enforced — see buildEntityDefinition.
+   */
   entityName: string;
   /** The typed EntityDefinition that becomes the Proposal definition. */
   definition: {
@@ -123,8 +126,13 @@ export function buildEntityDefinition(
 ): BuildEntityResult {
   if (!entity) return { ok: false, reason: "missing entity body" };
 
-  // ── Entity name: snake_case, singular-ish (we don't depluralize, just
-  // enforce the identifier shape and reject an existing-entity collision). ──
+  // ── Entity name ──
+  // Hard validation enforces the snake_case identifier SHAPE plus the
+  // existing-entity collision check. Singular form is requested by the system
+  // prompt (convention) but is intentionally NOT hard-validated: English
+  // pluralization is too irregular for a reliable check (a naive trailing-`s`
+  // rule would reject legitimate names like `status` or `address`), and the
+  // draft still passes the double-human review gate where naming is judged.
   const entityName = normalizeRuleName(entity.name);
   if (!entityName || !isSnakeCaseName(entityName)) {
     return { ok: false, reason: "entity name must be a non-empty snake_case identifier" };
@@ -162,16 +170,18 @@ export function buildEntityDefinition(
   }
 
   // ── Optional relation ──
-  // Treat the relation as ABSENT when it is undefined, null, or an empty object
-  // with no `from` endpoint. LLMs sometimes emit `relation: {}` as a "no relation"
-  // placeholder instead of omitting the key — without this, `{}` would reach
-  // buildRelation, fail on the missing `from`, and reject the entire (valid)
-  // entity draft rather than just dropping the empty relation.
+  // Treat the relation as ABSENT only when it is undefined, null, or a
+  // ZERO-KEY empty object — LLMs sometimes emit `relation: {}` as a "no
+  // relation" placeholder instead of omitting the key, and that placeholder
+  // must not reject the (valid) entity draft. A PARTIAL relation payload
+  // (some keys present but e.g. `from` missing) is NOT silently dropped: it
+  // flows into buildRelation and fails with a clear `invalid_entity` reason,
+  // so a requested-but-malformed relation is surfaced, never discarded.
   let relation: BuiltEntityDraft["relation"];
   const hasRelationBody =
     relationRaw !== undefined &&
     relationRaw !== null &&
-    typeof (relationRaw as Record<string, unknown>).from !== "undefined";
+    (typeof relationRaw !== "object" || Object.keys(relationRaw).length > 0);
   if (hasRelationBody) {
     const built = buildRelation(relationRaw, entityName, ontology);
     if (!built.ok) return { ok: false, reason: built.reason };
@@ -233,9 +243,23 @@ function buildField(raw: unknown): FieldResult {
   if (unique) draft.unique = true;
 
   // Numeric bounds (e.g. 箱规 case_pack_quantity ≥ 1). Only for `number`.
+  // A non-finite bound (NaN/Infinity) is REJECTED, not dropped — silently
+  // minting the draft without the requested bound would weaken the proposed
+  // schema. (JSON.parse cannot produce these, but the builder is a public
+  // validator and must not rely on its caller's serialization format.)
   if (type === "number") {
-    if (typeof rec.min === "number" && Number.isFinite(rec.min)) draft.min = rec.min;
-    if (typeof rec.max === "number" && Number.isFinite(rec.max)) draft.max = rec.max;
+    if (typeof rec.min === "number") {
+      if (!Number.isFinite(rec.min)) {
+        return { ok: false, reason: `field "${name}" has a non-finite min` };
+      }
+      draft.min = rec.min;
+    }
+    if (typeof rec.max === "number") {
+      if (!Number.isFinite(rec.max)) {
+        return { ok: false, reason: `field "${name}" has a non-finite max` };
+      }
+      draft.max = rec.max;
+    }
     // Reject an inverted range here rather than letting `{ min: 100, max: 1 }`
     // reach a human reviewer / the code generator and fail much later.
     if (draft.min !== undefined && draft.max !== undefined && draft.min > draft.max) {
@@ -361,11 +385,23 @@ function buildRelation(
   }
   const cardinality = cardStr as RelationCardinality;
 
-  // Semantic navigation names. Default them from the entity names when absent.
-  // The toName is the collection of `from` records on the `to` side, so it is
-  // pluralized — `${from}s` is wrong for names ending in y / s / x / z / ch / sh.
-  const fromName = normalizeRuleName(raw.fromName) ?? to;
-  const toName = normalizeRuleName(raw.toName) ?? pluralizeSnake(from);
+  // Semantic navigation names. Default them from the entity names when absent,
+  // singular/plural per cardinality: a "one" side navigates to a single record
+  // (singular name), a "many" side navigates to a collection (pluralized).
+  // fromName lives on the `from` entity pointing at `to`; toName lives on the
+  // `to` entity pointing back at `from`.
+  const navDefaults: Record<RelationCardinality, { fromName: string; toName: string }> = {
+    // many purchase_items → one product: item.product / product.purchase_items
+    many_to_one: { fromName: to, toName: pluralizeSnake(from) },
+    // one department → many employees: department.employees / employee.department
+    one_to_many: { fromName: pluralizeSnake(to), toName: from },
+    // one user ↔ one profile: user.profile / profile.user
+    one_to_one: { fromName: to, toName: from },
+    // many tags ↔ many products: tag.products / product.tags
+    many_to_many: { fromName: pluralizeSnake(to), toName: pluralizeSnake(from) },
+  };
+  const fromName = normalizeRuleName(raw.fromName) ?? navDefaults[cardinality].fromName;
+  const toName = normalizeRuleName(raw.toName) ?? navDefaults[cardinality].toName;
   if (!isSnakeCaseName(fromName) || !isSnakeCaseName(toName)) {
     return { ok: false, reason: "relation fromName / toName must be snake_case identifiers" };
   }

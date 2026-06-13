@@ -24,6 +24,7 @@
 import { describe, expect, it } from "bun:test";
 import type { AICompletionOptions, AICompletionResult, AIService } from "../../types/ai";
 import { ProposalEngine } from "../proposal-engine";
+import { buildEntityDefinition } from "../schema-intent-entity-builder";
 import { resolveSchemaIntent } from "../schema-intent-resolver";
 import type { SchemaIntentOntology } from "../schema-intent-types";
 
@@ -271,7 +272,7 @@ describe("resolveSchemaIntent — add_entity on an empty catalog (说→有 firs
   it("still rejects an add_rule on an empty catalog (guard moved, not removed)", async () => {
     const ruleResponse = JSON.stringify({
       kind: "add_rule",
-      entity: "product",
+      targetEntity: "product",
       rule: { name: "r", condition: {}, effect: {} },
       confidence: 0.9,
       explanation: "x",
@@ -363,6 +364,91 @@ describe("resolveSchemaIntent — add_entity validation", () => {
     expect(outcome.kind).toBe("entity_proposal_draft");
     if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
     expect(outcome.relation?.toName).toBe("categories");
+  });
+
+  it("rejects a PARTIAL relation payload (keys present but `from` missing) instead of dropping it", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: { name: "product", fields: [{ name: "barcode", type: "string", required: false }] },
+        // The user asked for a relation but the AI omitted `from` — this must
+        // surface as invalid_entity, NOT silently draft the entity without it.
+        relation: { to: "product", cardinality: "many_to_one" },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加一个商品，采购明细可选" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(outcome.message).toContain("relation.from");
+    expect(engine.size).toBe(0);
+  });
+
+  it("rejects non-finite numeric bounds (direct builder call — JSON cannot carry NaN)", () => {
+    const result = buildEntityDefinition(
+      {
+        name: "product",
+        fields: [{ name: "qty", type: "number", required: false, min: Number.NaN }],
+      } as Parameters<typeof buildEntityDefinition>[0],
+      undefined,
+      makeOntology(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected failure");
+    expect(result.reason).toContain("non-finite min");
+
+    const inf = buildEntityDefinition(
+      {
+        name: "product",
+        fields: [{ name: "qty", type: "number", required: false, max: Number.POSITIVE_INFINITY }],
+      } as Parameters<typeof buildEntityDefinition>[0],
+      undefined,
+      makeOntology(),
+    );
+    expect(inf.ok).toBe(false);
+    if (inf.ok) throw new Error("expected failure");
+    expect(inf.reason).toContain("non-finite max");
+  });
+
+  it("defaults navigation names per cardinality (one_to_many: collection on the from side)", async () => {
+    // department (existing) → employee (new), one_to_many: one department has
+    // many employees → department.employees (plural) / employee.department (singular).
+    const deptOntology: SchemaIntentOntology = {
+      listEntities: () => ["department"],
+      describeEntity: (n) =>
+        n === "department"
+          ? {
+              name: "department",
+              label: "Department",
+              description: "",
+              fields: [],
+              actionNames: [],
+            }
+          : undefined,
+    };
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: { name: "employee", fields: [{ name: "title", type: "string", required: false }] },
+        relation: { from: "department", to: "employee", cardinality: "one_to_many" },
+        confidence: 0.9,
+        explanation: "x",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "增加员工，按部门组织" },
+      { provider: service, ontology: deptOntology, proposalEngine: new ProposalEngine() },
+    );
+    expect(outcome.kind).toBe("entity_proposal_draft");
+    if (outcome.kind !== "entity_proposal_draft") throw new Error("expected entity_proposal_draft");
+    expect(outcome.relation?.fromName).toBe("employees");
+    expect(outcome.relation?.toName).toBe("department");
   });
 
   it("treats an empty `relation: {}` placeholder as absent, not a hard failure", async () => {

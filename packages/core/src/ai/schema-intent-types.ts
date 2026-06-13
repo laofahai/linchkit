@@ -145,7 +145,7 @@ export interface SchemaIntentEntityProposalDraft {
   kind: "entity_proposal_draft";
   /** The governed draft Proposal. Always `draft` status, `modify_schema` type. */
   proposal: Proposal;
-  /** Generated entity name (snake_case, singular). */
+  /** Generated entity name (snake_case; singular by prompt convention, not hard-validated). */
   entityName: string;
   /** The validated field drafts that will become `defineEntity().fields`. */
   fields: SchemaIntentEntityFieldDraft[];

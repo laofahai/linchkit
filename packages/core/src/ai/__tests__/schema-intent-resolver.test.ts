@@ -614,7 +614,7 @@ describe("resolveSchemaIntent — security & degradation", () => {
     const { service } = makeFakeAi(
       JSON.stringify({
         kind: "add_rule",
-        entity: "purchase_request",
+        targetEntity: "purchase_request",
         rule: { name: "block_large", condition: {}, effect: {} },
         confidence: 0.9,
         explanation: "block large requests",
