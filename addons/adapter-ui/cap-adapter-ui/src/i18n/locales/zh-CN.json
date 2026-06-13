@@ -388,6 +388,9 @@
     "didYouMean": "您是指：",
     "swapAction": "切换到 {{action}}（{{pct}}）",
     "serviceUnavailable": "AI 服务暂时不可用，请稍后再试。",
+    "schemaChange": "检测到模型变更",
+    "approveSchema": "批准变更",
+    "graduatePr": "创建 PR",
     "insights": {
       "title": "AI 洞察",
       "analyze": "分析记录",
@@ -397,6 +400,26 @@
       "apply": "应用",
       "avg": "平均"
     }
+  },
+  "schemaProposal": {
+    "draftCreated": "模型变更草案",
+    "ruleKind": "规则变更",
+    "entityKind": "实体变更",
+    "requiresCode": "需要代码改动",
+    "targetEntity": "目标",
+    "proposalId": "提案",
+    "approve": "批准",
+    "openPr": "创建 PR",
+    "dismiss": "忽略",
+    "openedPr": "查看 Pull Request",
+    "graduatedNoPr": "变更已提交（无 Pull Request 链接）。",
+    "missingId": "该草案缺少提案 ID，无法批准。",
+    "approveError": "批准草案失败。",
+    "graduateError": "创建 Pull Request 失败。",
+    "graduateNotFound": "未找到该提案。",
+    "graduateNotApproved": "创建 Pull Request 前需要先批准提案。",
+    "graduateUnavailable": "服务器未配置毕业（graduation）功能。",
+    "graduateDenied": "您没有权限为该提案创建 Pull Request。"
   },
   "health": {
     "title": "系统健康",

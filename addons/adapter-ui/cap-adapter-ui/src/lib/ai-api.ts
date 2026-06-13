@@ -172,6 +172,21 @@ export interface SchemaIntentDraft {
   targetEntity?: string;
   confidence?: number;
   explanation?: string;
+  /**
+   * Whether graduating this draft will edit source (a code change), as opposed
+   * to a purely declarative data/config edit. Surfaced as a badge so the
+   * reviewer knows source-editing PR is coming. Optional — older / declarative
+   * drafts omit it.
+   */
+  requiresCodeChange?: boolean;
+  /** Short human-readable summary of the diff this draft will produce, if any. */
+  diffSummary?: string;
+  /**
+   * True when the server minted an ENTITY draft (`entity_proposal_draft`),
+   * false/undefined for a rule draft (`proposal_draft`). Lets the card label
+   * the change kind without a second field.
+   */
+  isEntity?: boolean;
 }
 
 /**
@@ -191,13 +206,15 @@ export type ResolveSchemaIntentResult =
   | { kind: "error"; message: string };
 
 interface SchemaIntentWireResponse {
-  outcome?: "proposal_draft" | "clarification" | "no_match";
+  outcome?: "proposal_draft" | "entity_proposal_draft" | "clarification" | "no_match";
   proposalId?: string;
   proposalStatus?: string;
   ruleName?: string;
   targetEntity?: string;
   confidence?: number;
   explanation?: string;
+  requiresCodeChange?: boolean;
+  diffSummary?: string;
   question?: string;
   bestConfidence?: number;
   reason?: string;
@@ -258,6 +275,7 @@ export async function resolveSchemaIntent(
 
   switch (json.outcome) {
     case "proposal_draft":
+    case "entity_proposal_draft":
       return {
         kind: "proposal_draft",
         draft: {
@@ -267,6 +285,11 @@ export async function resolveSchemaIntent(
           targetEntity: json.targetEntity,
           confidence: json.confidence,
           explanation: json.explanation,
+          requiresCodeChange: json.requiresCodeChange,
+          diffSummary: json.diffSummary,
+          // Only set when truthy so a `proposal_draft` (rule) draft stays a
+          // 6-field object — the existing client test asserts an exact shape.
+          isEntity: json.outcome === "entity_proposal_draft" ? true : undefined,
         },
       };
     case "clarification":

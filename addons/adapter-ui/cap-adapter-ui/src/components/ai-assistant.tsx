@@ -41,16 +41,35 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ActionResult } from "../lib/action-api";
 import { AgUiChatTransport } from "../lib/agui-chat-transport";
-import { type IntentResolution, type ResolveIntentResult, resolveIntent } from "../lib/ai-api";
+import {
+  type IntentResolution,
+  type ResolveIntentResult,
+  type ResolveSchemaIntentResult,
+  resolveIntent,
+  resolveSchemaIntent,
+  type SchemaIntentDraft,
+} from "../lib/ai-api";
 import { isAiEnabled } from "../lib/app-config";
 import { ActionProposalCard } from "./action-proposal-card";
 import { MessageBubble } from "./ai-message-bubble";
+import { SchemaProposalCard } from "./schema-proposal-card";
 
 // ── Proposal state ───────────────────────────────────────
 
 interface ProposalItem {
   id: string;
   intent: IntentResolution;
+}
+
+/**
+ * A schema-change draft surfaced by the chat assistant — the 4th "say → exists"
+ * channel. Minted by `resolveSchemaIntent` when `resolveIntent` found no runtime
+ * action; carried through Approve → Open PR by {@link SchemaProposalCard}.
+ * Parallel to {@link ProposalItem} but holds a draft, not a runtime intent.
+ */
+interface SchemaProposalItem {
+  id: string;
+  draft: SchemaIntentDraft;
 }
 
 function createTextMessage(role: "user" | "assistant", text: string): UIMessage {
@@ -104,6 +123,35 @@ export function decideIntentRouting(
   }
 }
 
+// ── Schema-intent fallback routing (4th "say → exists" channel) ─
+
+/**
+ * Outcome of inspecting a `resolveSchemaIntent` result reached AFTER
+ * `resolveIntent` found no runtime action. Exported as a pure helper so the
+ * decision can be unit-tested without mounting the component.
+ *
+ *  - `schema-proposal` — render a {@link SchemaProposalCard} for the draft.
+ *  - `chat-fallback`   — let the general chat endpoint take the prompt
+ *                        (`clarification` / `no_match` / `unavailable` /
+ *                        `error` — none is a graduable schema change).
+ */
+export type SchemaFallbackDecision =
+  | { kind: "schema-proposal"; draft: SchemaIntentDraft }
+  | { kind: "chat-fallback" };
+
+/**
+ * Pure routing helper — maps a `ResolveSchemaIntentResult` onto the UX action
+ * the assistant should take. Only a `proposal_draft` (the client maps both
+ * `proposal_draft` and `entity_proposal_draft` here) becomes a card; every
+ * other outcome falls through to chat so read-only Q&A keeps working.
+ */
+export function decideSchemaFallback(outcome: ResolveSchemaIntentResult): SchemaFallbackDecision {
+  if (outcome.kind === "proposal_draft") {
+    return { kind: "schema-proposal", draft: outcome.draft };
+  }
+  return { kind: "chat-fallback" };
+}
+
 // ── Component ────────────────────────────────────────────
 
 export function AIAssistant({
@@ -120,6 +168,8 @@ export function AIAssistant({
 
   // Pending action proposals from intent resolution
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  // Pending schema-change drafts from schema-intent resolution (4th channel).
+  const [schemaProposals, setSchemaProposals] = useState<SchemaProposalItem[]>([]);
   const [isResolvingIntent, setIsResolvingIntent] = useState(false);
 
   // AG-UI transport (#89) — same assistant brain as /api/ai/chat, but over
@@ -154,7 +204,7 @@ export function AIAssistant({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, proposals]);
+  }, [messages, proposals, schemaProposals]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -177,6 +227,14 @@ export function AIAssistant({
     if (result.success) {
       setProposals((prev) => prev.filter((p) => p.id !== proposalId));
     }
+  }, []);
+
+  // Remove a schema proposal card. Called on graduation success (the PR is
+  // open — nothing more to do here) or on explicit dismiss. On approve/graduate
+  // FAILURE the card stays (it owns its own error + retry), mirroring the
+  // action-proposal "keep on failure" behavior above.
+  const handleSchemaProposalRemove = useCallback((id: string) => {
+    setSchemaProposals((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   // Use an uncontrolled input approach since useChat v6 doesn't have handleInputChange
@@ -222,11 +280,47 @@ export function AIAssistant({
         return;
       }
 
+      // ── 4th channel: schema-change fallback ──
+      //
+      // `resolveIntent` found no RUNTIME action (decision === "chat-fallback").
+      // Before dropping to chat, ask whether this was a SCHEMA-change utterance
+      // ("raise the manager-approval threshold to 20000") — `resolveSchemaIntent`
+      // mints a GOVERNED draft Proposal for those. A `proposal_draft` /
+      // `entity_proposal_draft` (both mapped to `proposal_draft` by the client)
+      // becomes a SchemaProposalCard; anything else (clarification / no_match /
+      // unavailable / error) falls through to the existing chat path so read-
+      // only Q&A and chit-chat still work.
+      setIsResolvingIntent(true);
+      let schemaOutcome: ResolveSchemaIntentResult;
+      try {
+        schemaOutcome = await resolveSchemaIntent(trimmed);
+      } catch (err) {
+        // A thrown resolver (e.g. an auth/transport failure inside getAuthHeaders
+        // or handleUnauthorized) must NOT leave `isResolvingIntent` stuck true —
+        // that would permanently disable the input + send button. Treat it as a
+        // non-graduable outcome so we fall through to the chat path below.
+        schemaOutcome = {
+          kind: "error",
+          message: err instanceof Error ? err.message : "schema intent resolution failed",
+        };
+      } finally {
+        setIsResolvingIntent(false);
+      }
+
+      const schemaDecision = decideSchemaFallback(schemaOutcome);
+      if (schemaDecision.kind === "schema-proposal") {
+        // Echo the prompt for the card path (chat fallback echoes itself).
+        setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
+        const id = crypto.randomUUID();
+        setSchemaProposals((prev) => [...prev, { id, draft: schemaDecision.draft }]);
+        return;
+      }
+
       if (decision.notify === "service-unavailable") {
         toast.error(t("ai.serviceUnavailable"));
       }
       // Fall through to chat — preserves read-only Q&A and chit-chat for
-      // prompts the resolver couldn't classify as actionable.
+      // prompts neither resolver could classify as actionable / schema-changing.
     }
 
     // AI disabled OR resolver returned a non-action outcome: send the
@@ -247,6 +341,7 @@ export function AIAssistant({
   const handleClear = useCallback(() => {
     setMessages([]);
     setProposals([]);
+    setSchemaProposals([]);
   }, [setMessages]);
 
   return (
@@ -271,7 +366,7 @@ export function AIAssistant({
                   <Loader2Icon className="size-3.5 animate-spin" />
                 </Button>
               )}
-              {(messages.length > 0 || proposals.length > 0) && (
+              {(messages.length > 0 || proposals.length > 0 || schemaProposals.length > 0) && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -297,7 +392,7 @@ export function AIAssistant({
         {/* Messages area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-3 py-4">
-            {messages.length === 0 && proposals.length === 0 && (
+            {messages.length === 0 && proposals.length === 0 && schemaProposals.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground">
                 <BotIcon className="size-10 opacity-30" />
                 <p className="text-sm">{t("ai.welcomeMessage")}</p>
@@ -335,6 +430,23 @@ export function AIAssistant({
                     intent={proposal.intent}
                     onComplete={(result) => handleProposalComplete(proposal.id, result)}
                     onCancel={() => handleProposalCancel(proposal.id)}
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Schema-change proposal cards (4th "say → exists" channel) —
+                shown after the action cards. The card is removed ONLY on explicit
+                dismiss: after graduation it stays in its `done` phase so the user
+                can read and click the opened-PR link. Removing it on graduation
+                would unmount it (React 19 batches the card's state updates with
+                the parent removal) before that link ever renders. */}
+            {schemaProposals.map((sp) => (
+              <div key={sp.id} className="flex justify-start">
+                <div className="w-full max-w-[95%]">
+                  <SchemaProposalCard
+                    draft={sp.draft}
+                    onDismiss={() => handleSchemaProposalRemove(sp.id)}
                   />
                 </div>
               </div>
