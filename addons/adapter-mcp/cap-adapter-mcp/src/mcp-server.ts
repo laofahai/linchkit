@@ -17,10 +17,12 @@
 import type {
   ActionRegistry,
   Actor,
+  AIService,
   CommandLayer,
   EntityRegistry,
   FieldOverlayRecord,
   OntologyRegistry,
+  PermissionRegistry,
   RuleDefinition,
   StateDefinition,
 } from "@linchkit/core";
@@ -35,6 +37,7 @@ import { registerInsightTools } from "./insight-tools";
 import { registerManagementTools } from "./management-tools";
 import { registerProposalTools } from "./proposal-tools";
 import { registerScaffoldTools } from "./scaffold-tools";
+import { registerSchemaIntentTools } from "./schema-intent-tools";
 import { generateActionTools, isMcpExposed } from "./tool-registry";
 import type { McpClient, ToolPolicy } from "./types";
 
@@ -97,6 +100,20 @@ export interface McpAdapterOptions {
    * fall back to an empty `overlayFields: []` array — never throw.
    */
   overlayRegistry?: OverlayRegistry;
+  /**
+   * AI service — provides LLM completion (Spec 52 "说→有", issue #583).
+   * When configured AND `ontologyRegistry` + `proposalEngine` are present,
+   * registers the `resolve_schema_intent` tool so MCP clients can turn a
+   * natural-language utterance into a GOVERNED proposal draft. When omitted /
+   * not configured, the tool is simply not registered (graceful degradation).
+   */
+  aiService?: AIService;
+  /**
+   * Permission registry — when provided, `resolve_schema_intent` scopes its
+   * ontology catalog to entities the calling actor can act on (least-privilege,
+   * Spec 52 §1.1). Optional: dev runs without RBAC pass everything through.
+   */
+  permissionRegistry?: PermissionRegistry;
 }
 
 /**
@@ -149,6 +166,9 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
     executionLogger,
     insightEngine,
     overlayRegistry,
+    aiService,
+    permissionRegistry,
+    ontologyRegistry,
   } = options;
 
   const server = new McpServer({ name, version });
@@ -360,6 +380,23 @@ export async function createMcpAdapter(options: McpAdapterOptions): Promise<McpA
       { name: "list_proposals", category: "proposals" },
       { name: "approve_proposal", category: "proposals" },
     );
+
+    // Register the schema-intent tool only when AI + ontology are ALSO wired
+    // (issue #583). It persists its governed draft into the SAME proposalEngine
+    // used above, so it must live inside this `if (proposalEngine)` block. The
+    // ontology + AI presence guard mirrors how the HTTP route 503s without
+    // them; here we simply don't register the tool when they're absent.
+    if (aiService?.configured && ontologyRegistry) {
+      registerSchemaIntentTools(server, {
+        aiService,
+        ontologyRegistry,
+        proposalEngine,
+        permissionRegistry,
+        getSessionActor: () => sessionActor,
+        checkToolPolicy,
+      });
+      allToolNames.push({ name: "resolve_schema_intent", category: "proposals" });
+    }
   }
 
   // Register execution log tools if execution logger is available

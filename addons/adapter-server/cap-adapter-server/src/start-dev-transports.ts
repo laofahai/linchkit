@@ -42,6 +42,7 @@ import {
   InMemoryOverlayStore,
 } from "@linchkit/core/server";
 import type { AssembledDevSchema } from "./assemble-schema";
+import { getSharedProposalEngine } from "./proposal-api";
 
 /** Transport name owned by cap-adapter-server — its HTTP server is started directly by dev.ts. */
 const HTTP_TRANSPORT_NAME = "http";
@@ -172,6 +173,10 @@ export async function buildDevTransportContext(
     aiService: runtime.ai,
     aiConfig: config.ai,
     evolutionRuntime,
+    // The SAME governed engine `/api/proposals` reads from — so AI drafts
+    // created over the MCP channel (create_proposal / resolve_schema_intent)
+    // surface in the review pipeline, not a throwaway instance (issue #583).
+    proposalEngine: getSharedProposalEngine(),
   };
 }
 

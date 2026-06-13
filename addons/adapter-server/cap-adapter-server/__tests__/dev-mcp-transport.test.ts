@@ -168,6 +168,12 @@ beforeAll(async () => {
     evolutionRuntime,
   });
 
+  // The bridged context MUST carry the shared governed proposal engine: the MCP
+  // transport factory gates create_proposal / resolve_schema_intent on it, so a
+  // missing proposalEngine silently de-activates those tools in the dev MCP path
+  // (issue #583). Pin it here so a regression fails loudly rather than going dark.
+  expect(transportCtx.proposalEngine).toBeDefined();
+
   // Build the MCP server from the bridged context — same args the MCP transport
   // factory passes — and drive it over an in-process JSON-RPC pipe (no socket).
   const { server } = await createMcpAdapter({

@@ -16,6 +16,7 @@ import type { ActionExecutor, DataProvider } from "../engine/action-engine";
 import type { ApprovalEngine } from "../engine/approval-engine";
 import type { CommandLayer, MiddlewareRegistration } from "../engine/command-layer";
 import type { PermissionRegistry } from "../engine/permission-engine";
+import type { ProposalEngine } from "../engine/proposal-engine";
 import type { DerivedPropertyEngine } from "../entity/derived-property";
 import type { EntityRegistry } from "../entity/entity-registry";
 import type { RelationRegistry } from "../entity/relation-registry";
@@ -97,6 +98,14 @@ export interface TransportContext {
    * to the right backend (Drizzle or in-memory).
    */
   evolutionRuntime?: EvolutionRuntime;
+  /**
+   * Governed proposal engine — the shared instance `/api/proposals` reads from.
+   * Transports (MCP, HTTP) use it to persist AI-drafted structural changes so
+   * they surface in the review pipeline. When present (alongside `aiService` +
+   * `ontologyRegistry`), the MCP transport registers `create_proposal` and
+   * `resolve_schema_intent` (Spec 52 "说→有", issue #583).
+   */
+  proposalEngine?: ProposalEngine;
 }
 
 /** Lifecycle handle returned by transport factory */
