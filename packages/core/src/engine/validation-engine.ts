@@ -194,6 +194,38 @@ export function validatePhase1(options: {
     // the target-specific definition validation below) just as we skip deletes,
     // so a governance-safe draft rollback Proposal can reach the approval gate.
     if (change.target === "revert") continue;
+    // A change carrying a `sourcePatch` (#566 "say→change an existing
+    // code-condition rule's threshold") intentionally has NO `definition`: it
+    // rewrites a single named constant in existing source, so the sourcePatch IS
+    // the specification (value-validated at assembly via `isSafeValueLiteral`,
+    // and the patcher re-validates at graduation). Skip the MISSING_DEFINITION
+    // requirement — like revert/delete — so the governed draft can reach the
+    // approval gate and graduate. Without this, every NL rule-threshold update
+    // fails Phase 1 and is unapprovable. Still validate the patch's OWN shape
+    // here so a malformed sourcePatch is caught early at Phase 1 rather than
+    // failing opaquely during graduation.
+    // Scope the carve-out to exactly the production case it exists for — a
+    // `rule` `update` (the NL threshold change). `sourcePatch` is an optional
+    // field on the BASE ProposalChange, so a crafted `entity`/`action` change
+    // carrying a sourcePatch must NOT get the definition-less pass; it falls
+    // through to MISSING_DEFINITION like any other definition-less change.
+    if (change.sourcePatch && change.target === "rule" && change.operation === "update") {
+      const { filePath, constantName, newValueLiteral } = change.sourcePatch;
+      if (!filePath || !constantName || !newValueLiteral) {
+        errors.push({
+          code: "INVALID_SOURCE_PATCH",
+          message: `Change for "${change.name}" has an invalid or incomplete sourcePatch specification`,
+          target: change.name,
+        });
+      }
+      // A definition-LESS sourcePatch change is self-specifying: skip the
+      // MISSING_DEFINITION requirement AND the target-specific definition
+      // validation below. But if a `definition` is ALSO present (permitted by
+      // the ProposalChange type, though not produced today), fall through so
+      // validateRule()/validateEntity()/… still runs and catches the
+      // inconsistency rather than silently accepting a malformed definition.
+      if (!change.definition) continue;
+    }
     if (!change.definition) {
       errors.push({
         code: "MISSING_DEFINITION",

@@ -327,6 +327,74 @@ describe("validatePhase1", () => {
     expect(result.status).toBe("passed");
     expect(result.errors).toHaveLength(0);
   });
+
+  it("passes a code-rule update carrying a sourcePatch despite having no definition (#566)", () => {
+    // A "say→change an existing code-condition rule's threshold" proposal carries
+    // a definition-less change whose `sourcePatch` IS the spec. Phase-1 must NOT
+    // flag MISSING_DEFINITION, or the NL rule-threshold update can never be
+    // approved and graduated (caught by live testing — the approve gate blocked it).
+    const result = validatePhase1({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          sourcePatch: {
+            filePath: "addons/demo/cap-purchase-demo/src/rules/manager-approval-threshold.ts",
+            constantName: "MANAGER_APPROVAL_THRESHOLD",
+            newValueLiteral: "20000",
+          },
+        },
+      ],
+    });
+
+    expect(result.status).toBe("passed");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("fails a code-rule update carrying an invalid (empty filePath) sourcePatch", () => {
+    // The carve-out skips MISSING_DEFINITION but still validates the patch's own
+    // shape: a malformed sourcePatch is caught at Phase 1, not opaquely at graduation.
+    const result = validatePhase1({
+      changes: [
+        {
+          target: "rule",
+          operation: "update",
+          name: "manager_approval_threshold",
+          sourcePatch: {
+            filePath: "",
+            constantName: "MANAGER_APPROVAL_THRESHOLD",
+            newValueLiteral: "20000",
+          },
+        },
+      ],
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errors.some((e) => e.code === "INVALID_SOURCE_PATCH")).toBe(true);
+  });
+
+  it("does NOT extend the sourcePatch carve-out to non-rule targets (#596 review)", () => {
+    // A crafted entity change carrying a sourcePatch but no definition must NOT
+    // get the rule-update carve-out — it still fails MISSING_DEFINITION.
+    const result = validatePhase1({
+      changes: [
+        {
+          target: "entity",
+          operation: "create",
+          name: "rogue_entity",
+          sourcePatch: {
+            filePath: "addons/x/y.ts",
+            constantName: "ROGUE",
+            newValueLiteral: "1",
+          },
+        },
+      ],
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errors.some((e) => e.code === "MISSING_DEFINITION")).toBe(true);
+  });
 });
 
 // ── validatePhase1: duplicate detection ─────────────────
