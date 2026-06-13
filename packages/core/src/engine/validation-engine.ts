@@ -194,6 +194,15 @@ export function validatePhase1(options: {
     // the target-specific definition validation below) just as we skip deletes,
     // so a governance-safe draft rollback Proposal can reach the approval gate.
     if (change.target === "revert") continue;
+    // A change carrying a `sourcePatch` (#566 "say→change an existing
+    // code-condition rule's threshold") intentionally has NO `definition`: it
+    // rewrites a single named constant in existing source, so the sourcePatch IS
+    // the specification (value-validated at assembly via `isSafeValueLiteral`,
+    // and the patcher re-validates at graduation). Skip the MISSING_DEFINITION
+    // requirement — like revert/delete — so the governed draft can reach the
+    // approval gate and graduate. Without this, every NL rule-threshold update
+    // fails Phase 1 and is unapprovable.
+    if (change.sourcePatch) continue;
     if (!change.definition) {
       errors.push({
         code: "MISSING_DEFINITION",
