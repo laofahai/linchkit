@@ -108,9 +108,10 @@ test("graduate patches the real source constant via the injected default sourceP
   const res = await app.handle(
     new Request(`${BASE}/api/proposals/${proposal.id}/graduate`, { method: "POST" }),
   );
-  const json = (await res.json()) as { success: boolean; data?: { prUrl?: string } };
-
+  // Assert status BEFORE parsing the body: a non-JSON error body would otherwise
+  // throw a confusing SyntaxError that masks the real status-code mismatch.
   expect(res.status).toBe(200);
+  const json = (await res.json()) as { success: boolean; data?: { prUrl?: string } };
   expect(json.success).toBe(true);
   expect(json.data?.prUrl).toBe("https://github.com/acme/repo/pull/77");
   // The committer was handed the patched file as a written path.
