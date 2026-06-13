@@ -47,6 +47,7 @@ import {
   detectEnvironment,
   getCurrentTrace,
 } from "@linchkit/core/server";
+import { patchNamedConstant } from "@linchkit/devtools";
 import { Elysia } from "elysia";
 import { type GraphQLSchema, NoSchemaIntrospectionCustomRule } from "graphql";
 import { createYoga, type Plugin } from "graphql-yoga";
@@ -445,6 +446,11 @@ export function createServer(
   mountProposalGraduateAPI(app, {
     commandLayer: opts.commandLayer,
     resolveRequestActor: opts.resolveRequestActor,
+    // Inject the concrete TS-AST patcher so an approved code-condition rule
+    // update graduates by rewriting the named constant in real source (#566).
+    // It lives in @linchkit/devtools to keep core typescript-free (the
+    // SourcePatcher capability seam); this is the composition root that wires it.
+    sourcePatcher: patchNamedConstant,
   });
   // On-demand AI code materialization: POST /api/proposals/:id/materialize
   // generates candidate source for a DRAFT proposal's code parts (G5 Phase 4).
