@@ -474,6 +474,25 @@ describe("resolveSchemaIntent — add_entity validation", () => {
     expect(engine.size).toBe(1);
   });
 
+  it("rejects `relation: []` (array) as a malformed payload, NOT an absent placeholder", () => {
+    // `Object.keys([]).length === 0`, so an array must not be mistaken for the
+    // `relation: {}` "no relation" placeholder — it has to surface as an error
+    // rather than silently dropping the requested-but-malformed relation.
+    const result = buildEntityDefinition(
+      {
+        name: "product",
+        fields: [{ name: "barcode", type: "string", required: false }],
+      } as Parameters<typeof buildEntityDefinition>[0],
+      [] as unknown as Parameters<typeof buildEntityDefinition>[1],
+      makeOntology(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected failure");
+    // Surfaces through buildRelation as a granular relation error rather than
+    // being swallowed — the resolver layer maps this to `invalid_entity`.
+    expect(result.reason).toContain("relation");
+  });
+
   it("rejects an entity declaring a server-managed system field", async () => {
     const engine = new ProposalEngine();
     const { service } = makeFakeAi(

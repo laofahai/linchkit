@@ -171,17 +171,22 @@ export function buildEntityDefinition(
 
   // ── Optional relation ──
   // Treat the relation as ABSENT only when it is undefined, null, or a
-  // ZERO-KEY empty object — LLMs sometimes emit `relation: {}` as a "no
-  // relation" placeholder instead of omitting the key, and that placeholder
-  // must not reject the (valid) entity draft. A PARTIAL relation payload
-  // (some keys present but e.g. `from` missing) is NOT silently dropped: it
-  // flows into buildRelation and fails with a clear `invalid_entity` reason,
-  // so a requested-but-malformed relation is surfaced, never discarded.
+  // ZERO-KEY plain (non-array) object — LLMs sometimes emit `relation: {}`
+  // as a "no relation" placeholder instead of omitting the key, and that
+  // placeholder must not reject the (valid) entity draft. Everything else —
+  // a PARTIAL object payload (some keys present but e.g. `from` missing) OR
+  // any array (`relation: []`, which has zero own keys yet is NOT a valid
+  // placeholder) — is NOT silently dropped: it flows into buildRelation and
+  // fails with a clear `invalid_entity` reason, so a requested-but-malformed
+  // relation is always surfaced, never discarded.
   let relation: BuiltEntityDraft["relation"];
-  const hasRelationBody =
-    relationRaw !== undefined &&
+  const isEmptyRelationPlaceholder =
+    typeof relationRaw === "object" &&
     relationRaw !== null &&
-    (typeof relationRaw !== "object" || Object.keys(relationRaw).length > 0);
+    !Array.isArray(relationRaw) &&
+    Object.keys(relationRaw).length === 0;
+  const hasRelationBody =
+    relationRaw !== undefined && relationRaw !== null && !isEmptyRelationPlaceholder;
   if (hasRelationBody) {
     const built = buildRelation(relationRaw, entityName, ontology);
     if (!built.ok) return { ok: false, reason: built.reason };
