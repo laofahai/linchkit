@@ -91,7 +91,7 @@ export function buildSchemaIntentOntology(opts: {
     // malformed rule can carry an undefined/null trigger at runtime despite
     // the static type, and `"action" in undefined` throws.
     const triggerActions =
-      rule.trigger && "action" in rule.trigger
+      rule.trigger && typeof rule.trigger === "object" && "action" in rule.trigger
         ? Array.isArray(rule.trigger.action)
           ? rule.trigger.action
           : [rule.trigger.action]
@@ -111,7 +111,10 @@ export function buildSchemaIntentOntology(opts: {
     // diff-only path or the rebuild would silently flatten/replace parts the
     // user never asked to change.
     const hasSingleActionTrigger = Boolean(
-      rule.trigger && "action" in rule.trigger && typeof rule.trigger.action === "string",
+      rule.trigger &&
+        typeof rule.trigger === "object" &&
+        "action" in rule.trigger &&
+        typeof rule.trigger.action === "string",
     );
     const hasSimpleCondition =
       !isCode &&
@@ -149,7 +152,8 @@ export function buildSchemaIntentOntology(opts: {
       .filter((rule) => {
         // A malformed (trigger-less) rule rides the entity-level gate, same
         // as non-action triggers — `in` on undefined/null would throw.
-        if (!rule.trigger || !("action" in rule.trigger)) return true;
+        if (!rule.trigger || typeof rule.trigger !== "object" || !("action" in rule.trigger))
+          return true;
         const actions = Array.isArray(rule.trigger.action)
           ? rule.trigger.action
           : [rule.trigger.action];

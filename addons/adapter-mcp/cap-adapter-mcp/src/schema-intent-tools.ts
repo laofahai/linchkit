@@ -141,7 +141,7 @@ function persistGovernedRuleDraft(opts: {
   const { proposal: draft, ruleName, targetEntity, explanation, operation } = outcome;
   const diffOnly = outcome.requiresCodeChange === true;
 
-  const rawDefinition = draft.diff?.definition;
+  const rawDefinition = draft?.diff?.definition;
   const definition =
     rawDefinition && typeof rawDefinition === "object"
       ? (rawDefinition as RuleDefinition)
@@ -203,7 +203,7 @@ function persistGovernedEntityDraft(opts: {
   const { engine, outcome, reasoning, actor } = opts;
   const { proposal: draft, entityName, explanation } = outcome;
 
-  const definition = draft.diff?.definition;
+  const definition = draft?.diff?.definition;
   if (!definition || typeof definition !== "object") {
     throw new Error(
       `persistGovernedEntityDraft: missing or non-object entity definition (entityName=${entityName})`,
