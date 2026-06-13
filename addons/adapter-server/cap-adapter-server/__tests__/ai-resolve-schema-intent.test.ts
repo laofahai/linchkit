@@ -385,20 +385,32 @@ describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence
       fields?: Array<{ name: string }>;
       proposalId?: string;
       proposalStatus?: string;
-      proposal?: { type: string; status: string; diff: { target: string; operation: string } };
+      proposal?: {
+        id?: string;
+        type: string;
+        status: string;
+        diff: { target: string; operation: string };
+      };
     };
     expect(body.outcome).toBe("entity_proposal_draft");
     expect(body.entityName).toBe("product");
     expect((body.fields ?? []).map((f) => f.name).sort()).toEqual(
       ["barcode", "case_pack_quantity"].sort(),
     );
-    // Governed proposal: modify_schema / entity / create, never applied.
+    // `body.proposal` is the resolver's transient DRAFT-engine Proposal
+    // (type/status/diff) — it is NOT the governed proposal and is never visible
+    // through /api/proposals. The governed proposal is identified separately by
+    // `body.proposalId` (used for the review-UI lookup below). These are two
+    // DISTINCT objects with different ids — always query /api/proposals by
+    // `proposalId`, never `proposal.id`.
     expect(body.proposal?.type).toBe("modify_schema");
     expect(body.proposal?.status).toBe("draft");
     expect(body.proposal?.diff.target).toBe("entity");
     expect(body.proposal?.diff.operation).toBe("create");
     expect(typeof body.proposalId).toBe("string");
     expect(body.proposalStatus).toBe("draft");
+    // Regression-proof the draft-vs-governed distinction: the two ids must differ.
+    expect(body.proposalId).not.toBe(body.proposal?.id);
 
     // Persisted into the SAME engine /api/proposals serves, scoped to the entity.
     const list = await getProposals(server, "product");
@@ -413,6 +425,81 @@ describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence
     expect(changes[0]?.target).toBe("entity");
     expect(changes[0]?.operation).toBe("create");
     expect(changes[0]?.name).toBe("product");
+  });
+
+  test("surfaces a drafted relation in the response, yet STRIPS it from the governed change", async () => {
+    // The AI drafts a NEW entity that relates to an EXISTING one. The relation
+    // must (a) round-trip in the HTTP response for the review UI, and (b) be
+    // ABSENT from the governed change's definition — entity targets are not
+    // materialized to code yet, so carrying the relation through graduation is a
+    // tracked follow-up (#580). This test pins both halves of that contract.
+    const relAi = fakeAiService({
+      responseContent: JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "purchase_item",
+          label: "Purchase Item",
+          fields: [{ name: "quantity", type: "number", required: true, min: 1 }],
+        },
+        relation: {
+          name: "purchase_request_items",
+          from: "purchase_request",
+          to: "purchase_item",
+          cardinality: "one_to_many",
+          fromName: "line_items",
+          toName: "purchase_request",
+        },
+        confidence: 0.9,
+        explanation: "Add purchase line items related to the purchase request.",
+      }),
+    });
+    const relServer = createServer(graphqlSchema, {
+      aiService: relAi,
+      ontologyRegistry: buildOntology(),
+    });
+
+    const { status, json } = await postSchemaIntent(relServer, {
+      prompt: "给采购单增加明细行，每行关联一个采购单",
+    });
+    expect(status).toBe(200);
+    const body = json as {
+      outcome: string;
+      entityName?: string;
+      proposalId?: string;
+      relation?: {
+        name?: string;
+        from: string;
+        to: string;
+        cardinality: string;
+        fromName: string;
+        toName: string;
+      };
+    };
+    expect(body.outcome).toBe("entity_proposal_draft");
+    expect(body.entityName).toBe("purchase_item");
+    // (a) The relation round-trips in the response for the review UI.
+    expect(body.relation).toBeDefined();
+    expect(body.relation?.from).toBe("purchase_request");
+    expect(body.relation?.to).toBe("purchase_item");
+    expect(body.relation?.cardinality).toBe("one_to_many");
+    expect(body.relation?.fromName).toBe("line_items");
+    expect(body.relation?.toName).toBe("purchase_request");
+
+    // (b) The governed change carries the ENTITY only — its definition has NO
+    // `relation` key. This is the deliberate, deferred strip (#580), pinned here
+    // so a future change that accidentally leaks the relation into the governed
+    // definition fails loudly instead of silently changing the graduation shape.
+    const list = await getProposals(relServer, "purchase_item");
+    const found = list.json.data.items.find((p) => p.id === body.proposalId);
+    if (!found) throw new Error("expected the governed entity draft in /api/proposals");
+    const changes = found.changes as Array<{
+      target: string;
+      definition?: Record<string, unknown>;
+    }>;
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.target).toBe("entity");
+    expect(changes[0]?.definition).toBeDefined();
+    expect(changes[0]?.definition && "relation" in changes[0].definition).toBe(false);
   });
 });
 

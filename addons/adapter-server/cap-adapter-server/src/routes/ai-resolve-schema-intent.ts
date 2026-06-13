@@ -284,11 +284,15 @@ function persistGovernedRuleDraft(opts: {
  * `ProposalChange` (`{ target: "entity", operation: "create", name, definition }`)
  * in `draft` status. It is NEVER submitted, approved, or applied here.
  *
- * A drafted relation rides along inside the resolver draft's definition (so the
- * downstream code generator can emit both); the governed change records the
- * entity as the primary target. Persisting the relation as its own first-class
- * governed change is a deferred follow-up — there is no `"relation"` governed
- * ProposalChangeTarget today.
+ * A drafted relation rides along inside the resolver draft's definition, but it
+ * is NOT carried into the governed change: the governed `entity` change records
+ * the entity ONLY (the relation is stripped below). The relation still surfaces
+ * in the HTTP response (`outcome.relation`) for the review UI, but it does NOT
+ * reach the graduation path. Note this is not a live regression today — entity
+ * targets are not materialized to code yet (only `"action"` is in the
+ * materializer's MATERIALIZABLE_TARGETS), so neither the entity NOR its relation
+ * graduates. Carrying the relation through as a first-class governed change
+ * needs a `"relation"` ProposalChangeTarget and is a tracked follow-up (#580).
  *
  * Always returns a persisted governed `ProposalDefinition` (mirroring
  * `persistGovernedRuleDraft`). If the draft somehow lacks a usable entity
@@ -319,7 +323,9 @@ function persistGovernedEntityDraft(opts: {
   // (`{ ...entityDef, relation }`). The governed `entity` change's `definition`
   // must be a clean `EntityDefinition`, so strip the relation extra here — the
   // relation surfaces separately in the API response (`outcome.relation`) for the
-  // review UI; persisting it as its own governed change is a deferred follow-up.
+  // review UI; persisting it as its own governed change is a deferred follow-up
+  // (#580). The HTTP test pins this strip (governed definition has no `relation`
+  // key) so the deferral is a tested contract, not a silent drop.
   const { relation: _relation, ...entityRest } = definition as Record<string, unknown>;
   // Minimal structural assertion before the unchecked cast. The resolver
   // validated this upstream, but persisting a governed EntityDefinition is
