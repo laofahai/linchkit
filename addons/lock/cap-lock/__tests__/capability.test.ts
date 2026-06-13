@@ -31,7 +31,7 @@ describe("cap-lock capability metadata", () => {
     expect(capLock.type).toBe("standard");
     expect(capLock.category).toBe("system");
     expect(capLock.version).toBe("1.0.0");
-    expect(capLock.coreVersion).toBe("^0.2.0");
+    expect(capLock.coreVersion).toBe("^0.3.0");
   });
 
   it("declares only the database.read system permission", () => {
