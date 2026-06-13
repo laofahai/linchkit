@@ -940,6 +940,37 @@ describe("ProposalFileWriter source patch (#566)", () => {
     expect(calls[0].source).toContain("= 10000");
   });
 
+  it("does NOT rewrite the file when the patch is a no-op (changed: false) (gemini #590)", async () => {
+    // The value is already at target → the patcher reports changed: false.
+    // Rewriting identical bytes would bump mtime and trip watchers/HMR, so the
+    // writer must SKIP the write. To prove it, the fake patcher reports no change
+    // but returns DIFFERENT bytes: if the writer wrote unconditionally the file
+    // would become the marker; skipping on changed:false keeps the original.
+    const relPath = join("rules", "noop.ts");
+    const absPath = join(tmpDir, relPath);
+    await mkdir(join(tmpDir, "rules"), { recursive: true });
+    const ORIGINAL = "export const MANAGER_APPROVAL_THRESHOLD = 20000;\n";
+    await writeFile(absPath, ORIGINAL, "utf8");
+
+    const patcher = (): SourcePatchResult => ({
+      source: "// MARKER — must never be written on a no-op\n",
+      oldValueLiteral: "20000",
+      changed: false,
+    });
+    const writer = new ProposalFileWriter({
+      rootDir: tmpDir,
+      repoRoot: tmpDir,
+      sourcePatcher: patcher,
+    });
+
+    const written = await writer.writeApprovedProposal(sourcePatchProposal(relPath));
+
+    // The change still resolves to that file (reported in written[])...
+    expect(written).toEqual([absPath]);
+    // ...but the file was NOT rewritten — content is the original, not the marker.
+    expect(await readFile(absPath, "utf8")).toBe(ORIGINAL);
+  });
+
   it("THROWS when a sourcePatch change has no injected sourcePatcher (names proposal/change)", async () => {
     const relPath = join("rules", "x.ts");
     const absPath = join(tmpDir, relPath);

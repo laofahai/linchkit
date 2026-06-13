@@ -590,7 +590,12 @@ export class ProposalFileWriter {
       constantName: patch.constantName,
       newValueLiteral: patch.newValueLiteral,
     });
-    await writeFile(abs, result.source, { encoding: "utf8", flag: "w" });
+    // Skip the write when the value is already at target (changed === false):
+    // rewriting identical bytes is wasteful I/O and bumps the file's mtime,
+    // needlessly tripping file watchers / HMR / build tools (gemini #590).
+    if (result.changed) {
+      await writeFile(abs, result.source, { encoding: "utf8", flag: "w" });
+    }
 
     this.logger?.info?.(`ProposalFileWriter: patched ${abs}`, {
       proposalId: proposal.id,
