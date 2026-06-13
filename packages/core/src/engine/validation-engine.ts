@@ -213,7 +213,13 @@ export function validatePhase1(options: {
           target: change.name,
         });
       }
-      continue;
+      // A definition-LESS sourcePatch change is self-specifying: skip the
+      // MISSING_DEFINITION requirement AND the target-specific definition
+      // validation below. But if a `definition` is ALSO present (permitted by
+      // the ProposalChange type, though not produced today), fall through so
+      // validateRule()/validateEntity()/… still runs and catches the
+      // inconsistency rather than silently accepting a malformed definition.
+      if (!change.definition) continue;
     }
     if (!change.definition) {
       errors.push({
