@@ -237,6 +237,7 @@ export async function resolveSchemaIntent(
       minConfidence,
       utterance,
       engine: deps.proposalEngine,
+      existingEntityNames: new Set(catalog.map((e) => e.name)),
     });
   }
 

@@ -89,8 +89,16 @@ export type BuildEntityResult =
  * Validate an AI-proposed entity shape against structural constraints.
  * Returns the typed definition on success or a human-readable reason on
  * failure. Never throws.
+ *
+ * @param existingEntityNames - Set of already-registered entity names. When
+ *   provided, the proposed name is checked against this set to prevent a
+ *   "create" proposal from targeting an entity that already exists in the
+ *   catalog.
  */
-export function buildEntityDefinition(shape: ParsedEntityShape | undefined): BuildEntityResult {
+export function buildEntityDefinition(
+  shape: ParsedEntityShape | undefined,
+  existingEntityNames?: ReadonlySet<string>,
+): BuildEntityResult {
   if (!shape || typeof shape !== "object") {
     return { ok: false, reason: "entity definition is missing" };
   }
@@ -105,6 +113,12 @@ export function buildEntityDefinition(shape: ParsedEntityShape | undefined): Bui
     return {
       ok: false,
       reason: `entity name "${name}" is not valid snake_case (must start with a lowercase letter, contain only [a-z0-9_])`,
+    };
+  }
+  if (existingEntityNames?.has(name)) {
+    return {
+      ok: false,
+      reason: `entity "${name}" already exists in the catalog — use update_rule or a future update_entity intent instead`,
     };
   }
 
@@ -165,7 +179,7 @@ function validateField(raw: ParsedEntityField, index: number): FieldResult {
     };
   }
 
-  const required = raw?.required === true;
+  const required = raw?.required === true || String(raw?.required).trim().toLowerCase() === "true";
   const label = typeof raw?.label === "string" && raw.label.trim() ? raw.label.trim() : undefined;
   const description =
     typeof raw?.description === "string" && raw.description.trim()
@@ -192,19 +206,21 @@ export function draftEntityProposal(opts: {
   minConfidence: number;
   utterance: string;
   engine: ProposalEngine;
+  /** Set of entity names already in the catalog — prevents duplicate-create proposals. */
+  existingEntityNames?: ReadonlySet<string>;
 }): SchemaIntentOutcome {
-  const { parsed, confidence, minConfidence, utterance, engine } = opts;
+  const { parsed, confidence, minConfidence, utterance, engine, existingEntityNames } = opts;
 
   if (confidence < minConfidence) {
     return {
       kind: "clarification",
       question:
-        "I'm not sure what rule you want. Could you describe the condition and what should happen when it matches?",
+        "I'm not sure which entity you want to create. Could you describe the entity name and the fields it should have?",
       bestConfidence: confidence,
     };
   }
 
-  const built = buildEntityDefinition(parsed.entity);
+  const built = buildEntityDefinition(parsed.entity, existingEntityNames);
   if (!built.ok) {
     return {
       kind: "no_match",

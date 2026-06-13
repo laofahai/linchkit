@@ -1763,6 +1763,32 @@ describe("resolveSchemaIntent — add_entity proposal draft", () => {
       { provider: service, ontology: makeOntology(), proposalEngine: engine },
     );
     expect(outcome.kind).toBe("clarification");
+    if (outcome.kind !== "clarification") throw new Error("expected clarification");
+    expect(outcome.question).toContain("entity");
+    expect(outcome.question).not.toContain("rule");
+  });
+
+  it("returns no_match when proposed entity name conflicts with an existing catalog entity", async () => {
+    const engine = new ProposalEngine();
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "purchase_request",
+          fields: [{ name: "total", type: "number", required: true }],
+        },
+        confidence: 0.9,
+        explanation: "Create purchase_request entity",
+      }),
+    );
+    const outcome = await resolveSchemaIntent(
+      { utterance: "add a purchase request entity" },
+      { provider: service, ontology: makeOntology(), proposalEngine: engine },
+    );
+    expect(outcome.kind).toBe("no_match");
+    if (outcome.kind !== "no_match") throw new Error("expected no_match");
+    expect(outcome.reason).toBe("invalid_entity");
+    expect(outcome.message).toContain("already exists");
   });
 
   it("system prompt mentions add_entity kind so the AI knows it is supported", async () => {

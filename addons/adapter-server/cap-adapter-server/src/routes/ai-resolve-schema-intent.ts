@@ -29,11 +29,17 @@
 import type {
   Actor,
   AIService,
+  EntityDefinition,
   ProposalChange,
   ProposalDefinition,
   RuleDefinition,
 } from "@linchkit/core";
-import type { Proposal, SchemaIntentOutcome, SchemaIntentProposalDraft } from "@linchkit/core/ai";
+import type {
+  Proposal,
+  SchemaIntentEntityProposalDraft,
+  SchemaIntentOutcome,
+  SchemaIntentProposalDraft,
+} from "@linchkit/core/ai";
 import {
   ProposalEngine,
   REQUIRES_CODE_CHANGE_MARKER,
@@ -257,6 +263,41 @@ function persistGovernedRuleDraft(opts: {
   });
 }
 
+/**
+ * Persist a resolver-produced `add_entity` draft into the shared GOVERNED engine
+ * so the NL entity draft surfaces in the review pipeline alongside rule drafts.
+ * Always `draft` status — never submitted, approved, or applied here.
+ */
+function persistGovernedEntityDraft(opts: {
+  engine: GovernedProposalEngine;
+  outcome: SchemaIntentEntityProposalDraft;
+  reasoning: string;
+  actor: Actor;
+}): ProposalDefinition | undefined {
+  const { engine, outcome, reasoning, actor } = opts;
+  const { proposal: draft, entityName, explanation } = outcome;
+
+  const rawDefinition = draft.diff?.definition;
+  if (!rawDefinition || typeof rawDefinition !== "object") return undefined;
+
+  const change: ProposalChange = {
+    target: "entity",
+    operation: "create",
+    name: entityName,
+    definition: rawDefinition as unknown as EntityDefinition,
+    diff: explanation,
+  };
+
+  return engine.createProposal({
+    title: explanation,
+    description: `${reasoning}\n\n(Requested by ${actor.type}:${actor.id})`,
+    author: { type: "ai", id: "schema-intent-resolver", name: "Schema Intent Resolver" },
+    capability: entityName,
+    changeType: "minor",
+    changes: [change],
+  });
+}
+
 // ── Route ───────────────────────────────────────────────────
 
 /**
@@ -373,6 +414,13 @@ export function mountResolveSchemaIntentRoute(app: Elysia, options: ServerOption
     let governed: ProposalDefinition | undefined;
     if (outcome.kind === "proposal_draft") {
       governed = persistGovernedRuleDraft({
+        engine: governedEngine,
+        outcome,
+        reasoning: parsed.data.prompt,
+        actor,
+      });
+    } else if (outcome.kind === "entity_proposal_draft") {
+      governed = persistGovernedEntityDraft({
         engine: governedEngine,
         outcome,
         reasoning: parsed.data.prompt,
