@@ -61,6 +61,8 @@ export interface ActionLimits {
 export interface ActionExposure {
   http?: boolean;
   mcp?: boolean;
+  /** Expose this action as an A2A skill (Spec 15 §6.5) */
+  a2a?: boolean;
   cli?: boolean;
   ui?: boolean;
   internal?: boolean;

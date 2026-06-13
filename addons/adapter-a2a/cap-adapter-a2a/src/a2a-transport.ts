@@ -1,43 +1,55 @@
 /**
  * a2a-transport — TransportAdapterDefinition for the A2A protocol.
  *
- * SKELETON slice (issue #89, Spec 15 §6.5): the factory returns a no-op
- * lifecycle handle so the capability can be loaded and wired into the
- * transport pipeline without yet speaking the A2A protocol.
+ * Phase-1 spike (issue #89, Spec 15 §6.5): generates the A2A v1.0 AgentCard
+ * from the LinchKit TransportContext and logs it at start-up. HTTP serving of
+ * `/.well-known/agent-card.json` is deferred to the next slice (requires
+ * elysia to be present in the transport layer).
  *
- * The factory is declarative on purpose — when it later dispatches inbound
- * agent messages to Actions it will route them through `ctx.commandLayer.execute`
- * (the sole write entry point), never bypassing the CommandLayer middleware.
+ * When the transport later dispatches inbound agent messages to Actions it will
+ * route them through `ctx.commandLayer.execute` (the sole write entry point),
+ * never bypassing the CommandLayer middleware.
  */
 
 import type { TransportAdapterDefinition, TransportContext } from "@linchkit/core";
+import { generateAgentCard } from "./agent-card";
 import { capAdapterA2aConfig } from "./config";
 
 /**
  * The A2A transport definition registered via `extensions.transports`.
  *
- * `start`/`stop` are currently no-ops. Real protocol wiring is deferred —
- * see the TODO inside the factory.
+ * Phase-1 implements AgentCard generation. The HTTP endpoint and JSON-RPC
+ * task lifecycle are deferred to later slices (#89 S2+).
  */
 export const a2aTransport: TransportAdapterDefinition = {
   name: "a2a",
   label: "Agent-to-Agent Protocol",
   factory: (ctx: TransportContext) => {
-    // Read config from the typed accessor (env resolved, validated, frozen).
     const cfg = capAdapterA2aConfig.from(ctx);
 
     return {
       start: async () => {
-        // TODO(#89 S2+): publish the Agent Card, mount the JSON-RPC endpoint
-        // (message/send, tasks/get, tasks/cancel) under `cfg.basePath`, and
-        // dispatch inbound agent messages to Actions via `ctx.commandLayer.execute`.
-        // The skeleton intentionally does not open a port or speak the protocol.
-        console.log(
-          `[cap-adapter-a2a] A2A transport is a no-op skeleton (enabled=${cfg.enabled}, basePath=${cfg.basePath}, port=${cfg.port}). Protocol logic deferred to a later slice (#89).`,
-        );
+        // Always generate so the OntologyRegistry→AgentCard mapping is
+        // validated at boot, even when HTTP serving is disabled.
+        const card = generateAgentCard({
+          name: cfg.agentName,
+          description: cfg.agentDescription,
+          url: cfg.agentUrl,
+          version: cfg.agentVersion,
+          documentationUrl: cfg.agentDocumentationUrl,
+          providerOrg: cfg.agentProviderOrg,
+          actions: ctx.actions,
+        });
+        if (cfg.enabled) {
+          console.log(
+            `[cap-adapter-a2a] AgentCard generated: "${card.name}" v${card.version} ` +
+              `with ${card.skills.length} skill(s). ` +
+              `HTTP endpoint (/.well-known/agent-card.json) deferred to next slice.`,
+          );
+        }
       },
       stop: async () => {
-        // No resources are held by the skeleton transport.
+        // No resources held in this slice.
       },
     };
   },
@@ -56,6 +68,34 @@ export const a2aTransport: TransportAdapterDefinition = {
       type: "string",
       default: "/a2a",
       description: "Base path the A2A endpoints are mounted under",
+    },
+    agentName: {
+      type: "string",
+      default: "LinchKit",
+      description: "Display name of this agent in the A2A AgentCard",
+    },
+    agentDescription: {
+      type: "string",
+      default: "AI-native software capability runtime",
+      description: "Description of this agent in the A2A AgentCard",
+    },
+    agentUrl: {
+      type: "string",
+      default: "http://localhost:3003",
+      description: "Canonical URL where this agent accepts A2A requests",
+    },
+    agentVersion: {
+      type: "string",
+      default: "0.0.1",
+      description: "Agent implementation version (semver)",
+    },
+    agentDocumentationUrl: {
+      type: "string",
+      description: "Optional documentation URL in the AgentCard",
+    },
+    agentProviderOrg: {
+      type: "string",
+      description: "Optional hosting organization name in the AgentCard",
     },
   },
 };

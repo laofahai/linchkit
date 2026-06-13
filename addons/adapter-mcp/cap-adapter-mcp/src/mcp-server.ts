@@ -35,7 +35,7 @@ import { registerInsightTools } from "./insight-tools";
 import { registerManagementTools } from "./management-tools";
 import { registerProposalTools } from "./proposal-tools";
 import { registerScaffoldTools } from "./scaffold-tools";
-import { generateActionTools } from "./tool-registry";
+import { generateActionTools, isMcpExposed } from "./tool-registry";
 import type { McpClient, ToolPolicy } from "./types";
 
 export interface McpAdapterOptions {
@@ -614,11 +614,7 @@ function registerBuiltinTools(
     async () => {
       const actions = actionRegistry
         .getAll()
-        .filter((a) => {
-          // Only show actions exposed to MCP (consistent with tool registration)
-          if (a.exposure === undefined || a.exposure === "all") return true;
-          return a.exposure.mcp !== false;
-        })
+        .filter(isMcpExposed)
         .map((a) => ({
           name: a.name,
           label: a.label,
