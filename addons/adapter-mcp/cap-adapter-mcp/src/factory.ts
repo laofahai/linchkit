@@ -88,6 +88,15 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         // Spec 60 §6 — when the runtime exposes overlay fields, surface them
         // via list_entities / get_entity so AI agents see admin-added fields.
         overlayRegistry: ctx.overlayRegistry,
+        // Spec 52 "说→有" (issue #583) — when the runtime exposes an AI service
+        // + ontology, register the resolve_schema_intent tool. `permissionRegistry`
+        // scopes the ontology catalog to the calling actor (least-privilege).
+        aiService: ctx.aiService,
+        permissionRegistry: ctx.permissionRegistry,
+        // The shared governed engine — gates create_proposal AND
+        // resolve_schema_intent, and lets MCP-drafted proposals surface in
+        // /api/proposals (issue #583).
+        proposalEngine: ctx.proposalEngine,
       });
 
       if (transportMode === "stdio") {
@@ -136,6 +145,14 @@ export function createCapAdapterMcp(options?: CapAdapterMcpOptions): CapabilityD
         insightEngine: ctx.evolutionRuntime?.insightEngine,
         // Spec 60 §6 — propagate overlay registry to per-session McpServers.
         overlayRegistry: ctx.overlayRegistry,
+        // Spec 52 "说→有" (issue #583) — propagate AI service + permission
+        // registry so each per-session McpServer can register resolve_schema_intent.
+        aiService: ctx.aiService,
+        permissionRegistry: ctx.permissionRegistry,
+        // The shared governed engine — gates create_proposal AND
+        // resolve_schema_intent, and lets MCP-drafted proposals surface in
+        // /api/proposals (issue #583).
+        proposalEngine: ctx.proposalEngine,
       };
 
       const {
