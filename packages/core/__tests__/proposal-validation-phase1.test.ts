@@ -373,6 +373,28 @@ describe("validatePhase1", () => {
     expect(result.status).toBe("failed");
     expect(result.errors.some((e) => e.code === "INVALID_SOURCE_PATCH")).toBe(true);
   });
+
+  it("does NOT extend the sourcePatch carve-out to non-rule targets (#596 review)", () => {
+    // A crafted entity change carrying a sourcePatch but no definition must NOT
+    // get the rule-update carve-out — it still fails MISSING_DEFINITION.
+    const result = validatePhase1({
+      changes: [
+        {
+          target: "entity",
+          operation: "create",
+          name: "rogue_entity",
+          sourcePatch: {
+            filePath: "addons/x/y.ts",
+            constantName: "ROGUE",
+            newValueLiteral: "1",
+          },
+        },
+      ],
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.errors.some((e) => e.code === "MISSING_DEFINITION")).toBe(true);
+  });
 });
 
 // ── validatePhase1: duplicate detection ─────────────────

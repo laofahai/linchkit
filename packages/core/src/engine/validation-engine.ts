@@ -204,7 +204,12 @@ export function validatePhase1(options: {
     // fails Phase 1 and is unapprovable. Still validate the patch's OWN shape
     // here so a malformed sourcePatch is caught early at Phase 1 rather than
     // failing opaquely during graduation.
-    if (change.sourcePatch) {
+    // Scope the carve-out to exactly the production case it exists for — a
+    // `rule` `update` (the NL threshold change). `sourcePatch` is an optional
+    // field on the BASE ProposalChange, so a crafted `entity`/`action` change
+    // carrying a sourcePatch must NOT get the definition-less pass; it falls
+    // through to MISSING_DEFINITION like any other definition-less change.
+    if (change.sourcePatch && change.target === "rule" && change.operation === "update") {
       const { filePath, constantName, newValueLiteral } = change.sourcePatch;
       if (!filePath || !constantName || !newValueLiteral) {
         errors.push({
