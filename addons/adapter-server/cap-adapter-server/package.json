@@ -1,6 +1,6 @@
 {
   "name": "@linchkit/cap-adapter-server",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -27,9 +27,9 @@
   },
   "peerDependencies": {
     "@linchkit/cap-adapter-ag-ui": "workspace:*",
-    "@linchkit/cap-ai-provider": "^1.0.0",
-    "@linchkit/cap-dry-run": "^0.1.0",
-    "@linchkit/core": "^0.2.0"
+    "@linchkit/cap-ai-provider": "^2.0.0",
+    "@linchkit/cap-dry-run": "^1.0.0",
+    "@linchkit/core": "^0.3.0"
   },
   "peerDependenciesMeta": {
     "@linchkit/cap-adapter-ag-ui": {

@@ -1,6 +1,6 @@
 {
   "name": "@linchkit/cap-cache-redis",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -18,7 +18,7 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@linchkit/core": "^0.2.0"
+    "@linchkit/core": "^0.3.0"
   },
   "dependencies": {
     "ioredis": "^5.4.0"
