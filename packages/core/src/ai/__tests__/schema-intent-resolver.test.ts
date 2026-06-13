@@ -605,9 +605,21 @@ describe("resolveSchemaIntent — security & degradation", () => {
     expect(calls.length).toBe(0);
   });
 
-  it("returns no_match when no entities are in scope", async () => {
+  it("returns no_match (no_entities_in_scope) for a RULE intent when no entities are in scope", async () => {
+    // An empty catalog no longer short-circuits before the AI (add_entity must
+    // work on a fresh deployment — #575). The guard now applies only to the rule
+    // paths, which need an existing target entity: a rule intent on an empty
+    // catalog still degrades to no_entities_in_scope.
     const engine = new ProposalEngine();
-    const { service } = makeFakeAi("{}");
+    const { service } = makeFakeAi(
+      JSON.stringify({
+        kind: "add_rule",
+        targetEntity: "purchase_request",
+        rule: { name: "block_large", condition: {}, effect: {} },
+        confidence: 0.9,
+        explanation: "block large requests",
+      }),
+    );
     const outcome = await resolveSchemaIntent(
       { utterance: "block purchase requests over 10000" },
       { provider: service, ontology: emptyOntology, proposalEngine: engine },
