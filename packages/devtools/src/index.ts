@@ -7,6 +7,8 @@
 
 export const VERSION = "0.0.1";
 
+// === Source patcher (#566): injected TS-AST patcher for core's SourcePatcher seam ===
+export type { SourcePatcher, SourcePatchRequest, SourcePatchResult } from "@linchkit/core";
 // === AI Evaluation Framework (spec 69) ===
 export {
   type AnomalyEvalOutput,
@@ -81,7 +83,6 @@ export {
   watcherMatchers,
   writeCanonicalBaseline,
 } from "./ai-eval";
-
 // === Documentation: API doc generation, Markdown, OpenAPI, Capability Spec, Search ===
 export {
   type ActionDoc,
@@ -163,6 +164,7 @@ export {
   validateNamingConventions,
   validateProjectStructure,
 } from "./methodology";
+export { patchNamedConstant } from "./patch-named-constant";
 export type { TestRuleInput } from "./test-rule";
 export { testRule } from "./test-rule";
 export type {
