@@ -18,12 +18,16 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   ActionDefinition,
   Actor,
   AIService,
   EntityDefinition,
   OntologyRegistry,
+  ProposalDefinition,
   RuleDefinition,
 } from "@linchkit/core";
 import { REQUIRES_CODE_CHANGE_MARKER } from "@linchkit/core/ai";
@@ -32,6 +36,7 @@ import {
   createOntologyRegistry,
   EntityRegistry,
   PermissionRegistry,
+  ProposalFileWriter,
 } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
 import { buildSchemaIntentOntology } from "../src/routes/ai-resolve-schema-intent";
@@ -529,6 +534,75 @@ describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence
     expect(relDef?.cardinality).toBe("one_to_many");
     expect(relDef?.fromName).toBe("line_items");
     expect(relDef?.toName).toBe("purchase_request");
+  });
+
+  test("END-TO-END 说→有: an NL-drafted entity+relation graduates to real defineEntity() + defineRelation() source", async () => {
+    // The capstone: prove the FULL chain produces real CODE, not just a draft
+    // that surfaces in the review UI. NL utterance → governed proposal (entity +
+    // relation changes) → the REAL ProposalFileWriter over the APPROVED proposal
+    // → two TypeScript source files carrying the resolver's actual data. This
+    // pins the resolver→file-writer SEAM end-to-end: each side is unit-tested in
+    // isolation, but only this asserts the persisted proposal's exact shape is
+    // what the writer can serialize (the gap where integration drift hides).
+    const relAi = fakeAiService({
+      responseContent: JSON.stringify({
+        kind: "add_entity",
+        entity: {
+          name: "purchase_item",
+          label: "Purchase Item",
+          fields: [{ name: "quantity", type: "number", required: true, min: 1 }],
+        },
+        relation: {
+          name: "purchase_request_items",
+          from: "purchase_request",
+          to: "purchase_item",
+          cardinality: "one_to_many",
+          fromName: "line_items",
+          toName: "purchase_request",
+        },
+        confidence: 0.9,
+        explanation: "Add purchase line items related to the purchase request.",
+      }),
+    });
+    const server = createServer(graphqlSchema, {
+      aiService: relAi,
+      ontologyRegistry: buildOntology(),
+    });
+
+    // 1) "说" — NL utterance over the real HTTP route → governed proposal.
+    const { json } = await postSchemaIntent(server, {
+      prompt: "给采购单增加明细行，每行关联一个采购单",
+    });
+    const proposalId = (json as { proposalId?: string }).proposalId;
+    expect(typeof proposalId).toBe("string");
+    const list = await getProposals(server, "purchase_item");
+    const governed = list.json.data.items.find((p) => p.id === proposalId);
+    if (!governed) throw new Error("expected the governed proposal in /api/proposals");
+
+    // 2) "有" — graduate the APPROVED proposal through the REAL writer to disk.
+    const tmpDir = await mkdtemp(join(tmpdir(), "say-to-code-"));
+    try {
+      const approved = { ...governed, status: "approved" } as unknown as ProposalDefinition;
+      const writer = new ProposalFileWriter({ rootDir: tmpDir });
+      const written = await writer.writeApprovedProposal(approved);
+
+      // BOTH the entity and the relation graduate to source — defineEntity() AND
+      // defineRelation(), not just the entity (the #580 contract, end-to-end).
+      expect(written).toHaveLength(2);
+      const sources = await Promise.all(written.map((p) => readFile(p, "utf8")));
+      const entitySource = sources.find((s) => s.includes("defineEntity("));
+      const relationSource = sources.find((s) => s.includes("defineRelation("));
+      expect(entitySource).toBeDefined();
+      expect(entitySource).toContain('"name": "purchase_item"');
+      // The entity source must NOT carry the relation extra (clean EntityDefinition).
+      expect(entitySource).not.toContain('"from": "purchase_request"');
+      expect(relationSource).toBeDefined();
+      expect(relationSource).toContain('"name": "purchase_request_items"');
+      expect(relationSource).toContain('"cardinality": "one_to_many"');
+      expect(relationSource).toContain('"fromName": "line_items"');
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 
