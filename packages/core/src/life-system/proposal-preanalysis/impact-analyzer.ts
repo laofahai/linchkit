@@ -24,10 +24,18 @@ const DEFAULT_SAMPLE_LIMIT = 5;
 
 /**
  * Targets that touch stored records. Any other target (view, action, event, rule,
- * flow) is code-only for the purposes of first-order impact estimation.
+ * flow, relation) is code-only for the purposes of first-order impact estimation.
  *
  * `overlay` is included because overlays may change how existing records are
  * interpreted (validation, visibility) even when they don't rewrite rows.
+ *
+ * `relation` is intentionally EXCLUDED: like the `entity`-create case below, the
+ * NL resolver only ever drafts a relation-CREATE alongside a brand-new entity, so
+ * there are no pre-existing rows to probe (the new entity has none, and the junction
+ * table — for many_to_many — does not exist yet). A relation create is additive and
+ * non-breaking; classifying it as a data target would only probe an empty/absent
+ * table. (Mirrors why a NEW entity is excluded via `isImpactableChange` rather than
+ * `DATA_TARGETS`: an entity UPDATE can still hit rows, but a create cannot.)
  */
 const DATA_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set<ProposalChangeTarget>([
   "entity",
@@ -44,6 +52,11 @@ const DATA_TARGETS: ReadonlySet<ProposalChangeTarget> = new Set<ProposalChangeTa
 function isImpactableChange(change: ProposalChange): boolean {
   if (!DATA_TARGETS.has(change.target)) return false;
   if (change.target === "entity" && change.operation === "create") return false;
+  // A relation create is additive (no prior rows to probe). Defensive belt — a
+  // relation is not in DATA_TARGETS today, so this is already non-breaking via the
+  // guard above; this keeps the create-is-non-breaking rule locally explicit if a
+  // future maintainer ever adds `relation` to DATA_TARGETS.
+  if (change.target === "relation" && change.operation === "create") return false;
   return true;
 }
 

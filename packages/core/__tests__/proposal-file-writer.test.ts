@@ -138,6 +138,46 @@ describe("ProposalFileWriter.writeApprovedProposal", () => {
     expect(contents).toContain("Capability:");
   });
 
+  it("writes a relation change to the relations/ subdir as defineRelation (#580)", async () => {
+    const writer = new ProposalFileWriter({ rootDir: tmpDir });
+    const relationChange: ProposalChange = {
+      target: "relation",
+      operation: "create",
+      name: "purchase_request_items",
+      definition: {
+        name: "purchase_request_items",
+        from: "purchase_request",
+        to: "purchase_item",
+        cardinality: "one_to_many",
+        fromName: "line_items",
+        toName: "purchase_request",
+      },
+    };
+    const proposal = makeApprovedProposal({ changes: [relationChange] });
+
+    const written = await writer.writeApprovedProposal(proposal);
+
+    const expected = join(
+      tmpDir,
+      "addons",
+      "demo",
+      "cap-life-demo",
+      "src",
+      "relations",
+      `${TEST_PREFIX}.purchase_request_items.relation.ts`,
+    );
+    expect(written).toEqual([expected]);
+    expect(existsSync(expected)).toBe(true);
+
+    const contents = await readFile(expected, "utf8");
+    expect(contents).toContain('import { defineRelation } from "@linchkit/core";');
+    expect(contents).toContain("export default defineRelation(");
+    expect(contents).toContain('"name": "purchase_request_items"');
+    expect(contents).toContain('"from": "purchase_request"');
+    expect(contents).toContain('"to": "purchase_item"');
+    expect(contents).toContain('"cardinality": "one_to_many"');
+  });
+
   it("writes AI-materialized generatedSource verbatim, not the codegen output (G5)", async () => {
     const writer = new ProposalFileWriter({ rootDir: tmpDir });
     const GENERATED = [

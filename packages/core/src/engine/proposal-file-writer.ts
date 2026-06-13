@@ -74,6 +74,7 @@ type WritableChangeTarget = Exclude<ProposalChangeTarget, "revert">;
 /** Map a change target to its subdirectory (relative to `<cap>/src/`). */
 const TARGET_SUBDIR: Record<WritableChangeTarget, string> = {
   entity: "entities",
+  relation: "relations",
   action: "actions",
   rule: "rules",
   view: "views",
@@ -86,6 +87,7 @@ const TARGET_SUBDIR: Record<WritableChangeTarget, string> = {
 /** Map a change target to its file-name discriminator. */
 const TARGET_KIND_SUFFIX: Record<WritableChangeTarget, string> = {
   entity: "entity",
+  relation: "relation",
   action: "action",
   rule: "rule",
   view: "view",
@@ -98,6 +100,7 @@ const TARGET_KIND_SUFFIX: Record<WritableChangeTarget, string> = {
 /** Map a change target to its `defineXxx` factory name. */
 const TARGET_FACTORY: Record<WritableChangeTarget, string> = {
   entity: "defineEntity",
+  relation: "defineRelation",
   action: "defineAction",
   rule: "defineRule",
   view: "defineView",
