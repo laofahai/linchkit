@@ -436,14 +436,16 @@ export function AIAssistant({
             ))}
 
             {/* Schema-change proposal cards (4th "say → exists" channel) —
-                shown after the action cards. Removed on graduation success or
-                explicit dismiss; kept on approve/graduate failure for retry. */}
+                shown after the action cards. The card is removed ONLY on explicit
+                dismiss: after graduation it stays in its `done` phase so the user
+                can read and click the opened-PR link. Removing it on graduation
+                would unmount it (React 19 batches the card's state updates with
+                the parent removal) before that link ever renders. */}
             {schemaProposals.map((sp) => (
               <div key={sp.id} className="flex justify-start">
                 <div className="w-full max-w-[95%]">
                   <SchemaProposalCard
                     draft={sp.draft}
-                    onGraduated={() => handleSchemaProposalRemove(sp.id)}
                     onDismiss={() => handleSchemaProposalRemove(sp.id)}
                   />
                 </div>

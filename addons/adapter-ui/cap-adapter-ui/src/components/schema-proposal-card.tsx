@@ -218,6 +218,23 @@ export function SchemaProposalCard({ draft, onGraduated, onDismiss }: SchemaProp
           </div>
         )}
 
+        {/* Done — the card stays mounted so the PR link is readable; this lets
+            the user dismiss it once they've followed (or noted) the link. */}
+        {phase === "done" && (
+          <div className="flex items-center justify-end pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleDismiss}
+              data-testid="schema-proposal-done-dismiss"
+            >
+              <XIcon className="mr-1 size-3" />
+              {t("schemaProposal.dismiss")}
+            </Button>
+          </div>
+        )}
+
         {/* ── Approve phase ── */}
         {phase === "approve" && (
           <div className="flex items-center justify-end gap-2 pt-1">
