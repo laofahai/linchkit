@@ -37,9 +37,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@linchkit/core": "workspace:*"
-  },
-  "devDependencies": {
+    "@linchkit/core": "workspace:*",
     "typescript": "^6.0.2"
   }
 }
