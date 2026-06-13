@@ -29,7 +29,8 @@
     "@linchkit/cap-adapter-ag-ui": "workspace:*",
     "@linchkit/cap-ai-provider": "^2.0.0",
     "@linchkit/cap-dry-run": "^1.0.0",
-    "@linchkit/core": "^0.3.0"
+    "@linchkit/core": "^0.3.0",
+    "@linchkit/devtools": "^0.3.0"
   },
   "peerDependenciesMeta": {
     "@linchkit/cap-adapter-ag-ui": {
@@ -44,6 +45,7 @@
     "@linchkit/cap-dry-run": "workspace:*",
     "@linchkit/cap-permission": "workspace:*",
     "@linchkit/core": "workspace:*",
+    "@linchkit/devtools": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "typescript": "^6.0.2"
   },

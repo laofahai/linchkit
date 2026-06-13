@@ -21,7 +21,7 @@
  * `proposal-api.ts`.
  */
 
-import type { Actor, CommandLayer, ProposalDefinition } from "@linchkit/core";
+import type { Actor, CommandLayer, ProposalDefinition, SourcePatcher } from "@linchkit/core";
 import {
   createProposalGitCommitter,
   ProposalFileWriter,
@@ -210,6 +210,14 @@ export interface MountProposalGraduateAPIOptions {
    */
   createWriter?: (config: GraduationConfig) => GraduationFileWriter;
   /**
+   * TS-AST source patcher injected into the DEFAULT writer so an approved
+   * code-condition rule update (a change carrying `sourcePatch`) rewrites the
+   * named constant in real source during graduation. Ignored when
+   * `createWriter` is overridden (tests then fully control the writer). The
+   * composition root supplies `patchNamedConstant` from `@linchkit/devtools`.
+   */
+  sourcePatcher?: SourcePatcher;
+  /**
    * Override how the committer is built from config (defaults to a real
    * `ProposalGitCommitter`). Exposed for tests so no real `git`/`gh` runs.
    */
@@ -245,7 +253,11 @@ export function mountProposalGraduateAPI(
       // the same Code Quality gate every other PR faces. Formatting failures are
       // swallowed by the writer (it falls back to un-formatted source), so this
       // can never block graduation.
-      new ProposalFileWriter({ ...config, formatter: true }));
+      new ProposalFileWriter({
+        ...config,
+        formatter: true,
+        sourcePatcher: options?.sourcePatcher,
+      }));
   const createCommitter =
     options?.createCommitter ??
     ((config: GraduationConfig) =>
