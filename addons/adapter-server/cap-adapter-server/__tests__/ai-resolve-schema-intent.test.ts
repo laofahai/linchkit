@@ -39,6 +39,7 @@ import {
   ProposalFileWriter,
 } from "@linchkit/core/server";
 import { buildGraphQLSchema } from "../src/graphql/build-schema";
+import { getSharedProposalEngine } from "../src/proposal-api";
 import { buildSchemaIntentOntology } from "../src/routes/ai-resolve-schema-intent";
 import { createServer } from "../src/server";
 
@@ -574,15 +575,20 @@ describe("POST /api/ai/resolve-schema-intent — add_entity governed persistence
       prompt: "给采购单增加明细行，每行关联一个采购单",
     });
     const proposalId = (json as { proposalId?: string }).proposalId;
-    expect(typeof proposalId).toBe("string");
-    const list = await getProposals(server, "purchase_item");
-    const governed = list.json.data.items.find((p) => p.id === proposalId);
-    if (!governed) throw new Error("expected the governed proposal in /api/proposals");
+    if (!proposalId) throw new Error("expected a governed proposalId");
+
+    // Read the governed proposal straight from the engine the route persisted
+    // into — NOT the HTTP list API, which serializes Date→ISO string. Real
+    // graduation operates on the in-engine proposal, so this keeps `createdAt` /
+    // `updatedAt` as real `Date` instances and needs no lossy `as unknown` cast.
+    const approved: ProposalDefinition = {
+      ...getSharedProposalEngine().getProposal(proposalId),
+      status: "approved",
+    };
 
     // 2) "有" — graduate the APPROVED proposal through the REAL writer to disk.
     const tmpDir = await mkdtemp(join(tmpdir(), "say-to-code-"));
     try {
-      const approved = { ...governed, status: "approved" } as unknown as ProposalDefinition;
       const writer = new ProposalFileWriter({ rootDir: tmpDir });
       const written = await writer.writeApprovedProposal(approved);
 
