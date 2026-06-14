@@ -148,9 +148,13 @@ async function main() {
   // Detect and fix drift here so the published package metadata is always consistent.
   console.log("\n--- Core-version sync (Spec 21 §10.1) ---");
   const { synced: cvSynced, drifted: cvDrifted } = await syncCoreVersions({
-    checkOnly: false,
+    checkOnly: DRY_RUN,
   });
-  if (cvSynced.length > 0) {
+  if (DRY_RUN && cvDrifted.length > 0) {
+    for (const name of cvDrifted) {
+      console.log(`  [dry-run] Would sync coreVersion: ${name}`);
+    }
+  } else if (cvSynced.length > 0) {
     for (const name of cvSynced) {
       console.log(`  Synced coreVersion: ${name}`);
     }

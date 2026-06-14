@@ -10,7 +10,7 @@
  *   bun scripts/sync-core-version.ts --check   # validate only, exit 1 on drift
  */
 
-import { relative, resolve } from "node:path";
+import { resolve } from "node:path";
 import { Glob } from "bun";
 
 const ROOT_ARG = Bun.argv.find((a) => a.startsWith("--root="))?.slice("--root=".length);
@@ -19,7 +19,8 @@ const CHECK_ONLY = Bun.argv.includes("--check");
 
 interface CapabilityPkg {
   name: string;
-  dir: string;
+  pkgPath: string;
+  pkg: Record<string, unknown>;
 }
 
 async function discoverCapabilityPackages(root: string): Promise<CapabilityPkg[]> {
@@ -33,11 +34,12 @@ async function discoverCapabilityPackages(root: string): Promise<CapabilityPkg[]
   for (const pattern of patterns) {
     const glob = new Glob(pattern);
     for await (const match of glob.scan({ cwd: root })) {
-      const fullPath = resolve(root, match);
-      const pkg = (await Bun.file(fullPath).json()) as Record<string, unknown>;
+      const pkgPath = resolve(root, match);
+      const pkg = (await Bun.file(pkgPath).json()) as Record<string, unknown>;
       results.push({
         name: typeof pkg.name === "string" ? pkg.name : match,
-        dir: relative(root, resolve(fullPath, "..")),
+        pkgPath,
+        pkg,
       });
     }
   }
@@ -54,10 +56,7 @@ export async function syncCoreVersions(opts: { checkOnly: boolean; root?: string
   const synced: string[] = [];
   const drifted: string[] = [];
 
-  for (const { name, dir } of caps) {
-    const pkgPath = resolve(root, dir, "package.json");
-    const pkg = (await Bun.file(pkgPath).json()) as Record<string, unknown>;
-
+  for (const { name, pkgPath, pkg } of caps) {
     const peerDeps =
       typeof pkg.peerDependencies === "object" && pkg.peerDependencies !== null
         ? (pkg.peerDependencies as Record<string, string>)
@@ -65,7 +64,7 @@ export async function syncCoreVersions(opts: { checkOnly: boolean; root?: string
     const peerCore = peerDeps["@linchkit/core"];
 
     // Skip: no @linchkit/core peer, or workspace: protocol (monorepo local).
-    if (!peerCore || peerCore.startsWith("workspace:")) continue;
+    if (typeof peerCore !== "string" || peerCore.startsWith("workspace:")) continue;
 
     const linchkitBlock =
       typeof pkg.linchkit === "object" && pkg.linchkit !== null
