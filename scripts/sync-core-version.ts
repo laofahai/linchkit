@@ -206,7 +206,11 @@ async function main(): Promise<void> {
 
   const drifted: string[] = [];
   const missing: string[] = [];
+  const plannedWrites: { full: string; text: string }[] = [];
 
+  // Pass 1 — read every target and compute the plan. NO file is written here, so
+  // a moved/renamed mirror site is detected BEFORE anything is mutated; the
+  // missing-target failure below can never leave a partially-synced tree.
   for (const target of targets) {
     const full = resolve(ROOT, target.path);
     let source: string;
@@ -224,14 +228,13 @@ async function main(): Promise<void> {
     if (!changed) continue;
 
     drifted.push(target.path);
-    if (!checkOnly) {
-      writeFileSync(full, text, "utf-8");
-    }
+    plannedWrites.push({ full, text });
   }
 
   // A missing mirror site is a hard error in BOTH modes. Report it and exit
-  // before any success-style logging, so the output is never self-contradictory
-  // (exit 1 paired with an "in sync" message).
+  // BEFORE any write or success-style logging, so the output is never
+  // self-contradictory (exit 1 paired with an "in sync" message) AND no file is
+  // written when another target is missing (no partial sync).
   if (missing.length > 0) {
     console.error(
       `[sync-core-version] MISSING target file(s) (${missing.length}) — a mirror site was moved or renamed:`,
@@ -239,6 +242,14 @@ async function main(): Promise<void> {
     for (const p of missing) console.error(`  - ${p}`);
     console.error("Update CAP_LOCK_EXTRA_TARGETS in scripts/sync-core-version.ts.");
     process.exit(1);
+  }
+
+  // Pass 2 — apply the planned writes. Only reached when every target was
+  // readable, so the sync is all-or-nothing with respect to a missing mirror.
+  if (!checkOnly) {
+    for (const { full, text } of plannedWrites) {
+      writeFileSync(full, text, "utf-8");
+    }
   }
 
   if (checkOnly) {
