@@ -22,10 +22,17 @@ export type {
   BaseEvent,
   Context,
   CustomEvent,
+  // Human-in-the-loop (Spec 71) interrupt/resume types.
+  Interrupt,
   Message,
+  ResumeEntry,
+  ResumeStatus,
   RunAgentInput,
   RunErrorEvent,
   RunFinishedEvent,
+  RunFinishedInterruptOutcome,
+  RunFinishedOutcome,
+  RunFinishedSuccessOutcome,
   RunStartedEvent,
   StateDeltaEvent,
   StateSnapshotEvent,
@@ -38,7 +45,19 @@ export type {
   ToolCallEndEvent,
   ToolCallStartEvent,
 } from "./protocol";
-export { EventType, encodeSseEvent, RunAgentInputSchema } from "./protocol";
+export {
+  EventType,
+  encodeSseEvent,
+  // Human-in-the-loop (Spec 71) schemas + outcome helpers.
+  InterruptSchema,
+  makeInterruptOutcome,
+  ResumeEntrySchema,
+  RunAgentInputSchema,
+  RunFinishedEventSchema,
+  RunFinishedInterruptOutcomeSchema,
+  RunFinishedOutcomeSchema,
+  SUCCESS_OUTCOME,
+} from "./protocol";
 // Run endpoint (test seams: inject a fake AIService or a custom runner)
 export type {
   AgUiAgentRunner,
@@ -51,6 +70,7 @@ export {
   createAgUiApp,
   createAgUiRunHandler,
   DEFAULT_AG_UI_BASE_PATH,
+  makeRunFinishedEvent,
   mountAgUiRunRoute,
   toAiMessages,
   toAiTools,

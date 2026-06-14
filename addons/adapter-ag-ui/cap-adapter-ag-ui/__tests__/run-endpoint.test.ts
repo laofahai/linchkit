@@ -8,8 +8,13 @@
 
 import { describe, expect, test } from "bun:test";
 import type { AICompletionResult, AIService, AIStreamResult } from "@linchkit/core";
-import { type AGUIEvent, EventType } from "../src/protocol";
-import { createAgUiApp } from "../src/run-endpoint";
+import {
+  type AGUIEvent,
+  EventType,
+  makeInterruptOutcome,
+  RunFinishedEventSchema,
+} from "../src/protocol";
+import { createAgUiApp, makeRunFinishedEvent } from "../src/run-endpoint";
 
 const RUN_URL = "http://local.test/api/agui/run";
 
@@ -414,5 +419,57 @@ describe("custom base path", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("");
     expect(aiCalls).toBe(0);
+  });
+});
+
+describe("makeRunFinishedEvent (Spec 71 P1 — outcome-capable finish frame)", () => {
+  test("a no-outcome finish is byte-identical to the legacy frame", () => {
+    const event = makeRunFinishedEvent({ threadId: "thread_1", runId: "run_1" });
+
+    // The legacy frame was a plain object literal with no `outcome` key.
+    expect(event).toEqual({
+      type: EventType.RUN_FINISHED,
+      threadId: "thread_1",
+      runId: "run_1",
+    });
+    expect("outcome" in event).toBe(false);
+    // Encoding stays identical to the pre-HITL wire form.
+    expect(JSON.stringify(event)).toBe(
+      JSON.stringify({ type: "RUN_FINISHED", threadId: "thread_1", runId: "run_1" }),
+    );
+  });
+
+  test("attaches an interrupt outcome and the frame round-trips through the schema", () => {
+    const interrupt = {
+      id: "int_1",
+      reason: "action.approval.required",
+      toolCallId: "lk:propose-mutation:abc",
+      metadata: { action: "create_product", proposedInput: { name: "Widget", price: 9.9 } },
+    };
+    const event = makeRunFinishedEvent({
+      threadId: "thread_1",
+      runId: "run_a",
+      outcome: makeInterruptOutcome([interrupt]),
+    });
+
+    const parsed = RunFinishedEventSchema.safeParse(event);
+    expect(parsed.success).toBe(true);
+    if (parsed.success && parsed.data.outcome?.type === "interrupt") {
+      expect(parsed.data.outcome.interrupts[0]?.id).toBe("int_1");
+    }
+  });
+
+  test("a success outcome parses on the success branch", () => {
+    const event = makeRunFinishedEvent({
+      threadId: "thread_1",
+      runId: "run_b",
+      outcome: { type: "success" },
+    });
+
+    const parsed = RunFinishedEventSchema.safeParse(event);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.outcome?.type).toBe("success");
+    }
   });
 });

@@ -30,11 +30,44 @@ import {
   encodeSseEvent,
   type RunAgentInput,
   RunAgentInputSchema,
+  type RunFinishedEvent,
+  type RunFinishedOutcome,
   type TextInputContent,
 } from "./protocol";
 
 /** Emit callback handed to a custom agent runner. Drops events after disconnect. */
 export type AgUiEmit = (event: AGUIEvent) => void;
+
+/**
+ * Build a `RUN_FINISHED` protocol frame, optionally carrying a run `outcome`
+ * (Spec 71 §3.1 / §4.2).
+ *
+ * The AG-UI HITL protocol delivers an approval interrupt as an optional
+ * `outcome` on `RUN_FINISHED` (there is no dedicated INTERRUPT event). This
+ * helper is the single place that constructs the finish frame so the addon
+ * never hand-writes the optional/nullable `outcome` shape.
+ *
+ * Backward-compatible by construction: when `outcome` is omitted the frame is
+ * byte-identical to the pre-HITL `{ type, threadId, runId }` finish — the
+ * `outcome` key is only added when an outcome is actually supplied. Upstream
+ * types `outcome` as `z.optional(z.nullable(...))`, so an absent outcome and a
+ * plain finish encode identically.
+ */
+export function makeRunFinishedEvent(options: {
+  threadId: string;
+  runId: string;
+  outcome?: RunFinishedOutcome;
+}): RunFinishedEvent {
+  const { threadId, runId, outcome } = options;
+  return {
+    type: EventType.RUN_FINISHED,
+    threadId,
+    runId,
+    // Only attach `outcome` when present so a no-outcome finish stays
+    // byte-identical to the legacy frame (no `outcome: undefined` key).
+    ...(outcome ? { outcome } : {}),
+  };
+}
 
 /**
  * Custom agent runner seam.
@@ -199,7 +232,10 @@ function createRunEventStream(options: {
           // Host-injected full-assistant runner (system prompt + server-side
           // tools + multi-step). The endpoint keeps the RUN_* frame.
           await runner({ input, emit, signal, request });
-          emit({ type: EventType.RUN_FINISHED, threadId: input.threadId, runId: input.runId });
+          // P1: route the finish through the outcome-capable builder. With no
+          // outcome supplied this emits the byte-identical legacy frame; P2
+          // will let the runner hand back an interrupt descriptor here.
+          emit(makeRunFinishedEvent({ threadId: input.threadId, runId: input.runId }));
           return;
         }
 
@@ -250,7 +286,7 @@ function createRunEventStream(options: {
           }
         }
 
-        emit({ type: EventType.RUN_FINISHED, threadId: input.threadId, runId: input.runId });
+        emit(makeRunFinishedEvent({ threadId: input.threadId, runId: input.runId }));
       } catch (err) {
         emit({
           type: EventType.RUN_ERROR,

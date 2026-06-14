@@ -24,12 +24,21 @@ export type {
   CustomEvent,
   DeveloperMessage,
   InputContent,
+  // Human-in-the-loop (Spec 71): interrupt/resume types. `Interrupt` and
+  // `resume` here are the AG-UI HITL vocabulary — deliberately NOT the core
+  // evolution `ProposalEngine` vocabulary (Spec 71 §3.6 naming-collision rule).
+  Interrupt,
   Message,
   MessagesSnapshotEvent,
   RawEvent,
+  ResumeEntry,
+  ResumeStatus,
   RunAgentInput,
   RunErrorEvent,
   RunFinishedEvent,
+  RunFinishedInterruptOutcome,
+  RunFinishedOutcome,
+  RunFinishedSuccessOutcome,
   RunStartedEvent,
   StateDeltaEvent,
   StateSnapshotEvent,
@@ -49,17 +58,29 @@ export type {
   ToolMessage,
   UserMessage,
 } from "@ag-ui/core";
-// ── Event type identifiers + input validation schema ────────
+// ── Event type identifiers + validation schemas ─────────────
 export {
   ContextSchema,
   EventType,
+  // Human-in-the-loop (Spec 71) schemas — call THEIR `.safeParse`/`.parse`
+  // directly (zod-3); never compose them into local zod-4 schemas.
+  InterruptSchema,
   MessageSchema,
+  ResumeEntrySchema,
   RunAgentInputSchema,
+  RunFinishedEventSchema,
+  RunFinishedInterruptOutcomeSchema,
+  RunFinishedOutcomeSchema,
   ToolCallSchema,
   ToolSchema,
 } from "@ag-ui/core";
 
-import type { AGUIEvent } from "@ag-ui/core";
+import type {
+  AGUIEvent,
+  Interrupt,
+  RunFinishedInterruptOutcome,
+  RunFinishedSuccessOutcome,
+} from "@ag-ui/core";
 
 // ── SSE framing (local — not provided by @ag-ui/core) ───────
 
@@ -69,4 +90,36 @@ import type { AGUIEvent } from "@ag-ui/core";
  */
 export function encodeSseEvent(event: AGUIEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
+}
+
+// ── Human-in-the-loop run-outcome helpers (Spec 71 §3.1, §4.2) ──
+//
+// The AG-UI HITL protocol carries an approval interrupt as an optional
+// `outcome` field on `RUN_FINISHED` (there is no dedicated INTERRUPT event —
+// Spec 71 §3.1). A run that needs approval *finishes* with
+// `outcome.type === "interrupt"`; the approval + resume is a new run on the
+// same `threadId`. These helpers build those outcomes against the upstream
+// schema so the rest of the addon never hand-writes the discriminated shape.
+
+/** The plain success run outcome (`{ type: "success" }`). */
+export const SUCCESS_OUTCOME: RunFinishedSuccessOutcome = { type: "success" };
+
+/**
+ * Build a typed interrupt run-outcome (Spec 71 §3.4 / §4.2):
+ * `{ type: "interrupt", interrupts }`. The returned value is the exact
+ * `RunFinishedInterruptOutcome` an `RUN_FINISHED.outcome` carries when a
+ * model-proposed mutation is awaiting human approval.
+ *
+ * `RunFinishedInterruptOutcomeSchema` enforces `z.array(InterruptSchema).min(1)`,
+ * so an empty `interrupts` list would produce a schema-INVALID frame that fails
+ * downstream `RunFinishedEventSchema.safeParse`. Guard at the source: a caller
+ * must never be able to emit an interrupt outcome with nothing to act on.
+ */
+export function makeInterruptOutcome(interrupts: Interrupt[]): RunFinishedInterruptOutcome {
+  if (interrupts.length === 0) {
+    throw new Error(
+      "makeInterruptOutcome requires at least one interrupt — RunFinishedInterruptOutcome.interrupts is .min(1).",
+    );
+  }
+  return { type: "interrupt", interrupts };
 }
