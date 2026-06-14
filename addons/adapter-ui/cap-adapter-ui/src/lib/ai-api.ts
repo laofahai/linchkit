@@ -62,7 +62,14 @@ export async function aiSearch(request: AISearchRequest): Promise<AISearchResult
   return json.data ?? null;
 }
 
-// ── AI Intent Resolution ─────────────────────────────────
+// ── AI Intent display types ──────────────────────────────
+//
+// These shapes describe a runtime-action proposal as rendered by the
+// `ActionProposalCard`. They are populated by the AG-UI HITL interrupt path
+// (`agui-interrupt.ts` → `interruptToIntent`), which is the sole runtime-data
+// write path after Spec 71 P4. The old client-side `resolveIntent` REST fetch
+// (the chat side channel) was removed in P4; only these shared display types
+// remain.
 
 export interface IntentFieldSchema {
   type: string;
@@ -112,47 +119,6 @@ export interface IntentResolution {
   actionDescription?: string;
   inputSchema: Record<string, IntentFieldSchema>;
   alternatives?: IntentAlternative[];
-}
-
-export interface ResolveIntentScope {
-  entityFilter?: string[];
-  actionFilter?: string[];
-}
-
-/**
- * Discriminated result of `resolveIntent`.
- *
- *  - `{ kind: "proposal" }` — usable proposal; render the Action Proposal Card.
- *  - `{ kind: "unavailable" }` — 503 (AI not configured or upstream unreachable).
- *  - `{ kind: "no-match" }` — 200 with `proposal: null` (no usable match).
- */
-export type ResolveIntentResult =
-  | { kind: "proposal"; proposal: IntentResolution }
-  | { kind: "unavailable" }
-  | { kind: "no-match" };
-
-export async function resolveIntent(
-  prompt: string,
-  scope?: ResolveIntentScope,
-): Promise<ResolveIntentResult> {
-  const res = await fetch("/api/ai/resolve-intent", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ prompt, scope }),
-  });
-  handleUnauthorized(res);
-  if (res.status === 503) {
-    return { kind: "unavailable" };
-  }
-  if (!res.ok) {
-    throw new Error("AI intent resolution failed");
-  }
-  const json = await res.json();
-  const proposal = (json.proposal as IntentResolution | null | undefined) ?? null;
-  if (!proposal) {
-    return { kind: "no-match" };
-  }
-  return { kind: "proposal", proposal };
 }
 
 // ── Schema-intent resolution ("说→有" — Spec 52) ─────────

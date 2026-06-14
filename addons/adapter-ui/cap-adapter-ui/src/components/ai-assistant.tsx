@@ -7,21 +7,21 @@
  * - Tool/function calling support (server-side tools rendered automatically)
  * - Context-aware: passes current schema/record context with each request
  *
- * Intent-resolution routing when AI is enabled (#238):
+ * Runtime-data write governance (Spec 71): a chat send goes STRAIGHT to the
+ * AG-UI stream. When the model wants to mutate data it calls the execute-less
+ * `proposeMutation` tool, which interrupts the run; the interrupt surfaces an
+ * `ActionProposalCard` (via {@link pendingInterrupts}), the human approves, and
+ * the resume round-trip executes the Action through CommandLayer. This is the
+ * ONE runtime-data write path. The old `resolveIntent`→`proposals[]` REST side
+ * channel that rendered a card OUTSIDE the stream was removed in P4 (Spec 71
+ * §2.2 / §2.6 — dismantle the side channel, not the server-side resolver).
  *
- *  - `proposal` (any confidence) → render `ActionProposalCard`. Low-
- *    confidence proposals are intentionally NOT gated — the card itself
- *    exposes alternative pills + a "Did you mean" affordance, so the user
- *    can disambiguate or pick a different action without typing again.
- *    Previously a `>= MIN_PROPOSAL_CONFIDENCE` gate dropped these into
- *    chat, which then hallucinated "creating..." replies that never
- *    touched the database — the original #238 dead-end.
- *  - `no-match` / `unavailable` / transport-error → fall back to the
- *    general chat endpoint. Chat runs with `allowActionExecution=false`
- *    so it cannot mutate, but it remains useful for read-only / Q&A /
- *    "summarize this record" flows. Actionable prompts that misroute
- *    here are a separate concern tracked in the chat system-prompt
- *    follow-up — see issue link in the PR for #238.
+ * Schema-change utterances ("raise the manager-approval threshold to 20000")
+ * are a DIFFERENT, governed code-graduation path (the 4th "say → exists"
+ * channel): before falling through to the stream, `handleSend` asks
+ * `resolveSchemaIntent` whether the prompt is a graduable schema change and, if
+ * so, renders a {@link SchemaProposalCard}. This is NOT a runtime-data mutation
+ * (§3.6 naming-collision note) and is intentionally preserved.
  */
 
 import type { Interrupt as AgUiInterrupt } from "@ag-ui/client";
@@ -34,14 +34,12 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  toast,
 } from "@linchkit/ui-kit/components";
 import { useParams } from "@tanstack/react-router";
 import type { UIMessage, UIMessageChunk } from "ai";
 import { BotIcon, Loader2Icon, SendIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ActionResult } from "../lib/action-api";
 import { AgUiChatTransport } from "../lib/agui-chat-transport";
 import {
   type ActionApprovalMetadata,
@@ -52,10 +50,7 @@ import {
   readInterruptChunk,
 } from "../lib/agui-interrupt";
 import {
-  type IntentResolution,
-  type ResolveIntentResult,
   type ResolveSchemaIntentResult,
-  resolveIntent,
   resolveSchemaIntent,
   type SchemaIntentDraft,
 } from "../lib/ai-api";
@@ -66,16 +61,11 @@ import { SchemaProposalCard } from "./schema-proposal-card";
 
 // ── Proposal state ───────────────────────────────────────
 
-interface ProposalItem {
-  id: string;
-  intent: IntentResolution;
-}
-
 /**
  * A schema-change draft surfaced by the chat assistant — the 4th "say → exists"
- * channel. Minted by `resolveSchemaIntent` when `resolveIntent` found no runtime
- * action; carried through Approve → Open PR by {@link SchemaProposalCard}.
- * Parallel to {@link ProposalItem} but holds a draft, not a runtime intent.
+ * channel. Minted by `resolveSchemaIntent`; carried through Approve → Open PR by
+ * {@link SchemaProposalCard}. This is a code-graduation draft, NOT a runtime-data
+ * mutation (§3.6 naming-collision note).
  */
 interface SchemaProposalItem {
   id: string;
@@ -84,10 +74,10 @@ interface SchemaProposalItem {
 
 /**
  * An open AG-UI HITL interrupt surfaced by the transport (Spec 71 §4.4) — the
- * native write-governance path, ADDED ALONGSIDE the `resolveIntent` side
- * channel (P4 dismantles the side channel, not this). Holds the raw interrupt
- * (for the `resume[]` round-trip + `isInterruptExpired` gating) and its
- * validated action-approval metadata (the `ActionProposalCard` source).
+ * native runtime-data write-governance path and, after P4, the ONLY one. Holds
+ * the raw interrupt (for the `resume[]` round-trip + `isInterruptExpired`
+ * gating) and its validated action-approval metadata (the `ActionProposalCard`
+ * source).
  */
 interface PendingInterruptItem {
   interrupt: AgUiInterrupt;
@@ -132,58 +122,15 @@ export function summarizeResumeResult(
   return "";
 }
 
-// ── Intent routing decision ──────────────────────────────
-
-/**
- * Outcome of inspecting an intent-resolution result. Drives the UX in
- * `handleSend` and is exported as a pure helper so the decision matrix can
- * be unit-tested without mounting the component (the existing test setup
- * is logic-only — no jsdom).
- *
- *  - `proposal`        — render the Action Proposal Card. ALL proposals are
- *                        surfaced regardless of confidence (#238); the card
- *                        itself disambiguates via alternative pills.
- *  - `chat-fallback`   — let the general chat endpoint take the prompt.
- *                        Used for `no-match`, `unavailable`, and transport-
- *                        error outcomes so read-only conversational prompts
- *                        ("summarize this record", "hello") still work.
- *                        For `unavailable`, callers should also raise a
- *                        toast — `notify` carries that hint.
- */
-export type IntentRoutingDecision =
-  | { kind: "proposal"; proposal: IntentResolution }
-  | { kind: "chat-fallback"; notify?: "service-unavailable" };
-
-/**
- * Pure routing helper — maps a `ResolveIntentResult` (or transport-error
- * sentinel) onto the UX action the assistant should take. We drop the
- * historical `>= MIN_PROPOSAL_CONFIDENCE` gate so low-confidence proposals
- * become cards (the #238 fix); other outcomes fall through to chat to
- * preserve the "ask the AI a read-only question" UX.
- */
-export function decideIntentRouting(
-  outcome: ResolveIntentResult | { kind: "transport-error" },
-): IntentRoutingDecision {
-  switch (outcome.kind) {
-    case "proposal":
-      return { kind: "proposal", proposal: outcome.proposal };
-    case "unavailable":
-      return { kind: "chat-fallback", notify: "service-unavailable" };
-    case "no-match":
-    case "transport-error":
-      return { kind: "chat-fallback" };
-  }
-}
-
 // ── Schema-intent fallback routing (4th "say → exists" channel) ─
 
 /**
- * Outcome of inspecting a `resolveSchemaIntent` result reached AFTER
- * `resolveIntent` found no runtime action. Exported as a pure helper so the
- * decision can be unit-tested without mounting the component.
+ * Outcome of inspecting a `resolveSchemaIntent` result. Exported as a pure
+ * helper so the decision can be unit-tested without mounting the component
+ * (the test setup is logic-only — no jsdom).
  *
  *  - `schema-proposal` — render a {@link SchemaProposalCard} for the draft.
- *  - `chat-fallback`   — let the general chat endpoint take the prompt
+ *  - `chat-fallback`   — let the AG-UI stream take the prompt
  *                        (`clarification` / `no_match` / `unavailable` /
  *                        `error` — none is a graduable schema change).
  */
@@ -218,13 +165,12 @@ export function AIAssistant({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Pending action proposals from intent resolution
-  const [proposals, setProposals] = useState<ProposalItem[]>([]);
   // Pending schema-change drafts from schema-intent resolution (4th channel).
   const [schemaProposals, setSchemaProposals] = useState<SchemaProposalItem[]>([]);
   // Open AG-UI HITL interrupts surfaced by the transport (Spec 71 §4.4) — the
-  // native write-governance path, additive to the side channel above.
+  // native (and, after P4, sole) runtime-data write-governance path.
   const [pendingInterrupts, setPendingInterrupts] = useState<PendingInterruptItem[]>([]);
+  // True while the schema-intent resolver round-trips before a chat send.
   const [isResolvingIntent, setIsResolvingIntent] = useState(false);
 
   // AG-UI transport (#89) — same assistant brain as /api/ai/chat, but over
@@ -291,13 +237,13 @@ export function AIAssistant({
   chatIdRef.current = chatId;
   messagesRef.current = messages;
 
-  // Auto-scroll to bottom when messages or proposals change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: messages and proposals are triggers, not deps used inside
+  // Auto-scroll to bottom when messages or cards change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages and cards are triggers, not deps used inside
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, proposals, schemaProposals, pendingInterrupts]);
+  }, [messages, schemaProposals, pendingInterrupts]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -305,22 +251,6 @@ export function AIAssistant({
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
-
-  // Dismiss a proposal when user cancels
-  const handleProposalCancel = useCallback((proposalId: string) => {
-    setProposals((prev) => prev.filter((p) => p.id !== proposalId));
-  }, []);
-
-  // Remove proposal only on a successful execution. On failure (validation,
-  // business rule, network), the card stays so the user can read the error
-  // message and edit the proposed inputs before retrying — without this, a
-  // rejected proposal disappears immediately and the user has no path to
-  // recover short of typing the request again.
-  const handleProposalComplete = useCallback((proposalId: string, result: ActionResult) => {
-    if (result.success) {
-      setProposals((prev) => prev.filter((p) => p.id !== proposalId));
-    }
-  }, []);
 
   // Remove a schema proposal card. Called on graduation success (the PR is
   // open — nothing more to do here) or on explicit dismiss. On approve/graduate
@@ -432,49 +362,17 @@ export function AIAssistant({
     textarea.value = "";
 
     if (isAiEnabled()) {
-      setIsResolvingIntent(true);
-      let outcome: ResolveIntentResult | { kind: "transport-error" };
-      try {
-        // Narrow the catalog to the current entity when the user is on a
-        // record page. `recordId` does not have a direct equivalent in the
-        // new resolver scope today; UX follow-up if record-context priming
-        // turns out to matter for accuracy.
-        outcome = await resolveIntent(trimmed, {
-          entityFilter: params.name ? [params.name] : undefined,
-        });
-      } catch {
-        // Transport-level error (network, non-503 non-2xx). The decision
-        // helper routes this to chat-fallback so the user still gets some
-        // response — chat may be reachable even when the resolver isn't.
-        // Actionable prompts that misroute through chat are tracked by
-        // the chat-system-prompt follow-up linked from PR #283.
-        outcome = { kind: "transport-error" };
-      } finally {
-        setIsResolvingIntent(false);
-      }
-
-      const decision = decideIntentRouting(outcome);
-
-      if (decision.kind === "proposal") {
-        // Echo the user prompt only for the card path — chat fallback adds
-        // the user message itself via `sendMessage` and double-echoing
-        // would duplicate it in the stream.
-        setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
-        const proposalId = crypto.randomUUID();
-        setProposals((prev) => [...prev, { id: proposalId, intent: decision.proposal }]);
-        return;
-      }
-
-      // ── 4th channel: schema-change fallback ──
+      // ── 4th channel: schema-change governance (NOT a runtime-data mutation) ──
       //
-      // `resolveIntent` found no RUNTIME action (decision === "chat-fallback").
-      // Before dropping to chat, ask whether this was a SCHEMA-change utterance
-      // ("raise the manager-approval threshold to 20000") — `resolveSchemaIntent`
-      // mints a GOVERNED draft Proposal for those. A `proposal_draft` /
-      // `entity_proposal_draft` (both mapped to `proposal_draft` by the client)
-      // becomes a SchemaProposalCard; anything else (clarification / no_match /
-      // unavailable / error) falls through to the existing chat path so read-
-      // only Q&A and chit-chat still work.
+      // Before handing the prompt to the AG-UI stream, ask whether it is a
+      // graduable SCHEMA-change utterance ("raise the manager-approval threshold
+      // to 20000") — `resolveSchemaIntent` mints a GOVERNED draft Proposal for
+      // those. A `proposal_draft` / `entity_proposal_draft` (both mapped to
+      // `proposal_draft` by the client) becomes a SchemaProposalCard. Every other
+      // outcome (clarification / no_match / unavailable / error) falls through to
+      // the stream, where the model handles read-only Q&A and proposes any
+      // runtime-data mutation via `proposeMutation` → interrupt → ActionProposalCard
+      // (the sole runtime-data write path after P4).
       setIsResolvingIntent(true);
       let schemaOutcome: ResolveSchemaIntentResult;
       try {
@@ -483,7 +381,7 @@ export function AIAssistant({
         // A thrown resolver (e.g. an auth/transport failure inside getAuthHeaders
         // or handleUnauthorized) must NOT leave `isResolvingIntent` stuck true —
         // that would permanently disable the input + send button. Treat it as a
-        // non-graduable outcome so we fall through to the chat path below.
+        // non-graduable outcome so we fall through to the stream below.
         schemaOutcome = {
           kind: "error",
           message: err instanceof Error ? err.message : "schema intent resolution failed",
@@ -494,24 +392,23 @@ export function AIAssistant({
 
       const schemaDecision = decideSchemaFallback(schemaOutcome);
       if (schemaDecision.kind === "schema-proposal") {
-        // Echo the prompt for the card path (chat fallback echoes itself).
+        // Echo the prompt for the card path (the stream echoes the user message
+        // itself via `sendMessage`, so we only echo here).
         setMessages((prev) => [...prev, createTextMessage("user", trimmed)]);
         const id = crypto.randomUUID();
         setSchemaProposals((prev) => [...prev, { id, draft: schemaDecision.draft }]);
         return;
       }
-
-      if (decision.notify === "service-unavailable") {
-        toast.error(t("ai.serviceUnavailable"));
-      }
-      // Fall through to chat — preserves read-only Q&A and chit-chat for
-      // prompts neither resolver could classify as actionable / schema-changing.
+      // Fall through to the stream — preserves read-only Q&A and runtime-data
+      // mutations (via the model's `proposeMutation` tool) for prompts the schema
+      // resolver did not classify as a graduable schema change.
     }
 
-    // AI disabled OR resolver returned a non-action outcome: send the
-    // prompt to the general chat endpoint.
+    // AI disabled OR the prompt is not a schema-change utterance: send it to the
+    // AG-UI stream. Any runtime-data mutation surfaces there as a proposeMutation
+    // interrupt → ActionProposalCard → resume (the one runtime-data write path).
     sendMessage({ text: trimmed });
-  }, [isLoading, isResolvingIntent, params.name, sendMessage, setMessages, t]);
+  }, [isLoading, isResolvingIntent, sendMessage, setMessages]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -525,7 +422,6 @@ export function AIAssistant({
 
   const handleClear = useCallback(() => {
     setMessages([]);
-    setProposals([]);
     setSchemaProposals([]);
     setPendingInterrupts([]);
   }, [setMessages]);
@@ -553,7 +449,6 @@ export function AIAssistant({
                 </Button>
               )}
               {(messages.length > 0 ||
-                proposals.length > 0 ||
                 schemaProposals.length > 0 ||
                 pendingInterrupts.length > 0) && (
                 <Button
@@ -582,7 +477,6 @@ export function AIAssistant({
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-3 py-4">
             {messages.length === 0 &&
-              proposals.length === 0 &&
               schemaProposals.length === 0 &&
               pendingInterrupts.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground">
@@ -612,19 +506,6 @@ export function AIAssistant({
 
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
-            ))}
-
-            {/* Action proposal cards — shown after chat messages */}
-            {proposals.map((proposal) => (
-              <div key={proposal.id} className="flex justify-start">
-                <div className="w-full max-w-[95%]">
-                  <ActionProposalCard
-                    intent={proposal.intent}
-                    onComplete={(result) => handleProposalComplete(proposal.id, result)}
-                    onCancel={() => handleProposalCancel(proposal.id)}
-                  />
-                </div>
-              </div>
             ))}
 
             {/* Schema-change proposal cards (4th "say → exists" channel) —

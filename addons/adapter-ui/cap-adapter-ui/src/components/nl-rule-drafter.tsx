@@ -11,7 +11,7 @@
  * applies anything. On a `proposal_draft` outcome it surfaces the draft and
  * links the user into the existing Proposal review surface.
  *
- * Outcome handling mirrors `ai-assistant.tsx`'s `resolveIntent` UX:
+ * Outcome handling mirrors `ai-assistant.tsx`'s `resolveSchemaIntent` UX:
  *  - proposal_draft → draft card (id / status / confidence) + "review" link.
  *  - clarification  → show the question; the input stays so the user can refine.
  *  - no_match       → show the reason.
