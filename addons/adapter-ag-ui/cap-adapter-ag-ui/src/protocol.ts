@@ -123,3 +123,34 @@ export function makeInterruptOutcome(interrupts: Interrupt[]): RunFinishedInterr
   }
   return { type: "interrupt", interrupts };
 }
+
+// ── Runner → endpoint interrupt channel (Spec 71 §4.3, P2a) ─────
+//
+// The runner returns to `void` on a plain finish, but when the model proposed a
+// mutation mid-run it must hand an interrupt back to the endpoint so the
+// endpoint (which owns the `RUN_FINISHED` frame) can attach the interrupt
+// outcome. The currently-exported `AgUiAgentRunner` returns `Promise<void>`,
+// which has no such channel — Spec 71 §4.3 changes the signature to
+// `=> Promise<void | AgUiInterruptDescriptor>`. This is that descriptor: a
+// minimal, fully-typed carrier for the `Interrupt[]` the endpoint feeds to
+// `makeInterruptOutcome`. It deliberately carries ONLY the protocol-shaped
+// interrupts — the server-authoritative store entry (action set, digest,
+// proposer binding) is written by the runner directly into the interrupt store
+// (§6.7), not threaded through this descriptor.
+
+/**
+ * What a runner hands back to the run endpoint when the model proposed a
+ * mutation that needs human approval (Spec 71 §4.3). The endpoint attaches
+ * `makeInterruptOutcome(descriptor.interrupts)` to the `RUN_FINISHED.outcome`.
+ *
+ * Returning `void` keeps the legacy plain-success finish; returning this
+ * descriptor switches the same finish frame to the interrupt outcome.
+ */
+export interface AgUiInterruptDescriptor {
+  /**
+   * The AG-UI interrupts to carry on `RUN_FINISHED.outcome.interrupts[]`.
+   * Always ≥1 (the endpoint passes this straight to `makeInterruptOutcome`,
+   * which throws on empty — Spec 71 §3.1).
+   */
+  interrupts: Interrupt[];
+}

@@ -26,8 +26,10 @@ import type { AIMessage, AIService, AITool } from "@linchkit/core";
 import type { Elysia } from "elysia";
 import {
   type AGUIEvent,
+  type AgUiInterruptDescriptor,
   EventType,
   encodeSseEvent,
+  makeInterruptOutcome,
   type RunAgentInput,
   RunAgentInputSchema,
   type RunFinishedEvent,
@@ -78,6 +80,13 @@ export function makeRunFinishedEvent(options: {
  * endpoint still owns input validation, the RUN_STARTED / RUN_FINISHED frame,
  * and RUN_ERROR mapping: a runner only emits the events *between* those.
  * Throwing aborts the run and surfaces as RUN_ERROR.
+ *
+ * Return value (Spec 71 §4.3, P2a): a runner returns `void` for a plain
+ * success finish, OR an {@link AgUiInterruptDescriptor} when the model proposed
+ * a mutation that needs human approval — the endpoint then attaches an
+ * interrupt outcome to `RUN_FINISHED` instead of a plain finish. This is the
+ * documented public-type change from the P1 `=> Promise<void>` signature; all
+ * downstream runner implementations are migrated together.
  */
 export type AgUiAgentRunner = (options: {
   /** Validated RunAgentInput (full message history, tools, context). */
@@ -88,7 +97,13 @@ export type AgUiAgentRunner = (options: {
   signal?: AbortSignal;
   /** Raw HTTP request — for actor / tenant / locale resolution. */
   request?: Request;
-}) => Promise<void>;
+  // `void` (not `undefined`) is intentional and required (Spec 71 §4.3): a
+  // read-only runner is an `async () => {}` whose inferred return is
+  // `Promise<void>`, which is assignable to `Promise<void | X>` but NOT to
+  // `Promise<undefined | X>`. Narrowing to `undefined` would break every
+  // existing void-returning runner.
+  // biome-ignore lint/suspicious/noConfusingVoidType: void is the legacy return; the union widens it to optionally carry an interrupt descriptor.
+}) => Promise<void | AgUiInterruptDescriptor>;
 
 /** Injected dependencies for the AG-UI run endpoint (test seam). */
 export interface AgUiRunDeps {
@@ -231,11 +246,25 @@ function createRunEventStream(options: {
         if (runner) {
           // Host-injected full-assistant runner (system prompt + server-side
           // tools + multi-step). The endpoint keeps the RUN_* frame.
-          await runner({ input, emit, signal, request });
-          // P1: route the finish through the outcome-capable builder. With no
-          // outcome supplied this emits the byte-identical legacy frame; P2
-          // will let the runner hand back an interrupt descriptor here.
-          emit(makeRunFinishedEvent({ threadId: input.threadId, runId: input.runId }));
+          const descriptor = await runner({ input, emit, signal, request });
+          // Spec 71 §4.3 / P2a: when the runner proposed a mutation it returns
+          // an interrupt descriptor; the endpoint (which owns the RUN_FINISHED
+          // frame) attaches the interrupt outcome. When it returns void, the
+          // finish stays byte-identical to the legacy plain frame.
+          // `makeInterruptOutcome` throws on empty, but `AgUiInterruptDescriptor`
+          // always carries ≥1 interrupt by construction (the runner builds it
+          // via the same helper); the guard is the single source of truth.
+          const outcome =
+            descriptor && descriptor.interrupts.length > 0
+              ? makeInterruptOutcome(descriptor.interrupts)
+              : undefined;
+          emit(
+            makeRunFinishedEvent({
+              threadId: input.threadId,
+              runId: input.runId,
+              ...(outcome ? { outcome } : {}),
+            }),
+          );
           return;
         }
 

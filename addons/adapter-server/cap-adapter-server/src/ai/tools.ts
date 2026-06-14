@@ -262,3 +262,68 @@ export function buildTools(ctx: ToolContext) {
 
   return tools;
 }
+
+// ── proposeMutation — the AG-UI HITL propose tool (Spec 71 §4.3) ─────
+//
+// The mutating tool the AG-UI runner exposes is EXECUTE-LESS, mirroring the
+// #550 frontend-tool precedent (`buildFrontendToolSet` / `navigateTo`): a tool
+// with an `inputSchema` and NO `execute`. When the model calls it, the step
+// ends with the proposal un-executed (AI SDK: an unexecuted tool call produces
+// no tool result, so `streamText` starts no follow-up step — the stream
+// completes), which is exactly the moment the runner emits the interrupt
+// outcome. Proposing ≠ executing (§6.5): this tool NEVER calls CommandLayer;
+// the human gate sits between propose and execute. It is distinct from
+// `executeAction` (the direct-execute tool, which stays OFF on the assistant
+// stream via `allowActionExecution:false`).
+
+/**
+ * The reserved AG-UI HITL propose tool name. The runner suppresses this tool's
+ * call frames from the stream at the source (§4.5) and turns the call into an
+ * interrupt outcome; P2b/P3 match on this exact name.
+ */
+export const PROPOSE_MUTATION_TOOL_NAME = "proposeMutation";
+
+/**
+ * Reserved tool-call-id prefix for `proposeMutation` (§4.2 / §4.5 fallback).
+ * The runner mints the interrupt's `toolCallId` with this prefix so a future
+ * client-side fallback can drop any stray frame synchronously by id (the
+ * primary suppression is server-side at the source). P2b/P3 match on it.
+ */
+export const PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX = "lk:propose-mutation:";
+
+/** The `proposeMutation` input shape: `{ action, input }` the model proposes. */
+export const proposeMutationInputSchema = z.object({
+  action: z
+    .string()
+    .describe("The action name to propose (e.g. 'create_product', 'approve_order')"),
+  input: z
+    .record(z.string(), z.unknown())
+    .describe("The proposed action input data as key-value pairs"),
+});
+
+/** The decoded `proposeMutation` argument shape. */
+export interface ProposeMutationArgs {
+  action: string;
+  input: Record<string, unknown>;
+}
+
+/**
+ * Build the execute-less `proposeMutation` tool (Spec 71 §4.3). Returns a
+ * single-key tool set the runner merges alongside the read-only tools. NO
+ * `execute` — calling it ends the run with the proposal captured, never a DB
+ * write. Kept a sibling of `executeAction` (which is unrelated and stays OFF).
+ */
+export function buildProposeMutationTool() {
+  return {
+    [PROPOSE_MUTATION_TOOL_NAME]: tool({
+      description:
+        "Propose a data mutation (create / update / delete a record via a business action) " +
+        "for the human to review and approve. Use this whenever the user asks to change data: " +
+        "the proposal is surfaced as an approval card — it does NOT execute until the human approves. " +
+        "Provide the target action name and its input.",
+      inputSchema: proposeMutationInputSchema,
+      // No execute — proposing is not executing (§6.5). The runner captures the
+      // call, suppresses its stream frames (§4.5), and emits an interrupt.
+    }),
+  };
+}
