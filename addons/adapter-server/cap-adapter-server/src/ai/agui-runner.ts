@@ -462,7 +462,11 @@ export function buildCardInputSchema(
   // `create_product` operate on the entity's own fields).
   for (const name of ontology.listEntities()) {
     const descriptor = ontology.describe(name);
-    if (!descriptor?.actions.some((a) => a.name === action)) continue;
+    // Guard both `actions` and `fields`: a descriptor may legitimately omit
+    // either (a read-only entity has no actions; a thin descriptor may carry no
+    // fields), and `Object.entries(descriptor.fields)` below would throw on an
+    // undefined `fields`.
+    if (!descriptor?.fields || !descriptor.actions?.some((a) => a.name === action)) continue;
 
     const out: Record<string, CardFieldSchema> = {};
     const keys = new Set<string>(Object.keys(proposedInput));
