@@ -25,7 +25,12 @@ import type { Actor, AIService } from "@linchkit/core";
 import type { TextStreamPart, ToolSet } from "ai";
 import { stepCountIs, streamText } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
-import { buildProposeInterrupt, canonicalJson, computeInputDigest } from "../agui-runner";
+import {
+  buildProposeInterrupt,
+  canonicalJson,
+  computeInputDigest,
+  parseProposeMutationInput,
+} from "../agui-runner";
 import {
   buildProposeMutationTool,
   PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX,
@@ -93,6 +98,41 @@ describe("computeInputDigest", () => {
     expect(canonicalJson({ a: 1, b: undefined })).toBe(canonicalJson({ a: 1 }));
     // arrays keep order.
     expect(canonicalJson([3, 1, 2])).toBe("[3,1,2]");
+  });
+});
+
+// ── parseProposeMutationInput — a malformed call is NOT a proposal ──
+// (review #605: a fallback returning { action: "" } would emit an interrupt with
+//  an empty action and write a bogus actionSet:[""] store entry.)
+
+describe("parseProposeMutationInput", () => {
+  test("decodes a well-formed call", () => {
+    expect(
+      parseProposeMutationInput({ action: "create_product", input: { name: "Widget" } }),
+    ).toEqual({ action: "create_product", input: { name: "Widget" } });
+  });
+
+  test("defaults a missing input to {} (action with no arguments)", () => {
+    expect(parseProposeMutationInput({ action: "refresh_cache" })).toEqual({
+      action: "refresh_cache",
+      input: {},
+    });
+  });
+
+  test("returns undefined when there is no usable action (no empty-action interrupt)", () => {
+    expect(parseProposeMutationInput({ input: { name: "Widget" } })).toBeUndefined();
+    expect(parseProposeMutationInput({ action: "", input: {} })).toBeUndefined();
+    expect(parseProposeMutationInput({ action: "   " })).toBeUndefined();
+    expect(parseProposeMutationInput({ action: 42 })).toBeUndefined();
+    expect(parseProposeMutationInput(null)).toBeUndefined();
+    expect(parseProposeMutationInput("nonsense")).toBeUndefined();
+  });
+
+  test("recovers a usable action and drops bad input", () => {
+    expect(parseProposeMutationInput({ action: "create_product", input: "bad" })).toEqual({
+      action: "create_product",
+      input: {},
+    });
   });
 });
 

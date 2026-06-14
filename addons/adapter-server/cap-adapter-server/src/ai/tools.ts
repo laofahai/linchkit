@@ -298,7 +298,9 @@ export const proposeMutationInputSchema = z.object({
     .describe("The action name to propose (e.g. 'create_product', 'approve_order')"),
   input: z
     .record(z.string(), z.unknown())
-    .describe("The proposed action input data as key-value pairs"),
+    .optional()
+    .default({})
+    .describe("The proposed action input data as key-value pairs (omit for a no-argument action)"),
 });
 
 /** The decoded `proposeMutation` argument shape. */

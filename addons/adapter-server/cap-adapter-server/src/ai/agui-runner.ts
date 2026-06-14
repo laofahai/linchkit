@@ -609,19 +609,25 @@ export function createAssistantAgUiRunner(
 
 /**
  * Decode a `proposeMutation` tool-call input into the strict `{ action, input }`
- * shape, tolerating the loosely-typed `unknown` the SDK hands for dynamic
- * tools. Falls back to an empty input object on a malformed arg so a partial
- * proposal still surfaces a (schema-rejected-later) interrupt rather than
- * crashing the run.
+ * shape, tolerating the loosely-typed `unknown` the SDK hands for dynamic tools.
+ * Returns `undefined` when there is no usable (non-empty) action name: a
+ * malformed call with no real action is NOT a proposal — surfacing an interrupt
+ * with `action: ""` would write a bogus store entry and show an empty approval
+ * card. The run then finishes normally instead. A partial call that still
+ * carries a usable action keeps it and drops only the bad input.
  */
-function parseProposeMutationInput(raw: unknown): ProposeMutationArgs {
+export function parseProposeMutationInput(raw: unknown): ProposeMutationArgs | undefined {
   const parsed = proposeMutationInputSchema.safeParse(raw);
   if (parsed.success) {
-    return { action: parsed.data.action, input: parsed.data.input };
+    const action = parsed.data.action.trim();
+    if (!action) return undefined;
+    return { action, input: parsed.data.input };
   }
-  // Best-effort recovery: keep any usable `action` string, drop bad input.
+  // Best-effort recovery: keep a usable `action` string, drop bad input. With no
+  // non-empty action there is nothing to propose → undefined (no interrupt).
   const obj = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-  const action = typeof obj.action === "string" ? obj.action : "";
+  const action = typeof obj.action === "string" ? obj.action.trim() : "";
+  if (!action) return undefined;
   const input =
     typeof obj.input === "object" && obj.input !== null && !Array.isArray(obj.input)
       ? (obj.input as Record<string, unknown>)
