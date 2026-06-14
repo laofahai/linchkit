@@ -416,6 +416,11 @@ describe("runAgUiResume — §6.2 p2 swapped action", () => {
           interruptId,
           action: "update_product", // a server-offered alternative
           input: { id: seeded.id as string, price: 5 },
+          // baseDigest is the INTERRUPT anchor, NOT a per-action MAC: a swap to a
+          // server-offered alternative correctly carries this interrupt's primary
+          // inputDigest (it proves the client saw THIS proposal). The alternative
+          // is authorized by actionSet membership (§6.2 p2) and its input by the
+          // action's own schema inside CommandLayer — not by the digest.
           baseDigest: inputDigest,
         }),
       ],
@@ -495,6 +500,76 @@ describe("runAgUiResume — §5 expiry (server-authoritative)", () => {
     });
 
     await expect(run).rejects.toMatchObject({ code: RESUME_REJECT_CODES.expired });
+    expect(await productCount(h.store)).toBe(0);
+    expect(h.executeCount()).toBe(0);
+  });
+
+  test("a malformed/unparseable expiresAt FAILS CLOSED (treated as expired), no write", async () => {
+    // Date.parse("not-a-date") === NaN, and `now >= NaN` is false — without the
+    // NaN guard a corrupt window would SILENTLY pass the expiry gate.
+    const h = buildHarness();
+    const interrupts = new InMemoryInterruptStore();
+    const { interruptId, inputDigest } = propose({
+      store: interrupts,
+      proposerActor: ALICE,
+      tenant: "tenant-a",
+    });
+    const corrupt = interrupts.get("t1", interruptId);
+    if (corrupt) interrupts.put({ ...corrupt, expiresAt: "not-a-date" });
+
+    const run = runAgUiResume({
+      threadId: "t1",
+      resume: [
+        resolvedResume({
+          interruptId,
+          action: "create_product",
+          input: { name: "Widget", price: 9.9 },
+          baseDigest: inputDigest,
+        }),
+      ],
+      store: interrupts,
+      commandLayer: h.commandLayer,
+      actorContext: { actor: ALICE, tenant: "tenant-a" },
+      emit: collector().emit,
+    });
+
+    await expect(run).rejects.toMatchObject({ code: RESUME_REJECT_CODES.expired });
+    expect(h.executeCount()).toBe(0);
+  });
+});
+
+describe("runAgUiResume — unsupported status (only resolved may execute)", () => {
+  test("a status that is neither resolved nor cancelled is rejected before the execute path", async () => {
+    const h = buildHarness();
+    const interrupts = new InMemoryInterruptStore();
+    const { interruptId, inputDigest } = propose({
+      store: interrupts,
+      proposerActor: ALICE,
+      tenant: "tenant-a",
+    });
+
+    // A malformed status carrying an otherwise-valid payload must NOT fall
+    // through and execute (it would weaken the approval gate).
+    const forged = {
+      interruptId,
+      status: "approved-ish",
+      payload: {
+        action: "create_product",
+        input: { name: "Widget", price: 9.9 },
+        baseDigest: inputDigest,
+      },
+    } as unknown as ResumeEntry;
+
+    const run = runAgUiResume({
+      threadId: "t1",
+      resume: [forged],
+      store: interrupts,
+      commandLayer: h.commandLayer,
+      actorContext: { actor: ALICE, tenant: "tenant-a" },
+      emit: collector().emit,
+    });
+
+    await expect(run).rejects.toMatchObject({ code: RESUME_REJECT_CODES.malformedPayload });
     expect(await productCount(h.store)).toBe(0);
     expect(h.executeCount()).toBe(0);
   });

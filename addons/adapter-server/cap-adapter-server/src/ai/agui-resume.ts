@@ -192,14 +192,52 @@ export interface RunAgUiResumeOptions {
  */
 export async function runAgUiResume(options: RunAgUiResumeOptions): Promise<void> {
   const { threadId, resume, store, commandLayer, actorContext, emit } = options;
-  const now = options.now ?? Date.now();
 
+  // Track whether an earlier entry already executed an IRREVERSIBLE write. Once
+  // one has, a LATER entry's hard rejection must NOT throw a batch RUN_ERROR —
+  // that would mask the committed write's TOOL_CALL_RESULT and tell the client a
+  // committed mutation "failed". It is surfaced as that entry's own error result
+  // instead. Before anything commits, a rejection throws → a clean RUN_ERROR with
+  // NO write (the safe single-entry default the security tests assert).
+  let committed = false;
   for (const entry of resume) {
-    await resumeOne({ threadId, entry, store, commandLayer, actorContext, emit, now });
+    // §5 — expiry is evaluated PER ENTRY (a fresh `now`), not once for the whole
+    // batch: a slow earlier `commandLayer.execute` must not let a later entry
+    // pass the approval window using a stale timestamp. A test-injected `now`
+    // stays constant (deterministic); otherwise each entry re-reads the clock.
+    const now = options.now ?? Date.now();
+    try {
+      const outcome = await resumeOne({
+        threadId,
+        entry,
+        store,
+        commandLayer,
+        actorContext,
+        emit,
+        now,
+      });
+      if (outcome === "executed") committed = true;
+    } catch (err) {
+      if (committed && err instanceof AgUiResumeRejectedError) {
+        emitExecutionResult(emit, {
+          interruptId: entry.interruptId,
+          action: "(rejected)",
+          success: false,
+          error: `${err.code}: ${err.message}`,
+        });
+        continue;
+      }
+      throw err;
+    }
   }
 }
 
-/** Handle a single resume entry (the §6.7 claim → validate → execute/release). */
+/**
+ * Handle a single resume entry (the §6.7 claim → validate → execute/release).
+ * Returns `"executed"` once `commandLayer.execute` has been called (an
+ * irreversible write was attempted) or `"declined"` for a cancelled resume;
+ * a hard rejection THROWS `AgUiResumeRejectedError` (no write).
+ */
 async function resumeOne(options: {
   threadId: string;
   entry: ResumeEntry;
@@ -208,7 +246,7 @@ async function resumeOne(options: {
   actorContext: ResumeActorContext;
   emit: AgUiEmit;
   now: number;
-}): Promise<void> {
+}): Promise<"executed" | "declined"> {
   const { threadId, entry, store, commandLayer, actorContext, emit, now } = options;
   const interruptId = entry.interruptId;
 
@@ -245,7 +283,18 @@ async function resumeOne(options: {
     if (entry.status === "cancelled") {
       store.evict(threadId, interruptId);
       emitDeclined(emit, interruptId, entry.interruptId);
-      return;
+      return "declined";
+    }
+
+    // Reject ANY status that is neither "cancelled" nor "resolved" BEFORE the
+    // execute path. Only an explicit human "resolved" may execute; a malformed
+    // or unexpected status value must never fall through and claim+execute on a
+    // valid payload — that would weaken the server-side approval gate.
+    if (entry.status !== "resolved") {
+      throw new AgUiResumeRejectedError(
+        RESUME_REJECT_CODES.malformedPayload,
+        `unsupported resume status "${String(entry.status)}"`,
+      );
     }
 
     // The claim mutated stored `consumed`; re-read the full entry to validate.
@@ -279,11 +328,18 @@ async function resumeOne(options: {
       );
     }
 
-    // §6.2 p3 — baseDigest MUST echo the stored inputDigest (proves this resume
-    // answers THIS proposal, not a replay of a different one). We do NOT require
-    // editedInput === proposedInput: approve-with-edits is legitimate divergence
-    // (the human deliberately changed a field); the edited input is validated
-    // independently by the action's own schema inside CommandLayer.
+    // §6.2 p3 — baseDigest MUST echo the stored inputDigest. This is the INTERRUPT
+    // ANCHOR (anti-replay): it proves the client is answering THIS proposal, not
+    // replaying a resume meant for a different interrupt. It is NOT a per-(action,
+    // input) MAC — so for a swapped alternative the baseDigest still echoes this
+    // interrupt's inputDigest (computed from the PRIMARY action+input at propose
+    // time). The three gates are orthogonal: (a) the digest binds the resume to
+    // this interrupt; (b) `actionSet.includes(action)` (above) authorizes WHICH
+    // action — only one the server vetted and offered; (c) CommandLayer's own
+    // schema + permission/tenant/rule slots (below) authorize the (possibly
+    // edited) input. We deliberately do NOT require editedInput === proposedInput
+    // — approve-with-edits is legitimate, and the edited input is validated by
+    // CommandLayer, the authoritative gate for input integrity.
     if (payload.baseDigest !== stored.inputDigest) {
       throw new AgUiResumeRejectedError(
         RESUME_REJECT_CODES.digestMismatch,
@@ -292,8 +348,13 @@ async function resumeOne(options: {
     }
 
     // §5 / §6.7 — expiry is SERVER-authoritative (never trust the client clock).
-    if (now >= Date.parse(stored.expiresAt)) {
-      // Genuine reject — the window closed; evict (handled in catch).
+    // `Date.parse` returns NaN for a malformed/corrupt `expiresAt`, and EVERY
+    // comparison with NaN is false — so a bad timestamp would SILENTLY disable
+    // the gate and treat an expired interrupt as live. Treat an unparseable
+    // window as expired (FAIL CLOSED).
+    const expiresAtMs = Date.parse(stored.expiresAt);
+    if (Number.isNaN(expiresAtMs) || now >= expiresAtMs) {
+      // Genuine reject — the window closed (or is unparseable); evict (catch).
       throw new AgUiResumeRejectedError(
         RESUME_REJECT_CODES.expired,
         "the approval window has passed",
@@ -366,7 +427,7 @@ async function resumeOne(options: {
         success: false,
         error: execErr instanceof Error ? execErr.message : "Action execution failed",
       });
-      return;
+      return "executed";
     }
 
     // Executed (success or business failure) — the one-shot is spent. Evict.
@@ -379,7 +440,7 @@ async function resumeOne(options: {
       executionId: result.executionId,
       error: result.success ? undefined : "Action failed",
     });
-    return;
+    return "executed";
   } catch (err) {
     // A hard rejection (the §6.2/§6.3 throws above): evict the entry (genuine
     // reject — the one shot is burned) and rethrow so the endpoint emits
@@ -409,7 +470,7 @@ function buildProvenance(options: {
 }): HitlApprovalProvenance {
   const { stored, payload, actor, now } = options;
   return {
-    proposedAction: stored.actionSet[0] ?? payload.action,
+    proposedAction: stored.proposedAction,
     proposedInput: stored.proposedInput,
     approvedAction: payload.action,
     approvedInput: payload.input,
@@ -451,22 +512,21 @@ function emitExecutionResult(
     error?: string;
   },
 ): void {
+  const content = result.success
+    ? { success: true, action: result.action, executionId: result.executionId, data: result.data }
+    : { success: false, action: result.action, error: result.error };
   emit({
     type: EventType.TOOL_CALL_RESULT,
     messageId: crypto.randomUUID(),
     // The interrupt's reserved-prefixed tool-call id correlates the result to
     // the original proposal carrier (§4.2). Kept in sync with the runner's id.
     toolCallId: `lk:propose-mutation:${result.interruptId}`,
-    content: JSON.stringify(
-      result.success
-        ? {
-            success: true,
-            action: result.action,
-            executionId: result.executionId,
-            data: result.data,
-          }
-        : { success: false, action: result.action, error: result.error },
-    ),
+    // Guard serialization: by the time this runs the mutation has ALREADY
+    // committed and the interrupt is evicted, so a `JSON.stringify` throw on the
+    // action-returned `data` (circular structure / BigInt) must NOT bubble into
+    // a RUN_ERROR that tells the client a committed write failed. On failure we
+    // drop the un-encodable `data` and keep the result envelope.
+    content: safeJsonStringify(content),
     role: "tool",
   });
 
@@ -480,4 +540,20 @@ function emitExecutionResult(
       : `Could not execute "${result.action}": ${result.error ?? "action failed"}.`,
   });
   emit({ type: EventType.TEXT_MESSAGE_END, messageId });
+}
+
+/**
+ * Stringify a tool-result envelope whose `data` is an action-returned value of
+ * unknown shape. If `JSON.stringify` throws (a circular structure or a `BigInt`),
+ * drop the un-encodable `data` and keep the rest — the mutation has already
+ * committed, so the client must still get a coherent success result, never a
+ * RUN_ERROR for a write that landed.
+ */
+function safeJsonStringify(envelope: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(envelope);
+  } catch {
+    const { data: _data, ...rest } = envelope;
+    return JSON.stringify({ ...rest, data: "[result data omitted — not serializable]" });
+  }
 }

@@ -370,6 +370,7 @@ export function buildProposeInterrupt(options: {
     threadId,
     interruptId,
     toolCallId,
+    proposedAction: proposal.action,
     actionSet: [proposal.action],
     proposedInput: proposal.input,
     inputDigest,
