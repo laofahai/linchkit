@@ -51,8 +51,7 @@ type V3StreamPart =
  * {@link E2E_STUB_PROPOSAL}, then finishes — exactly the chunk sequence the
  * runner's fullStream loop captures + suppresses (§4.5) to emit the interrupt.
  */
-// biome-ignore lint/suspicious/noExplicitAny: returns a Vercel AI SDK LanguageModel (generic `any`, matches the runner's modelOverride seam).
-export function buildProposeMutationStubModel(): any {
+export function buildProposeMutationStubModel(): MockLanguageModelV3 {
   const chunks: V3StreamPart[] = [
     { type: "stream-start", warnings: [] },
     { type: "text-start", id: "t1" },

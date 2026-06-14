@@ -111,6 +111,7 @@ describe("GET /api/agui/capabilities", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { humanInTheLoop: Record<string, unknown> };
     expect(body.humanInTheLoop.interrupts).toBe(true);
+    expect(body.humanInTheLoop.approvals).toBe(true);
     expect(body.humanInTheLoop.approveWithEdits).toBe(true);
     expect(body.humanInTheLoop.supported).toBe(true);
   });

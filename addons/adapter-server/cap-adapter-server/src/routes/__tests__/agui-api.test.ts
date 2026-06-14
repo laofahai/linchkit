@@ -158,27 +158,66 @@ describe("buildHitlRunnerOptions", () => {
     });
   });
 
-  test("wires the deterministic stub model in a non-production env", async () => {
-    await withEnv({ [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "test", NODE_ENV: "test" }, async () => {
-      const options = await buildHitlRunnerOptions();
-      expect(options.modelOverride).toBeDefined();
-    });
-  });
-
-  test("fails closed: throws when the stub flag is set in production", async () => {
+  test("wires the deterministic stub model in an explicit test env (BUN_ENV)", async () => {
     await withEnv(
-      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "production", NODE_ENV: "production" },
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "test", NODE_ENV: undefined },
       async () => {
-        await expect(buildHitlRunnerOptions()).rejects.toThrow(/must never be set in production/);
+        const options = await buildHitlRunnerOptions();
+        expect(options.modelOverride).toBeDefined();
       },
     );
   });
 
-  test("fails closed in staging too (detectEnvironment treats staging as production)", async () => {
+  test("wires the deterministic stub model in an explicit development env (NODE_ENV)", async () => {
     await withEnv(
-      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "staging", NODE_ENV: "staging" },
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: undefined, NODE_ENV: "development" },
       async () => {
-        await expect(buildHitlRunnerOptions()).rejects.toThrow(/must never be set in production/);
+        const options = await buildHitlRunnerOptions();
+        expect(options.modelOverride).toBeDefined();
+      },
+    );
+  });
+
+  test("fails closed: throws when the env is UNSET (does not default-open to dev)", async () => {
+    await withEnv(
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: undefined, NODE_ENV: undefined },
+      async () => {
+        await expect(buildHitlRunnerOptions()).rejects.toThrow(
+          /requires BUN_ENV\/NODE_ENV explicitly set/,
+        );
+      },
+    );
+  });
+
+  test("fails closed: throws when the stub flag is set in production", async () => {
+    await withEnv(
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "production", NODE_ENV: undefined },
+      async () => {
+        await expect(buildHitlRunnerOptions()).rejects.toThrow(
+          /requires BUN_ENV\/NODE_ENV explicitly set/,
+        );
+      },
+    );
+  });
+
+  test("fails closed in staging too (staging is not an explicit dev/test marker)", async () => {
+    await withEnv(
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "staging", NODE_ENV: undefined },
+      async () => {
+        await expect(buildHitlRunnerOptions()).rejects.toThrow(
+          /requires BUN_ENV\/NODE_ENV explicitly set/,
+        );
+      },
+    );
+  });
+
+  test("BUN_ENV takes priority over NODE_ENV (prod BUN_ENV throws despite test NODE_ENV)", async () => {
+    await withEnv(
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "production", NODE_ENV: "test" },
+      async () => {
+        await expect(buildHitlRunnerOptions()).rejects.toThrow(
+          /requires BUN_ENV\/NODE_ENV explicitly set/,
+        );
       },
     );
   });

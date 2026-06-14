@@ -25,7 +25,7 @@ import type {
 } from "@linchkit/cap-adapter-ag-ui";
 import { EventType, InMemoryInterruptStore } from "@linchkit/cap-adapter-ag-ui";
 import type { Actor } from "@linchkit/core";
-import type { jsonSchema, ModelMessage, TextStreamPart, ToolSet } from "ai";
+import type { jsonSchema, LanguageModel, ModelMessage, TextStreamPart, ToolSet } from "ai";
 import type { ServerOptions } from "../server";
 import {
   buildProposeMutationTool,
@@ -532,11 +532,10 @@ export interface AssistantAgUiRunnerOptions {
    * NOT depend on a live model deciding to call `proposeMutation`. NEVER set on
    * a real deployment — it is wired only from an explicit test env flag at the
    * boot seam (see routes/agui-api.ts). The value is a Vercel AI SDK
-   * `LanguageModel` (the same type `resolveLanguageModel` returns, generic
-   * `any` in the SDK), e.g. a `MockLanguageModelV3` from `ai/test`.
+   * `LanguageModel` (the type `resolveLanguageModel` resolves into), e.g. a
+   * `MockLanguageModelV3` from `ai/test`.
    */
-  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK LanguageModel is generic `any` (matches resolveLanguageModel's own return).
-  modelOverride?: any;
+  modelOverride?: LanguageModel;
 }
 
 /**

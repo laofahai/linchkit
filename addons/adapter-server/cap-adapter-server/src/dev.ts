@@ -146,7 +146,12 @@ await wireAITraceSink({ dataProvider: runtime.dataProvider });
 // boot this dev server on an isolated port without clobbering a hand-run dev
 // server on the config default. `PORT` must be a valid number to take effect.
 const envPort = Number(process.env.PORT);
-const port = Number.isFinite(envPort) && envPort > 0 ? envPort : (config.server?.port ?? 3001);
+// Accept only a whole number in the valid TCP range; anything else (decimal, 0,
+// >65535, NaN) safely falls back rather than failing later at listen(...).
+const port =
+  Number.isInteger(envPort) && envPort > 0 && envPort <= 65535
+    ? envPort
+    : (config.server?.port ?? 3001);
 const host = process.env.HOST || config.server?.host || "0.0.0.0";
 
 const server = createServer(graphqlSchema, {

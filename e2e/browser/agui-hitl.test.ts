@@ -130,6 +130,30 @@ interface BootedStack {
 }
 
 /**
+ * Continuously drain a spawned child's stdout/stderr so its OS pipe buffer never
+ * fills. This is NOT cosmetic: a child spawned with `stdout: "pipe"` whose pipe
+ * is never read BLOCKS on its next write once the ~64 KB buffer fills. The API
+ * server logs every CommandLayer execution, so across the first test it would
+ * fill the buffer and then HANG mid-request on the next test — the next run's SSE
+ * never returns and its proposal card never renders (a failure invisible to unit
+ * tests and to single-test runs, where the buffer never fills). Fire-and-forget;
+ * swallow errors (the stream closes when the child exits).
+ */
+function drainStream(stream: ReadableStream<Uint8Array> | null | undefined): void {
+  if (!stream) return;
+  void (async () => {
+    try {
+      const reader = stream.getReader();
+      while (!(await reader.read()).done) {
+        // discard — we only need the pipe emptied, not the contents
+      }
+    } catch {
+      // child exited / stream errored — nothing to drain
+    }
+  })();
+}
+
+/**
  * Boot the API server (with the deterministic AG-UI stub model) + the Vite UI,
  * each on a dedicated port. The UI dev server proxies `/api` to the API server,
  * so the assistant panel's `/api/agui/run` reaches the stub-wired runner.
@@ -140,6 +164,12 @@ async function bootStack(): Promise<BootedStack> {
     // The single switch that wires the MockLanguageModelV3 into the AG-UI runner
     // (routes/agui-api.ts reads this). Without it the runner uses a real provider.
     LINCHKIT_AGUI_STUB_MODEL: "1",
+    // The stub gate fails closed unless BUN_ENV/NODE_ENV is an EXPLICIT dev/test
+    // marker (an unset env no longer default-opens). Set "development" here so the
+    // spawned server actually wires the stub — and so it boots exactly as it did
+    // before this gate existed (detectEnvironment already defaulted an unset env to
+    // "development", so this preserves the server's store/feature behavior).
+    BUN_ENV: "development",
   };
 
   // Boot the API server on an isolated port. Disable its auto-started UI + MCP
@@ -156,6 +186,10 @@ async function bootStack(): Promise<BootedStack> {
     stdout: "pipe",
     stderr: "pipe",
   });
+  // Drain immediately — an unread pipe buffer fills and HANGS the server mid-run
+  // (see drainStream). Must start before the server logs its boot + first requests.
+  drainStream(server.stdout as ReadableStream<Uint8Array>);
+  drainStream(server.stderr as ReadableStream<Uint8Array>);
   await waitForUrl(`${API_URL}/health`, BOOT_TIMEOUT_MS);
 
   // Boot the Vite UI directly in the UI package dir (mirrors the cap-adapter-ui
@@ -172,6 +206,8 @@ async function bootStack(): Promise<BootedStack> {
       stderr: "pipe",
     },
   );
+  drainStream(ui.stdout as ReadableStream<Uint8Array>);
+  drainStream(ui.stderr as ReadableStream<Uint8Array>);
   await waitForUrl(UI_URL, BOOT_TIMEOUT_MS);
 
   return { server, ui };
@@ -183,6 +219,37 @@ function killStack(stack: BootedStack | undefined): void {
 }
 
 // ── page driving helpers ────────────────────────────────────────────────────
+
+/**
+ * Pin the assistant onto the runtime-DATA write path (`/api/agui/run`) under test.
+ *
+ * `AIAssistant.handleSend` first calls `/api/ai/resolve-schema-intent` — a SECOND
+ * AI channel that, for a graduable SCHEMA change ("add a product entity"), draws a
+ * SchemaProposalCard and RETURNS instead of streaming to `/api/agui/run`. That
+ * classifier is the real provider (the deterministic stub only backs the AG-UI
+ * runner), so for an ambiguous "create a product …" it non-deterministically
+ * routes some runs to the schema card — and the HITL proposal card under test
+ * never renders (a flake invisible until you watch the real network).
+ *
+ * Intercept that one endpoint at the BROWSER and answer `no_match` (status 200) so
+ * `handleSend` always falls through to the AG-UI stream. Test-only — no production
+ * code learns about the e2e (unlike a server env backdoor).
+ */
+async function forceDataMutationPath(page: Page): Promise<void> {
+  await page.setRequestInterception(true);
+  page.on("request", (req) => {
+    if (req.isInterceptResolutionHandled()) return;
+    if (req.method() === "POST" && req.url().includes("/api/ai/resolve-schema-intent")) {
+      void req.respond({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ outcome: "no_match", reason: "e2e: pinned to data-mutation path" }),
+      });
+      return;
+    }
+    void req.continue();
+  });
+}
 
 /** Open the assistant sheet via the sparkles header button. */
 async function openAssistant(page: Page): Promise<void> {
@@ -234,7 +301,8 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("AG-UI HITL browser e2e (Spec 71 §8)", ()
   test(
     "create-product proposal renders a card in the stream, Approve writes the edited record",
     async () => {
-      const { page, pageErrors } = await newTrackedPage(browser);
+      const { page, context, pageErrors } = await newTrackedPage(browser);
+      await forceDataMutationPath(page);
 
       // Capture the AG-UI run request bodies so we can assert run A vs run B, and
       // capture run A's SSE response to prove it carries an INTERRUPT outcome.
@@ -359,14 +427,22 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("AG-UI HITL browser e2e (Spec 71 §8)", ()
         expect(runB?.resume?.[0]?.status).toBe("resolved");
 
         // §8 step 3 — run A returned an interrupt outcome (not a plain finish).
+        // The parsed SSE frame (`runAInterruptSeen`) is the strongest proof, but
+        // reading a streamed SSE body via Puppeteer's response listener can race the
+        // browser's own consumption and come back empty. The resume REQUEST (run B,
+        // asserted `resolved` above) is captured from request post-data — immune to
+        // that race — and the client only ever sends resume[] AFTER receiving an
+        // interrupt outcome from run A. So treat run B's resume as the authoritative
+        // interrupt proof and the parsed frame as a best-effort stronger check.
+        const interruptProven = runAInterruptSeen || runB?.resume?.[0]?.status === "resolved";
         expect(
-          runAInterruptSeen,
-          "run A's SSE did not carry a RUN_FINISHED interrupt outcome",
+          interruptProven,
+          "run A did not interrupt: neither a parsed RUN_FINISHED interrupt frame nor a resume[] run B",
         ).toBe(true);
 
         expect(pageErrors.map((e) => e.message)).toHaveLength(0);
       } finally {
-        await page.close();
+        await context.close();
       }
     },
     TEST_TIMEOUT_MS,
@@ -376,7 +452,8 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("AG-UI HITL browser e2e (Spec 71 §8)", ()
   test(
     "Cancel on the proposal card writes no record",
     async () => {
-      const { page } = await newTrackedPage(browser);
+      const { page, context } = await newTrackedPage(browser);
+      await forceDataMutationPath(page);
       try {
         await page.goto(UI_URL, { waitUntil: "networkidle2" });
         await openAssistant(page);
@@ -398,7 +475,7 @@ describe.skipIf(!BROWSER_E2E_ENABLED)("AG-UI HITL browser e2e (Spec 71 §8)", ()
         const executions = await fetchCreateExecutionsNamed("CancelMe");
         expect(executions, "Cancel must not write a record").toHaveLength(0);
       } finally {
-        await page.close();
+        await context.close();
       }
     },
     TEST_TIMEOUT_MS,

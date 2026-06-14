@@ -16,7 +16,6 @@
  */
 
 import type { AgUiRunHandler } from "@linchkit/cap-adapter-ag-ui";
-import { detectEnvironment } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { AssistantAgUiRunnerOptions } from "../ai/agui-runner";
 import type { ServerOptions } from "../server";
@@ -53,14 +52,20 @@ export function hasAgUiCapability(options: Pick<ServerOptions, "capabilities">):
  */
 export async function buildHitlRunnerOptions(): Promise<AssistantAgUiRunnerOptions> {
   if (process.env[AG_UI_STUB_MODEL_ENV] !== "1") return {};
-  // Fail closed: the deterministic stub is a test backdoor (it would make the
-  // assistant always propose the same fixed mutation). It must NEVER activate on
-  // a real deployment. detectEnvironment() treats both `production` and `staging`
-  // as production. Throwing here also guarantees the dynamic `import` below — and
-  // therefore the `ai/test` module the stub pulls in — is unreachable in prod.
-  if (detectEnvironment().isProduction) {
+  // Fail closed: the deterministic stub is a test backdoor (it makes the assistant
+  // always propose the same fixed mutation), so it must activate ONLY in an
+  // explicitly non-production environment. We read the RAW env marker rather than
+  // `detectEnvironment().isProduction` because that helper silently defaults an
+  // UNSET `BUN_ENV`/`NODE_ENV` to "development" (isProduction=false) — so a prod box
+  // that merely forgot to set the env var would slip through. Requiring an explicit
+  // "development" | "test" marker closes that hole: unset / staging / production all
+  // throw. The throw runs BEFORE the dynamic import below, so the `ai/test` module
+  // the stub pulls in is also provably unreachable on a real boot.
+  const rawEnv = process.env.BUN_ENV ?? process.env.NODE_ENV;
+  if (rawEnv !== "development" && rawEnv !== "test") {
     throw new Error(
-      `${AG_UI_STUB_MODEL_ENV}=1 is a browser-e2e-only test stub and must never be set in production`,
+      `${AG_UI_STUB_MODEL_ENV}=1 is a browser-e2e-only test stub; it requires ` +
+        `BUN_ENV/NODE_ENV explicitly set to "development" or "test" (got ${rawEnv ?? "unset"})`,
     );
   }
   const { buildProposeMutationStubModel } = await import("../ai/agui-e2e-stub");
