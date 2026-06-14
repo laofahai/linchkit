@@ -12,6 +12,7 @@
 
 import { relative, resolve } from "node:path";
 import { $, Glob } from "bun";
+import { syncCoreVersions } from "./sync-core-version";
 
 const ROOT = resolve(import.meta.dir, "..");
 const DRY_RUN = Bun.argv.includes("--dry-run");
@@ -140,6 +141,31 @@ async function main() {
     console.error("\nBuild failures:");
     for (const name of buildFailed) console.error(`  - ${name}`);
     process.exit(1);
+  }
+
+  // Core-version sync check (Spec 21 §10.1)
+  // After `changeset version`, peerDeps are updated but linchkit.coreVersion may lag.
+  // Detect and fix drift here so the published package metadata is always consistent.
+  console.log("\n--- Core-version sync (Spec 21 §10.1) ---");
+  const { synced: cvSynced, drifted: cvDrifted } = await syncCoreVersions({
+    checkOnly: DRY_RUN,
+    root: ROOT,
+  });
+  if (DRY_RUN && cvDrifted.length > 0) {
+    for (const name of cvDrifted) {
+      console.log(`  [dry-run] Would sync coreVersion: ${name}`);
+    }
+  } else if (cvSynced.length > 0) {
+    for (const name of cvSynced) {
+      console.log(`  Synced coreVersion: ${name}`);
+    }
+    console.log(
+      `\n  NOTE: ${cvSynced.length} package(s) had coreVersion drift and were fixed in-place.\n` +
+        "  Consider committing these changes or running 'bun run version-packages' next time\n" +
+        "  (which includes the sync step automatically).",
+    );
+  } else if (cvDrifted.length === 0) {
+    console.log("  All capability coreVersions are in sync.");
   }
 
   // Publish via changesets
