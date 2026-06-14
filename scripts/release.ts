@@ -149,6 +149,7 @@ async function main() {
   console.log("\n--- Core-version sync (Spec 21 §10.1) ---");
   const { synced: cvSynced, drifted: cvDrifted } = await syncCoreVersions({
     checkOnly: DRY_RUN,
+    root: ROOT,
   });
   if (DRY_RUN && cvDrifted.length > 0) {
     for (const name of cvDrifted) {
