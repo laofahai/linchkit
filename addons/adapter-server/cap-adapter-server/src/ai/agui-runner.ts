@@ -531,14 +531,18 @@ export function createAssistantAgUiRunner(
     const recordId = agUiContextValue(input, AG_UI_CONTEXT_KEYS.recordId);
     const locale = extractLocale(agUiContextValue(input, AG_UI_CONTEXT_KEYS.locale), request);
 
-    // Chat is read-only — writes go through the propose-and-confirm flow
-    // (intent resolver + ActionProposalCard). See issue #285 / #238.
+    // Spec 71 HITL: the runner exposes the execute-less `proposeMutation` tool
+    // (below), so the prompt instructs the model to PROPOSE writes via that tool
+    // — NOT the old "you cannot write, use the sidebar" refusal. The model still
+    // never executes; a proposal surfaces an approval card and a human approval
+    // runs the action through CommandLayer (§6.5). `executeAction` stays OFF.
     const systemPrompt = buildSystemPrompt({
       assistantConfig,
       ontologyRegistry: options.ontologyRegistry,
       entityRegistry: options.entityRegistry,
       context: { entity, recordId, locale },
       allowActionExecution: false,
+      proposeMutation: true,
     });
 
     const tools = buildTools({

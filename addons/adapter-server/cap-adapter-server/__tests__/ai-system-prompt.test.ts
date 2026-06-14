@@ -283,6 +283,66 @@ describe("buildSystemPrompt — mutation-policy suffix", () => {
     expect(prompt).not.toContain("NEVER claim");
   });
 
+  // Spec 71 HITL keystone (found via live testing): with the execute-less
+  // proposeMutation tool available, the prompt must INSTRUCT the model to
+  // propose writes — NOT the old "you CANNOT write, use the sidebar" refusal
+  // that left the whole HITL path dead because the model never called the tool.
+  test("proposeMutation=true instructs the model to PROPOSE via the tool, not refuse", () => {
+    const prompt = buildSystemPrompt({
+      allowActionExecution: false,
+      proposeMutation: true,
+    });
+    // Tells the model to USE proposeMutation for writes.
+    expect(prompt).toContain("proposeMutation");
+    expect(prompt).toContain("PROPOSES a data change");
+    // Still forbids claiming the write happened (it only proposes).
+    expect(prompt).toContain("NEVER claim");
+    // Must NOT carry the refuse-to-write / sidebar-redirect policy.
+    expect(prompt).not.toContain("CANNOT directly create");
+    expect(prompt).not.toContain("use its create / edit / action buttons");
+  });
+
+  test("proposeMutation takes precedence over allowActionExecution=false", () => {
+    const propose = buildSystemPrompt({ allowActionExecution: false, proposeMutation: true });
+    const refuse = buildSystemPrompt({ allowActionExecution: false });
+    expect(propose).toContain("proposeMutation");
+    expect(propose).not.toContain("CANNOT directly create");
+    // The plain read-only path still gets the refusal.
+    expect(refuse).toContain("CANNOT directly create");
+    expect(refuse).not.toContain("proposeMutation");
+  });
+
+  test("a write-enabled session never gets the contradictory propose policy", () => {
+    // allowActionExecution=true means the model executes directly (executeAction).
+    // The propose policy ("You do NOT execute writes yourself") would contradict
+    // that, so a write-enabled session gets NEITHER policy even if proposeMutation
+    // is accidentally also passed.
+    const prompt = buildSystemPrompt({ allowActionExecution: true, proposeMutation: true });
+    expect(prompt).not.toContain("PROPOSES a data change");
+    expect(prompt).not.toContain("CANNOT directly create");
+  });
+
+  test("propose-policy suffix is the LAST section — the override-proofing invariant", () => {
+    const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
+    const prompt = buildSystemPrompt({
+      assistantConfig: { systemPrompt: "You are a product catalog assistant." },
+      ontologyRegistry: ontology,
+      context: {
+        entity: "product",
+        recordId: "p-001",
+        recordData: { name: "Laptop", price: 999 },
+        locale: "zh-CN",
+      },
+      allowActionExecution: false,
+      proposeMutation: true,
+    });
+    const parts = prompt.split("## Mutation Policy");
+    expect(parts.length).toBe(2); // exactly one occurrence of the header
+    const tail = parts[1] ?? "";
+    // Everything after the header is the suffix body — no later section header.
+    expect(tail).not.toContain("\n## ");
+  });
+
   test("mutation-policy suffix is the LAST section — nothing of substance follows", () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const prompt = buildSystemPrompt({
