@@ -283,6 +283,35 @@ describe("buildSystemPrompt — mutation-policy suffix", () => {
     expect(prompt).not.toContain("NEVER claim");
   });
 
+  // Spec 71 HITL keystone (found via live testing): with the execute-less
+  // proposeMutation tool available, the prompt must INSTRUCT the model to
+  // propose writes — NOT the old "you CANNOT write, use the sidebar" refusal
+  // that left the whole HITL path dead because the model never called the tool.
+  test("proposeMutation=true instructs the model to PROPOSE via the tool, not refuse", () => {
+    const prompt = buildSystemPrompt({
+      allowActionExecution: false,
+      proposeMutation: true,
+    });
+    // Tells the model to USE proposeMutation for writes.
+    expect(prompt).toContain("proposeMutation");
+    expect(prompt).toContain("PROPOSES a data change");
+    // Still forbids claiming the write happened (it only proposes).
+    expect(prompt).toContain("NEVER claim");
+    // Must NOT carry the refuse-to-write / sidebar-redirect policy.
+    expect(prompt).not.toContain("CANNOT directly create");
+    expect(prompt).not.toContain("use its create / edit / action buttons");
+  });
+
+  test("proposeMutation takes precedence over allowActionExecution=false", () => {
+    const propose = buildSystemPrompt({ allowActionExecution: false, proposeMutation: true });
+    const refuse = buildSystemPrompt({ allowActionExecution: false });
+    expect(propose).toContain("proposeMutation");
+    expect(propose).not.toContain("CANNOT directly create");
+    // The plain read-only path still gets the refusal.
+    expect(refuse).toContain("CANNOT directly create");
+    expect(refuse).not.toContain("proposeMutation");
+  });
+
   test("mutation-policy suffix is the LAST section — nothing of substance follows", () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const prompt = buildSystemPrompt({

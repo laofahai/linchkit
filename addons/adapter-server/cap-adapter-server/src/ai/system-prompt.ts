@@ -88,6 +88,27 @@ You CANNOT directly create, update, delete, or modify any data via this chat. Th
 - For read-only requests ("show me", "what is", "summarize", "查看", "总结") use the available query / describe / navigate tools normally.`;
 
 /**
+ * Mutation policy for the AG-UI HITL path (Spec 71): the model has an execute-less
+ * `proposeMutation` tool. Unlike {@link MUTATION_POLICY_SUFFIX} — which tells the
+ * model it CANNOT write and to redirect the user to the sidebar — this tells the
+ * model to PROPOSE the write via the tool. The proposal surfaces an approval card;
+ * nothing executes until a human approves and the action runs through CommandLayer
+ * ("AI Never Modifies Production Directly"). Without this the model, told it cannot
+ * write, never calls `proposeMutation` and the whole HITL path stays dead — the
+ * gap a real model (not the scripted test mock) exposes.
+ *
+ * Appended LAST so a user-supplied prompt can never override it.
+ */
+const PROPOSE_POLICY_SUFFIX = `## Mutation Policy (HARD CONSTRAINT — non-negotiable)
+You do NOT execute writes yourself. You have a \`proposeMutation\` tool that PROPOSES a data change for a human to approve — it does not run anything.
+- For any user request involving a write (create / add / submit / approve / reject / delete / update / modify / change / 创建 / 添加 / 提交 / 批准 / 拒绝 / 删除 / 更新 / 修改), you MUST call \`proposeMutation\` with:
+  - \`action\`: the business action name to run (e.g. \`create_product\`, \`approve_order\`). Pick from the entity's "Available actions" listed above; if none fits, say so instead of inventing one.
+  - \`input\`: the field values for that action, extracted from the user's request.
+- Calling \`proposeMutation\` surfaces an approval card; the human reviews/edits the inputs and approves, and only THEN does the action execute through the system's permission checks. You are PROPOSING, not executing.
+- NEVER claim you performed the operation. Do NOT say "created", "saved", "submitted", "done", "成功", "完成", "已创建" — you only propose; the human approves and the system executes.
+- For read-only requests ("show me", "what is", "summarize", "查看", "总结") use the query / describe / navigate tools normally — do NOT call \`proposeMutation\` for reads.`;
+
+/**
  * Build a dynamic system prompt based on assistant config and runtime context.
  */
 export function buildSystemPrompt(options: {
@@ -108,9 +129,24 @@ export function buildSystemPrompt(options: {
    * `buildSystemPrompt` and `buildTools`.
    */
   allowActionExecution?: boolean;
+  /**
+   * Spec 71 HITL: the session exposes the execute-less `proposeMutation` tool.
+   * When `true`, the prompt instructs the model to PROPOSE writes via the tool
+   * (see {@link PROPOSE_POLICY_SUFFIX}) instead of the refuse-to-write
+   * {@link MUTATION_POLICY_SUFFIX}. The model still never executes — proposing
+   * surfaces an approval card, and a human approval runs the action through
+   * CommandLayer. Takes precedence over `allowActionExecution === false`.
+   */
+  proposeMutation?: boolean;
 }): string {
-  const { assistantConfig, ontologyRegistry, entityRegistry, context, allowActionExecution } =
-    options;
+  const {
+    assistantConfig,
+    ontologyRegistry,
+    entityRegistry,
+    context,
+    allowActionExecution,
+    proposeMutation,
+  } = options;
 
   const parts: string[] = [];
 
@@ -210,7 +246,12 @@ export function buildSystemPrompt(options: {
   //    Defaults are aligned with `buildTools`: undefined / true → write-
   //    enabled, no suffix. Chat callers always pass `false` here AND to
   //    `buildTools` so the two stay consistent.
-  if (allowActionExecution === false) {
+  // The propose-mutation policy (Spec 71 HITL) takes precedence: the model has
+  // the execute-less `proposeMutation` tool and must be told to USE it, not the
+  // refuse-to-write policy. Fall back to the read-only refusal otherwise.
+  if (proposeMutation) {
+    parts.push(`\n${PROPOSE_POLICY_SUFFIX}`);
+  } else if (allowActionExecution === false) {
     parts.push(`\n${MUTATION_POLICY_SUFFIX}`);
   }
 
