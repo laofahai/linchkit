@@ -109,7 +109,17 @@ export const SUCCESS_OUTCOME: RunFinishedSuccessOutcome = { type: "success" };
  * `{ type: "interrupt", interrupts }`. The returned value is the exact
  * `RunFinishedInterruptOutcome` an `RUN_FINISHED.outcome` carries when a
  * model-proposed mutation is awaiting human approval.
+ *
+ * `RunFinishedInterruptOutcomeSchema` enforces `z.array(InterruptSchema).min(1)`,
+ * so an empty `interrupts` list would produce a schema-INVALID frame that fails
+ * downstream `RunFinishedEventSchema.safeParse`. Guard at the source: a caller
+ * must never be able to emit an interrupt outcome with nothing to act on.
  */
 export function makeInterruptOutcome(interrupts: Interrupt[]): RunFinishedInterruptOutcome {
+  if (interrupts.length === 0) {
+    throw new Error(
+      "makeInterruptOutcome requires at least one interrupt — RunFinishedInterruptOutcome.interrupts is .min(1).",
+    );
+  }
   return { type: "interrupt", interrupts };
 }

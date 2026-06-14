@@ -182,6 +182,15 @@ describe("makeInterruptOutcome (Spec 71 §3.4 / §4.2)", () => {
     }
   });
 
+  test("throws on an empty interrupts list (the upstream schema requires .min(1))", () => {
+    expect(() => makeInterruptOutcome([])).toThrow(/at least one interrupt/);
+    // Prove the guard prevents a schema-invalid frame: an empty list WOULD fail
+    // the upstream schema, so the throw is what keeps the encoder safe.
+    expect(RunFinishedOutcomeSchema.safeParse({ type: "interrupt", interrupts: [] }).success).toBe(
+      false,
+    );
+  });
+
   test("SUCCESS_OUTCOME validates against the success branch", () => {
     const parsed = RunFinishedOutcomeSchema.safeParse(SUCCESS_OUTCOME);
     expect(parsed.success).toBe(true);
