@@ -120,7 +120,9 @@ async function main() {
   console.log(`\nSynced ${synced.length} capability package(s).`);
 }
 
-main().catch((err) => {
-  console.error("sync-core-version failed:", err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("sync-core-version failed:", err);
+    process.exit(1);
+  });
+}
