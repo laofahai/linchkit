@@ -312,6 +312,37 @@ describe("buildSystemPrompt — mutation-policy suffix", () => {
     expect(refuse).not.toContain("proposeMutation");
   });
 
+  test("a write-enabled session never gets the contradictory propose policy", () => {
+    // allowActionExecution=true means the model executes directly (executeAction).
+    // The propose policy ("You do NOT execute writes yourself") would contradict
+    // that, so a write-enabled session gets NEITHER policy even if proposeMutation
+    // is accidentally also passed.
+    const prompt = buildSystemPrompt({ allowActionExecution: true, proposeMutation: true });
+    expect(prompt).not.toContain("PROPOSES a data change");
+    expect(prompt).not.toContain("CANNOT directly create");
+  });
+
+  test("propose-policy suffix is the LAST section — the override-proofing invariant", () => {
+    const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
+    const prompt = buildSystemPrompt({
+      assistantConfig: { systemPrompt: "You are a product catalog assistant." },
+      ontologyRegistry: ontology,
+      context: {
+        entity: "product",
+        recordId: "p-001",
+        recordData: { name: "Laptop", price: 999 },
+        locale: "zh-CN",
+      },
+      allowActionExecution: false,
+      proposeMutation: true,
+    });
+    const parts = prompt.split("## Mutation Policy");
+    expect(parts.length).toBe(2); // exactly one occurrence of the header
+    const tail = parts[1] ?? "";
+    // Everything after the header is the suffix body — no later section header.
+    expect(tail).not.toContain("\n## ");
+  });
+
   test("mutation-policy suffix is the LAST section — nothing of substance follows", () => {
     const ontology = createMockOntologyRegistry([productDescriptor, orderDescriptor]);
     const prompt = buildSystemPrompt({

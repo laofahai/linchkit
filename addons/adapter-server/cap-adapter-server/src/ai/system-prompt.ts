@@ -246,10 +246,15 @@ export function buildSystemPrompt(options: {
   //    Defaults are aligned with `buildTools`: undefined / true → write-
   //    enabled, no suffix. Chat callers always pass `false` here AND to
   //    `buildTools` so the two stay consistent.
-  // The propose-mutation policy (Spec 71 HITL) takes precedence: the model has
-  // the execute-less `proposeMutation` tool and must be told to USE it, not the
-  // refuse-to-write policy. Fall back to the read-only refusal otherwise.
-  if (proposeMutation) {
+  // The propose-mutation policy (Spec 71 HITL) takes precedence over the
+  // refuse-to-write policy: the model has the execute-less `proposeMutation` tool
+  // and must be told to USE it. It is gated on `allowActionExecution !== true`,
+  // though: when the session is genuinely write-enabled (the model executes
+  // directly via `executeAction`), "You do NOT execute writes yourself" would be
+  // a flat contradiction — so a write-enabled session gets neither policy. The
+  // HITL caller pairs `proposeMutation: true` with `allowActionExecution: false`,
+  // so it always lands on the propose policy.
+  if (proposeMutation && allowActionExecution !== true) {
     parts.push(`\n${PROPOSE_POLICY_SUFFIX}`);
   } else if (allowActionExecution === false) {
     parts.push(`\n${MUTATION_POLICY_SUFFIX}`);
