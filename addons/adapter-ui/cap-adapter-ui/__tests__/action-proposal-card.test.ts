@@ -1,28 +1,12 @@
 /**
- * Tests for `swapAlternative` and `resolveIntent` (Spec 52 §2.6 follow-up).
+ * Tests for `swapAlternative` — the ActionProposalCard's N-best alternative
+ * swap helper (Spec 52 §2.6 / Spec 71 §2.5; the card is now fed by the AG-UI
+ * HITL interrupt path, the sole runtime-data write path after P4).
  */
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-
-const _store = new Map<string, string>();
-if (typeof globalThis.localStorage === "undefined") {
-  Object.defineProperty(globalThis, "localStorage", {
-    value: {
-      getItem: (k: string) => _store.get(k) ?? null,
-      setItem: (k: string, v: string) => _store.set(k, v),
-      removeItem: (k: string) => _store.delete(k),
-      clear: () => _store.clear(),
-      get length() {
-        return _store.size;
-      },
-      key: (i: number) => [..._store.keys()][i] ?? null,
-    },
-    configurable: true,
-  });
-}
+import { describe, expect, test } from "bun:test";
 
 import { swapAlternative } from "../src/components/action-proposal-card";
 import type { IntentAlternative, IntentResolution } from "../src/lib/ai-api";
-import { resolveIntent } from "../src/lib/ai-api";
 
 function makeIntent(overrides: Partial<IntentResolution> = {}): IntentResolution {
   return {
@@ -175,89 +159,5 @@ describe("swapAlternative", () => {
       "alt_high",
       "alt_mid",
     ]);
-  });
-});
-
-interface CapturedRequest {
-  url: string;
-  method?: string;
-  body: unknown;
-  headers: Record<string, string>;
-}
-let captured: CapturedRequest | null;
-let originalFetch: typeof fetch;
-function installFetch(response: { status: number; body: unknown }) {
-  originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    captured = {
-      url: typeof input === "string" ? input : (input as URL).toString(),
-      method: init?.method,
-      body: init?.body ? JSON.parse(init.body as string) : undefined,
-      headers: (init?.headers as Record<string, string>) ?? {},
-    };
-    return new Response(JSON.stringify(response.body), {
-      status: response.status,
-      headers: { "Content-Type": "application/json" },
-    });
-  }) as typeof fetch;
-}
-beforeEach(() => {
-  captured = null;
-});
-afterEach(() => {
-  if (originalFetch) globalThis.fetch = originalFetch;
-});
-
-describe("resolveIntent", () => {
-  test("returns { kind: 'proposal' } when the server returns a proposal", async () => {
-    const proposalView = makeIntent({
-      action: "submit_request",
-      alternatives: [makeAlt({ action: "draft_request", confidence: 0.5 })],
-    });
-    installFetch({ status: 200, body: { proposal: proposalView } });
-    const result = await resolveIntent("submit a request");
-    expect(result.kind).toBe("proposal");
-    if (result.kind !== "proposal") return;
-    expect(result.proposal.action).toBe("submit_request");
-    expect(result.proposal.alternatives?.[0]?.action).toBe("draft_request");
-    expect(captured?.url).toBe("/api/ai/resolve-intent");
-    expect(captured?.method).toBe("POST");
-    expect(captured?.body).toEqual({ prompt: "submit a request", scope: undefined });
-  });
-  test("returns { kind: 'unavailable' } on 503", async () => {
-    installFetch({
-      status: 503,
-      body: {
-        success: false,
-        error: { code: "AI.UNAVAILABLE", message: "AI service is not configured." },
-      },
-    });
-    expect(await resolveIntent("anything")).toEqual({ kind: "unavailable" });
-  });
-  test("returns { kind: 'no-match' } when server returns 200 + proposal:null", async () => {
-    installFetch({ status: 200, body: { proposal: null } });
-    expect(await resolveIntent("gibberish")).toEqual({ kind: "no-match" });
-  });
-  test("returns { kind: 'no-match' } when server omits the proposal field", async () => {
-    installFetch({ status: 200, body: {} });
-    expect(await resolveIntent("anything")).toEqual({ kind: "no-match" });
-  });
-  test("throws on non-2xx, non-503 responses", async () => {
-    installFetch({
-      status: 500,
-      body: { success: false, error: { code: "AI.INTERNAL", message: "boom" } },
-    });
-    await expect(resolveIntent("anything")).rejects.toThrow("AI intent resolution failed");
-  });
-  test("forwards optional scope in the request body", async () => {
-    installFetch({ status: 200, body: { proposal: null } });
-    await resolveIntent("create a request", {
-      entityFilter: ["request"],
-      actionFilter: ["submit_request"],
-    });
-    expect(captured?.body).toEqual({
-      prompt: "create a request",
-      scope: { entityFilter: ["request"], actionFilter: ["submit_request"] },
-    });
   });
 });

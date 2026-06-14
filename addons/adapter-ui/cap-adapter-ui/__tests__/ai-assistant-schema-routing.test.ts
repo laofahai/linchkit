@@ -2,16 +2,17 @@
  * Tests for the chat assistant's schema-change routing — the 4th
  * "say → exists" (说→有) channel.
  *
- * `decideSchemaFallback` is the pure decision reached AFTER `resolveIntent`
- * found no runtime action (i.e. `decideIntentRouting` returned `chat-fallback`).
- * It is the seam the component uses in `handleSend`, so testing it covers the
- * "schema-change utterance → schema proposal card" routing without a DOM
- * (this package's tests are logic-only).
+ * After Spec 71 P4 the runtime-action `resolveIntent` side channel is gone: a
+ * chat send asks `resolveSchemaIntent` directly whether the prompt is a
+ * graduable SCHEMA change and, if so, renders a SchemaProposalCard; otherwise it
+ * falls through to the AG-UI stream (where a runtime-data mutation surfaces as a
+ * `proposeMutation` interrupt → ActionProposalCard — exercised elsewhere).
  *
- * We also drive the two-resolver chain end to end at the client level:
- * `resolveIntent` → non-action, then `resolveSchemaIntent` → `proposal_draft`,
- * and assert the combined decision is a schema proposal — proving the fallback
- * fires exactly when a runtime action could NOT be matched.
+ * `decideSchemaFallback` is the pure decision the component uses in `handleSend`,
+ * so testing it covers the "schema-change utterance → schema proposal card"
+ * routing without a DOM (this package's tests are logic-only). We also drive the
+ * resolver end to end at the client level: `resolveSchemaIntent` → `proposal_draft`
+ * ⇒ schema proposal.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -33,9 +34,9 @@ if (typeof globalThis.localStorage === "undefined") {
   });
 }
 
-import { decideIntentRouting, decideSchemaFallback } from "../src/components/ai-assistant";
+import { decideSchemaFallback } from "../src/components/ai-assistant";
 import type { ResolveSchemaIntentResult } from "../src/lib/ai-api";
-import { resolveIntent, resolveSchemaIntent } from "../src/lib/ai-api";
+import { resolveSchemaIntent } from "../src/lib/ai-api";
 
 // ── decideSchemaFallback (pure) ──────────────────────────
 
@@ -72,7 +73,7 @@ describe("decideSchemaFallback", () => {
   });
 });
 
-// ── Two-resolver chain (client level) ────────────────────
+// ── Schema-resolver chain (client level) ─────────────────
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -90,15 +91,12 @@ afterEach(() => {
 });
 
 describe("schema-change utterance routing chain", () => {
-  test("resolveIntent → no-match, then resolveSchemaIntent → proposal_draft ⇒ schema-proposal", async () => {
+  test("resolveSchemaIntent → proposal_draft ⇒ schema-proposal", async () => {
     originalFetch = globalThis.fetch;
-    // Route by endpoint: the action resolver returns no match; the schema
-    // resolver mints a draft. This mirrors `handleSend`'s two-step fallback.
+    // After P4 the chat send asks the schema resolver directly (no prior
+    // runtime-action resolve-intent call). A `proposal_draft` mints a draft.
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input as URL).toString();
-      if (url === "/api/ai/resolve-intent") {
-        return jsonResponse(200, { proposal: null });
-      }
       if (url === "/api/ai/resolve-schema-intent") {
         return jsonResponse(200, {
           outcome: "proposal_draft",
@@ -113,12 +111,7 @@ describe("schema-change utterance routing chain", () => {
       throw new Error(`unexpected url ${url}`);
     }) as typeof fetch;
 
-    // Step 1 — runtime action resolution finds nothing → chat-fallback.
-    const intent = await resolveIntent("raise the manager-approval threshold to 20000");
-    const actionDecision = decideIntentRouting(intent);
-    expect(actionDecision.kind).toBe("chat-fallback");
-
-    // Step 2 — the schema-intent fallback mints a draft → schema-proposal card.
+    // The schema-intent resolver mints a draft → schema-proposal card.
     const schema = await resolveSchemaIntent("raise the manager-approval threshold to 20000");
     const schemaDecision = decideSchemaFallback(schema);
     expect(schemaDecision.kind).toBe("schema-proposal");
