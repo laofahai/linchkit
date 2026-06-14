@@ -75,7 +75,10 @@ jobs:
         with:
           title: "chore: version packages"
           commit: "chore: version packages"
-          version: bunx changeset version
+          # Bump versions/peerDeps, THEN sync each capability's linchkit.coreVersion
+          # to the new @linchkit/core version so Capability Lint does not fail on
+          # every subsequent PR (issue #589). Runs inside the "version packages" PR.
+          version: bunx changeset version && bun scripts/sync-core-version.ts
           publish: bun scripts/release.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
