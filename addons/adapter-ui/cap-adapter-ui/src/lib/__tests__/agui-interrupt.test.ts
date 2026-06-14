@@ -108,6 +108,47 @@ describe("readActionApprovalMetadata", () => {
     expect(meta?.alternatives).toHaveLength(1);
     expect(meta?.permitted).toBe(false);
   });
+
+  test("filters malformed inputSchema entries instead of blind-casting them", () => {
+    const meta = readActionApprovalMetadata(
+      interrupt({
+        metadata: {
+          action: "a",
+          inputDigest: "d",
+          inputSchema: {
+            name: { type: "string", required: true }, // valid → kept
+            broken: null, // invalid → dropped
+            alsoBroken: { label: "no type field" }, // missing type/required → dropped
+          },
+        },
+      }),
+    );
+    expect(Object.keys(meta?.inputSchema ?? {})).toEqual(["name"]);
+  });
+
+  test("filters malformed alternatives and drops the field when none survive", () => {
+    const withMixed = readActionApprovalMetadata(
+      interrupt({
+        metadata: {
+          action: "a",
+          inputDigest: "d",
+          alternatives: [
+            { action: "b", input: {}, confidence: 0.5, missingFields: [], explanation: "" }, // valid
+            null, // invalid
+            { confidence: 0.9 }, // no action / no input → invalid
+            { action: "c", input: "not-a-record" }, // bad input → invalid
+          ],
+        },
+      }),
+    );
+    expect(withMixed?.alternatives).toHaveLength(1);
+    expect(withMixed?.alternatives?.[0]?.action).toBe("b");
+
+    const allBad = readActionApprovalMetadata(
+      interrupt({ metadata: { action: "a", inputDigest: "d", alternatives: [null, 42, "x"] } }),
+    );
+    expect(allBad?.alternatives).toBeUndefined();
+  });
 });
 
 describe("interruptToIntent", () => {

@@ -65,6 +65,44 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 /**
+ * Validate the interrupt's `inputSchema` field-by-field rather than blind-casting
+ * it: the metadata is server-shaped but untrusted at this boundary, and a
+ * malformed field entry (null, wrong type) would reach `ActionProposalCard`'s
+ * field renderer and break it. Keep only entries that have the minimal shape the
+ * card relies on (`type: string`, `required: boolean`); drop the rest.
+ */
+function validInputSchema(value: unknown): Record<string, IntentFieldSchema> {
+  const rec = asRecord(value);
+  if (!rec) return {};
+  const out: Record<string, IntentFieldSchema> = {};
+  for (const [key, raw] of Object.entries(rec)) {
+    const field = asRecord(raw);
+    if (field && typeof field.type === "string" && typeof field.required === "boolean") {
+      out[key] = field as unknown as IntentFieldSchema;
+    }
+  }
+  return out;
+}
+
+/**
+ * Validate the interrupt's N-best `alternatives` entry-by-entry: a malformed
+ * alternative (no `action`, non-record `input`) would corrupt the card's swap UI
+ * and the resume payload it produces. Keep only well-formed entries; `undefined`
+ * when none survive (the card then hides the swap affordance).
+ */
+function validAlternatives(value: unknown): IntentAlternative[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: IntentAlternative[] = [];
+  for (const raw of value) {
+    const alt = asRecord(raw);
+    if (alt && typeof alt.action === "string" && asRecord(alt.input)) {
+      out.push(alt as unknown as IntentAlternative);
+    }
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
  * Extract + validate an action-approval interrupt's metadata, or `null` when
  * the interrupt is not a well-formed action-approval interrupt (wrong reason,
  * missing required fields). Callers skip interrupts that return `null`.
@@ -81,11 +119,9 @@ export function readActionApprovalMetadata(
   if (typeof action !== "string" || typeof inputDigest !== "string") return null;
 
   const proposedInput = asRecord(meta.proposedInput) ?? {};
-  const inputSchema = (asRecord(meta.inputSchema) ?? {}) as Record<string, IntentFieldSchema>;
+  const inputSchema = validInputSchema(meta.inputSchema);
   const actionLabel = typeof meta.actionLabel === "string" ? meta.actionLabel : action;
-  const alternatives = Array.isArray(meta.alternatives)
-    ? (meta.alternatives as IntentAlternative[])
-    : undefined;
+  const alternatives = validAlternatives(meta.alternatives);
   const permitted = typeof meta.permitted === "boolean" ? meta.permitted : undefined;
 
   return {
