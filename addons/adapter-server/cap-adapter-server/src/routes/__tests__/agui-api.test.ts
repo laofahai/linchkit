@@ -23,7 +23,13 @@ import {
   streamPartToAgUiEvents,
   toModelMessagesFromAgUi,
 } from "../../ai/agui-runner";
-import { AG_UI_RUN_PATH, hasAgUiCapability, mountAgUiRoutes } from "../agui-api";
+import {
+  AG_UI_RUN_PATH,
+  AG_UI_STUB_MODEL_ENV,
+  buildHitlRunnerOptions,
+  hasAgUiCapability,
+  mountAgUiRoutes,
+} from "../agui-api";
 
 const RUN_URL = `http://local.test${AG_UI_RUN_PATH}`;
 
@@ -120,6 +126,61 @@ describe("mountAgUiRoutes", () => {
     const app = mountAgUiRoutes(new Elysia(), { capabilities: [AG_UI_CAPABILITY] });
     const res = await postRun(app, { nonsense: true });
     expect(res.status).toBe(400);
+  });
+});
+
+// ── e2e stub model env gate (Spec 71 P5 §8) ─────────────────
+
+describe("buildHitlRunnerOptions", () => {
+  const withEnv = async (
+    env: Record<string, string | undefined>,
+    run: () => Promise<void>,
+  ): Promise<void> => {
+    const saved = new Map<string, string | undefined>();
+    for (const [key, value] of Object.entries(env)) {
+      saved.set(key, process.env[key]);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    try {
+      await run();
+    } finally {
+      for (const [key, value] of saved) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  };
+
+  test("returns empty options (no override) when the stub flag is unset", async () => {
+    await withEnv({ [AG_UI_STUB_MODEL_ENV]: undefined }, async () => {
+      expect(await buildHitlRunnerOptions()).toEqual({});
+    });
+  });
+
+  test("wires the deterministic stub model in a non-production env", async () => {
+    await withEnv({ [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "test", NODE_ENV: "test" }, async () => {
+      const options = await buildHitlRunnerOptions();
+      expect(options.modelOverride).toBeDefined();
+    });
+  });
+
+  test("fails closed: throws when the stub flag is set in production", async () => {
+    await withEnv(
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "production", NODE_ENV: "production" },
+      async () => {
+        await expect(buildHitlRunnerOptions()).rejects.toThrow(/must never be set in production/);
+      },
+    );
+  });
+
+  test("fails closed in staging too (detectEnvironment treats staging as production)", async () => {
+    await withEnv(
+      { [AG_UI_STUB_MODEL_ENV]: "1", BUN_ENV: "staging", NODE_ENV: "staging" },
+      async () => {
+        await expect(buildHitlRunnerOptions()).rejects.toThrow(/must never be set in production/);
+      },
+    );
   });
 });
 

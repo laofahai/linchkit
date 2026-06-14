@@ -16,6 +16,7 @@
  */
 
 import type { AgUiRunHandler } from "@linchkit/cap-adapter-ag-ui";
+import { detectEnvironment } from "@linchkit/core/server";
 import type { Elysia } from "elysia";
 import type { AssistantAgUiRunnerOptions } from "../ai/agui-runner";
 import type { ServerOptions } from "../server";
@@ -50,8 +51,18 @@ export function hasAgUiCapability(options: Pick<ServerOptions, "capabilities">):
  * the single decision point; the stub itself lives in `../ai/agui-e2e-stub`
  * (imported lazily so `ai/test` never loads on a real boot).
  */
-async function buildHitlRunnerOptions(): Promise<AssistantAgUiRunnerOptions> {
+export async function buildHitlRunnerOptions(): Promise<AssistantAgUiRunnerOptions> {
   if (process.env[AG_UI_STUB_MODEL_ENV] !== "1") return {};
+  // Fail closed: the deterministic stub is a test backdoor (it would make the
+  // assistant always propose the same fixed mutation). It must NEVER activate on
+  // a real deployment. detectEnvironment() treats both `production` and `staging`
+  // as production. Throwing here also guarantees the dynamic `import` below — and
+  // therefore the `ai/test` module the stub pulls in — is unreachable in prod.
+  if (detectEnvironment().isProduction) {
+    throw new Error(
+      `${AG_UI_STUB_MODEL_ENV}=1 is a browser-e2e-only test stub and must never be set in production`,
+    );
+  }
   const { buildProposeMutationStubModel } = await import("../ai/agui-e2e-stub");
   return { modelOverride: buildProposeMutationStubModel() };
 }
