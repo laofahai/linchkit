@@ -47,6 +47,24 @@ import { getSharedProposalEngine } from "./proposal-api";
 /** Transport name owned by cap-adapter-server — its HTTP server is started directly by dev.ts. */
 const HTTP_TRANSPORT_NAME = "http";
 
+/**
+ * Env-gated transport disable list (comma-separated transport names). Lets a
+ * self-contained e2e (Spec 71 P5 §8) boot the dev server WITHOUT its
+ * auto-started UI/MCP child transports — so the e2e controls the UI port itself
+ * and there is no auto-vite-port drift or :3002 MCP collision. Empty/unset keeps
+ * the normal dev behavior (every transport starts).
+ */
+function disabledTransportNames(): Set<string> {
+  const raw = process.env.LINCHKIT_DEV_DISABLE_TRANSPORTS;
+  if (!raw) return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0),
+  );
+}
+
 /** Inputs needed to bridge the assembled dev runtime into a TransportContext. */
 export interface StartDevTransportsInput {
   /** Raw loaded config — used to build the ConfigRegistry transports read from. */
@@ -68,11 +86,15 @@ export interface StartDevTransportsInput {
 export function collectDevTransports(
   capabilities: CapabilityDefinition[],
 ): TransportAdapterDefinition[] {
+  const disabled = disabledTransportNames();
   const transports: TransportAdapterDefinition[] = [];
   for (const cap of capabilities) {
     if (!cap.extensions?.transports) continue;
     for (const transport of cap.extensions.transports) {
       if (transport.name === HTTP_TRANSPORT_NAME) continue;
+      // Env-disabled (e2e isolation) — skip so the e2e owns the UI port + no
+      // MCP :3002 collision when running alongside other instances.
+      if (disabled.has(transport.name)) continue;
       transports.push(transport);
     }
   }

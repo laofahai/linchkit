@@ -23,6 +23,12 @@ export type {
   Context,
   CustomEvent,
   DeveloperMessage,
+  // Human-in-the-loop (Spec 71 P5 §3.5): the agent-advertised capability shape
+  // (`{ supported, approvals, interventions, feedback, interrupts,
+  // approveWithEdits }`). The runner advertises this so a conformant AG-UI
+  // client can discover that this endpoint emits interrupt outcomes and accepts
+  // `resume[]`.
+  HumanInTheLoopCapabilities,
   InputContent,
   // Human-in-the-loop (Spec 71): interrupt/resume types. `Interrupt` and
   // `resume` here are the AG-UI HITL vocabulary — deliberately NOT the core
@@ -62,6 +68,10 @@ export type {
 export {
   ContextSchema,
   EventType,
+  // Human-in-the-loop capability schema (Spec 71 P5 §3.5) — the upstream zod-3
+  // schema the runner's advertised capability shape is validated against. Call
+  // its own `.safeParse`/`.parse`; never compose it into a local zod-4 schema.
+  HumanInTheLoopCapabilitiesSchema,
   // Human-in-the-loop (Spec 71) schemas — call THEIR `.safeParse`/`.parse`
   // directly (zod-3); never compose them into local zod-4 schemas.
   InterruptSchema,
@@ -77,10 +87,41 @@ export {
 
 import type {
   AGUIEvent,
+  HumanInTheLoopCapabilities,
   Interrupt,
   RunFinishedInterruptOutcome,
   RunFinishedSuccessOutcome,
 } from "@ag-ui/core";
+
+// ── Human-in-the-loop advertised capabilities (Spec 71 P5 §3.5) ──
+//
+// A conformant AG-UI client discovers an agent's HITL support via the
+// `HumanInTheLoopCapabilities` shape (`getCapabilities()` on `AbstractAgent`,
+// or — for this minimal stateless transport — a discovery surface). The
+// assistant runner participates in the AG-UI interrupt protocol: it emits
+// `RUN_FINISHED` with `outcome={ type:"interrupt", interrupts:[...] }` and
+// accepts `resume[]` carrying edited args (approve-with-edits). This constant is
+// the single canonical value the addon advertises; it is TYPED against the
+// upstream `HumanInTheLoopCapabilities` (so a 0.0.x reshape fails the build) and
+// VALIDATED against `HumanInTheLoopCapabilitiesSchema` at the discovery seam.
+//
+// Field rationale (mapped to the upstream doc comments):
+//  - supported        → the agent supports human-in-the-loop interaction.
+//  - approvals        → it pauses to request explicit approval before a
+//                       sensitive action (the proposeMutation → approval card).
+//  - interrupts       → it participates in the AG-UI interrupt protocol
+//                       (emits the interrupt outcome, accepts resume[]).
+//  - approveWithEdits → resume payloads may carry edited input (the card's
+//                       approve-with-edits, validated server-side §6.2).
+//  - interventions/feedback are NOT advertised: the assistant does not let a
+//    human rewrite its plan mid-execution, nor learn from thumbs up/down within
+//    a session — advertising them would over-promise (omitted = "not declared").
+export const ASSISTANT_HITL_CAPABILITIES: HumanInTheLoopCapabilities = {
+  supported: true,
+  approvals: true,
+  interrupts: true,
+  approveWithEdits: true,
+};
 
 // ── SSE framing (local — not provided by @ag-ui/core) ───────
 

@@ -31,6 +31,8 @@ export type {
   BaseEvent,
   Context,
   CustomEvent,
+  // Human-in-the-loop advertised capability shape (Spec 71 P5 §3.5).
+  HumanInTheLoopCapabilities,
   // Human-in-the-loop (Spec 71) interrupt/resume types.
   Interrupt,
   Message,
@@ -55,8 +57,11 @@ export type {
   ToolCallStartEvent,
 } from "./protocol";
 export {
+  // Human-in-the-loop advertised capability value + upstream schema (Spec 71 P5 §3.5).
+  ASSISTANT_HITL_CAPABILITIES,
   EventType,
   encodeSseEvent,
+  HumanInTheLoopCapabilitiesSchema,
   // Human-in-the-loop (Spec 71) schemas + outcome helpers.
   InterruptSchema,
   makeInterruptOutcome,
@@ -70,16 +75,21 @@ export {
 // Run endpoint (test seams: inject a fake AIService or a custom runner)
 export type {
   AgUiAgentRunner,
+  // HITL capability discovery response shape (Spec 71 P5 §3.5).
+  AgUiCapabilitiesResponse,
   AgUiEmit,
   AgUiRunDeps,
   AgUiRunHandler,
   AgUiRunHandlerContext,
 } from "./run-endpoint";
 export {
+  // HITL capability discovery surface (Spec 71 P5 §3.5).
+  buildAgUiCapabilities,
   createAgUiApp,
   createAgUiRunHandler,
   DEFAULT_AG_UI_BASE_PATH,
   makeRunFinishedEvent,
+  mountAgUiCapabilitiesRoute,
   mountAgUiRunRoute,
   toAiMessages,
   toAiTools,

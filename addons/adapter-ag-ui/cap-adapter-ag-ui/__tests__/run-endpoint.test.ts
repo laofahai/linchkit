@@ -98,6 +98,24 @@ const validInput = {
   context: [{ description: "current page", value: "/orders" }],
 };
 
+// ── HITL capability discovery route (Spec 71 P5 §3.5) ───────
+
+describe("GET /api/agui/capabilities", () => {
+  test("returns the advertised HITL capabilities (no AI/runner needed)", async () => {
+    // createAgUiApp mounts BOTH /run and /capabilities. The discovery surface
+    // has no AI dependency, so it answers even with no configured aiService.
+    const app = await createAgUiApp({});
+    const res = await app.handle(
+      new Request("http://local.test/api/agui/capabilities", { method: "GET" }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { humanInTheLoop: Record<string, unknown> };
+    expect(body.humanInTheLoop.interrupts).toBe(true);
+    expect(body.humanInTheLoop.approveWithEdits).toBe(true);
+    expect(body.humanInTheLoop.supported).toBe(true);
+  });
+});
+
 describe("POST /api/agui/run — availability", () => {
   test("returns the ai-api 503 contract when no AI service is injected", async () => {
     const app = await createAgUiApp({});

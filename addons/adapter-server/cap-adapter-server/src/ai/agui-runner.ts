@@ -347,6 +347,13 @@ export function buildProposeInterrupt(options: {
   interruptId?: string;
   /** Optional human-friendly action label for the card (§4.2 metadata). */
   actionLabel?: string;
+  /**
+   * The `IntentFieldSchema`-shaped editable-field schema the card renders
+   * (§4.2 / §4.4). When omitted the card falls back to read-only display of the
+   * proposed input. The runner derives this from the ontology so approve-with-
+   * edits (§8 step 4 — "edit price → 8.9") has editable fields to act on.
+   */
+  inputSchema?: Record<string, CardFieldSchema>;
 }): Interrupt {
   const {
     threadId,
@@ -356,6 +363,7 @@ export function buildProposeInterrupt(options: {
     store,
     approvalWindowMs = DEFAULT_APPROVAL_WINDOW_MS,
     actionLabel,
+    inputSchema,
   } = options;
   const now = options.now ?? Date.now();
   const interruptId = options.interruptId ?? crypto.randomUUID();
@@ -393,14 +401,99 @@ export function buildProposeInterrupt(options: {
     metadata: {
       action: proposal.action,
       proposedInput: proposal.input,
-      // The card's editable-field source (§4.4). P2a carries the raw proposed
-      // input shape; richer IntentFieldSchema labels/types come with the
-      // resolver wiring (§2.6) — kept minimal here.
-      inputSchema: {},
+      // The card's editable-field source (§4.4): an `IntentFieldSchema`-shaped
+      // map derived from the ontology (§4.2). Empty when the action/entity is
+      // unknown — the card then shows the proposal read-only (still approvable).
+      inputSchema: inputSchema ?? {},
       actionLabel: actionLabel ?? proposal.action,
       inputDigest,
     },
   };
+}
+
+/**
+ * The card-renderable field schema shape (mirrors the UI's `IntentFieldSchema`:
+ * `{ type, label?, required, options?, description? }`). Declared locally so the
+ * server adapter needs no UI-package import (module-boundary rule: server never
+ * imports ui). The card validates each entry defensively at the boundary
+ * (`agui-interrupt.ts` keeps only `{ type:string, required:boolean }` entries).
+ */
+export interface CardFieldSchema {
+  type: string;
+  label?: string;
+  required: boolean;
+  options?: Array<{ value: string; label?: string }>;
+  description?: string;
+}
+
+/**
+ * Derive the card's editable `inputSchema` for a proposed action from the
+ * ontology (§4.2 metadata). Maps each proposed-input key to the entity's field
+ * definition (type / label / required / enum options) so the `ActionProposalCard`
+ * renders real editable inputs — enabling approve-with-edits (§8 step 4). Returns
+ * `undefined` when no ontology / matching entity is available, so the caller
+ * falls back to a read-only card rather than fabricating a schema.
+ *
+ * Field selection: the UNION of the keys present in the proposed input and the
+ * entity's required fields — so the human sees every value they're approving
+ * AND any required field the model omitted (which they may need to fill in).
+ * System fields are excluded (server-managed, never client-settable).
+ */
+export function buildCardInputSchema(
+  options: ServerOptions,
+  action: string,
+  proposedInput: Record<string, unknown>,
+): Record<string, CardFieldSchema> | undefined {
+  const ontology = options.ontologyRegistry;
+  if (!ontology) return undefined;
+
+  // Server-managed system fields are never client-settable, so never editable.
+  const SYSTEM_FIELDS = new Set([
+    "id",
+    "tenant_id",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "updated_by",
+    "_version",
+  ]);
+
+  // Find the entity whose ontology lists this action (CRUD actions like
+  // `create_product` operate on the entity's own fields).
+  for (const name of ontology.listEntities()) {
+    const descriptor = ontology.describe(name);
+    if (!descriptor?.actions.some((a) => a.name === action)) continue;
+
+    const out: Record<string, CardFieldSchema> = {};
+    const keys = new Set<string>(Object.keys(proposedInput));
+    for (const [fieldName, field] of Object.entries(descriptor.fields)) {
+      if (field.required) keys.add(fieldName);
+    }
+
+    for (const key of keys) {
+      if (SYSTEM_FIELDS.has(key)) continue;
+      const field = descriptor.fields[key];
+      if (!field) {
+        // A proposed key with no entity field (e.g. a virtual input) still needs
+        // to be editable — render it as a plain required-false string.
+        out[key] = { type: "string", required: false };
+        continue;
+      }
+      const options =
+        field.type === "enum" && Array.isArray(field.options)
+          ? field.options.map((opt) => ({ value: String(opt.value), label: opt.label }))
+          : undefined;
+      out[key] = {
+        type: field.type,
+        required: field.required ?? false,
+        ...(field.label ? { label: field.label } : {}),
+        ...(field.description ? { description: field.description } : {}),
+        ...(options ? { options } : {}),
+      };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+  return undefined;
 }
 
 // ── Runner factory ──────────────────────────────────────────
@@ -425,6 +518,19 @@ export interface AssistantAgUiRunnerOptions {
   interruptStore?: InterruptStore;
   /** Approval window in ms (§9 risk 7). @default {@link DEFAULT_APPROVAL_WINDOW_MS} */
   approvalWindowMs?: number;
+  /**
+   * Test/e2e ONLY — override the model `streamText` calls with a deterministic
+   * stub (Spec 71 P5 §8 / "CI reliability"). When provided, the runner skips
+   * provider resolution (`resolveLanguageModel`) entirely and uses this model,
+   * so a browser e2e proving the UI render → click → resume → record chain does
+   * NOT depend on a live model deciding to call `proposeMutation`. NEVER set on
+   * a real deployment — it is wired only from an explicit test env flag at the
+   * boot seam (see routes/agui-api.ts). The value is a Vercel AI SDK
+   * `LanguageModel` (the same type `resolveLanguageModel` returns, generic
+   * `any` in the SDK), e.g. a `MockLanguageModelV3` from `ai/test`.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: Vercel AI SDK LanguageModel is generic `any` (matches resolveLanguageModel's own return).
+  modelOverride?: any;
 }
 
 /**
@@ -445,6 +551,7 @@ export function createAssistantAgUiRunner(
 ): AgUiAgentRunner {
   const interruptStore = hitl.interruptStore ?? defaultInterruptStore;
   const approvalWindowMs = hitl.approvalWindowMs ?? DEFAULT_APPROVAL_WINDOW_MS;
+  const modelOverride = hitl.modelOverride;
 
   return async ({ input, emit, signal, request }) => {
     const aiConfig = options.aiConfig;
@@ -507,7 +614,11 @@ export function createAssistantAgUiRunner(
     const { ANONYMOUS_ACTOR } = await import("../routes/shared");
 
     const assistantConfig = aiConfig.assistant;
-    const model = await resolveLanguageModel(aiConfig, assistantConfig?.model ?? "fast");
+    // P5 §8 / CI reliability: a test-injected deterministic model bypasses
+    // provider resolution so the browser e2e never depends on a live model
+    // choosing to call `proposeMutation`. Real deployments never set this.
+    const model =
+      modelOverride ?? (await resolveLanguageModel(aiConfig, assistantConfig?.model ?? "fast"));
 
     // Resolve actor for permission-aware tool calls.
     const actor =
@@ -642,6 +753,9 @@ export function createAssistantAgUiRunner(
           store: interruptStore,
           approvalWindowMs,
           actionLabel: actionLabelFor(options, proposal.action),
+          // Derive the card's editable-field schema from the ontology so the
+          // approval card renders real inputs (approve-with-edits — §8 step 4).
+          inputSchema: buildCardInputSchema(options, proposal.action, proposal.input),
         });
         const descriptor: AgUiInterruptDescriptor = { interrupts: [interrupt] };
         return descriptor;

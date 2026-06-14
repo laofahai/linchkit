@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  ASSISTANT_HITL_CAPABILITIES,
   EventType,
   encodeSseEvent,
+  HumanInTheLoopCapabilitiesSchema,
   type Interrupt,
   InterruptSchema,
   makeInterruptOutcome,
@@ -11,6 +13,7 @@ import {
   RunFinishedOutcomeSchema,
   SUCCESS_OUTCOME,
 } from "../src/protocol";
+import { buildAgUiCapabilities } from "../src/run-endpoint";
 
 /** A representative approval interrupt (Spec 71 §4.2). */
 function sampleInterrupt(): Interrupt {
@@ -303,5 +306,45 @@ describe("InterruptSchema (Spec 71 §3.2)", () => {
   test("rejects an interrupt missing the required reason", () => {
     const parsed = InterruptSchema.safeParse({ id: "int_3" });
     expect(parsed.success).toBe(false);
+  });
+});
+
+// ── Advertised HITL capabilities (Spec 71 P5 §3.5) ──────────
+
+describe("ASSISTANT_HITL_CAPABILITIES (Spec 71 P5 §3.5)", () => {
+  test("parses against the upstream HumanInTheLoopCapabilitiesSchema", () => {
+    // The whole point of advertising a typed shape: a conformant AG-UI client
+    // validates it against THIS upstream schema. If a 0.0.x reshape (or a wrong
+    // value) ever broke it, this would fail loudly.
+    const parsed = HumanInTheLoopCapabilitiesSchema.safeParse(ASSISTANT_HITL_CAPABILITIES);
+    expect(parsed.success).toBe(true);
+  });
+
+  test("advertises the interrupt-protocol flags the runner actually implements", () => {
+    // interrupts:true  → emits RUN_FINISHED outcome={type:"interrupt"} + accepts resume[].
+    // approveWithEdits → resume payloads may carry edited input (§6.2).
+    // approvals        → pauses for explicit approval (the proposeMutation card).
+    expect(ASSISTANT_HITL_CAPABILITIES.supported).toBe(true);
+    expect(ASSISTANT_HITL_CAPABILITIES.interrupts).toBe(true);
+    expect(ASSISTANT_HITL_CAPABILITIES.approveWithEdits).toBe(true);
+    expect(ASSISTANT_HITL_CAPABILITIES.approvals).toBe(true);
+  });
+
+  test("does NOT over-advertise interventions/feedback (omitted = not declared)", () => {
+    // The assistant does not let a human rewrite its plan mid-run, nor learn
+    // from in-session feedback — leaving these undeclared is honest.
+    expect(ASSISTANT_HITL_CAPABILITIES.interventions).toBeUndefined();
+    expect(ASSISTANT_HITL_CAPABILITIES.feedback).toBeUndefined();
+  });
+});
+
+describe("buildAgUiCapabilities — the discovery surface body (Spec 71 P5 §3.5)", () => {
+  test("returns the schema-validated HITL capabilities under humanInTheLoop", () => {
+    const body = buildAgUiCapabilities();
+    expect(body.humanInTheLoop.interrupts).toBe(true);
+    expect(body.humanInTheLoop.approveWithEdits).toBe(true);
+    // The body must itself validate against the upstream schema (it is the
+    // schema-stripped `parsed.data`, so it can never carry an unknown field).
+    expect(HumanInTheLoopCapabilitiesSchema.safeParse(body.humanInTheLoop).success).toBe(true);
   });
 });
