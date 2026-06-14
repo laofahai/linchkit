@@ -142,8 +142,17 @@ consoleLogger.info(
 // DATABASE_URL-backed provider was injected, so this is InMemory here by default.
 await wireAITraceSink({ dataProvider: runtime.dataProvider });
 
-const port = config.server?.port ?? 3001;
-const host = config.server?.host ?? "0.0.0.0";
+// Env overrides win over the config so a self-contained e2e (Spec 71 P5 §8) can
+// boot this dev server on an isolated port without clobbering a hand-run dev
+// server on the config default. `PORT` must be a valid number to take effect.
+const envPort = Number(process.env.PORT);
+// Accept only a whole number in the valid TCP range; anything else (decimal, 0,
+// >65535, NaN) safely falls back rather than failing later at listen(...).
+const port =
+  Number.isInteger(envPort) && envPort > 0 && envPort <= 65535
+    ? envPort
+    : (config.server?.port ?? 3001);
+const host = process.env.HOST || config.server?.host || "0.0.0.0";
 
 const server = createServer(graphqlSchema, {
   port,

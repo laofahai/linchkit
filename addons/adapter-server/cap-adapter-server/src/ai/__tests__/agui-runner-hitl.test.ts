@@ -21,11 +21,13 @@ import {
   EventType,
   InMemoryInterruptStore,
 } from "@linchkit/cap-adapter-ag-ui";
-import type { Actor, AIService } from "@linchkit/core";
+import type { Actor, AIService, EntityDescriptor, OntologyRegistry } from "@linchkit/core";
 import type { TextStreamPart, ToolSet } from "ai";
 import { stepCountIs, streamText } from "ai";
 import { convertArrayToReadableStream, MockLanguageModelV3 } from "ai/test";
+import type { ServerOptions } from "../../server";
 import {
+  buildCardInputSchema,
   buildProposeInterrupt,
   canonicalJson,
   computeInputDigest,
@@ -248,6 +250,106 @@ describe("buildProposeInterrupt", () => {
     expect(entry?.proposerActor).toEqual({ type: "human", id: "user-1" });
     expect(entry?.tenant).toBe("tenant-a");
     expect(entry?.inputDigest).toBe(meta.inputDigest as string);
+  });
+
+  test("carries an ontology-derived editable inputSchema on the interrupt (§4.2 / §4.4)", () => {
+    const store = new InMemoryInterruptStore();
+    const options = fakeServerOptionsWithProduct();
+    const inputSchema = buildCardInputSchema(options, "create_product", {
+      name: "Widget",
+      unit_price: 9.9,
+    });
+    const interrupt = buildProposeInterrupt({
+      threadId: "t1",
+      proposal: { action: "create_product", input: { name: "Widget", unit_price: 9.9 } },
+      proposerActor: HUMAN,
+      tenant: undefined,
+      store,
+      interruptId: "int-2",
+      inputSchema,
+    });
+    const meta = interrupt.metadata as { inputSchema: Record<string, { type: string }> };
+    // The card must get real editable fields (not the empty {} that would render
+    // a read-only card and block approve-with-edits — §8 step 4).
+    expect(meta.inputSchema.name?.type).toBe("string");
+    expect(meta.inputSchema.unit_price?.type).toBe("number");
+  });
+});
+
+// ── buildCardInputSchema (ontology → card field schema) ─────
+
+/** A tiny fake OntologyRegistry exposing a `product` entity + `create_product`. */
+function fakeServerOptionsWithProduct(): ServerOptions {
+  const descriptor = {
+    name: "product",
+    fields: {
+      id: { type: "string", required: false },
+      name: { type: "string", required: true, label: "Name" },
+      unit_price: { type: "number", required: false, label: "Unit price" },
+      status: {
+        type: "enum",
+        required: false,
+        options: [
+          { value: "active", label: "Active" },
+          { value: "inactive", label: "Inactive" },
+        ],
+      },
+    },
+    relations: [],
+    actions: [{ name: "create_product", entity: "product" }],
+    rules: [],
+    views: [],
+    flows: [],
+    handlers: [],
+    interfaces: [],
+  } as unknown as EntityDescriptor;
+
+  const ontology: Partial<OntologyRegistry> = {
+    listEntities: () => ["product"],
+    describe: (name: string) => (name === "product" ? descriptor : undefined),
+  };
+  return { ontologyRegistry: ontology as OntologyRegistry } as ServerOptions;
+}
+
+describe("buildCardInputSchema (ontology → card field schema)", () => {
+  test("maps proposed-input keys to entity field type / label / required", () => {
+    const schema = buildCardInputSchema(fakeServerOptionsWithProduct(), "create_product", {
+      name: "Widget",
+      unit_price: 9.9,
+    });
+    expect(schema?.name).toEqual({ type: "string", required: true, label: "Name" });
+    expect(schema?.unit_price).toEqual({ type: "number", required: false, label: "Unit price" });
+  });
+
+  test("includes required fields the model omitted, and excludes system fields", () => {
+    const schema = buildCardInputSchema(fakeServerOptionsWithProduct(), "create_product", {});
+    // `name` is required → surfaced even though the proposal omitted it.
+    expect(schema?.name?.required).toBe(true);
+    // `id` is a system field → never editable.
+    expect(schema?.id).toBeUndefined();
+  });
+
+  test("surfaces enum options for the card's select renderer", () => {
+    const schema = buildCardInputSchema(fakeServerOptionsWithProduct(), "create_product", {
+      status: "active",
+    });
+    expect(schema?.status?.type).toBe("enum");
+    expect(schema?.status?.options).toEqual([
+      { value: "active", label: "Active" },
+      { value: "inactive", label: "Inactive" },
+    ]);
+  });
+
+  test("returns undefined when no ontology is available (read-only card fallback)", () => {
+    expect(
+      buildCardInputSchema({} as ServerOptions, "create_product", { name: "x" }),
+    ).toBeUndefined();
+  });
+
+  test("returns undefined when no entity lists the action", () => {
+    expect(
+      buildCardInputSchema(fakeServerOptionsWithProduct(), "unknown_action", { name: "x" }),
+    ).toBeUndefined();
   });
 });
 

@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import puppeteer, { type Browser, type Page } from "puppeteer-core";
+import puppeteer, { type Browser, type BrowserContext, type Page } from "puppeteer-core";
 
 /** Base URL of the Vite dev UI (React SPA). */
 export const UI_URL = process.env.LINCHKIT_E2E_UI_URL ?? "http://localhost:3000";
@@ -66,20 +66,37 @@ export async function launchBrowser(): Promise<Browser> {
 /** A page plus the uncaught in-page errors collected while driving it. */
 export interface TrackedPage {
   page: Page;
+  /**
+   * The isolated browser context backing this page. Close it (not just the page)
+   * when done so the next test starts from clean per-origin storage.
+   */
+  context: BrowserContext;
   /** Uncaught exceptions thrown inside the page ('pageerror' events). */
   pageErrors: Error[];
 }
 
-/** Open a fresh page that records every uncaught in-page error. */
+/**
+ * Open a fresh page in its OWN incognito browser context that records every
+ * uncaught in-page error.
+ *
+ * Each call gets an isolated `BrowserContext` (separate cookies, localStorage,
+ * sessionStorage, service workers) rather than another tab on the shared default
+ * context. The assistant's `useChat`/transport persists conversation + chat-id
+ * state per origin, so a tab on the shared context would inherit the PREVIOUS
+ * test's client state — which silently breaks the next test's fresh run (its new
+ * interrupt card never renders). Isolated contexts make each test hermetic; the
+ * caller must `context.close()` (closes its pages) in a `finally`.
+ */
 export async function newTrackedPage(browser: Browser): Promise<TrackedPage> {
-  const page = await browser.newPage();
+  const context = await browser.createBrowserContext();
+  const page = await context.newPage();
   page.setDefaultTimeout(20_000);
   page.setDefaultNavigationTimeout(30_000);
   const pageErrors: Error[] = [];
   page.on("pageerror", (err) => {
     pageErrors.push(err instanceof Error ? err : new Error(String(err)));
   });
-  return { page, pageErrors };
+  return { page, context, pageErrors };
 }
 
 /** Format collected page errors for assertion messages. */

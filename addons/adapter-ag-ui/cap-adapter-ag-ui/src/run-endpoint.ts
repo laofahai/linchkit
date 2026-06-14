@@ -27,8 +27,11 @@ import type { Elysia } from "elysia";
 import {
   type AGUIEvent,
   type AgUiInterruptDescriptor,
+  ASSISTANT_HITL_CAPABILITIES,
   EventType,
   encodeSseEvent,
+  type HumanInTheLoopCapabilities,
+  HumanInTheLoopCapabilitiesSchema,
   makeInterruptOutcome,
   type RunAgentInput,
   RunAgentInputSchema,
@@ -413,9 +416,61 @@ export function mountAgUiRunRoute(app: Elysia, deps: AgUiRunDeps): Elysia {
   return app;
 }
 
+// ── HITL capability discovery surface (Spec 71 P5 §3.5) ─────
+//
+// The minimal transport (§9.2 decision: keep raw `run()`, no stateful
+// `AbstractAgent`) has no `getCapabilities()` protocol slot. The smallest
+// correct seam is therefore a tiny read-only discovery endpoint that returns
+// the agent-advertised `HumanInTheLoopCapabilities` shape, so a conformant
+// AG-UI client can discover — WITHOUT a run — that this endpoint participates in
+// the interrupt protocol (emits interrupt outcomes, accepts `resume[]`) and
+// supports approve-with-edits. The body is the canonical
+// {@link ASSISTANT_HITL_CAPABILITIES}, validated once at module init against the
+// upstream schema so a value/shape drift fails loudly rather than serving an
+// invalid capability descriptor.
+
+/** The capabilities the discovery endpoint advertises (Spec 71 P5 §3.5). */
+export interface AgUiCapabilitiesResponse {
+  /** Human-in-the-loop support — emits interrupt outcomes, accepts resume[]. */
+  humanInTheLoop: HumanInTheLoopCapabilities;
+}
+
+/**
+ * Build the advertised capabilities body. Validates the canonical HITL shape
+ * against the upstream `HumanInTheLoopCapabilitiesSchema` (zod-3, used directly)
+ * so an inconsistent constant fails at the source instead of being served.
+ */
+export function buildAgUiCapabilities(): AgUiCapabilitiesResponse {
+  const parsed = HumanInTheLoopCapabilitiesSchema.safeParse(ASSISTANT_HITL_CAPABILITIES);
+  if (!parsed.success) {
+    throw new Error(
+      `ASSISTANT_HITL_CAPABILITIES does not satisfy HumanInTheLoopCapabilitiesSchema: ${parsed.error.message}`,
+    );
+  }
+  // `parsed.data` is the schema-validated shape (strips unknown keys); return it
+  // so the wire body can never carry a field the upstream schema rejects.
+  return { humanInTheLoop: parsed.data };
+}
+
+/**
+ * Mount `GET <basePath>/capabilities` — the HITL discovery surface (§3.5).
+ * Static JSON, no AI/runner dependency: discovery must answer even when the AI
+ * provider is unconfigured (a client still needs to know the protocol shape).
+ */
+export function mountAgUiCapabilitiesRoute(
+  app: Elysia,
+  deps?: Pick<AgUiRunDeps, "basePath">,
+): Elysia {
+  const basePath = deps?.basePath ?? DEFAULT_AG_UI_BASE_PATH;
+  const body = buildAgUiCapabilities();
+  app.get(`${basePath}/capabilities`, () => body);
+  return app;
+}
+
 /** Build a standalone Elysia app serving only the AG-UI endpoints. */
 export async function createAgUiApp(deps: AgUiRunDeps): Promise<Elysia> {
   // Lazy import keeps elysia out of the capability-registration path.
   const { Elysia: ElysiaCtor } = await import("elysia");
-  return mountAgUiRunRoute(new ElysiaCtor(), deps);
+  const app = mountAgUiRunRoute(new ElysiaCtor(), deps);
+  return mountAgUiCapabilitiesRoute(app, deps);
 }
