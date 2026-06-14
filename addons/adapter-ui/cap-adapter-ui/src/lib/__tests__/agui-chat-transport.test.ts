@@ -8,12 +8,18 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { BaseEvent, RunAgentInput } from "@ag-ui/client";
+import type { Interrupt as AgUiInterrupt, BaseEvent, RunAgentInput } from "@ag-ui/client";
 import { EventType } from "@ag-ui/client";
 import type { UIMessage, UIMessageChunk } from "ai";
 import {
   AgUiChatTransport,
   type AgUiEventSource,
+  buildResumeAgentInput,
+  buildResumeEntries,
+  type InterruptResumeAnswer,
+  LK_INTERRUPT_DATA_CHUNK,
+  type LkInterruptChunkData,
+  PROPOSE_MUTATION_TOOLCALL_PREFIX,
   parseMaybeJson,
   serializeToolOutput,
   streamUiMessageChunks,
@@ -437,5 +443,271 @@ describe("toAgUiContext", () => {
     expect(toAgUiContext(undefined)).toEqual([]);
     expect(toAgUiContext({})).toEqual([]);
     expect(toAgUiContext({ locale: "en" })).toEqual([{ description: "locale", value: "en" }]);
+  });
+});
+
+// ── AG-UI HITL interrupt branch (Spec 71 §4.5) ──────────────
+
+/** A well-formed action-approval interrupt as the server emits it. */
+const SAMPLE_INTERRUPT: AgUiInterrupt = {
+  id: "int_1",
+  reason: "action.approval.required",
+  toolCallId: "lk:propose-mutation:int_1",
+  expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  metadata: {
+    action: "create_product",
+    proposedInput: { name: "Widget", price: 9.9 },
+    inputSchema: { name: { type: "string", required: true } },
+    actionLabel: "Create product",
+    inputDigest: "digest_abc",
+  },
+};
+
+describe("createAgUiChunkTranslator — interrupt branch", () => {
+  test("RUN_FINISHED with an interrupt outcome surfaces an interrupt chunk (not a plain finish)", async () => {
+    const chunks = await collect(
+      streamUiMessageChunks(
+        sourceOf([
+          RUN_STARTED,
+          ev({
+            type: EventType.RUN_FINISHED,
+            threadId: "t1",
+            runId: "r1",
+            outcome: { type: "interrupt", interrupts: [SAMPLE_INTERRUPT] },
+          }),
+        ]),
+      ),
+    );
+
+    // The interrupt chunk is emitted, carrying the interrupt id + metadata, and
+    // a finish still follows so the assistant turn terminates.
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toEqual({ type: "start" });
+    const interruptChunk = chunks[1] as {
+      type: string;
+      data: LkInterruptChunkData;
+      transient?: boolean;
+    };
+    expect(interruptChunk.type).toBe(LK_INTERRUPT_DATA_CHUNK);
+    expect(interruptChunk.transient).toBe(true);
+    expect(interruptChunk.data.interrupts).toHaveLength(1);
+    expect(interruptChunk.data.interrupts[0]?.id).toBe("int_1");
+    expect(interruptChunk.data.interrupts[0]?.metadata?.inputDigest).toBe("digest_abc");
+    expect(chunks[2]).toEqual({ type: "finish" });
+  });
+
+  test("a plain RUN_FINISHED (no outcome) still emits only a finish", async () => {
+    const chunks = await collect(streamUiMessageChunks(sourceOf([RUN_STARTED, RUN_FINISHED])));
+    expect(chunks).toEqual([{ type: "start" }, { type: "finish" }]);
+  });
+
+  test("a RUN_FINISHED with a success outcome still emits only a finish", async () => {
+    const chunks = await collect(
+      streamUiMessageChunks(
+        sourceOf([
+          RUN_STARTED,
+          ev({
+            type: EventType.RUN_FINISHED,
+            threadId: "t1",
+            runId: "r1",
+            outcome: { type: "success" },
+          }),
+        ]),
+      ),
+    );
+    expect(chunks).toEqual([{ type: "start" }, { type: "finish" }]);
+  });
+
+  test("an interrupt outcome with an empty interrupts list falls back to a plain finish", async () => {
+    const chunks = await collect(
+      streamUiMessageChunks(
+        sourceOf([
+          RUN_STARTED,
+          ev({
+            type: EventType.RUN_FINISHED,
+            threadId: "t1",
+            runId: "r1",
+            outcome: { type: "interrupt", interrupts: [] },
+          }),
+        ]),
+      ),
+    );
+    expect(chunks).toEqual([{ type: "start" }, { type: "finish" }]);
+  });
+});
+
+// ── Fallback reserved-prefix drop (Spec 71 §4.5) ────────────
+
+describe("createAgUiChunkTranslator — reserved-prefix tool-call drop", () => {
+  test("a stray lk:propose-mutation:* tool-call is dropped (no chunk)", async () => {
+    const strayId = `${PROPOSE_MUTATION_TOOLCALL_PREFIX}int_1`;
+    const chunks = await collect(
+      streamUiMessageChunks(
+        sourceOf([
+          RUN_STARTED,
+          ev({
+            type: EventType.TOOL_CALL_START,
+            toolCallId: strayId,
+            toolCallName: "proposeMutation",
+          }),
+          ev({ type: EventType.TOOL_CALL_ARGS, toolCallId: strayId, delta: '{"action":"x"}' }),
+          ev({ type: EventType.TOOL_CALL_END, toolCallId: strayId }),
+          RUN_FINISHED,
+        ]),
+      ),
+    );
+    // Only start + finish — every propose-mutation tool-call frame is suppressed
+    // stream-time as it arrives, so no tool bubble can render.
+    expect(chunks).toEqual([{ type: "start" }, { type: "finish" }]);
+  });
+
+  test("a normal tool-call id is still translated alongside a dropped propose-mutation one", async () => {
+    const strayId = `${PROPOSE_MUTATION_TOOLCALL_PREFIX}int_2`;
+    const chunks = await collect(
+      streamUiMessageChunks(
+        sourceOf([
+          RUN_STARTED,
+          ev({
+            type: EventType.TOOL_CALL_START,
+            toolCallId: strayId,
+            toolCallName: "proposeMutation",
+          }),
+          ev({ type: EventType.TOOL_CALL_START, toolCallId: "tc1", toolCallName: "queryRecords" }),
+          ev({ type: EventType.TOOL_CALL_ARGS, toolCallId: strayId, delta: '{"a":1}' }),
+          ev({ type: EventType.TOOL_CALL_ARGS, toolCallId: "tc1", delta: '{"entity":"order"}' }),
+          ev({ type: EventType.TOOL_CALL_END, toolCallId: strayId }),
+          ev({ type: EventType.TOOL_CALL_END, toolCallId: "tc1" }),
+          RUN_FINISHED,
+        ]),
+      ),
+    );
+    expect(chunks).toEqual([
+      { type: "start" },
+      { type: "tool-input-start", toolCallId: "tc1", toolName: "queryRecords" },
+      { type: "tool-input-delta", toolCallId: "tc1", inputTextDelta: '{"entity":"order"}' },
+      {
+        type: "tool-input-available",
+        toolCallId: "tc1",
+        toolName: "queryRecords",
+        input: { entity: "order" },
+      },
+      { type: "finish" },
+    ]);
+  });
+});
+
+// ── Resume round-trip RunAgentInput (Spec 71 §3.4 / §4.2) ────
+
+describe("buildResumeEntries + buildResumeAgentInput", () => {
+  test("a resolved answer produces a resume entry with { action, input, baseDigest }", () => {
+    const answers: Record<string, InterruptResumeAnswer> = {
+      int_1: {
+        status: "resolved",
+        payload: {
+          action: "create_product",
+          input: { name: "X", price: 8.9 },
+          baseDigest: "digest_abc",
+        },
+      },
+    };
+    const entries = buildResumeEntries([SAMPLE_INTERRUPT], answers);
+    expect(entries).toEqual([
+      {
+        interruptId: "int_1",
+        status: "resolved",
+        payload: {
+          action: "create_product",
+          input: { name: "X", price: 8.9 },
+          baseDigest: "digest_abc",
+        },
+      },
+    ]);
+  });
+
+  test("a cancelled answer produces a resume entry with no payload", () => {
+    const answers: Record<string, InterruptResumeAnswer> = {
+      int_1: { status: "cancelled" },
+    };
+    const entries = buildResumeEntries([SAMPLE_INTERRUPT], answers);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.interruptId).toBe("int_1");
+    expect(entries[0]?.status).toBe("cancelled");
+    expect(entries[0]?.payload).toBeUndefined();
+  });
+
+  test("buildResumeAgentInput threads resume + reuses the same threadId with a fresh runId", () => {
+    const messages: UIMessage[] = [
+      { id: "u1", role: "user", parts: [{ type: "text", text: "make X" }] },
+    ];
+    const resume = buildResumeEntries([SAMPLE_INTERRUPT], {
+      int_1: {
+        status: "resolved",
+        payload: { action: "create_product", input: { name: "X" }, baseDigest: "digest_abc" },
+      },
+    });
+    const input = buildResumeAgentInput({
+      threadId: "chat_1",
+      messages,
+      resume,
+      context: [{ description: "entity", value: "product" }],
+    });
+    expect(input.threadId).toBe("chat_1");
+    expect(typeof input.runId).toBe("string");
+    expect(input.runId.length).toBeGreaterThan(0);
+    expect(input.messages).toEqual([{ id: "u1", role: "user", content: "make X" }]);
+    expect(input.tools).toEqual([]);
+    expect(input.context).toEqual([{ description: "entity", value: "product" }]);
+    expect(input.resume).toEqual(resume);
+  });
+});
+
+// ── Transport.sendResume (DI seam) ──────────────────────────
+
+describe("AgUiChatTransport.sendResume", () => {
+  test("builds a resume RunAgentInput and streams the result back", async () => {
+    const inputs: RunAgentInput[] = [];
+    const transport = new AgUiChatTransport({
+      context: () => ({ entity: "product" }),
+      runAgent: (input) => {
+        inputs.push(input);
+        return sourceOf([
+          RUN_STARTED,
+          ev({
+            type: EventType.TOOL_CALL_RESULT,
+            messageId: "m1",
+            toolCallId: "lk:propose-mutation:int_1",
+            content: JSON.stringify({ success: true, action: "create_product", executionId: "e1" }),
+            role: "tool",
+          }),
+          RUN_FINISHED,
+        ]);
+      },
+    });
+
+    const stream = await transport.sendResume({
+      chatId: "chat_1",
+      messages: [{ id: "u1", role: "user", parts: [{ type: "text", text: "make X" }] }],
+      interrupts: [SAMPLE_INTERRUPT],
+      answers: {
+        int_1: {
+          status: "resolved",
+          payload: { action: "create_product", input: { name: "X" }, baseDigest: "digest_abc" },
+        },
+      },
+    });
+    const chunks = await collect(stream);
+
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]?.threadId).toBe("chat_1");
+    expect(inputs[0]?.resume).toEqual([
+      {
+        interruptId: "int_1",
+        status: "resolved",
+        payload: { action: "create_product", input: { name: "X" }, baseDigest: "digest_abc" },
+      },
+    ]);
+    // The server's TOOL_CALL_RESULT for the reserved id is translated to a
+    // tool-output chunk (the resume run's result reaches the chat).
+    expect(chunks.map((c) => c.type)).toEqual(["start", "tool-output-available", "finish"]);
   });
 });

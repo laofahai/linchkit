@@ -16,11 +16,14 @@
 
 import type {
   Context as AgUiContext,
+  Interrupt as AgUiInterrupt,
   Message as AgUiMessage,
   ToolCall as AgUiToolCall,
   BaseEvent,
+  ResumeEntry,
   RunAgentInput,
   RunErrorEvent,
+  RunFinishedEvent,
   TextMessageContentEvent,
   TextMessageEndEvent,
   TextMessageStartEvent,
@@ -29,7 +32,7 @@ import type {
   ToolCallResultEvent,
   ToolCallStartEvent,
 } from "@ag-ui/client";
-import { EventType, HttpAgent } from "@ag-ui/client";
+import { buildResumeArray, EventType, getRunOutcome, HttpAgent } from "@ag-ui/client";
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 import { getToolName, isToolUIPart } from "ai";
 import { getDevRoleHeaders } from "./dev-role";
@@ -189,6 +192,41 @@ export function toAgUiMessages(messages: UIMessage[]): AgUiMessage[] {
 
 // ── AG-UI events → UIMessageChunk ────────────────────────────
 
+// ── AG-UI HITL interrupt surfacing (Spec 71 §4.5) ────────────
+
+/**
+ * Reserved tool-call id prefix for the execute-less `proposeMutation` tool
+ * (Spec 71 §4.5). P2 source-suppresses these frames server-side, so in
+ * practice none reach the translator. The prefix is the contingency sentinel
+ * the translator matches synchronously — as each `TOOL_CALL_*` chunk arrives,
+ * NEVER retroactively against `interrupt.toolCallId` — to drop any stray
+ * propose-mutation tool bubble (belt-and-suspenders defense-in-depth).
+ */
+export const PROPOSE_MUTATION_TOOLCALL_PREFIX = "lk:propose-mutation:";
+
+/**
+ * `data-*` chunk name carrying an AG-UI HITL interrupt to the assistant
+ * component. `useChat` delivers `data-*` chunks to its `onData` callback; the
+ * assistant reads this one to surface an `ActionProposalCard`. Marked
+ * `transient` on emit so the signal never persists into message parts — it is
+ * a side-channel, not chat content.
+ *
+ * Naming note (Spec 71 §3.6): this is the AG-UI `Interrupt`/`resume`
+ * vocabulary, deliberately NOT the core `ProposalEngine` graduation vocabulary.
+ */
+export const LK_INTERRUPT_DATA_CHUNK = "data-lk-interrupt" as const;
+
+/** Payload of the {@link LK_INTERRUPT_DATA_CHUNK} chunk. */
+export interface LkInterruptChunkData {
+  /** The open interrupts the run finished on (outcome.type === "interrupt"). */
+  interrupts: AgUiInterrupt[];
+}
+
+/** True when a tool-call id carries the reserved propose-mutation sentinel. */
+function isProposeMutationToolCall(toolCallId: string): boolean {
+  return toolCallId.startsWith(PROPOSE_MUTATION_TOOLCALL_PREFIX);
+}
+
 /**
  * Decode a tool output/args string. Symmetric counterpart of
  * {@link serializeToolOutput}: JSON-parse, falling back to the raw string
@@ -229,11 +267,17 @@ export function createAgUiChunkTranslator(): (event: BaseEvent) => UIMessageChun
       }
       case EventType.TOOL_CALL_START: {
         const e = event as ToolCallStartEvent;
+        // Fallback synchronous reserved-prefix drop (§4.5): if a stray
+        // propose-mutation tool-call ever leaks past P2's source suppression,
+        // drop it here as it arrives — never register/translate it, so no tool
+        // bubble can render. Matched stream-time on the id sentinel only.
+        if (isProposeMutationToolCall(e.toolCallId)) return [];
         toolCalls.set(e.toolCallId, { toolName: e.toolCallName, argsText: "" });
         return [{ type: "tool-input-start", toolCallId: e.toolCallId, toolName: e.toolCallName }];
       }
       case EventType.TOOL_CALL_ARGS: {
         const e = event as ToolCallArgsEvent;
+        if (isProposeMutationToolCall(e.toolCallId)) return [];
         const call = toolCalls.get(e.toolCallId);
         if (!call) return [];
         call.argsText += e.delta;
@@ -241,6 +285,7 @@ export function createAgUiChunkTranslator(): (event: BaseEvent) => UIMessageChun
       }
       case EventType.TOOL_CALL_END: {
         const e = event as ToolCallEndEvent;
+        if (isProposeMutationToolCall(e.toolCallId)) return [];
         const call = toolCalls.get(e.toolCallId);
         if (!call) return [];
         const parsed = call.argsText.length > 0 ? parseMaybeJson(call.argsText) : {};
@@ -263,8 +308,21 @@ export function createAgUiChunkTranslator(): (event: BaseEvent) => UIMessageChun
           },
         ];
       }
-      case EventType.RUN_FINISHED:
+      case EventType.RUN_FINISHED: {
+        // Interrupt branch (§4.5): a run that finished on an interrupt outcome
+        // must NOT just `finish` — it surfaces the open interrupt(s) to the
+        // assistant component via a transient `data-*` chunk so the existing
+        // `ActionProposalCard` can render and an Approve/Cancel resume round-
+        // trip can answer it. `getRunOutcome` from @ag-ui/client does the
+        // parsing. A plain (success / no-outcome) finish stays exactly as
+        // before. The `finish` still follows so the assistant turn terminates.
+        const outcome = getRunOutcome(event as RunFinishedEvent);
+        if (outcome?.type === "interrupt" && outcome.interrupts.length > 0) {
+          const data: LkInterruptChunkData = { interrupts: outcome.interrupts };
+          return [{ type: LK_INTERRUPT_DATA_CHUNK, data, transient: true }, { type: "finish" }];
+        }
         return [{ type: "finish" }];
+      }
       case EventType.RUN_ERROR: {
         const e = event as RunErrorEvent;
         return [{ type: "error", errorText: e.message }];
@@ -364,6 +422,73 @@ export function toAgUiContext(context: AgUiPageContext | undefined): AgUiContext
   return entries;
 }
 
+// ── Resume round-trip (Spec 71 §3.4 / §4.2) ──────────────────
+
+/**
+ * One human answer to an open interrupt, addressed by interrupt id. Wraps the
+ * official `ResumeResponse` shape from `@ag-ui/client`:
+ *  - `resolved` → the Approve payload `{ action, input, baseDigest }` (§4.2).
+ *    `action` is the (possibly swapped) action the human approved, constrained
+ *    server-side to the interrupt's offered set; `input` is the edited input;
+ *    `baseDigest` echoes the interrupt's `metadata.inputDigest` (anti-TOCTOU).
+ *  - `cancelled` → no payload (the run finishes with no write).
+ */
+export type InterruptResumeAnswer =
+  | {
+      status: "resolved";
+      payload: { action: string; input: Record<string, unknown>; baseDigest: string };
+    }
+  | { status: "cancelled" };
+
+/**
+ * Build the `resume[]` array for the next `RunAgentInput` from the open
+ * interrupts and a per-interrupt-id answer map, via the official
+ * `buildResumeArray` helper (so the `ResumeEntry` shape tracks the protocol).
+ * Exported for unit testing the resume payload.
+ */
+export function buildResumeEntries(
+  interrupts: AgUiInterrupt[],
+  answers: Record<string, InterruptResumeAnswer>,
+): ResumeEntry[] {
+  return buildResumeArray(interrupts, answers);
+}
+
+/** Options for {@link AgUiChatTransport.sendResume}. */
+export interface SendResumeOptions {
+  /** Conversation thread — MUST match the run that emitted the interrupt(s). */
+  chatId: string;
+  /** Conversation history to re-send with the resume run. */
+  messages: UIMessage[];
+  /** The open interrupts being answered. */
+  interrupts: AgUiInterrupt[];
+  /** Per-interrupt-id answers (resolved/cancelled). */
+  answers: Record<string, InterruptResumeAnswer>;
+  abortSignal?: AbortSignal;
+}
+
+/**
+ * Build the resume `RunAgentInput` (run B): same `threadId`, a fresh `runId`,
+ * the history, and `resume: ResumeEntry[]` answering every open interrupt
+ * (§3.4). Exported as a pure helper for unit testing.
+ */
+export function buildResumeAgentInput(args: {
+  threadId: string;
+  messages: UIMessage[];
+  resume: ResumeEntry[];
+  context: AgUiContext[];
+}): RunAgentInput {
+  return {
+    threadId: args.threadId,
+    runId: crypto.randomUUID(),
+    messages: toAgUiMessages(args.messages),
+    tools: [],
+    context: args.context,
+    state: {},
+    forwardedProps: {},
+    resume: args.resume,
+  };
+}
+
 /**
  * `ChatTransport` implementation speaking the AG-UI protocol via the
  * official `@ag-ui/client` HttpAgent.
@@ -392,6 +517,26 @@ export class AgUiChatTransport<UI_MESSAGE extends UIMessage = UIMessage>
       forwardedProps: {},
     };
 
+    const source = this.runAgentFn(input, { abortSignal: options.abortSignal });
+    return streamUiMessageChunks(source);
+  };
+
+  /**
+   * Answer open interrupt(s) — the HITL Approve/Cancel round-trip (run B,
+   * §4.1). Sends the same `threadId`, a fresh `runId`, and
+   * `resume: ResumeEntry[]`, then streams the result back as `UIMessageChunk`s
+   * (the server emits a `TOOL_CALL_RESULT` on a successful resolved resume).
+   * This is the resume entry point — parallel to {@link sendMessages}, not a
+   * `reconnectToStream` (the run already finished; resume is a new run).
+   */
+  sendResume = async (options: SendResumeOptions): Promise<ReadableStream<UIMessageChunk>> => {
+    const resume = buildResumeEntries(options.interrupts, options.answers);
+    const input = buildResumeAgentInput({
+      threadId: options.chatId,
+      messages: options.messages,
+      resume,
+      context: toAgUiContext(this.contextFn?.()),
+    });
     const source = this.runAgentFn(input, { abortSignal: options.abortSignal });
     return streamUiMessageChunks(source);
   };

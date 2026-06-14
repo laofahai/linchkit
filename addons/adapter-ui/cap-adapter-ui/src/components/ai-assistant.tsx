@@ -24,6 +24,8 @@
  *    follow-up — see issue link in the PR for #238.
  */
 
+import type { Interrupt as AgUiInterrupt } from "@ag-ui/client";
+import { isInterruptExpired } from "@ag-ui/client";
 import { useChat } from "@ai-sdk/react";
 import {
   Badge,
@@ -35,12 +37,20 @@ import {
   toast,
 } from "@linchkit/ui-kit/components";
 import { useParams } from "@tanstack/react-router";
-import type { UIMessage } from "ai";
+import type { UIMessage, UIMessageChunk } from "ai";
 import { BotIcon, Loader2Icon, SendIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ActionResult } from "../lib/action-api";
 import { AgUiChatTransport } from "../lib/agui-chat-transport";
+import {
+  type ActionApprovalMetadata,
+  buildApproveAnswer,
+  buildCancelAnswer,
+  interruptToIntent,
+  readActionApprovalMetadata,
+  readInterruptChunk,
+} from "../lib/agui-interrupt";
 import {
   type IntentResolution,
   type ResolveIntentResult,
@@ -72,12 +82,54 @@ interface SchemaProposalItem {
   draft: SchemaIntentDraft;
 }
 
+/**
+ * An open AG-UI HITL interrupt surfaced by the transport (Spec 71 §4.4) — the
+ * native write-governance path, ADDED ALONGSIDE the `resolveIntent` side
+ * channel (P4 dismantles the side channel, not this). Holds the raw interrupt
+ * (for the `resume[]` round-trip + `isInterruptExpired` gating) and its
+ * validated action-approval metadata (the `ActionProposalCard` source).
+ */
+interface PendingInterruptItem {
+  interrupt: AgUiInterrupt;
+  meta: ActionApprovalMetadata;
+}
+
 function createTextMessage(role: "user" | "assistant", text: string): UIMessage {
   return {
     id: crypto.randomUUID(),
     role,
     parts: [{ type: "text", text }],
   };
+}
+
+/**
+ * Summarize the server's resume `TOOL_CALL_RESULT` (`lk:propose-mutation:<id>`)
+ * into a one-line assistant message when the resume run streamed no text of its
+ * own. The payload shape is the server contract (§4.1): `{ success, action,
+ * executionId, data }` or `{ success:false, action, error }`.
+ */
+export function summarizeResumeResult(
+  result: unknown,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (!result || typeof result !== "object") return "";
+  const r = result as { success?: unknown; action?: unknown; error?: unknown };
+  const action = typeof r.action === "string" ? r.action : "";
+  if (r.success === false) {
+    const reason = typeof r.error === "string" ? r.error : t("ai.actionExecFailed");
+    return t("ai.actionFailedNamed", {
+      action,
+      reason,
+      defaultValue: `Failed to run ${action || "the action"}: ${reason}`,
+    });
+  }
+  if (r.success === true) {
+    return t("ai.actionSucceededNamed", {
+      action,
+      defaultValue: `Done — ran ${action || "the action"}.`,
+    });
+  }
+  return "";
 }
 
 // ── Intent routing decision ──────────────────────────────
@@ -170,6 +222,9 @@ export function AIAssistant({
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
   // Pending schema-change drafts from schema-intent resolution (4th channel).
   const [schemaProposals, setSchemaProposals] = useState<SchemaProposalItem[]>([]);
+  // Open AG-UI HITL interrupts surfaced by the transport (Spec 71 §4.4) — the
+  // native write-governance path, additive to the side channel above.
+  const [pendingInterrupts, setPendingInterrupts] = useState<PendingInterruptItem[]>([]);
   const [isResolvingIntent, setIsResolvingIntent] = useState(false);
 
   // AG-UI transport (#89) — same assistant brain as /api/ai/chat, but over
@@ -189,14 +244,52 @@ export function AIAssistant({
   );
 
   // Vercel AI SDK useChat — manages conversation history, streaming, and tool calls
-  const { messages, setMessages, sendMessage, status, error, stop } = useChat({
+  const {
+    id: chatId,
+    messages,
+    setMessages,
+    sendMessage,
+    status,
+    error,
+    stop,
+  } = useChat({
     transport,
     onError: (err) => {
       console.error("[AI Assistant] Error:", err);
     },
+    // Spec 71 §4.5 — the transport surfaces an interrupt outcome as a transient
+    // `data-lk-interrupt` chunk; pick it up here, validate each interrupt's
+    // action-approval metadata, and queue it for the ActionProposalCard.
+    onData: (part) => {
+      const interrupts = readInterruptChunk(part);
+      if (!interrupts) return;
+      // Defensively dedupe by interrupt id — a stream reconnect / buffering could
+      // re-deliver the same interrupt chunk, which would otherwise render a
+      // duplicate card for the same pending approval.
+      setPendingInterrupts((prev) => {
+        const seen = new Set(prev.map((p) => p.interrupt.id));
+        const next = [...prev];
+        for (const interrupt of interrupts) {
+          if (seen.has(interrupt.id)) continue;
+          const meta = readActionApprovalMetadata(interrupt);
+          if (!meta) continue;
+          next.push({ interrupt, meta });
+          seen.add(interrupt.id);
+        }
+        return next.length === prev.length ? prev : next;
+      });
+    },
   });
 
   const isLoading = status === "submitted" || status === "streaming";
+
+  // Fresh-value refs so the memoized resume handlers can read the current
+  // chatId + history without re-creating (and thus re-rendering the cards) on
+  // every keystroke / message append.
+  const chatIdRef = useRef(chatId);
+  const messagesRef = useRef(messages);
+  chatIdRef.current = chatId;
+  messagesRef.current = messages;
 
   // Auto-scroll to bottom when messages or proposals change
   // biome-ignore lint/correctness/useExhaustiveDependencies: messages and proposals are triggers, not deps used inside
@@ -204,7 +297,7 @@ export function AIAssistant({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, proposals, schemaProposals]);
+  }, [messages, proposals, schemaProposals, pendingInterrupts]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -236,6 +329,98 @@ export function AIAssistant({
   const handleSchemaProposalRemove = useCallback((id: string) => {
     setSchemaProposals((prev) => prev.filter((p) => p.id !== id));
   }, []);
+
+  // ── HITL interrupt resume (Spec 71 §4.1, run B) ──
+  //
+  // Drain the resume run's stream and surface a concise assistant message from
+  // the server's `TOOL_CALL_RESULT` (`lk:propose-mutation:<id>` toolCallId) or
+  // any streamed text. The card is dismissed regardless once the resume run
+  // completes — the run is one-shot server-side (§6.7).
+  const drainResumeStream = useCallback(
+    async (stream: ReadableStream<UIMessageChunk>) => {
+      let textOut = "";
+      let toolResult: unknown;
+      let streamError: string | undefined;
+      const reader = stream.getReader();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value.type === "text-delta") textOut += value.delta;
+          else if (value.type === "tool-output-available") toolResult = value.output;
+          else if (value.type === "error")
+            streamError = value.errorText || "Action execution failed";
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      // A server-side failure must NOT silently complete as success (which would
+      // dismiss the card and tell the user the action ran). Surface it by
+      // throwing so the card's onApprove catch shows the message and keeps the
+      // card mounted for retry. Two failure shapes: a stream `error` chunk, and a
+      // TOOL_CALL_RESULT carrying `success:false` (the §6.4 CommandLayer-denied
+      // path, which arrives as a normal tool result, not an error chunk).
+      if (streamError) throw new Error(streamError);
+      const tr = toolResult as { success?: boolean; error?: string } | undefined;
+      if (tr && tr.success === false) throw new Error(tr.error || "Action execution failed");
+      const summary = textOut.trim() || summarizeResumeResult(toolResult, t);
+      if (summary) setMessages((prev) => [...prev, createTextMessage("assistant", summary)]);
+    },
+    [setMessages, t],
+  );
+
+  // Approve an interrupt: build the resolved `resume[]` (`{ action, input,
+  // baseDigest }`) and send run B. The model never writes directly — the
+  // server executes the approved action through CommandLayer on resume.
+  const handleInterruptApprove = useCallback(
+    async (
+      item: PendingInterruptItem,
+      resume: { action: string; input: Record<string, unknown> },
+    ) => {
+      // Do NOT remove the card up front: it must stay mounted so the card's own
+      // `executing` state is visible and a failure (thrown by drainResumeStream)
+      // propagates to the card's onApprove catch to display the error + allow
+      // retry. The card is dismissed ONLY after the resume run completes cleanly.
+      const answer = buildApproveAnswer({
+        action: resume.action,
+        input: resume.input,
+        inputDigest: item.meta.inputDigest,
+      });
+      const stream = await transport.sendResume({
+        chatId: chatIdRef.current,
+        messages: messagesRef.current,
+        interrupts: [item.interrupt],
+        answers: { [item.interrupt.id]: answer },
+      });
+      await drainResumeStream(stream); // throws on a server-side failure
+      setPendingInterrupts((prev) => prev.filter((p) => p.interrupt.id !== item.interrupt.id));
+    },
+    [transport, drainResumeStream],
+  );
+
+  // Cancel an interrupt: send a `cancelled` resume (no payload) so the server
+  // finishes the run with no write, then drop the card.
+  const handleInterruptCancel = useCallback(
+    async (item: PendingInterruptItem) => {
+      try {
+        const stream = await transport.sendResume({
+          chatId: chatIdRef.current,
+          messages: messagesRef.current,
+          interrupts: [item.interrupt],
+          answers: { [item.interrupt.id]: buildCancelAnswer() },
+        });
+        await drainResumeStream(stream);
+      } catch (err) {
+        console.error("[AI Assistant] interrupt cancel failed:", err);
+      } finally {
+        // A cancel has no write to recover, so the card is ALWAYS dismissed —
+        // whether the cancel run succeeded or errored — but only after the run
+        // completes (so the card doesn't vanish before the request is sent).
+        setPendingInterrupts((prev) => prev.filter((p) => p.interrupt.id !== item.interrupt.id));
+      }
+    },
+    [transport, drainResumeStream],
+  );
 
   // Use an uncontrolled input approach since useChat v6 doesn't have handleInputChange
   const handleSend = useCallback(async () => {
@@ -342,6 +527,7 @@ export function AIAssistant({
     setMessages([]);
     setProposals([]);
     setSchemaProposals([]);
+    setPendingInterrupts([]);
   }, [setMessages]);
 
   return (
@@ -366,7 +552,10 @@ export function AIAssistant({
                   <Loader2Icon className="size-3.5 animate-spin" />
                 </Button>
               )}
-              {(messages.length > 0 || proposals.length > 0 || schemaProposals.length > 0) && (
+              {(messages.length > 0 ||
+                proposals.length > 0 ||
+                schemaProposals.length > 0 ||
+                pendingInterrupts.length > 0) && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -392,31 +581,34 @@ export function AIAssistant({
         {/* Messages area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-3 py-4">
-            {messages.length === 0 && proposals.length === 0 && schemaProposals.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground">
-                <BotIcon className="size-10 opacity-30" />
-                <p className="text-sm">{t("ai.welcomeMessage")}</p>
-                <div className="flex flex-wrap justify-center gap-1.5">
-                  {[t("ai.quickPrompt1"), t("ai.quickPrompt2"), t("ai.quickPrompt3")].map(
-                    (prompt) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
-                        onClick={() => {
-                          if (inputRef.current) {
-                            inputRef.current.value = prompt;
-                            inputRef.current.focus();
-                          }
-                        }}
-                      >
-                        {prompt}
-                      </button>
-                    ),
-                  )}
+            {messages.length === 0 &&
+              proposals.length === 0 &&
+              schemaProposals.length === 0 &&
+              pendingInterrupts.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-muted-foreground">
+                  <BotIcon className="size-10 opacity-30" />
+                  <p className="text-sm">{t("ai.welcomeMessage")}</p>
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    {[t("ai.quickPrompt1"), t("ai.quickPrompt2"), t("ai.quickPrompt3")].map(
+                      (prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
+                          onClick={() => {
+                            if (inputRef.current) {
+                              inputRef.current.value = prompt;
+                              inputRef.current.focus();
+                            }
+                          }}
+                        >
+                          {prompt}
+                        </button>
+                      ),
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
@@ -451,6 +643,36 @@ export function AIAssistant({
                 </div>
               </div>
             ))}
+
+            {/* AG-UI HITL interrupt cards (Spec 71 §4.4) — the native write-
+                governance path. Reuses the SAME ActionProposalCard, fed from
+                the interrupt's metadata; Approve raises onApprove → resume[]
+                round-trip (no direct executeAction). The Approve affordance is
+                gated by isInterruptExpired: an expired interrupt renders a
+                read-only notice instead of an actionable card (a late resume is
+                rejected server-side anyway, §5/§6.7). */}
+            {pendingInterrupts.map((item) =>
+              isInterruptExpired(item.interrupt) ? (
+                <div key={item.interrupt.id} className="flex justify-start">
+                  <div className="w-full max-w-[95%] rounded-lg border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                    {t("ai.interruptExpired", {
+                      action: item.meta.actionLabel,
+                      defaultValue: `This approval for "${item.meta.actionLabel}" expired.`,
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div key={item.interrupt.id} className="flex justify-start">
+                  <div className="w-full max-w-[95%]">
+                    <ActionProposalCard
+                      intent={interruptToIntent(item.meta)}
+                      onApprove={(resume) => handleInterruptApprove(item, resume)}
+                      onCancel={() => handleInterruptCancel(item)}
+                    />
+                  </div>
+                </div>
+              ),
+            )}
 
             {/* Error display */}
             {error && (

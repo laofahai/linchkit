@@ -30,10 +30,28 @@ import type { IntentAlternative, IntentFieldSchema, IntentResolution } from "../
 
 export type ProposalStatus = "pending" | "executing" | "success" | "error" | "cancelled";
 
+/** Payload raised to {@link ActionProposalCardProps.onApprove}. */
+export interface ApproveResume {
+  /** The (possibly swapped) action the human approved. */
+  action: string;
+  /** The edited input the human approved. */
+  input: Record<string, unknown>;
+}
+
 export interface ActionProposalCardProps {
   intent: IntentResolution;
   onComplete?: (result: ActionResult) => void;
   onCancel?: () => void;
+  /**
+   * Interrupt-sourced approval hook (Spec 71 §4.4). When present, the card is
+   * driven by an AG-UI HITL interrupt: Execute raises `onApprove({ action,
+   * input })` (the parent threads it into a `resume[]` round-trip) INSTEAD of
+   * calling `executeAction` directly. When ABSENT, the card keeps its original
+   * side-channel behavior — Execute calls `executeAction` (the #238 path,
+   * removed only in P4). This is the sole discriminator between the two
+   * sources; the rest of the component is identical.
+   */
+  onApprove?: (resume: ApproveResume) => Promise<void> | void;
 }
 
 /** Maximum number of alternatives to render in the "Did you mean" section. */
@@ -254,7 +272,12 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
 
 // ── Main component ──────────────────────────────────────
 
-export function ActionProposalCard({ intent, onComplete, onCancel }: ActionProposalCardProps) {
+export function ActionProposalCard({
+  intent,
+  onComplete,
+  onCancel,
+  onApprove,
+}: ActionProposalCardProps) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<ProposalStatus>("pending");
   // Track current intent in state so alternatives can be swapped into the
@@ -285,6 +308,22 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
     setStatus("executing");
     setErrorMessage(null);
 
+    // Interrupt-sourced (§4.4): raise the approval to the parent, which threads
+    // it into a `resume[]` round-trip — the model never writes directly, and
+    // the card never calls `executeAction` itself. The parent owns the result
+    // (it arrives on the resume run's stream), so we leave the card in
+    // `executing` and let the parent dismiss it.
+    if (onApprove) {
+      try {
+        await onApprove({ action: currentIntent.action, input: editedInput });
+      } catch (err) {
+        setStatus("error");
+        setErrorMessage(err instanceof Error ? err.message : t("ai.actionExecFailed"));
+      }
+      return;
+    }
+
+    // Side-channel (#238) — unchanged: execute the action directly.
     try {
       const actionResult = await executeAction(currentIntent.action, editedInput);
       setResult(actionResult);
@@ -301,7 +340,7 @@ export function ActionProposalCard({ intent, onComplete, onCancel }: ActionPropo
       setStatus("error");
       setErrorMessage(err instanceof Error ? err.message : t("ai.actionExecFailed"));
     }
-  }, [currentIntent.action, editedInput, onComplete, t]);
+  }, [currentIntent.action, editedInput, onApprove, onComplete, t]);
 
   const handleCancel = useCallback(() => {
     setStatus("cancelled");
