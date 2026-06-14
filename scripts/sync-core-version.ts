@@ -29,12 +29,15 @@ async function discoverCapabilityPackages(root: string): Promise<CapabilityPkg[]
     "addons/adapter-ui/cap-adapter-ui/ui-kit/package.json",
   ];
 
+  const seen = new Set<string>();
   const results: CapabilityPkg[] = [];
 
   for (const pattern of patterns) {
     const glob = new Glob(pattern);
     for await (const match of glob.scan({ cwd: root })) {
       const pkgPath = resolve(root, match);
+      if (seen.has(pkgPath)) continue;
+      seen.add(pkgPath);
       const pkg = (await Bun.file(pkgPath).json()) as Record<string, unknown>;
       results.push({
         name: typeof pkg.name === "string" ? pkg.name : match,
@@ -69,7 +72,10 @@ export async function syncCoreVersions(opts: { checkOnly: boolean; root?: string
     const linchkitBlock =
       typeof pkg.linchkit === "object" && pkg.linchkit !== null
         ? { ...(pkg.linchkit as Record<string, unknown>) }
-        : ({} as Record<string, unknown>);
+        : null;
+
+    // No linchkit block at all — not our job to create one; skip.
+    if (linchkitBlock === null) continue;
 
     if (linchkitBlock.coreVersion === peerCore) continue;
 

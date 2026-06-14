@@ -154,6 +154,39 @@ describe("sync-core-version script", () => {
     }
   });
 
+  test("sync mode skips packages with no linchkit block (does not create one)", async () => {
+    const root = makeFakeMonorepo();
+    writeCapabilityPkg(root, "addons/auth/cap-auth", {
+      name: "@linchkit/cap-auth",
+      version: "1.0.0",
+      peerDependencies: { "@linchkit/core": "^0.3.0" },
+      // intentionally no linchkit block
+    });
+
+    const { stdout, exit } = await runScript(root);
+    expect(exit).toBe(0);
+    expect(stdout).toContain("already in sync");
+
+    const unchanged = (await Bun.file(
+      join(root, "addons/auth/cap-auth/package.json"),
+    ).json()) as Record<string, unknown>;
+    expect(unchanged.linchkit).toBeUndefined();
+  });
+
+  test("--check exits 0 and does not report packages with no linchkit block", async () => {
+    const root = makeFakeMonorepo();
+    writeCapabilityPkg(root, "addons/auth/cap-auth", {
+      name: "@linchkit/cap-auth",
+      version: "1.0.0",
+      peerDependencies: { "@linchkit/core": "^0.3.0" },
+      // intentionally no linchkit block
+    });
+
+    const { stdout, exit } = await runScript(root, ["--check"]);
+    expect(exit).toBe(0);
+    expect(stdout).toContain("in sync");
+  });
+
   test("--check exits 1 and reports multiple drifted packages", async () => {
     const root = makeFakeMonorepo();
     writeCapabilityPkg(root, "addons/auth/cap-auth", {
