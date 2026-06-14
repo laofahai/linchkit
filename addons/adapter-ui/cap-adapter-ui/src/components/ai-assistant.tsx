@@ -263,12 +263,21 @@ export function AIAssistant({
     onData: (part) => {
       const interrupts = readInterruptChunk(part);
       if (!interrupts) return;
-      const items: PendingInterruptItem[] = [];
-      for (const interrupt of interrupts) {
-        const meta = readActionApprovalMetadata(interrupt);
-        if (meta) items.push({ interrupt, meta });
-      }
-      if (items.length > 0) setPendingInterrupts((prev) => [...prev, ...items]);
+      // Defensively dedupe by interrupt id — a stream reconnect / buffering could
+      // re-deliver the same interrupt chunk, which would otherwise render a
+      // duplicate card for the same pending approval.
+      setPendingInterrupts((prev) => {
+        const seen = new Set(prev.map((p) => p.interrupt.id));
+        const next = [...prev];
+        for (const interrupt of interrupts) {
+          if (seen.has(interrupt.id)) continue;
+          const meta = readActionApprovalMetadata(interrupt);
+          if (!meta) continue;
+          next.push({ interrupt, meta });
+          seen.add(interrupt.id);
+        }
+        return next.length === prev.length ? prev : next;
+      });
     },
   });
 
@@ -331,6 +340,7 @@ export function AIAssistant({
     async (stream: ReadableStream<UIMessageChunk>) => {
       let textOut = "";
       let toolResult: unknown;
+      let streamError: string | undefined;
       const reader = stream.getReader();
       try {
         for (;;) {
@@ -338,10 +348,21 @@ export function AIAssistant({
           if (done) break;
           if (value.type === "text-delta") textOut += value.delta;
           else if (value.type === "tool-output-available") toolResult = value.output;
+          else if (value.type === "error")
+            streamError = value.errorText || "Action execution failed";
         }
       } finally {
         reader.releaseLock();
       }
+      // A server-side failure must NOT silently complete as success (which would
+      // dismiss the card and tell the user the action ran). Surface it by
+      // throwing so the card's onApprove catch shows the message and keeps the
+      // card mounted for retry. Two failure shapes: a stream `error` chunk, and a
+      // TOOL_CALL_RESULT carrying `success:false` (the §6.4 CommandLayer-denied
+      // path, which arrives as a normal tool result, not an error chunk).
+      if (streamError) throw new Error(streamError);
+      const tr = toolResult as { success?: boolean; error?: string } | undefined;
+      if (tr && tr.success === false) throw new Error(tr.error || "Action execution failed");
       const summary = textOut.trim() || summarizeResumeResult(toolResult, t);
       if (summary) setMessages((prev) => [...prev, createTextMessage("assistant", summary)]);
     },
@@ -356,7 +377,10 @@ export function AIAssistant({
       item: PendingInterruptItem,
       resume: { action: string; input: Record<string, unknown> },
     ) => {
-      setPendingInterrupts((prev) => prev.filter((p) => p.interrupt.id !== item.interrupt.id));
+      // Do NOT remove the card up front: it must stay mounted so the card's own
+      // `executing` state is visible and a failure (thrown by drainResumeStream)
+      // propagates to the card's onApprove catch to display the error + allow
+      // retry. The card is dismissed ONLY after the resume run completes cleanly.
       const answer = buildApproveAnswer({
         action: resume.action,
         input: resume.input,
@@ -368,7 +392,8 @@ export function AIAssistant({
         interrupts: [item.interrupt],
         answers: { [item.interrupt.id]: answer },
       });
-      await drainResumeStream(stream);
+      await drainResumeStream(stream); // throws on a server-side failure
+      setPendingInterrupts((prev) => prev.filter((p) => p.interrupt.id !== item.interrupt.id));
     },
     [transport, drainResumeStream],
   );
@@ -377,7 +402,6 @@ export function AIAssistant({
   // finishes the run with no write, then drop the card.
   const handleInterruptCancel = useCallback(
     async (item: PendingInterruptItem) => {
-      setPendingInterrupts((prev) => prev.filter((p) => p.interrupt.id !== item.interrupt.id));
       try {
         const stream = await transport.sendResume({
           chatId: chatIdRef.current,
@@ -388,6 +412,11 @@ export function AIAssistant({
         await drainResumeStream(stream);
       } catch (err) {
         console.error("[AI Assistant] interrupt cancel failed:", err);
+      } finally {
+        // A cancel has no write to recover, so the card is ALWAYS dismissed —
+        // whether the cancel run succeeded or errored — but only after the run
+        // completes (so the card doesn't vanish before the request is sent).
+        setPendingInterrupts((prev) => prev.filter((p) => p.interrupt.id !== item.interrupt.id));
       }
     },
     [transport, drainResumeStream],
