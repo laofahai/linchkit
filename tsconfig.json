@@ -30,6 +30,7 @@
       "@linchkit/devtools/documentation": ["./packages/devtools/src/documentation/index.ts"],
       "@linchkit/devtools/methodology": ["./packages/devtools/src/methodology/index.ts"],
       "@linchkit/devtools/governance": ["./packages/devtools/src/governance/index.ts"],
+      "@linchkit/cap-adapter-ag-ui": ["./addons/adapter-ag-ui/cap-adapter-ag-ui/src"],
       "@linchkit/cap-adapter-server": ["./addons/adapter-server/cap-adapter-server/src"],
       "@linchkit/cap-adapter-server/capability": [
         "./addons/adapter-server/cap-adapter-server/src/capability.ts"

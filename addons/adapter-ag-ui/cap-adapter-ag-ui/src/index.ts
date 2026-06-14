@@ -16,9 +16,18 @@ export { capAdapterAgUi } from "./capability";
 export { capAdapterAgUiConfig } from "./config";
 export type { CapAdapterAgUiOptions } from "./factory";
 export { createCapAdapterAgUi } from "./factory";
+// Interrupt store (Spec 71 §6.7) — the cross-connection HITL state.
+export type {
+  ActorBinding,
+  InterruptStore,
+  InterruptStoreEntry,
+} from "./interrupt-store";
+export { InMemoryInterruptStore } from "./interrupt-store";
 // Canonical AG-UI protocol types (re-exported from @ag-ui/core) + SSE framing
 export type {
   AGUIEvent,
+  // Human-in-the-loop (Spec 71) runner→endpoint interrupt descriptor.
+  AgUiInterruptDescriptor,
   BaseEvent,
   Context,
   CustomEvent,
