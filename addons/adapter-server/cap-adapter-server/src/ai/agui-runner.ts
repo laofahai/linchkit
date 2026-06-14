@@ -483,7 +483,9 @@ export function buildCardInputSchema(
         out[key] = { type: "string", required: false };
         continue;
       }
-      const options =
+      // Named `enumOptions` (not `options`) to avoid shadowing the
+      // `options: ServerOptions` function parameter above.
+      const enumOptions =
         field.type === "enum" && Array.isArray(field.options)
           ? field.options.map((opt) => ({ value: String(opt.value), label: opt.label }))
           : undefined;
@@ -492,7 +494,7 @@ export function buildCardInputSchema(
         required: field.required ?? false,
         ...(field.label ? { label: field.label } : {}),
         ...(field.description ? { description: field.description } : {}),
-        ...(options ? { options } : {}),
+        ...(enumOptions ? { options: enumOptions } : {}),
       };
     }
     return Object.keys(out).length > 0 ? out : undefined;
