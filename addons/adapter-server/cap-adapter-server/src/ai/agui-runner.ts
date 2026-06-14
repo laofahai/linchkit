@@ -370,6 +370,7 @@ export function buildProposeInterrupt(options: {
     threadId,
     interruptId,
     toolCallId,
+    proposedAction: proposal.action,
     actionSet: [proposal.action],
     proposedInput: proposal.input,
     inputDigest,
@@ -450,6 +451,49 @@ export function createAssistantAgUiRunner(
     if (!aiConfig) {
       // routes/agui-api.ts only injects this runner when aiConfig exists.
       throw new Error("AI service is not configured.");
+    }
+
+    // ── Spec 71 P2b: RESUME branch (the "resume → execute" half) ──────────
+    // When run B carries `input.resume`, this is an approval round-trip, NOT a
+    // model turn. The model is never consulted on resume (§6.5: the model never
+    // writes; only the resume handler calls `commandLayer.execute`, and only
+    // after a human `resolved`). The existing model-turn path below is unchanged
+    // when no resume is present.
+    if (input.resume && input.resume.length > 0) {
+      const { runAgUiResume } = await import("./agui-resume");
+
+      const commandLayer = options.commandLayer;
+      if (!commandLayer) {
+        // No write engine wired — cannot honor a resume safely. Fail closed.
+        throw new Error("CommandLayer is not configured — cannot execute an approved mutation.");
+      }
+
+      // §6.3 — re-resolve the run-B actor + tenant from the REQUEST (never trust
+      // a client-asserted actor). FAIL CLOSED on the write path: do NOT apply the
+      // read-path `?? ANONYMOUS_ACTOR` fallback. When no real authenticated human
+      // actor resolves, pass `undefined` — the resume handler then rejects
+      // (RUN_ERROR, no execute), never substituting an anonymous/synthetic actor.
+      const resumeActor =
+        request && options.resolveRequestActor
+          ? ((await options.resolveRequestActor(request)) ?? undefined)
+          : undefined;
+      const resumeTenant =
+        request && resumeActor && options.resolveRequestTenantId
+          ? await options.resolveRequestTenantId(request, resumeActor)
+          : undefined;
+
+      await runAgUiResume({
+        threadId: input.threadId,
+        resume: input.resume,
+        store: interruptStore,
+        commandLayer,
+        actorContext: { actor: resumeActor, tenant: resumeTenant },
+        emit,
+      });
+      // Resume produced its own TOOL_CALL_RESULT / text frames (or threw on a
+      // hard rejection → the endpoint emits RUN_ERROR). Return void so the
+      // endpoint emits a plain success finish (declined or executed).
+      return undefined;
     }
 
     // Lazy imports — mirrors ai-api.ts so heavy deps load on first use only.

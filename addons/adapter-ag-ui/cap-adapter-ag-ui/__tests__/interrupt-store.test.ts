@@ -14,6 +14,7 @@ function entry(overrides: Partial<InterruptStoreEntry> = {}): InterruptStoreEntr
     threadId: "t1",
     interruptId: "i1",
     toolCallId: "lk:propose-mutation:i1",
+    proposedAction: "create_product",
     actionSet: ["create_product"],
     proposedInput: { name: "Widget", price: 9.9 },
     inputDigest: "deadbeef",
