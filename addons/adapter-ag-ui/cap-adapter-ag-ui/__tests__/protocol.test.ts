@@ -1,5 +1,33 @@
 import { describe, expect, test } from "bun:test";
-import { EventType, encodeSseEvent, RunAgentInputSchema } from "../src/protocol";
+import {
+  EventType,
+  encodeSseEvent,
+  type Interrupt,
+  InterruptSchema,
+  makeInterruptOutcome,
+  ResumeEntrySchema,
+  RunAgentInputSchema,
+  RunFinishedEventSchema,
+  RunFinishedOutcomeSchema,
+  SUCCESS_OUTCOME,
+} from "../src/protocol";
+
+/** A representative approval interrupt (Spec 71 §4.2). */
+function sampleInterrupt(): Interrupt {
+  return {
+    id: "int_1",
+    reason: "action.approval.required",
+    message: 'Create product "Widget" (price 9.9)?',
+    toolCallId: "lk:propose-mutation:abc",
+    responseSchema: { type: "object", properties: { price: { type: "number" } } },
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+    metadata: {
+      action: "create_product",
+      proposedInput: { name: "Widget", price: 9.9 },
+      inputDigest: "digest_xyz",
+    },
+  };
+}
 
 describe("RunAgentInputSchema (official @ag-ui/core schema)", () => {
   test("rejects a minimal input missing the required arrays", () => {
@@ -131,5 +159,140 @@ describe("EventType", () => {
     expect(String(EventType.TOOL_CALL_END)).toBe("TOOL_CALL_END");
     expect(String(EventType.STATE_SNAPSHOT)).toBe("STATE_SNAPSHOT");
     expect(String(EventType.CUSTOM)).toBe("CUSTOM");
+  });
+});
+
+// ── Human-in-the-loop protocol surface (Spec 71 P1) ─────────
+
+describe("makeInterruptOutcome (Spec 71 §3.4 / §4.2)", () => {
+  test("returns the discriminated interrupt shape with the interrupts preserved", () => {
+    const interrupt = sampleInterrupt();
+    const outcome = makeInterruptOutcome([interrupt]);
+
+    expect(outcome.type).toBe("interrupt");
+    expect(outcome.interrupts).toHaveLength(1);
+    expect(outcome.interrupts[0]).toEqual(interrupt);
+  });
+
+  test("validates against the upstream RunFinishedOutcomeSchema (interrupt branch)", () => {
+    const parsed = RunFinishedOutcomeSchema.safeParse(makeInterruptOutcome([sampleInterrupt()]));
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.type).toBe("interrupt");
+    }
+  });
+
+  test("SUCCESS_OUTCOME validates against the success branch", () => {
+    const parsed = RunFinishedOutcomeSchema.safeParse(SUCCESS_OUTCOME);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.type).toBe("success");
+    }
+  });
+});
+
+describe("RunFinishedEvent with outcome (Spec 71 §3.1)", () => {
+  test("an interrupt outcome round-trips through RunFinishedEventSchema.safeParse", () => {
+    const interrupt = sampleInterrupt();
+    const event = {
+      type: EventType.RUN_FINISHED,
+      threadId: "thread_1",
+      runId: "run_a",
+      outcome: makeInterruptOutcome([interrupt]),
+    };
+
+    const parsed = RunFinishedEventSchema.safeParse(event);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      // `outcome` is z.optional(z.nullable(...)) upstream — narrow it.
+      expect(parsed.data.outcome?.type).toBe("interrupt");
+      if (parsed.data.outcome?.type === "interrupt") {
+        expect(parsed.data.outcome.interrupts).toHaveLength(1);
+        expect(parsed.data.outcome.interrupts[0]?.id).toBe("int_1");
+        expect(parsed.data.outcome.interrupts[0]?.reason).toBe("action.approval.required");
+        expect(parsed.data.outcome.interrupts[0]?.metadata?.action).toBe("create_product");
+      }
+    }
+  });
+
+  test("a plain finish (no outcome) still parses and is unchanged", () => {
+    const event = { type: EventType.RUN_FINISHED, threadId: "thread_1", runId: "run_a" };
+
+    const parsed = RunFinishedEventSchema.safeParse(event);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.threadId).toBe("thread_1");
+      expect(parsed.data.runId).toBe("run_a");
+      // No outcome on a plain finish — backward-compatible with the legacy frame.
+      expect(parsed.data.outcome).toBeUndefined();
+    }
+  });
+
+  test("a finish carrying the success outcome parses on the success branch", () => {
+    const parsed = RunFinishedEventSchema.safeParse({
+      type: EventType.RUN_FINISHED,
+      threadId: "thread_1",
+      runId: "run_b",
+      outcome: SUCCESS_OUTCOME,
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.outcome?.type).toBe("success");
+    }
+  });
+});
+
+describe("ResumeEntrySchema (Spec 71 §3.3 / §4.2)", () => {
+  test("accepts an approve (resolved) payload with edited input + baseDigest", () => {
+    const parsed = ResumeEntrySchema.safeParse({
+      interruptId: "int_1",
+      status: "resolved",
+      payload: {
+        action: "create_product",
+        input: { name: "Widget", price: 8.9 },
+        baseDigest: "digest_xyz",
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.interruptId).toBe("int_1");
+      expect(parsed.data.status).toBe("resolved");
+    }
+  });
+
+  test("accepts a reject (cancelled) entry with no payload", () => {
+    const parsed = ResumeEntrySchema.safeParse({ interruptId: "int_1", status: "cancelled" });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.status).toBe("cancelled");
+      expect(parsed.data.payload).toBeUndefined();
+    }
+  });
+
+  test("rejects an unknown status (not resolved/cancelled)", () => {
+    const parsed = ResumeEntrySchema.safeParse({ interruptId: "int_1", status: "approved" });
+    expect(parsed.success).toBe(false);
+  });
+
+  test("rejects a resume missing interruptId", () => {
+    const parsed = ResumeEntrySchema.safeParse({ status: "resolved" });
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe("InterruptSchema (Spec 71 §3.2)", () => {
+  test("accepts the full interrupt shape we emit", () => {
+    const parsed = InterruptSchema.safeParse(sampleInterrupt());
+    expect(parsed.success).toBe(true);
+  });
+
+  test("accepts a minimal interrupt (id + reason only)", () => {
+    const parsed = InterruptSchema.safeParse({ id: "int_2", reason: "action.approval.required" });
+    expect(parsed.success).toBe(true);
+  });
+
+  test("rejects an interrupt missing the required reason", () => {
+    const parsed = InterruptSchema.safeParse({ id: "int_3" });
+    expect(parsed.success).toBe(false);
   });
 });
