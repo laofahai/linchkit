@@ -24,7 +24,8 @@
     "db:migrate": "bun ./node_modules/.bin/drizzle-kit migrate",
     "db:studio": "bun ./node_modules/.bin/drizzle-kit studio",
     "changeset": "bunx changeset",
-    "version-packages": "bunx changeset version",
+    "version-packages": "bunx changeset version && bun scripts/sync-core-version.ts",
+    "sync-core-version": "bun scripts/sync-core-version.ts",
     "release": "bun scripts/release.ts"
   },
   "devDependencies": {
