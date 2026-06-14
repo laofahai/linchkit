@@ -205,6 +205,7 @@ async function main(): Promise<void> {
   );
 
   const drifted: string[] = [];
+  const missing: string[] = [];
 
   for (const target of targets) {
     const full = resolve(ROOT, target.path);
@@ -212,10 +213,10 @@ async function main(): Promise<void> {
     try {
       source = readFileSync(full, "utf-8");
     } catch {
-      // A non-JSON cap-lock site could be moved/renamed; surface it loudly so a
-      // refactor that drops a mirror site can't silently leave it un-synced.
-      console.error(`[sync-core-version] MISSING target: ${target.path}`);
-      process.exitCode = 1;
+      // A non-JSON cap-lock site could be moved/renamed; collect it and fail
+      // loudly below so a refactor that drops a mirror site can't silently
+      // leave it un-synced.
+      missing.push(target.path);
       continue;
     }
 
@@ -226,6 +227,18 @@ async function main(): Promise<void> {
     if (!checkOnly) {
       writeFileSync(full, text, "utf-8");
     }
+  }
+
+  // A missing mirror site is a hard error in BOTH modes. Report it and exit
+  // before any success-style logging, so the output is never self-contradictory
+  // (exit 1 paired with an "in sync" message).
+  if (missing.length > 0) {
+    console.error(
+      `[sync-core-version] MISSING target file(s) (${missing.length}) — a mirror site was moved or renamed:`,
+    );
+    for (const p of missing) console.error(`  - ${p}`);
+    console.error("Update CAP_LOCK_EXTRA_TARGETS in scripts/sync-core-version.ts.");
+    process.exit(1);
   }
 
   if (checkOnly) {
