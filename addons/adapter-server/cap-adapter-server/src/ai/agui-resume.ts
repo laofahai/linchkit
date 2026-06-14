@@ -80,11 +80,12 @@ export const RESUME_REJECT_CODES = {
  * querying execution #N sees the AI-proposed → human-approved chain atomically
  * joined to the mutation, with no separate side log to drift.
  *
- * Carried under the reserved `_hitl` key: the CommandLayer treats `meta` as
- * external input and strips `_`-prefixed keys from the handler-visible payload,
- * but the provenance is still persisted on the execution-log/meta record. (We
- * deliberately do NOT use `systemMeta` — that is for framework-trusted keys the
- * pipeline reads back, not for audit-only provenance.)
+ * Carried under the reserved `_hitl` key on the execution's TRUSTED `systemMeta`
+ * channel (NOT external `meta`): the CommandLayer strips `_`-prefixed keys from
+ * external `meta` before persisting it, so `meta._hitl` would never survive —
+ * whereas `systemMeta` is the framework-trusted adapter-attribution path (the
+ * same channel MCP uses for `_mcp_client_id`). `_hitl` is not a framework-
+ * reserved key, so it rides `systemMeta` through to the execution-log record.
  */
 export interface HitlApprovalProvenance {
   proposedAction: string;
@@ -211,25 +212,20 @@ async function resumeOne(options: {
   const { threadId, entry, store, commandLayer, actorContext, emit, now } = options;
   const interruptId = entry.interruptId;
 
-  // ── Cancelled: decline, NO write (§5 cancelled). Evict so the one-shot is
-  // spent and a later replay can't approve what the human just rejected. This
-  // path takes the claim FIRST (one-shot) so a concurrent resolved-resume for
-  // the same interrupt cannot also proceed.
-  if (entry.status === "cancelled") {
-    // Claim synchronously to spend the one-shot, then evict. If absent/consumed
-    // the cancel is a no-op decline (idempotent) — never an error.
-    store.claim(threadId, interruptId);
-    store.evict(threadId, interruptId);
-    emitDeclined(emit, interruptId, entry.interruptId);
-    return;
-  }
-
-  // ── 1. CLAIM — synchronous, BEFORE any `await` (§6.2 p4, §6.7).
-  // The in-process store's `claim` is an atomic synchronous read-and-set of
-  // `consumed`; there is NO `await` between this line and the entry read, so
-  // two concurrent resumes serialize and only the first wins. A claim of an
-  // absent / already-consumed entry returns false → unknown-interrupt reject
-  // (§6.2 p1, §6.4) — this is the one-shot replay defense.
+  // ── 1. CLAIM — synchronous, BEFORE any `await` (§6.2 p4, §6.7) and BEFORE the
+  // cancelled/resolved split. The in-process store's `claim` is an atomic
+  // synchronous read-and-set of `consumed`; there is NO `await` between this
+  // line and the entry read, so two concurrent resumes for the same interrupt
+  // serialize and only the first wins — a cancel and an approve can NEVER both
+  // proceed. A claim of an absent / already-consumed entry returns false →
+  // unknown-interrupt reject (§6.2 p1, §6.4) — the one-shot replay defense.
+  //
+  // The claim is unified across BOTH the cancelled and resolved paths on
+  // purpose: an earlier version claimed-then-evicted in the cancelled branch
+  // WITHOUT checking the claim result, so a cancel racing a concurrent approve
+  // could evict the entry the approve had already legitimately claimed (the
+  // approve then read `undefined` and failed). Claiming first, once, for both
+  // paths closes that race.
   const claimed = store.claim(threadId, interruptId);
   if (!claimed) {
     throw new AgUiResumeRejectedError(
@@ -243,6 +239,15 @@ async function resumeOne(options: {
   // `release` (so a legitimate retry by the rightful proposer is still
   // possible). On success we `evict` (consumed). We never leave a held claim.
   try {
+    // ── Cancelled: the claim is held (one-shot spent), so any concurrent
+    // resolved-resume for the same interrupt already lost the claim and was
+    // rejected. Decline, evict, NO write (§5 cancelled).
+    if (entry.status === "cancelled") {
+      store.evict(threadId, interruptId);
+      emitDeclined(emit, interruptId, entry.interruptId);
+      return;
+    }
+
     // The claim mutated stored `consumed`; re-read the full entry to validate.
     const stored = store.get(threadId, interruptId);
     if (!stored) {

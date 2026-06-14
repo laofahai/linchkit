@@ -315,6 +315,43 @@ describe("runAgUiResume — cancelled (declined, no write)", () => {
     expect(events.some((e) => e.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true);
     expect(events.some((e) => e.type === EventType.TOOL_CALL_RESULT)).toBe(false);
   });
+
+  test("a cancel that LOSES the claim (concurrent approve already claimed) does NOT evict the entry", async () => {
+    // Regression for the unified-claim fix: a cancelled resume must take the
+    // one-shot claim FIRST and only evict if it won. Here a concurrent approve
+    // is simulated by claiming the entry directly (consumed=true, still present);
+    // the cancel must then be rejected and must NOT evict the entry out from
+    // under the in-flight approve.
+    const h = buildHarness();
+    const interrupts = new InMemoryInterruptStore();
+    const { interruptId } = propose({
+      store: interrupts,
+      proposerActor: ALICE,
+      tenant: "tenant-a",
+    });
+
+    // The "approve" wins the synchronous claim.
+    expect(interrupts.claim("t1", interruptId)).toBe(true);
+
+    const { emit } = collector();
+    const run = runAgUiResume({
+      threadId: "t1",
+      resume: [{ interruptId, status: "cancelled" }],
+      store: interrupts,
+      commandLayer: h.commandLayer,
+      actorContext: { actor: ALICE, tenant: "tenant-a" },
+      emit,
+    });
+    await expect(run).rejects.toBeInstanceOf(AgUiResumeRejectedError);
+    await run.catch((e: AgUiResumeRejectedError) =>
+      expect(e.code).toBe(RESUME_REJECT_CODES.unknownInterrupt),
+    );
+
+    // The entry the "approve" claimed is still present — the cancel did NOT
+    // evict it (the pre-fix bug). No write happened either.
+    expect(interrupts.get("t1", interruptId)).toBeDefined();
+    expect(h.executeCount()).toBe(0);
+  });
 });
 
 describe("runAgUiResume — §6.2 p2 swapped action", () => {
