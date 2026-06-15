@@ -31,8 +31,8 @@ import {
   buildProposeInterrupt,
   canonicalJson,
   computeInputDigest,
-  parseProposeMutationInput,
-} from "../agui-runner";
+} from "../agui-interrupt";
+import { parseProposeMutationInput } from "../agui-runner";
 import {
   buildProposeMutationTool,
   PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX,
