@@ -120,7 +120,12 @@ export function buildProposeInterrupt(options: {
   const interruptId = options.interruptId ?? randomUUID();
   // Reserved-prefixed tool-call id (§4.2 / §4.5 fallback sentinel).
   const toolCallId = `${PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX}${interruptId}`;
-  const inputDigest = computeInputDigest(proposal.action, proposal.input);
+  // Snapshot proposal.input immediately so the digest, store entry, and
+  // interrupt metadata all reference the same immutable object — prevents any
+  // post-call mutation of the caller's object from drifting the stored input
+  // away from the computed inputDigest (TOCTOU).
+  const proposedInput = JSON.parse(canonicalJson(proposal.input)) as Record<string, unknown>;
+  const inputDigest = computeInputDigest(proposal.action, proposedInput);
   const expiresAt = new Date(now + approvalWindowMs).toISOString();
 
   // Write the open-interrupt record (§6.7). actionSet = [primary action] for
@@ -131,7 +136,7 @@ export function buildProposeInterrupt(options: {
     toolCallId,
     proposedAction: proposal.action,
     actionSet: [proposal.action],
-    proposedInput: proposal.input,
+    proposedInput,
     inputDigest,
     expiresAt,
     consumed: false,
@@ -151,7 +156,7 @@ export function buildProposeInterrupt(options: {
     expiresAt,
     metadata: {
       action: proposal.action,
-      proposedInput: proposal.input,
+      proposedInput,
       // The card's editable-field source (§4.4): an `IntentFieldSchema`-shaped
       // map derived from the ontology (§4.2). Empty when the action/entity is
       // unknown — the card then shows the proposal read-only (still approvable).
