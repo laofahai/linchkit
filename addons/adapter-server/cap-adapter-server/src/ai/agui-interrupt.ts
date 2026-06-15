@@ -113,10 +113,12 @@ export function buildProposeInterrupt(options: {
   const interruptId = options.interruptId ?? randomUUID();
   // Reserved-prefixed tool-call id (§4.2 / §4.5 fallback sentinel).
   const toolCallId = `${PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX}${interruptId}`;
-  // Snapshot proposal.input immediately so the digest, store entry, and
-  // interrupt metadata all reference the same immutable object — prevents any
-  // post-call mutation of the caller's object from drifting the stored input
-  // away from the computed inputDigest (TOCTOU).
+  // Intentional change vs the original agui-runner.ts (which stored
+  // proposal.input by reference): snapshot immediately so the digest, store
+  // entry, and interrupt metadata all reference the same immutable object —
+  // prevents post-call mutation of the caller's object from drifting the
+  // stored input away from the computed inputDigest (TOCTOU). Covered by the
+  // TOCTOU mutation test in agui-resume-handler.test.ts.
   const proposedInput = JSON.parse(canonicalJson(proposal.input)) as Record<string, unknown>;
   const inputDigest = computeInputDigest(proposal.action, proposedInput);
   const expiresAt = new Date(now + approvalWindowMs).toISOString();
