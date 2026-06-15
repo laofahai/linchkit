@@ -624,3 +624,26 @@ describe("runAgUiResume — §6.1/§6.4 permission slot is the authoritative gat
     expect(interrupts.get("t1", interruptId)).toBeUndefined();
   });
 });
+
+describe("buildProposeInterrupt — TOCTOU snapshot", () => {
+  test("mutating proposal.input after propose() leaves stored entry and digest unchanged", () => {
+    const interrupts = new InMemoryInterruptStore();
+    const mutableInput: Record<string, unknown> = { name: "Widget", price: 9.9 };
+    const { interruptId, inputDigest } = propose({
+      store: interrupts,
+      proposerActor: ALICE,
+      input: mutableInput,
+      interruptId: "int-toctou",
+    });
+
+    // Mutate the original object AFTER buildProposeInterrupt has returned.
+    mutableInput["name"] = "TAMPERED";
+    mutableInput["price"] = 0;
+
+    const entry = interrupts.get("t1", interruptId);
+    // The stored snapshot must reflect the original values, not the mutation.
+    expect(entry?.proposedInput).toEqual({ name: "Widget", price: 9.9 });
+    // The digest must still match the stored snapshot (not the mutated input).
+    expect(entry?.inputDigest).toBe(inputDigest);
+  });
+});
