@@ -22,7 +22,6 @@ import type {
   RunAgentInput,
 } from "@linchkit/cap-adapter-ag-ui";
 import { EventType, InMemoryInterruptStore } from "@linchkit/cap-adapter-ag-ui";
-import type { Actor } from "@linchkit/core";
 import type { jsonSchema, LanguageModel, ModelMessage, TextStreamPart, ToolSet } from "ai";
 import type { ServerOptions } from "../server";
 import {
@@ -284,7 +283,6 @@ export function streamPartToAgUiEvents(part: TextStreamPart<ToolSet>): AGUIEvent
       return [];
   }
 }
-
 
 // ── Runner factory ──────────────────────────────────────────
 

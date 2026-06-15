@@ -15,7 +15,7 @@
 import {
   type AGUIEvent,
   createAgUiApp,
-  InMemoryInterruptStore,
+  type InMemoryInterruptStore,
   type ResumeEntry,
 } from "@linchkit/cap-adapter-ag-ui";
 import type {

@@ -8,14 +8,11 @@
  *  - `CardFieldSchema` / `buildCardInputSchema` — card editable-field schema (§4.2/§4.4)
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Interrupt, InterruptStore } from "@linchkit/cap-adapter-ag-ui";
 import type { Actor } from "@linchkit/core";
 import type { ServerOptions } from "../server";
-import {
-  PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX,
-  type ProposeMutationArgs,
-} from "./tools";
+import { PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX, type ProposeMutationArgs } from "./tools";
 
 /** Default approval window — 10 minutes (Spec 71 §9 risk 7, configurable). */
 export const DEFAULT_APPROVAL_WINDOW_MS = 10 * 60 * 1000;
@@ -27,6 +24,9 @@ export const DEFAULT_APPROVAL_WINDOW_MS = 10 * 60 * 1000;
  * (order is semantically meaningful); primitives serialize as-is.
  */
 export function canonicalJson(value: unknown): string {
+  if (value !== null && typeof value === "object" && typeof (value as { toJSON?: unknown }).toJSON === "function") {
+    return canonicalJson((value as { toJSON(): unknown }).toJSON());
+  }
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value) ?? "null";
   }
@@ -113,7 +113,7 @@ export function buildProposeInterrupt(options: {
     inputSchema,
   } = options;
   const now = options.now ?? Date.now();
-  const interruptId = options.interruptId ?? crypto.randomUUID();
+  const interruptId = options.interruptId ?? randomUUID();
   // Reserved-prefixed tool-call id (§4.2 / §4.5 fallback sentinel).
   const toolCallId = `${PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX}${interruptId}`;
   const inputDigest = computeInputDigest(proposal.action, proposal.input);
@@ -219,7 +219,14 @@ export function buildCardInputSchema(
       // `options: ServerOptions` function parameter above.
       const enumOptions =
         field.type === "enum" && Array.isArray(field.options)
-          ? field.options.map((opt) => ({ value: String(opt.value), label: opt.label }))
+          ? (field.options as unknown[]).map((opt) =>
+              typeof opt === "object" && opt !== null
+                ? {
+                    value: String((opt as { value?: unknown }).value ?? ""),
+                    label: (opt as { label?: string }).label,
+                  }
+                : { value: String(opt), label: String(opt) },
+            )
           : undefined;
       out[key] = {
         type: field.type,
