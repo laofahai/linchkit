@@ -24,7 +24,11 @@ export const DEFAULT_APPROVAL_WINDOW_MS = 10 * 60 * 1000;
  * (order is semantically meaningful); primitives serialize as-is.
  */
 export function canonicalJson(value: unknown): string {
-  if (value !== null && typeof value === "object" && typeof (value as { toJSON?: unknown }).toJSON === "function") {
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as { toJSON?: unknown }).toJSON === "function"
+  ) {
     return canonicalJson((value as { toJSON(): unknown }).toJSON());
   }
   if (value === null || typeof value !== "object") {
