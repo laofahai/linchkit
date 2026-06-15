@@ -19,8 +19,9 @@ import type {
   StateDefinition,
   TransportAdapterDefinition,
   ViewDefinition,
+  ViewExtensionInput,
 } from "@linchkit/core";
-import { registerTranslations } from "@linchkit/core";
+import { applyViewExtensions, registerTranslations } from "@linchkit/core";
 
 export interface CollectedDefinitions {
   interfaces: InterfaceDefinition[];
@@ -63,6 +64,11 @@ export function collectCapabilityDefinitions(
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
   const commands: CliCommand[] = [];
   const sensors: Sensor[] = [];
+  // View extensions (`cap.extensions.views`, the Odoo view-inheritance model).
+  // Views surface to the UI in this path via the OntologyRegistry and the
+  // TransportContext (`transportCtx.views`), so collect extensions here and fold
+  // them into `views` after the loop.
+  const viewExtensions: ViewExtensionInput[] = [];
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
@@ -90,6 +96,7 @@ export function collectCapabilityDefinitions(
         interceptors.push({ ...reg, capability: reg.capability || cap.name });
       }
     }
+    if (cap.extensions?.views) viewExtensions.push(...cap.extensions.views);
     if (cap.extensions?.transports) transports.push(...cap.extensions.transports);
     if (cap.extensions?.graphqlExtensions) {
       graphqlExtensions.push(cap.extensions.graphqlExtensions);
@@ -105,11 +112,18 @@ export function collectCapabilityDefinitions(
     }
   }
 
+  // Fold view extensions into the collected views so the OntologyRegistry and
+  // transport context surface the patched views to the UI. `applyViewExtensions`
+  // is pure and throws if an extension targets a view that is not present.
+  // NOTE: entity extensions are folded separately inside `buildRegistries`
+  // (so the EntityRegistry sees them); they are intentionally NOT merged here.
+  const mergedViews = applyViewExtensions(views, viewExtensions);
+
   return {
     interfaces,
     entities,
     actions,
-    views,
+    views: mergedViews,
     states,
     links,
     rules,
