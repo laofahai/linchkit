@@ -6,7 +6,7 @@
  * No behaviour change — these are the same functions, same exports.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Interrupt, InterruptStore } from "@linchkit/cap-adapter-ag-ui";
 import type { Actor } from "@linchkit/core";
 import type { ServerOptions } from "../server";
@@ -113,7 +113,7 @@ export function buildProposeInterrupt(options: {
     inputSchema,
   } = options;
   const now = options.now ?? Date.now();
-  const interruptId = options.interruptId ?? crypto.randomUUID();
+  const interruptId = options.interruptId ?? randomUUID();
   const toolCallId = `${PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX}${interruptId}`;
   const inputDigest = computeInputDigest(proposal.action, proposal.input);
   const expiresAt = new Date(now + approvalWindowMs).toISOString();
