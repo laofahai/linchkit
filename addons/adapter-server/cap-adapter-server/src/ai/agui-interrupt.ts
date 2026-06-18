@@ -115,7 +115,10 @@ export function buildProposeInterrupt(options: {
   const now = options.now ?? Date.now();
   const interruptId = options.interruptId ?? randomUUID();
   const toolCallId = `${PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX}${interruptId}`;
-  const inputDigest = computeInputDigest(proposal.action, proposal.input);
+  // Snapshot before hashing: any post-call mutation of proposal.input cannot
+  // drift the stored entry from its inputDigest (anti-TOCTOU, §6.2 point 3).
+  const proposedInput = JSON.parse(canonicalJson(proposal.input)) as Record<string, unknown>;
+  const inputDigest = computeInputDigest(proposal.action, proposedInput);
   const expiresAt = new Date(now + approvalWindowMs).toISOString();
 
   store.put({
@@ -124,7 +127,7 @@ export function buildProposeInterrupt(options: {
     toolCallId,
     proposedAction: proposal.action,
     actionSet: [proposal.action],
-    proposedInput: proposal.input,
+    proposedInput,
     inputDigest,
     expiresAt,
     consumed: false,
@@ -141,7 +144,7 @@ export function buildProposeInterrupt(options: {
     expiresAt,
     metadata: {
       action: proposal.action,
-      proposedInput: proposal.input,
+      proposedInput,
       inputSchema: inputSchema ?? {},
       actionLabel: actionLabel ?? proposal.action,
       inputDigest,
@@ -200,7 +203,14 @@ export function buildCardInputSchema(
       }
       const enumOptions =
         field.type === "enum" && Array.isArray(field.options)
-          ? field.options.map((opt) => ({ value: String(opt.value), label: opt.label }))
+          ? field.options.map((opt) =>
+              typeof opt === "object" && opt !== null
+                ? {
+                    value: String((opt as { value?: unknown }).value ?? ""),
+                    label: (opt as { label?: string }).label,
+                  }
+                : { value: String(opt), label: String(opt) },
+            )
           : undefined;
       out[key] = {
         type: field.type,
