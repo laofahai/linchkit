@@ -3,7 +3,12 @@
  *
  * Pure digest/canonical helpers + `buildProposeInterrupt` / `buildCardInputSchema`
  * extracted from agui-runner.ts to stay within the 500-line guideline (#607).
- * No behaviour change — these are the same functions, same exports.
+ * Two improvements bundled with the extraction:
+ *   - buildProposeInterrupt: snapshots proposal.input as a canonical deep-copy
+ *     before hashing/storing (anti-TOCTOU, §6.2 point 3). `Interrupt.metadata.proposedInput`
+ *     is now the canonical form (keys sorted, `undefined` stripped).
+ *   - buildCardInputSchema: handles primitive-valued enum options (string/number arrays)
+ *     rather than assuming `{ value, label }` object shape.
  */
 
 import { createHash, randomUUID } from "node:crypto";
