@@ -30,6 +30,12 @@ export const DEFAULT_APPROVAL_WINDOW_MS = 10 * 60 * 1000;
  * `inputDigest` is invariant to property insertion order — the same logical
  * input always hashes the same (Spec 71 §6.2 point 3). Arrays keep order
  * (order is semantically meaningful); primitives serialize as-is.
+ *
+ * Intentionally does NOT call `.toJSON()` on objects: proposed inputs are plain
+ * JSON-serializable records (validated at the CommandLayer boundary), so
+ * Date/custom-toJSON objects should not appear here. The contract is that callers
+ * pass already-serializable data; this keeps the function's behavior predictable
+ * and avoids infinite-recursion risk if a custom `.toJSON()` returns `this`.
  */
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
