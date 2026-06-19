@@ -55,12 +55,14 @@ export function canonicalJson(value: unknown): string {
 
 /**
  * The anti-TOCTOU anchor (Spec 71 §6.2 point 3):
- * `sha256(action + canonical(proposedInput))`. Stable for the same canonical
- * input regardless of key order. `baseDigest` on resume must echo this.
+ * `sha256(action + "\n" + canonical(proposedInput))`. Stable for the same
+ * canonical input regardless of key order. `baseDigest` on resume must echo
+ * this. The `\n` separator matches the original agui-runner.ts format — do
+ * not change it without a migration plan for any durable store entries.
  */
 export function computeInputDigest(action: string, proposedInput: Record<string, unknown>): string {
   return createHash("sha256")
-    .update(`${action} ${canonicalJson(proposedInput)}`)
+    .update(`${action}\n${canonicalJson(proposedInput)}`)
     .digest("hex");
 }
 
