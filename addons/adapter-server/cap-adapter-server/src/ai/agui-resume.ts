@@ -138,7 +138,7 @@ function computeEditedDelta(
   for (const key of keys) {
     const from = proposedInput[key];
     const to = approvedInput[key];
-    if (canonicalJson(from) !== canonicalJson(to)) {
+    if (canonicalJson(from) !== canonicalJson(to) || (from === null) !== (to === null)) {
       delta[key] = { from, to };
     }
   }
