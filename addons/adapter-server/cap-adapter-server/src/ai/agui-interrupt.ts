@@ -231,7 +231,8 @@ export function buildCardInputSchema(
         ...(enumOptions ? { options: enumOptions } : {}),
       };
     }
-    return Object.keys(out).length > 0 ? out : undefined;
+    if (Object.keys(out).length === 0) continue;
+    return out;
   }
   return undefined;
 }

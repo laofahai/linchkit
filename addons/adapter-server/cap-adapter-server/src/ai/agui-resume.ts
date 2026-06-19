@@ -38,6 +38,7 @@ import type {
 } from "@linchkit/cap-adapter-ag-ui";
 import { EventType } from "@linchkit/cap-adapter-ag-ui";
 import type { Actor, CommandLayer } from "@linchkit/core";
+import { canonicalJson } from "./agui-interrupt";
 
 /**
  * A hard resume rejection (Spec 71 §6.2/§6.3/§6.4). Thrown so the run endpoint
@@ -137,8 +138,7 @@ function computeEditedDelta(
   for (const key of keys) {
     const from = proposedInput[key];
     const to = approvedInput[key];
-    // Structural (JSON) inequality — order-insensitive enough for an audit delta.
-    if (JSON.stringify(from) !== JSON.stringify(to)) {
+    if (canonicalJson(from) !== canonicalJson(to)) {
       delta[key] = { from, to };
     }
   }
