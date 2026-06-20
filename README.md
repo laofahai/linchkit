@@ -1,6 +1,6 @@
 # LinchKit
 
-> **The governance & evolution substrate for AI-native business systems.** Your system's behavior is bound to declared intent — entities, actions, rules, policies. Every change, human-authored or AI-proposed, flows through proposal → approval; nothing reaches production unreviewed. And the system evolves by proposing its own improvements from how it's actually used — a human approves, and the proposal graduates into enforced rules.
+> **The governance & evolution substrate for AI-native business systems.** Your system's behavior is bound to declared intent — entities, actions, rules, policies. Every change, human-authored or AI-proposed, flows through proposal → approval and is enforced at execution time; nothing reaches production unreviewed. The longer game: let the system propose its own improvements from how it's used — always human-approved before anything graduates into an enforced rule.
 
 [中文文档](./README.zh-CN.md)
 
@@ -10,7 +10,7 @@
 
 LinchKit is the layer that keeps an AI-native business system **bound to the rules that govern it**. You declare the system's intent — entities, actions, rules, policies — and the runtime enforces it: every mutation flows through an Action, every change (human-authored or AI-proposed) flows through a Proposal → Validation → Approval pipeline, and rules are enforced at execution time, not merely documented.
 
-The deeper bet: models will keep getting better at *generating* systems. LinchKit is the layer that keeps what they generate — and what humans change — **provably within the declared rules**, and lets the system **evolve safely**: it observes how it's actually used, proposes an improvement (a new rule, a tightened policy), a human approves, and the proposal graduates into enforced code. AI never modifies production directly.
+The deeper bet: models will keep getting better at *generating* systems. LinchKit is the layer that keeps what they generate — and what humans change — **within rules that are actually enforced**, not merely documented; and it lets the system **evolve safely**: a proposed change (a new rule, a tightened policy) — whether a human writes it or the system surfaces it from observed signals — is reviewed and approved by a human before it graduates into enforced code. AI never modifies production directly. (Making that conformance *provable*, and the experience→policy maturation more autonomous, is the direction this substrate is built toward — see the [vision spec](./docs/specs/00a_product_vision.md).)
 
 It still does the declarative-framework job — entities, actions, states, events, views, flows, relations compile into API, UI, state management, and event handling. But that is the *how*, not the identity: the runtime exists to keep behavior governed and evolving safely, not just to scaffold CRUD.
 
