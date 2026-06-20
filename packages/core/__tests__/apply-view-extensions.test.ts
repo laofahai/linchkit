@@ -142,6 +142,29 @@ describe("applyViewExtensions", () => {
     ).toThrow('View "partner_form": field "email" already exists; use overrideFields');
   });
 
+  it("throws when overrideFields targets a field not present (fail-loud, security)", () => {
+    expect(() =>
+      applyViewExtensions(
+        [baseForm()],
+        [{ target: "partner_form", extension: { overrideFields: { ghost: { readonly: true } } } }],
+      ),
+    ).toThrow('overrideFields targets unknown field "ghost"');
+  });
+
+  it("throws when overrideFields targets a field removed earlier in the same extension", () => {
+    expect(() =>
+      applyViewExtensions(
+        [baseForm()],
+        [
+          {
+            target: "partner_form",
+            extension: { removeFields: ["email"], overrideFields: { email: { readonly: true } } },
+          },
+        ],
+      ),
+    ).toThrow('overrideFields targets unknown field "email"');
+  });
+
   it("throws when addActions collides with an existing action", () => {
     expect(() =>
       applyViewExtensions(

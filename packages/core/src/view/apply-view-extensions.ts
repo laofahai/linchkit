@@ -61,8 +61,21 @@ function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void
   }
 
   // 2. overrideFields — shallow-merge a partial config onto a matching field.
+  // Fail-loud (like addFields and the unknown-target guard) if an override key
+  // matches no field in the post-remove set: overrideFields carries
+  // security-relevant constraints (readonly, lockWhen), so a silently dropped
+  // override could leave a field editable when it should be restricted.
   if (extension.overrideFields) {
     const overrides = extension.overrideFields;
+    const fieldSet = new Set(view.fields.map((cfg) => cfg.field));
+    for (const key of Object.keys(overrides)) {
+      if (!fieldSet.has(key)) {
+        throw new Error(
+          `View "${view.name}": overrideFields targets unknown field "${key}" ` +
+            "(not present after removeFields)",
+        );
+      }
+    }
     view.fields = view.fields.map((cfg) =>
       Object.hasOwn(overrides, cfg.field) ? { ...cfg, ...overrides[cfg.field] } : cfg,
     );
