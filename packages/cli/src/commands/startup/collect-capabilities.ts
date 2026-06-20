@@ -8,6 +8,7 @@ import type {
   CapabilityDefinition,
   CliCommand,
   EntityDefinition,
+  EntityExtensionInput,
   EventHandlerDefinition,
   GraphQLExtensionRegistration,
   InterceptorRegistration,
@@ -21,7 +22,7 @@ import type {
   ViewDefinition,
   ViewExtensionInput,
 } from "@linchkit/core";
-import { applyViewExtensions, registerTranslations } from "@linchkit/core";
+import { applyEntityExtensions, applyViewExtensions, registerTranslations } from "@linchkit/core";
 
 export interface CollectedDefinitions {
   interfaces: InterfaceDefinition[];
@@ -64,10 +65,14 @@ export function collectCapabilityDefinitions(
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
   const commands: CliCommand[] = [];
   const sensors: Sensor[] = [];
-  // View extensions (`cap.extensions.views`, the Odoo view-inheritance model).
-  // Views surface to the UI in this path via the OntologyRegistry and the
-  // TransportContext (`transportCtx.views`), so collect extensions here and fold
-  // them into `views` after the loop.
+  // Entity/view extensions (`cap.extensions.entities`/`.views`, the Odoo
+  // `_inherit` model). Collected here — the EARLIEST chokepoint — and folded
+  // into `entities`/`views` after the loop, so the merged shape flows to EVERY
+  // downstream consumer of `collected.*`: `buildRegistries` (EntityRegistry),
+  // `setupDatabase` (Drizzle schema / TableRegistry), the DerivedPropertyEngine,
+  // and `transportCtx.entities`/`.views`. Merging only inside `buildRegistries`
+  // would leave the database/transport consumers reading unmerged definitions.
+  const entityExtensions: EntityExtensionInput[] = [];
   const viewExtensions: ViewExtensionInput[] = [];
 
   for (const cap of capabilities) {
@@ -96,6 +101,7 @@ export function collectCapabilityDefinitions(
         interceptors.push({ ...reg, capability: reg.capability || cap.name });
       }
     }
+    if (cap.extensions?.entities) entityExtensions.push(...cap.extensions.entities);
     if (cap.extensions?.views) viewExtensions.push(...cap.extensions.views);
     if (cap.extensions?.transports) transports.push(...cap.extensions.transports);
     if (cap.extensions?.graphqlExtensions) {
@@ -112,16 +118,15 @@ export function collectCapabilityDefinitions(
     }
   }
 
-  // Fold view extensions into the collected views so the OntologyRegistry and
-  // transport context surface the patched views to the UI. `applyViewExtensions`
-  // is pure and throws if an extension targets a view that is not present.
-  // NOTE: entity extensions are folded separately inside `buildRegistries`
-  // (so the EntityRegistry sees them); they are intentionally NOT merged here.
+  // Fold extensions into the collected entities/views at this single upstream
+  // chokepoint. `apply*` are pure and throw if an extension targets an
+  // entity/view that is not present.
+  const mergedEntities = applyEntityExtensions(entities, entityExtensions);
   const mergedViews = applyViewExtensions(views, viewExtensions);
 
   return {
     interfaces,
-    entities,
+    entities: mergedEntities,
     actions,
     views: mergedViews,
     states,

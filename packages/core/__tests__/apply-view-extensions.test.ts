@@ -168,4 +168,54 @@ describe("applyViewExtensions", () => {
     const email = view?.fields.find((f) => f.field === "email");
     expect(email).toEqual({ field: "email", readonly: true });
   });
+
+  // ── P2: fail-loud on the deferred layout case ──────────────────────────────
+
+  it("throws on addFields against a view with an explicit layout.nodes", () => {
+    const layoutForm: ViewDefinition = {
+      name: "partner_form",
+      entity: "partner",
+      type: "form",
+      fields: [{ field: "name" }],
+      layout: { nodes: [{ type: "field", field: "name" }] },
+    };
+    expect(() =>
+      applyViewExtensions(
+        [layoutForm],
+        [{ target: "partner_form", extension: { addFields: [{ field: "credit_limit" }] } }],
+      ),
+    ).toThrow(/has an explicit layout; addFields\/removeFields/);
+  });
+
+  it("throws on removeFields against a view with legacy layout.sections", () => {
+    const sectionForm: ViewDefinition = {
+      name: "partner_form",
+      entity: "partner",
+      type: "form",
+      fields: [{ field: "name" }, { field: "email" }],
+      layout: { sections: [{ title: "Main", fields: ["name", "email"] }] },
+    };
+    expect(() =>
+      applyViewExtensions(
+        [sectionForm],
+        [{ target: "partner_form", extension: { removeFields: ["email"] } }],
+      ),
+    ).toThrow(/has an explicit layout/);
+  });
+
+  it("still allows overrideFields on a layout view (no field-set mutation)", () => {
+    const layoutForm: ViewDefinition = {
+      name: "partner_form",
+      entity: "partner",
+      type: "form",
+      fields: [{ field: "name" }],
+      layout: { nodes: [{ type: "field", field: "name" }] },
+    };
+    const out = applyViewExtensions(
+      [layoutForm],
+      [{ target: "partner_form", extension: { overrideFields: { name: { readonly: true } } } }],
+    );
+    const name = out[0]?.fields.find((f) => f.field === "name");
+    expect(name).toEqual({ field: "name", readonly: true });
+  });
 });

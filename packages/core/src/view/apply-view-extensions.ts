@@ -10,13 +10,14 @@
  * Pure and immutable: returns a NEW array of NEW view objects; the input views
  * (which may be frozen or shared across consumers) are never mutated.
  *
- * LIMITATION (layout-aware insertion): `addFields` only appends to the view's
- * flat `fields[]` array. It does NOT splice the new field into a form's
- * `layout.nodes` tree (Odoo xpath-style positioned insertion). A form view that
- * renders strictly from `layout.nodes` will therefore not surface an appended
- * field automatically — only views that render from `fields[]` (or whose layout
- * is derived from `fields[]`) will. Positioned layout insertion is deferred.
- * TODO(layout-xpath): support positioned insertion into FormLayout.nodes.
+ * LIMITATION (layout-aware add/remove) — FAIL-LOUD, not silent: a form view that
+ * defines an explicit `layout` (`layout.nodes` or legacy `layout.sections`) is
+ * rendered from that tree, so patching only the flat `fields[]` array would NOT
+ * actually add/remove a field on screen (AutoForm reads the layout). Rather than
+ * silently no-op, `addFields`/`removeFields` against a view with an explicit
+ * layout THROWS. `overrideFields` and action add/remove are still honoured.
+ * Positioned insertion/pruning into the layout tree (Odoo xpath-style) is the
+ * deferred follow-up. TODO(layout-xpath): support add/remove into FormLayout.nodes.
  */
 
 import type { ViewAction, ViewDefinition, ViewExtension, ViewFieldConfig } from "../types/view";
@@ -37,6 +38,22 @@ export interface ViewExtensionInput {
  * so in-place mutation here does not leak to the original input.
  */
 function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void {
+  // Fail-loud on the deferred layout case: adding/removing a field only patches
+  // the flat `fields[]` array, but a view with an explicit `layout` renders from
+  // that tree — so a silent no-op would leave the rendered form wrong. Throw.
+  const hasExplicitLayout =
+    (view.layout?.nodes?.length ?? 0) > 0 || (view.layout?.sections?.length ?? 0) > 0;
+  const mutatesFieldSet =
+    (extension.addFields?.length ?? 0) > 0 || (extension.removeFields?.length ?? 0) > 0;
+  if (hasExplicitLayout && mutatesFieldSet) {
+    throw new Error(
+      `View "${view.name}" has an explicit layout; addFields/removeFields via ` +
+        "extension is not yet supported for layout-based views (positioned layout " +
+        "insertion/pruning is deferred — TODO(layout-xpath)). Use a fields[]-rendered " +
+        "view, or overrideFields.",
+    );
+  }
+
   // 1. removeFields — drop matching field configs.
   if (extension.removeFields && extension.removeFields.length > 0) {
     const remove = new Set(extension.removeFields);

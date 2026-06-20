@@ -18,8 +18,6 @@ interface EnvironmentInfo {
   isDevelopment: boolean;
 }
 
-import type { EntityExtensionInput } from "@linchkit/core";
-import { applyEntityExtensions } from "@linchkit/core";
 import {
   ActionRegistry,
   consoleLogger,
@@ -71,21 +69,14 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     );
   }
 
-  // Fold entity extensions (`cap.extensions.entities`, the Odoo `_inherit`
-  // model) into the pre-flattened `schemas` BEFORE registration so the
-  // registered entities — and therefore every consumer that reads raw
-  // `entity.fields` — carry the extension fields. `applyEntityExtensions` is
-  // pure and throws if an extension targets an entity that is not present.
-  const entityExtensions: EntityExtensionInput[] = [];
-  for (const cap of capabilities) {
-    if (cap.extensions?.entities) entityExtensions.push(...cap.extensions.entities);
-  }
-  const mergedSchemas = applyEntityExtensions(schemas, entityExtensions);
-
-  // Build EntityRegistry
+  // Build EntityRegistry. NOTE: `schemas` already carries any
+  // `cap.extensions.entities` (Odoo `_inherit`) fields — they are folded in at
+  // the single upstream chokepoint (`collectCapabilityDefinitions`) so the
+  // database/transport consumers see the same merged shape, not just the
+  // registry. Do NOT re-merge here.
   const entityRegistry = new EntityRegistry();
   entityRegistry.setInterfaceRegistry(interfaceRegistry);
-  for (const entity of mergedSchemas) {
+  for (const entity of schemas) {
     entityRegistry.register(entity);
   }
 
