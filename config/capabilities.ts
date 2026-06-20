@@ -16,6 +16,11 @@ import { capAdapterUi } from "@linchkit/cap-adapter-ui";
 import { createCapChatter } from "@linchkit/cap-chatter";
 import { capPurchaseDemo } from "@linchkit/cap-purchase-demo";
 import type { CapabilityDefinition } from "@linchkit/core";
+// Reference/demo capabilities for the in-place extension (Odoo `_inherit`) demo.
+// Authored as plain modules (not workspace packages) so they resolve through the
+// worktree's symlinked node_modules; imported here via relative path.
+import { partnerCapability } from "./capabilities/partner";
+import { salesCapability } from "./capabilities/sales";
 
 // Side-effect imports: register UI panels in the panel/route registry
 import "@linchkit/cap-chatter-ui";
@@ -52,4 +57,9 @@ export const capabilities: CapabilityDefinition[] = [
 
   // Business modules
   capPurchaseDemo,
+  // In-place extension demo: cap-sales adds `credit_limit` to cap-partner's
+  // `partner` entity + `partner_form` view IN PLACE (no fork). Order does not
+  // matter — extensions are folded after all caps are collected.
+  partnerCapability,
+  salesCapability,
 ];
