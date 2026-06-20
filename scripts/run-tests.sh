@@ -140,6 +140,7 @@ run_batch "packages/core"     ./packages/core/
 run_batch "packages/devtools" ./packages/devtools/
 run_batch "packages/starters" ./packages/starters/
 run_batch "scripts"           ./scripts/
+run_batch "config"            ./config/
 run_batch "e2e"               ./e2e/
 run_batch "addons"            ./addons/
 

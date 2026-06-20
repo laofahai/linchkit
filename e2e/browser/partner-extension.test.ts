@@ -46,9 +46,16 @@ const BOOT_TIMEOUT_MS = 90_000;
 
 // ── server + UI boot (self-contained) ───────────────────────────────────────
 
-async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
+async function waitForUrl(url: string, timeoutMs: number, proc?: Subprocess): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    // Fail fast if the spawned process already died (port collision, syntax
+    // error, crash) instead of polling uselessly until the full timeout.
+    if (proc && proc.exitCode !== null) {
+      throw new Error(
+        `Process for ${url} exited (code ${proc.exitCode}) before the URL became ready`,
+      );
+    }
     try {
       const res = await fetch(url);
       if (res.ok || res.status === 404) return; // up (404 = served but no such route)
@@ -102,41 +109,51 @@ async function bootStack(): Promise<BootedStack> {
     BUN_ENV: "development",
   };
 
-  // Boot the API server on an isolated port. Disable its auto-started UI + MCP
-  // child transports so THIS test owns the UI port (no auto-vite-port drift) and
-  // there is no :3002 MCP collision with a hand-run dev server.
-  const server = Bun.spawn(["bun", "addons/adapter-server/cap-adapter-server/src/dev.ts"], {
-    env: {
-      ...baseEnv,
-      PORT: String(API_PORT),
-      HOST: "127.0.0.1",
-      LINCHKIT_DEV_DISABLE_TRANSPORTS: "ui,mcp",
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  // Drain immediately — an unread pipe buffer fills and HANGS the server mid-run.
-  drainStream(server.stdout as ReadableStream<Uint8Array>);
-  drainStream(server.stderr as ReadableStream<Uint8Array>);
-  await waitForUrl(`${API_URL}/health`, BOOT_TIMEOUT_MS);
-
-  // Boot the Vite UI in the UI package dir on our isolated port with --strictPort
-  // so it never silently drifts. LINCHKIT_UI_PROXY_TARGET points its proxy at OUR
-  // API port instead of the default :3001.
-  const ui = Bun.spawn(
-    ["bunx", "vite", "--configLoader", "runner", "--port", String(UI_PORT), "--strictPort"],
-    {
-      cwd: "addons/adapter-ui/cap-adapter-ui",
-      env: { ...baseEnv, LINCHKIT_UI_PROXY_TARGET: API_URL },
+  let server: Subprocess | undefined;
+  let ui: Subprocess | undefined;
+  try {
+    // Boot the API server on an isolated port. Disable its auto-started UI + MCP
+    // child transports so THIS test owns the UI port (no auto-vite-port drift) and
+    // there is no :3002 MCP collision with a hand-run dev server.
+    server = Bun.spawn(["bun", "addons/adapter-server/cap-adapter-server/src/dev.ts"], {
+      env: {
+        ...baseEnv,
+        PORT: String(API_PORT),
+        HOST: "127.0.0.1",
+        LINCHKIT_DEV_DISABLE_TRANSPORTS: "ui,mcp",
+      },
       stdout: "pipe",
       stderr: "pipe",
-    },
-  );
-  drainStream(ui.stdout as ReadableStream<Uint8Array>);
-  drainStream(ui.stderr as ReadableStream<Uint8Array>);
-  await waitForUrl(UI_URL, BOOT_TIMEOUT_MS);
+    });
+    // Drain immediately — an unread pipe buffer fills and HANGS the server mid-run.
+    drainStream(server.stdout as ReadableStream<Uint8Array>);
+    drainStream(server.stderr as ReadableStream<Uint8Array>);
+    await waitForUrl(`${API_URL}/health`, BOOT_TIMEOUT_MS, server);
 
-  return { server, ui };
+    // Boot the Vite UI in the UI package dir on our isolated port with --strictPort
+    // so it never silently drifts. LINCHKIT_UI_PROXY_TARGET points its proxy at OUR
+    // API port instead of the default :3001.
+    ui = Bun.spawn(
+      ["bunx", "vite", "--configLoader", "runner", "--port", String(UI_PORT), "--strictPort"],
+      {
+        cwd: "addons/adapter-ui/cap-adapter-ui",
+        env: { ...baseEnv, LINCHKIT_UI_PROXY_TARGET: API_URL },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    drainStream(ui.stdout as ReadableStream<Uint8Array>);
+    drainStream(ui.stderr as ReadableStream<Uint8Array>);
+    await waitForUrl(UI_URL, BOOT_TIMEOUT_MS, ui);
+
+    return { server, ui };
+  } catch (err) {
+    // A boot failure (timeout / early crash) must not leak the already-spawned
+    // children as orphaned background processes — kill whatever started.
+    ui?.kill();
+    server?.kill();
+    throw err;
+  }
 }
 
 function killStack(stack: BootedStack | undefined): void {

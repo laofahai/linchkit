@@ -36,6 +36,7 @@ packages/devtools/
 packages/starters/
 packages/cli/
 scripts/
+config/
 e2e/
 addons/
 "
