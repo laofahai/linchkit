@@ -1,6 +1,6 @@
 # LinchKit
 
-> **AI-Native Software Capability Runtime.** Any software system driven by data, rules, and state can grow incrementally through AI-human collaboration, running safely and evolving continuously under a unified governance system.
+> **The governance & evolution substrate for AI-native business systems.** Your system's behavior is bound to declared intent — entities, actions, rules, policies. Every change, human-authored or AI-proposed, flows through proposal → approval; nothing reaches production unreviewed. And the system evolves by proposing its own improvements from how it's actually used — a human approves, and the proposal graduates into enforced rules.
 
 [中文文档](./README.zh-CN.md)
 
@@ -8,9 +8,11 @@
 
 ## What is LinchKit?
 
-LinchKit is a framework where you **define** your software system declaratively (entities, actions, rules, states, events, views, flows, relations), and the runtime takes care of the rest: API generation, UI rendering, state management, event handling, and governance.
+LinchKit is the layer that keeps an AI-native business system **bound to the rules that govern it**. You declare the system's intent — entities, actions, rules, policies — and the runtime enforces it: every mutation flows through an Action, every change (human-authored or AI-proposed) flows through a Proposal → Validation → Approval pipeline, and rules are enforced at execution time, not merely documented.
 
-AI agents (Claude Code, Cursor, Codex, Copilot, Trae) work alongside humans to design and generate complete capabilities. The framework provides guardrails: all writes go through Actions, all changes go through Proposals, and quality gates enforce standards before anything ships.
+The deeper bet: models will keep getting better at *generating* systems. LinchKit is the layer that keeps what they generate — and what humans change — **provably within the declared rules**, and lets the system **evolve safely**: it observes how it's actually used, proposes an improvement (a new rule, a tightened policy), a human approves, and the proposal graduates into enforced code. AI never modifies production directly.
+
+It still does the declarative-framework job — entities, actions, states, events, views, flows, relations compile into API, UI, state management, and event handling. But that is the *how*, not the identity: the runtime exists to keep behavior governed and evolving safely, not just to scaffold CRUD.
 
 ### Core Principles
 
@@ -21,11 +23,11 @@ AI agents (Claude Code, Cursor, Codex, Copilot, Trae) work alongside humans to d
 5. **Change Governance** — Proposal → Validation → Approval → Apply
 6. **Infinite Extensibility** — New protocols, field types, view types, services all register via Capability extensions
 
-### Use Cases
+### Where LinchKit fits
 
-E-commerce, SaaS, project management, CMS, ERP, booking systems, IoT management — any software where the core is data + rules + state.
+Systems where behavior must stay **bound to declared policy and rules** and **evolve without drifting** from them: internal-control, approval-driven, and compliance-sensitive business systems — anywhere a *policy* (who must approve, what's allowed, what's forbidden) has to stay connected to the *execution* that's supposed to obey it.
 
-Not suitable for: compute-intensive, real-time, or low-level systems.
+Not the right tool if you just need a CRUD app with no governance or evolution requirements — or for compute-intensive, real-time, or low-level systems.
 
 ---
 

@@ -11,7 +11,7 @@
 | # | Title | Summary | Milestone | Status |
 |---|-------|---------|-----------|--------|
 | [00](./00_tech_stack.md) | Tech Stack | Bun, Elysia, Drizzle, React 19, graphql-yoga, Restate — full-stack tech choices | M0 | Done |
-| [00a](./00a_product_vision.md) | Product Vision | "User says, let there be light" — system grows from usage, five-layer life system | — | Draft |
+| [00a](./00a_product_vision.md) | Product Vision | §0 = locked identity: governance & evolution substrate (intent-bound, human-gated, provable); honest 浪漫/内核 split. Original "let there be light" narrative kept below as north-star | — | Draft |
 | [72](./72_procurement_north_star_scenario.md) | Procurement North-Star Scenario | One real procurement-approval story (cap-purchase-demo) composing rule-in-action enforcement, governance, graduation PR, and AI tracing; acceptance bar = live multi-channel walkthroughs (browser/REST/MCP/AI assistant) with role-gated blocks and all AI calls visible in `/admin/ai-traces` — not green tests | M6–M7 | Draft |
 
 ## Meta-Model — Skeleton
