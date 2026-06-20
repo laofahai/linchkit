@@ -3,6 +3,10 @@
  * Browser-safe.
  */
 
+export {
+  applyViewExtensions,
+  type ViewExtensionInput,
+} from "../../view/apply-view-extensions";
 export { type FormLayoutBuilder, formLayout } from "../../view/form-layout-builder";
 export {
   type FieldOptions,

@@ -6,6 +6,10 @@
  */
 
 export {
+  applyEntityExtensions,
+  type EntityExtensionInput,
+} from "../../entity/apply-entity-extensions";
+export {
   type AggregateDerived,
   type CascadeTarget,
   type ConcatDerived,

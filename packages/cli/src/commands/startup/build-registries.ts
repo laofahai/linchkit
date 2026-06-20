@@ -69,7 +69,11 @@ export async function buildRegistries(input: RegistryBuildInput): Promise<Regist
     );
   }
 
-  // Build EntityRegistry
+  // Build EntityRegistry. NOTE: `schemas` already carries any
+  // `cap.extensions.entities` (Odoo `_inherit`) fields — they are folded in at
+  // the single upstream chokepoint (`collectCapabilityDefinitions`) so the
+  // database/transport consumers see the same merged shape, not just the
+  // registry. Do NOT re-merge here.
   const entityRegistry = new EntityRegistry();
   entityRegistry.setInterfaceRegistry(interfaceRegistry);
   for (const entity of schemas) {

@@ -19,13 +19,16 @@ import type {
   AIService,
   CapabilityDefinition,
   EntityDefinition,
+  EntityExtensionInput,
   FlowDefinition,
   MiddlewareRegistration,
   RelationDefinition,
   RuleDefinition,
   StateDefinition,
   ViewDefinition,
+  ViewExtensionInput,
 } from "@linchkit/core";
+import { applyEntityExtensions, applyViewExtensions } from "@linchkit/core";
 import { createEventBus, createOnchangeEvaluator } from "@linchkit/core/server";
 import type { GraphQLFieldConfig, GraphQLSchema } from "graphql";
 import { buildGraphQLSchema, generateCrudActions } from "./graphql/build-schema";
@@ -91,6 +94,12 @@ export function extractCapabilities(
   const seed: Record<string, Array<Record<string, unknown>>> = {};
   const extraQueryFields: Record<string, unknown> = {};
   const extraMutationFields: Record<string, unknown> = {};
+  // Entity/view extensions (Odoo `_inherit` model): a capability patches another
+  // capability's entity/view in place. Collected across all caps, then folded
+  // into `entities`/`views` AFTER the loop so every downstream consumer
+  // (GraphQL schema, CRUD generation, runtime registry, entity-api) sees them.
+  const entityExtensions: EntityExtensionInput[] = [];
+  const viewExtensions: ViewExtensionInput[] = [];
 
   for (const cap of capabilities) {
     if (cap.entities) entities.push(...cap.entities);
@@ -99,6 +108,8 @@ export function extractCapabilities(
     if (cap.views) views.push(...cap.views);
     if (cap.relations) relations.push(...cap.relations);
     if (cap.rules) rules.push(...cap.rules);
+    if (cap.extensions?.entities) entityExtensions.push(...cap.extensions.entities);
+    if (cap.extensions?.views) viewExtensions.push(...cap.extensions.views);
     // Detect duplicate flow names at assembly time. The sync flow engine
     // registers by name (Map.set), so a collision would otherwise let the later
     // capability's flow silently overwrite the earlier one — a hard-to-debug
@@ -151,11 +162,17 @@ export function extractCapabilities(
     }
   }
 
+  // Fold entity/view extensions into the base contributions so the merged
+  // field/view shape is what every downstream consumer reads. `apply*` are pure
+  // (new objects) and throw on an extension targeting a missing entity/view.
+  const mergedEntities = applyEntityExtensions(entities, entityExtensions);
+  const mergedViews = applyViewExtensions(views, viewExtensions);
+
   return {
-    entities,
+    entities: mergedEntities,
     actions,
     states,
-    views,
+    views: mergedViews,
     relations,
     rules,
     flows,

@@ -8,6 +8,7 @@ import type {
   CapabilityDefinition,
   CliCommand,
   EntityDefinition,
+  EntityExtensionInput,
   EventHandlerDefinition,
   GraphQLExtensionRegistration,
   InterceptorRegistration,
@@ -19,8 +20,9 @@ import type {
   StateDefinition,
   TransportAdapterDefinition,
   ViewDefinition,
+  ViewExtensionInput,
 } from "@linchkit/core";
-import { registerTranslations } from "@linchkit/core";
+import { applyEntityExtensions, applyViewExtensions, registerTranslations } from "@linchkit/core";
 
 export interface CollectedDefinitions {
   interfaces: InterfaceDefinition[];
@@ -63,6 +65,15 @@ export function collectCapabilityDefinitions(
   const graphqlExtensions: GraphQLExtensionRegistration[] = [];
   const commands: CliCommand[] = [];
   const sensors: Sensor[] = [];
+  // Entity/view extensions (`cap.extensions.entities`/`.views`, the Odoo
+  // `_inherit` model). Collected here — the EARLIEST chokepoint — and folded
+  // into `entities`/`views` after the loop, so the merged shape flows to EVERY
+  // downstream consumer of `collected.*`: `buildRegistries` (EntityRegistry),
+  // `setupDatabase` (Drizzle schema / TableRegistry), the DerivedPropertyEngine,
+  // and `transportCtx.entities`/`.views`. Merging only inside `buildRegistries`
+  // would leave the database/transport consumers reading unmerged definitions.
+  const entityExtensions: EntityExtensionInput[] = [];
+  const viewExtensions: ViewExtensionInput[] = [];
 
   for (const cap of capabilities) {
     if (cap.interfaces) interfaces.push(...cap.interfaces);
@@ -90,6 +101,8 @@ export function collectCapabilityDefinitions(
         interceptors.push({ ...reg, capability: reg.capability || cap.name });
       }
     }
+    if (cap.extensions?.entities) entityExtensions.push(...cap.extensions.entities);
+    if (cap.extensions?.views) viewExtensions.push(...cap.extensions.views);
     if (cap.extensions?.transports) transports.push(...cap.extensions.transports);
     if (cap.extensions?.graphqlExtensions) {
       graphqlExtensions.push(cap.extensions.graphqlExtensions);
@@ -105,11 +118,17 @@ export function collectCapabilityDefinitions(
     }
   }
 
+  // Fold extensions into the collected entities/views at this single upstream
+  // chokepoint. `apply*` are pure and throw if an extension targets an
+  // entity/view that is not present.
+  const mergedEntities = applyEntityExtensions(entities, entityExtensions);
+  const mergedViews = applyViewExtensions(views, viewExtensions);
+
   return {
     interfaces,
-    entities,
+    entities: mergedEntities,
     actions,
-    views,
+    views: mergedViews,
     states,
     links,
     rules,
