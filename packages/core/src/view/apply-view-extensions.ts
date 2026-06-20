@@ -89,6 +89,17 @@ function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void
             "(no such field in the view)",
         );
       }
+      // The override KEY is the field identity. `ViewFieldConfig.field` is
+      // optional on the Partial patch, so a stray `field` would silently rename
+      // the reference (corrupting the view / colliding with another field).
+      // Reject it — overrides patch config, never identity.
+      const patchField = overrides[key]?.field;
+      if (patchField !== undefined && patchField !== key) {
+        throw new Error(
+          `View "${view.name}": overrideFields["${key}"] cannot rename the field reference ` +
+            `to "${patchField}" — the override key is the field identity`,
+        );
+      }
     }
     view.fields = view.fields.map((cfg) =>
       Object.hasOwn(overrides, cfg.field) ? { ...cfg, ...overrides[cfg.field] } : cfg,

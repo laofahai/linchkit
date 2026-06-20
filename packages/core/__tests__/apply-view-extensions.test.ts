@@ -168,6 +168,31 @@ describe("applyViewExtensions", () => {
     ).toThrow('removeActions targets unknown action "ghost_action"');
   });
 
+  it("throws when overrideFields tries to rename the field reference (identity is the key)", () => {
+    expect(() =>
+      applyViewExtensions(
+        [baseForm()],
+        [{ target: "partner_form", extension: { overrideFields: { email: { field: "other" } } } }],
+      ),
+    ).toThrow(/cannot rename the field reference/);
+  });
+
+  it("allows overrideFields to restate field equal to its own key (no rename)", () => {
+    const out = applyViewExtensions(
+      [baseForm()],
+      [
+        {
+          target: "partner_form",
+          extension: { overrideFields: { email: { field: "email", readonly: true } } },
+        },
+      ],
+    );
+    expect(out[0]?.fields.find((f) => f.field === "email")).toEqual({
+      field: "email",
+      readonly: true,
+    });
+  });
+
   it("throws when overrideFields targets a field not present (fail-loud, security)", () => {
     expect(() =>
       applyViewExtensions(
