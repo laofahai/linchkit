@@ -72,7 +72,9 @@ export function applyEntityExtensions(
     }
     // `entity.fields` is our private clone; mutate it in place.
     const fields = entity.fields as Record<string, FieldDefinition>;
-    for (const [fname, fdef] of Object.entries(extension.fields)) {
+    // `fields` is typed required, but an extension may be built dynamically
+    // (e.g. by the AI proposal path) — guard against a missing map at runtime.
+    for (const [fname, fdef] of Object.entries(extension.fields ?? {})) {
       const existing = fields[fname];
       fields[fname] = existing ? mergeFieldDefinition(existing, fdef) : fdef;
     }

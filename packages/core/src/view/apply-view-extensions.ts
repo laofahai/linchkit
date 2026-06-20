@@ -128,7 +128,9 @@ export function applyViewExtensions(
   // so extensions mutate only our copies, never the shared/frozen inputs.
   const cloned = views.map((v) => ({
     ...v,
-    fields: [...v.fields],
+    // `fields` is typed required, but a view may arrive from runtime data
+    // (proposal/overlay/JSON) without it — fall back to an empty array.
+    fields: v.fields ? [...v.fields] : [],
     actions: v.actions ? [...v.actions] : undefined,
   }));
   const byName = new Map(cloned.map((v) => [v.name, v]));
