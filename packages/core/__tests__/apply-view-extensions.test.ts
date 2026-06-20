@@ -124,6 +124,14 @@ describe("applyViewExtensions", () => {
     expect(out[0]?.fields).toHaveLength(3);
   });
 
+  it("clones (new) view objects even with no extensions (contract holds on the no-op path)", () => {
+    const input = baseForm();
+    const out = applyViewExtensions([input], []);
+    expect(out[0]).not.toBe(input);
+    expect(out[0]?.fields).not.toBe(input.fields);
+    expect(out[0]?.fields.map((f) => f.field)).toEqual(["name", "email"]);
+  });
+
   it("throws on an unknown target view", () => {
     expect(() =>
       applyViewExtensions(

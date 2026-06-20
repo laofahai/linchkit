@@ -53,10 +53,6 @@ export function applyEntityExtensions(
   entities: EntityDefinition[],
   extensions: EntityExtensionInput[],
 ): EntityDefinition[] {
-  if (extensions.length === 0) {
-    return [...entities];
-  }
-
   // Shallow-clone every entity up front (new object + new fields map) so we
   // only ever mutate our copies, never the shared/frozen inputs.
   const cloned: EntityDefinition[] = entities.map((e) => ({

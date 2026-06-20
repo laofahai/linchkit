@@ -153,12 +153,6 @@ export function applyViewExtensions(
   views: ViewDefinition[],
   extensions: ViewExtensionInput[],
 ): ViewDefinition[] {
-  if (extensions.length === 0) {
-    // Still return new objects so callers cannot rely on identity, but avoid
-    // cloning when there is no work to do.
-    return [...views];
-  }
-
   // Shallow-clone every view up front (new objects + new fields/actions arrays)
   // so extensions mutate only our copies, never the shared/frozen inputs.
   const cloned = views.map((v) => ({

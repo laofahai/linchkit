@@ -125,10 +125,14 @@ describe("applyEntityExtensions", () => {
     ).toThrow('Cannot extend unknown entity "nope"');
   });
 
-  it("returns a new array even when there are no extensions", () => {
+  it("returns cloned (new) entity objects with new fields maps even when there are no extensions", () => {
     const input = [partner()];
     const out = applyEntityExtensions(input, []);
     expect(out).not.toBe(input);
     expect(out).toEqual(input);
+    // Contract holds on the no-op path: elements are new objects with new
+    // fields maps, not the original input references.
+    expect(out[0]).not.toBe(input[0]);
+    expect(out[0]?.fields).not.toBe(input[0]?.fields);
   });
 });
