@@ -210,6 +210,22 @@ describe("applyViewExtensions", () => {
     ).toThrow(/has an explicit layout; addFields\/removeFields/);
   });
 
+  it("treats a present-but-empty layout as layout-driven (fail-loud, not a silent no-op)", () => {
+    const emptyLayoutForm: ViewDefinition = {
+      name: "partner_form",
+      entity: "partner",
+      type: "form",
+      fields: [{ field: "name" }],
+      layout: { nodes: [] },
+    };
+    expect(() =>
+      applyViewExtensions(
+        [emptyLayoutForm],
+        [{ target: "partner_form", extension: { addFields: [{ field: "credit_limit" }] } }],
+      ),
+    ).toThrow(/has an explicit layout/);
+  });
+
   it("throws on removeFields against a view with legacy layout.sections", () => {
     const sectionForm: ViewDefinition = {
       name: "partner_form",

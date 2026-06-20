@@ -41,8 +41,12 @@ function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void
   // Fail-loud on the deferred layout case: adding/removing a field only patches
   // the flat `fields[]` array, but a view with an explicit `layout` renders from
   // that tree — so a silent no-op would leave the rendered form wrong. Throw.
+  // A view "declares a layout" if it carries a nodes/sections array — even an
+  // empty one. An empty declared layout is ambiguous (AutoForm may render blank
+  // rather than fall back to fields[]), so treat it as layout-driven and
+  // fail-loud rather than silently patching only fields[].
   const hasExplicitLayout =
-    (view.layout?.nodes?.length ?? 0) > 0 || (view.layout?.sections?.length ?? 0) > 0;
+    Array.isArray(view.layout?.nodes) || Array.isArray(view.layout?.sections);
   const mutatesFieldSet =
     (extension.addFields?.length ?? 0) > 0 || (extension.removeFields?.length ?? 0) > 0;
   if (hasExplicitLayout && mutatesFieldSet) {
@@ -72,7 +76,7 @@ function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void
       if (!fieldSet.has(key)) {
         throw new Error(
           `View "${view.name}": overrideFields targets unknown field "${key}" ` +
-            "(not present after removeFields)",
+            "(no such field in the view)",
         );
       }
     }
