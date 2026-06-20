@@ -142,6 +142,24 @@ describe("applyViewExtensions", () => {
     ).toThrow('View "partner_form": field "email" already exists; use overrideFields');
   });
 
+  it("throws when removeFields targets an unknown field (fail-loud — a typo must not silently leave a sensitive field visible)", () => {
+    expect(() =>
+      applyViewExtensions(
+        [baseForm()],
+        [{ target: "partner_form", extension: { removeFields: ["ghost"] } }],
+      ),
+    ).toThrow('removeFields targets unknown field "ghost"');
+  });
+
+  it("throws when removeActions targets an unknown action (and never coerces undefined actions to [])", () => {
+    expect(() =>
+      applyViewExtensions(
+        [listView()],
+        [{ target: "partner_list", extension: { removeActions: ["ghost_action"] } }],
+      ),
+    ).toThrow('removeActions targets unknown action "ghost_action"');
+  });
+
   it("throws when overrideFields targets a field not present (fail-loud, security)", () => {
     expect(() =>
       applyViewExtensions(

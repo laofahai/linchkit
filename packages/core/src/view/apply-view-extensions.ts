@@ -58,8 +58,18 @@ function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void
     );
   }
 
-  // 1. removeFields — drop matching field configs.
+  // 1. removeFields — drop matching field configs. Fail-loud on an unknown
+  // field name: removeFields is also how an extension HIDES a (possibly
+  // sensitive) field, so a typo that silently leaves it visible is the same
+  // class of risk as a dropped overrideFields constraint. Consistent with the
+  // other guards.
   if (extension.removeFields && extension.removeFields.length > 0) {
+    const present = new Set(view.fields.map((cfg) => cfg.field));
+    for (const f of extension.removeFields) {
+      if (!present.has(f)) {
+        throw new Error(`View "${view.name}": removeFields targets unknown field "${f}"`);
+      }
+    }
     const remove = new Set(extension.removeFields);
     view.fields = view.fields.filter((cfg) => !remove.has(cfg.field));
   }
@@ -101,8 +111,16 @@ function applyOneExtension(view: ViewDefinition, extension: ViewExtension): void
     view.fields = [...view.fields, ...added];
   }
 
-  // 4. removeActions, then addActions.
+  // 4. removeActions, then addActions. Fail-loud on an unknown action — this
+  // also means an undefined `actions` is never coerced to `[]` (a non-empty
+  // removeActions against a view with no actions throws before the filter runs).
   if (extension.removeActions && extension.removeActions.length > 0) {
+    const presentActions = new Set((view.actions ?? []).map((a) => a.action));
+    for (const a of extension.removeActions) {
+      if (!presentActions.has(a)) {
+        throw new Error(`View "${view.name}": removeActions targets unknown action "${a}"`);
+      }
+    }
     const remove = new Set(extension.removeActions);
     view.actions = (view.actions ?? []).filter((a) => !remove.has(a.action));
   }
