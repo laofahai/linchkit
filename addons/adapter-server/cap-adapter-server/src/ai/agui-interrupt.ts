@@ -7,7 +7,7 @@
  * agui-runner.ts focused on orchestration.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Actor, Interrupt, InterruptStore } from "@linchkit/cap-adapter-ag-ui";
 import type { ServerOptions } from "../server";
 import type { ProposeMutationArgs } from "./tools";
@@ -108,7 +108,7 @@ export function buildProposeInterrupt(options: {
     inputSchema,
   } = options;
   const now = options.now ?? Date.now();
-  const interruptId = options.interruptId ?? crypto.randomUUID();
+  const interruptId = options.interruptId ?? randomUUID();
   // Reserved-prefixed tool-call id (§4.2 / §4.5 fallback sentinel).
   const toolCallId = `${PROPOSE_MUTATION_TOOL_CALL_ID_PREFIX}${interruptId}`;
   const inputDigest = computeInputDigest(proposal.action, proposal.input);
