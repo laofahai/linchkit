@@ -102,6 +102,11 @@ const raisingCreditForLatePayer: CodeCondition = ({ target, record }) => {
     // route it through approval rather than letting an unreasonable value slip
     // past the gate. Exception: if it is unchanged from the stored value it is
     // not a credit change at all, so there is nothing to gate.
+    //
+    // Both nullish (absent input / NULL column) → no change → not gated. The
+    // loose `== null` guard avoids `undefined !== null` wrongly gating a
+    // non-change when a nullable column reads back as null.
+    if (target.credit_limit == null && record.credit_limit == null) return false;
     return target.credit_limit !== record.credit_limit;
   }
 

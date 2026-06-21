@@ -243,6 +243,30 @@ describe("late-payer credit-raise rule (real update_partner enforcement, in-proc
     const items = await pendingApprovals(app);
     expect(items.find((r) => r.action === "update_partner")).toBeDefined();
   });
+
+  it("5. late payer + update an UNRELATED field (no credit_limit in payload) → proceeds (gate must not fire on non-credit changes)", async () => {
+    const app = buildApp();
+
+    const id = await createPartner(app, {
+      name: "Flagged Co",
+      is_late_payer: true,
+      credit_limit: 1000,
+    });
+
+    // Only `name` changes — `credit_limit` is absent from the input. The engine
+    // merges target = {...stored, ...input}, so proposed === current → no gate.
+    const { status, body } = await postAction(app, "update_partner", {
+      id,
+      name: "Flagged Co (renamed)",
+    });
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+
+    // The credit limit is unchanged, and no approval was created.
+    expect(await readCreditLimit(app, id)).toBe(1000);
+    const items = await pendingApprovals(app);
+    expect(items.filter((r) => r.action === "update_partner")).toHaveLength(0);
+  });
 });
 
 // ── Numeric-coercion units (deterministic, no store round-trip) ───────────────
@@ -305,6 +329,15 @@ describe("late-payer credit-raise condition — numeric coercion", () => {
     const same = "abc";
     expect(
       await evaluate({ is_late_payer: true, credit_limit: same }, { credit_limit: same }),
+    ).toBe(false);
+  });
+
+  it("null baseline with undefined proposed (no-op) is not gated", async () => {
+    // A nullable column reads back as null; an absent input leaves credit_limit
+    // undefined. Both-nullish must be treated as no change, not `undefined !==
+    // null` → gated.
+    expect(
+      await evaluate({ is_late_payer: true, credit_limit: null }, { credit_limit: undefined }),
     ).toBe(false);
   });
 });
