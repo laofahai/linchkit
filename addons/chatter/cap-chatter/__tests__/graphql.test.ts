@@ -205,7 +205,7 @@ describe("buildChatterGraphQLExtension", () => {
       const result = await graphql({
         schema,
         source: `
-          mutation AddChatterMessage($entityName: String!, $recordId: String!, $messageType: MessageType!, $body: String!) {
+          mutation AddChatterMessage($entityName: String!, $recordId: String!, $messageType: AuthorableMessageType!, $body: String!) {
             chatterAddMessage(entityName: $entityName, recordId: $recordId, messageType: $messageType, body: $body) {
               ${CLIENT_FIELDS}
             }
@@ -298,7 +298,10 @@ describe("buildChatterGraphQLExtension", () => {
       expect(msg.author).toEqual({ id: "svc-9", type: "system", name: "System" });
     });
 
-    it("rejects authoring a non-comment/note message kind", async () => {
+    it("rejects authoring a non-comment/note kind at the schema layer (input enum)", async () => {
+      // `log` is not a member of the `AuthorableMessageType` input enum, so the
+      // operation is rejected during GraphQL validation — before the resolver runs.
+      // This is the schema expressing the authoring constraint (not a runtime throw).
       const schema = buildFullSchema(service);
       const result = await graphql({
         schema,
@@ -312,7 +315,11 @@ describe("buildChatterGraphQLExtension", () => {
         contextValue: { actor: { id: "u", type: "user" } },
       });
       expect(result.errors).toBeDefined();
-      expect(result.errors?.[0]?.message).toContain("only");
+      // graphql-js enum-validation error names the offending value + the enum.
+      expect(result.errors?.[0]?.message).toContain("log");
+      expect(result.errors?.[0]?.message).toContain("AuthorableMessageType");
+      // Rejected before execution → field never resolved.
+      expect(result.data ?? null).toBeNull();
     });
 
     it("rejects an empty body", async () => {
@@ -380,7 +387,12 @@ describe("buildChatterGraphQLExtension", () => {
 
     it("invokes the authorize hook with the target record before writing", async () => {
       const schema = buildFullSchema(service);
-      const calls: Array<{ entityName: string; recordId: string; actorId: string }> = [];
+      const calls: Array<{
+        entityName: string;
+        recordId: string;
+        actorId: string;
+        tenantId?: string;
+      }> = [];
       const result = await graphql({
         schema,
         source: `
@@ -397,11 +409,13 @@ describe("buildChatterGraphQLExtension", () => {
             entityName: string;
             recordId: string;
             actor: { id: string };
+            tenantId?: string;
           }) => {
             calls.push({
               entityName: input.entityName,
               recordId: input.recordId,
               actorId: input.actor.id,
+              tenantId: input.tenantId,
             });
           },
         },
@@ -409,8 +423,11 @@ describe("buildChatterGraphQLExtension", () => {
 
       expect(result.errors).toBeUndefined();
       expect(result.data?.chatterAddMessage).toBeDefined();
-      // The hook ran exactly once, gated on the target record + actor.
-      expect(calls).toEqual([{ entityName: "partner", recordId: "rec-gate", actorId: "user-7" }]);
+      // The hook ran exactly once, gated on the target record + actor, and the
+      // request tenant propagated to it (so the permission check is tenant-scoped).
+      expect(calls).toEqual([
+        { entityName: "partner", recordId: "rec-gate", actorId: "user-7", tenantId: "tenant-9" },
+      ]);
     });
 
     it("DENIES the write when the authorize hook throws — nothing is persisted", async () => {

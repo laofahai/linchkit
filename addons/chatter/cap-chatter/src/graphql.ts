@@ -76,10 +76,11 @@ interface ChatterGraphQLContext {
 // ── Shared GraphQL types ────────────────────────────────────
 
 /**
- * Message kinds. Shared by the `messageType` output field and the
- * `chatterAddMessage` input argument. A single enum instance is intentionally
- * reused for both input and output positions — graphql-js permits enums in
- * either role, and reuse keeps the schema's type set minimal.
+ * All message kinds. Used for the `messageType` OUTPUT field and the
+ * `chatterMessages` query filter (a client may filter by any kind, including the
+ * system-produced `log`/`ai`). NOT used as the `chatterAddMessage` input — see
+ * {@link AuthorableMessageTypeEnum}, which expresses the authoring constraint in
+ * the type system rather than only at runtime.
  */
 const MessageTypeEnum = new GraphQLEnumType({
   name: "MessageType",
@@ -89,6 +90,23 @@ const MessageTypeEnum = new GraphQLEnumType({
     note: { value: "note" },
     log: { value: "log" },
     ai: { value: "ai" },
+  },
+});
+
+/**
+ * The message kinds a CLIENT may author via `chatterAddMessage`. `log`/`ai` are
+ * system-produced (e.g. the auto-log event handler) and must never come from a
+ * client request, so they are absent here — an introspection-based client (codegen,
+ * GraphQL Playground) sees only the genuinely-accepted values, and `log`/`ai` are
+ * rejected at the schema layer, not silently accepted then thrown at runtime. The
+ * resolver keeps a defensive runtime check as defense-in-depth.
+ */
+const AuthorableMessageTypeEnum = new GraphQLEnumType({
+  name: "AuthorableMessageType",
+  description: "Message kinds a client may author (comments and notes only)",
+  values: {
+    comment: { value: "comment" },
+    note: { value: "note" },
   },
 });
 
@@ -241,8 +259,11 @@ export function buildChatterGraphQLExtension(
       entityName: { type: new GraphQLNonNull(GraphQLString) },
       recordId: { type: new GraphQLNonNull(GraphQLString) },
       messageType: {
-        type: new GraphQLNonNull(MessageTypeEnum),
-        description: "Message kind — only `comment` or `note` may be authored by a client",
+        // Restricted input enum (comment/note only) — the authoring constraint is
+        // expressed in the schema, so `log`/`ai` are rejected at validation time
+        // and never appear as valid inputs to an introspection client.
+        type: new GraphQLNonNull(AuthorableMessageTypeEnum),
+        description: "Message kind to author — `comment` or `note`",
       },
       body: { type: new GraphQLNonNull(GraphQLString) },
     },
@@ -262,26 +283,30 @@ export function buildChatterGraphQLExtension(
       // Treat it as Partial here so the runtime actor guard below is meaningful
       // even though the interface declares `actor` as always-present.
       const context = (rawContext ?? {}) as Partial<ChatterGraphQLContext>;
-      // Authored content is restricted to comments/notes. `log`/`ai` entries are
-      // produced by the system (e.g. the auto-log event handler), never by a
-      // client request, so reject them here.
+      // Authored content is restricted to comments/notes. The `AuthorableMessageType`
+      // input enum already rejects `log`/`ai` at schema-validation time; this runtime
+      // check is defense-in-depth for any non-schema caller (e.g. a direct resolver
+      // invocation in a test or future transport).
       if (args.messageType !== "comment" && args.messageType !== "note") {
         throw new Error(
           `Cannot author a "${args.messageType}" message — only "comment" or "note" are allowed.`,
         );
       }
 
-      // Bound the body length on the RAW input, before trimming — otherwise a
-      // padded payload (e.g. 5k real chars + tens of MB of trailing whitespace)
-      // would force an O(n) trim over the whole blob before this O(1) check
-      // fires. Reject on raw length first (storage / DoS guard).
+      // Bound each length on the RAW input, before trimming — otherwise a padded
+      // payload (e.g. 5k real chars + tens of MB of trailing whitespace) would
+      // force an O(n) trim over the whole blob before these O(1) checks fire.
+      // Per-field messages so the caller knows which input was too long.
       const MAX_BODY_LENGTH = 10_000;
-      if (
-        args.body.length > MAX_BODY_LENGTH ||
-        args.entityName.length > 255 ||
-        args.recordId.length > 255
-      ) {
-        throw new Error(`Input exceeds allowed length (body limit ${MAX_BODY_LENGTH} chars).`);
+      const MAX_REF_LENGTH = 255;
+      if (args.body.length > MAX_BODY_LENGTH) {
+        throw new Error(`Message body exceeds the ${MAX_BODY_LENGTH}-character limit.`);
+      }
+      if (args.entityName.length > MAX_REF_LENGTH) {
+        throw new Error(`entityName exceeds the ${MAX_REF_LENGTH}-character limit.`);
+      }
+      if (args.recordId.length > MAX_REF_LENGTH) {
+        throw new Error(`recordId exceeds the ${MAX_REF_LENGTH}-character limit.`);
       }
 
       // Sanitize text inputs and reject empty/whitespace-only bodies.
