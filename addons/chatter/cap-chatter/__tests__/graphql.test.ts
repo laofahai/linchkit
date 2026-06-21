@@ -194,6 +194,12 @@ describe("buildChatterGraphQLExtension", () => {
       createdAt updatedAt
     `;
 
+    // The resolver fails closed unless the host injects an authorize hook (the
+    // real permission gate). Happy-path tests supply a permissive stub; the
+    // dedicated permission tests below supply allow / deny stubs and assert the
+    // hook actually runs and receives the target record.
+    const allowAll = async () => {};
+
     it("persists a note and returns the shape the UI client selects", async () => {
       const schema = buildFullSchema(service);
       const result = await graphql({
@@ -215,6 +221,7 @@ describe("buildChatterGraphQLExtension", () => {
         contextValue: {
           actor: { id: "user-42", type: "user", name: "Alice" },
           tenantId: "tenant-1",
+          authorizeChatterWrite: allowAll,
         },
       });
 
@@ -242,7 +249,7 @@ describe("buildChatterGraphQLExtension", () => {
             }
           }
         `,
-        contextValue: { actor: { id: "user-1", type: "user" } },
+        contextValue: { actor: { id: "user-1", type: "user" }, authorizeChatterWrite: allowAll },
       });
       expect(add.errors).toBeUndefined();
       const addedId = (add.data?.chatterAddMessage as Record<string, unknown>).id;
@@ -281,7 +288,10 @@ describe("buildChatterGraphQLExtension", () => {
             }
           }
         `,
-        contextValue: { actor: { id: "svc-9", type: "system", name: "System" } },
+        contextValue: {
+          actor: { id: "svc-9", type: "system", name: "System" },
+          authorizeChatterWrite: allowAll,
+        },
       });
       expect(result.errors).toBeUndefined();
       const msg = result.data?.chatterAddMessage as Record<string, unknown>;
@@ -357,6 +367,100 @@ describe("buildChatterGraphQLExtension", () => {
       });
       expect(result.errors).toBeDefined();
       expect(result.errors?.[0]?.message).toContain("actor");
+    });
+
+    // ── Permission gate (the injected authorize hook) ─────────
+    //
+    // These prove the write now passes through the host-injected permission gate
+    // BEFORE persisting — the seam the server backs with a real CommandLayer
+    // permission-slot dispatch. The full real-pipeline e2e lives in
+    // adapter-server's `e2e-chatter-permission.test.ts`; here we assert the
+    // resolver contract: it calls the hook with the target record and refuses to
+    // write when the hook (or no hook) denies.
+
+    it("invokes the authorize hook with the target record before writing", async () => {
+      const schema = buildFullSchema(service);
+      const calls: Array<{ entityName: string; recordId: string; actorId: string }> = [];
+      const result = await graphql({
+        schema,
+        source: `
+          mutation {
+            chatterAddMessage(entityName: "partner", recordId: "rec-gate", messageType: note, body: "gated") {
+              id
+            }
+          }
+        `,
+        contextValue: {
+          actor: { id: "user-7", type: "user" },
+          tenantId: "tenant-9",
+          authorizeChatterWrite: async (input: {
+            entityName: string;
+            recordId: string;
+            actor: { id: string };
+          }) => {
+            calls.push({
+              entityName: input.entityName,
+              recordId: input.recordId,
+              actorId: input.actor.id,
+            });
+          },
+        },
+      });
+
+      expect(result.errors).toBeUndefined();
+      expect(result.data?.chatterAddMessage).toBeDefined();
+      // The hook ran exactly once, gated on the target record + actor.
+      expect(calls).toEqual([{ entityName: "partner", recordId: "rec-gate", actorId: "user-7" }]);
+    });
+
+    it("DENIES the write when the authorize hook throws — nothing is persisted", async () => {
+      const schema = buildFullSchema(service);
+      const result = await graphql({
+        schema,
+        source: `
+          mutation {
+            chatterAddMessage(entityName: "partner", recordId: "rec-denied", messageType: note, body: "blocked") {
+              id
+            }
+          }
+        `,
+        contextValue: {
+          actor: { id: "user-x", type: "user" },
+          authorizeChatterWrite: async () => {
+            throw new Error('Permission denied: no write access to entity "partner"');
+          },
+        },
+      });
+
+      // The denial surfaces as a GraphQL error and the field resolves to null.
+      expect(result.errors).toBeDefined();
+      expect(result.errors?.[0]?.message).toContain("Permission denied");
+      expect(result.data?.chatterAddMessage ?? null).toBeNull();
+
+      // Side effect must NOT have happened: no message was written.
+      const read = await service.getMessages("partner", "rec-denied");
+      expect(read.totalCount).toBe(0);
+    });
+
+    it("fails closed when no authorize hook is injected (host did not wire the gate)", async () => {
+      const schema = buildFullSchema(service);
+      const result = await graphql({
+        schema,
+        source: `
+          mutation {
+            chatterAddMessage(entityName: "partner", recordId: "rec-nohook", messageType: note, body: "x") {
+              id
+            }
+          }
+        `,
+        // Actor present, but the host injected no authorize hook.
+        contextValue: { actor: { id: "user-z", type: "user" } },
+      });
+
+      expect(result.errors).toBeDefined();
+      expect(result.errors?.[0]?.message).toContain("permission-wired");
+      const read = await service.getMessages("partner", "rec-nohook");
+      expect(read.totalCount).toBe(0);
     });
   });
 });

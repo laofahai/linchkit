@@ -24,11 +24,39 @@ import {
 import type { ChatterMessage, ChatterService, MessageType } from "./types";
 
 /**
+ * Authorization hook the host (cap-adapter-server) injects on the per-request
+ * GraphQL context so a chatter write passes through the CommandLayer permission
+ * slot — exactly like every action-backed mutation does — WITHOUT cap-chatter
+ * importing the server (module boundary).
+ *
+ * cap-chatter owns the WRITE entry (`chatterAddMessage`), but the message store
+ * is a plain Drizzle table, not a meta-model action, so the GraphQL resolver
+ * cannot route through `dispatchAction → commandLayer.execute`. Instead the
+ * server contributes this hook; its implementation runs a standalone permission
+ * check (CommandLayer non-action dispatch) gating an entity-level WRITE on the
+ * record's entity. The hook MUST reject (throw) when the actor is not permitted.
+ *
+ * Defined locally as a structural type so cap-chatter depends on the SHAPE, not
+ * the server package.
+ */
+export type AuthorizeChatterWrite = (input: {
+  /** The entity the comment/note is posted against (e.g. "purchase_order"). */
+  entityName: string;
+  /** The record id within that entity. */
+  recordId: string;
+  /** The request actor (already resolved by the auth slot upstream). */
+  actor: { id: string; type: string; name?: string; tenantId?: string };
+  /** Tenant scope for the write, when present. */
+  tenantId?: string;
+}) => Promise<void>;
+
+/**
  * Minimal view of the per-request GraphQL context this extension reads.
  *
  * cap-chatter must not depend on cap-adapter-server (module boundary), so we
  * narrow to only the fields we consume. The server's full `GraphQLContext`
- * (which carries `actor` and `tenantId`) is structurally compatible with this.
+ * (which carries `actor`, `tenantId`, and now `authorizeChatterWrite`) is
+ * structurally compatible with this.
  */
 interface ChatterGraphQLContext {
   // The server's GraphQLContext always populates `actor` — an authenticated
@@ -37,6 +65,12 @@ interface ChatterGraphQLContext {
   // guards defensively against a malformed, contextless call).
   actor: { id: string; type: string; name?: string; tenantId?: string };
   tenantId?: string;
+  /**
+   * Permission gate injected by the host. When present, the `chatterAddMessage`
+   * resolver invokes it BEFORE writing so the CommandLayer permission slot runs.
+   * Absent only in degraded setups that wire no host (the resolver fails closed).
+   */
+  authorizeChatterWrite?: AuthorizeChatterWrite;
 }
 
 // ── Shared GraphQL types ────────────────────────────────────
@@ -237,6 +271,19 @@ export function buildChatterGraphQLExtension(
         );
       }
 
+      // Bound the body length on the RAW input, before trimming — otherwise a
+      // padded payload (e.g. 5k real chars + tens of MB of trailing whitespace)
+      // would force an O(n) trim over the whole blob before this O(1) check
+      // fires. Reject on raw length first (storage / DoS guard).
+      const MAX_BODY_LENGTH = 10_000;
+      if (
+        args.body.length > MAX_BODY_LENGTH ||
+        args.entityName.length > 255 ||
+        args.recordId.length > 255
+      ) {
+        throw new Error(`Input exceeds allowed length (body limit ${MAX_BODY_LENGTH} chars).`);
+      }
+
       // Sanitize text inputs and reject empty/whitespace-only bodies.
       const entityName = args.entityName.trim();
       const recordId = args.recordId.trim();
@@ -247,12 +294,6 @@ export function buildChatterGraphQLExtension(
       if (!body) {
         throw new Error("Message body cannot be empty.");
       }
-      // Bound the body length so a single request cannot insert an unbounded
-      // blob (storage / DoS guard).
-      const MAX_BODY_LENGTH = 10_000;
-      if (body.length > MAX_BODY_LENGTH) {
-        throw new Error(`Message body exceeds the ${MAX_BODY_LENGTH}-character limit.`);
-      }
 
       // Author identity is server-managed — derived from the request actor,
       // never accepted from the client. Guard defensively: a contextless call
@@ -261,6 +302,27 @@ export function buildChatterGraphQLExtension(
       if (!actor) {
         throw new Error("chatterAddMessage requires an actor on the request context.");
       }
+
+      // Permission slot: route the write through the host-injected authorize
+      // hook so the CommandLayer permission slot runs — the same guarantee
+      // every action-backed mutation gets. The hook gates an entity-level WRITE
+      // on the target record's entity (the comment is "written against" that
+      // record) and THROWS when the actor is not permitted. Fail closed: if no
+      // host wired the hook, refuse the write rather than silently allow it.
+      // Run on the trimmed/validated values, after the DoS-ordering checks above.
+      const authorize = context.authorizeChatterWrite;
+      if (!authorize) {
+        throw new Error(
+          "chatterAddMessage is not permission-wired — the host did not inject an authorize hook.",
+        );
+      }
+      await authorize({
+        entityName,
+        recordId,
+        actor,
+        tenantId: context.tenantId ?? actor.tenantId,
+      });
+
       const message = await service.createMessage({
         entityName,
         recordId,
