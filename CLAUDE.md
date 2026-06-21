@@ -1,6 +1,8 @@
-# LinchKit — AI-Native Software Capability Runtime
+# LinchKit — Governance & Evolution Substrate for AI-Native Systems
 
 ## Overview
+
+LinchKit binds a system's behavior to declared intent (制度/规则), evolves it via human-gated Proposals from observed reality, and aims to make conformance provable. It is **not** a generic framework — it is this specific governance/evolution substrate. The declarative meta-model is the *how*, not the identity. Locked identity + honest 浪漫/内核 split: `docs/specs/00a_product_vision.md` §0.
 
 Meta-model: **Entity + Action + Rule + State + Event + EventHandler + View + Flow + Relation**
 Life system: **Sense + Memory + Awareness + Insight + Proposal** (Spec 55)
