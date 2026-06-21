@@ -44,6 +44,28 @@ describe("ProposalEngine.createProposal", () => {
     expect(proposal.impact.schemasAffected).toEqual(["custom"]);
     expect(proposal.impact.migrationRequired).toBe(true);
   });
+
+  it("stores optional evidence (origin/provenance) verbatim on the draft", () => {
+    const engine = createTestEngine();
+    const evidence = {
+      kind: "chatter_note",
+      ref: "msg-123",
+      context: { entityName: "purchase_request", recordId: "rec-1" },
+    };
+    const proposal = engine.createProposal({ ...baseProposalOptions, evidence });
+
+    // Stored verbatim — exact structure, including nested context.
+    expect(proposal.evidence).toEqual(evidence);
+  });
+
+  it("leaves evidence undefined (NOT an empty object) when omitted", () => {
+    const engine = createTestEngine();
+    const proposal = engine.createProposal(baseProposalOptions);
+
+    expect(proposal.evidence).toBeUndefined();
+    // Guard the conditional-spread: the key must be absent, not present-but-empty.
+    expect("evidence" in proposal).toBe(false);
+  });
 });
 
 // ── ProposalEngine: submitProposal (validation) ─────────

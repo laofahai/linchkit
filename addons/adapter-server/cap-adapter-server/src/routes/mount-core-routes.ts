@@ -29,6 +29,7 @@ import { mountEntityRoutes } from "./entity-api";
 import { mountHealthRoutes } from "./health";
 import { mountImportRoutes } from "./import-api";
 import { mountOnchangeRoutes } from "./onchange-api";
+import { mountProposalsFromNoteRoute } from "./proposals-from-note";
 import { mountTranslationRoutes } from "./translation-api";
 
 /** Mount the order-sensitive, closure-free core route modules onto `app`. */
@@ -63,6 +64,10 @@ export function mountCoreRoutes(app: Elysia, opts: ServerOptions, serverStartedA
   mountAITracesRoutes(app, opts);
   // Spec 52 "说→有" first slice — NL utterance → governed `add_rule` ProposalDraft.
   mountResolveSchemaIntentRoute(app, opts);
+  // 经验→制度 (first segment) — human-gated promotion of a chatter note (经验) into
+  // a DRAFT governed Proposal carrying the note as `evidence` provenance. Reuses
+  // the same NL → proposal pipeline as the sibling route above.
+  mountProposalsFromNoteRoute(app, opts);
   mountTranslationRoutes(app, opts);
   mountOnchangeRoutes(app, opts, opts.onchangeEvaluator);
 }

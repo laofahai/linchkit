@@ -442,5 +442,9 @@ export function serializeProposal(p: ProposalDefinition): Record<string, unknown
     analysis: p.analysis
       ? { ...p.analysis, analyzedAt: p.analysis.analyzedAt.toISOString() }
       : undefined,
+    // Origin/provenance (经验→制度 first segment) — read-only metadata recording
+    // WHERE the change came from (e.g. a chatter note). Surfaced so a reviewer
+    // can trace a draft to its source via GET /api/proposals and /:id.
+    evidence: p.evidence,
   };
 }

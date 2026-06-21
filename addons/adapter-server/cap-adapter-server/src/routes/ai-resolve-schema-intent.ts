@@ -32,6 +32,7 @@ import type {
   EntityDefinition,
   ProposalChange,
   ProposalDefinition,
+  ProposalEvidence,
   RelationDefinition,
   RuleDefinition,
 } from "@linchkit/core";
@@ -141,7 +142,7 @@ export interface ResolveSchemaIntentResponse {
  * Proposal in `governed` so its id/status reach the client; the other paths
  * persist nothing (no governed Proposal is created).
  */
-function toResponse(
+export function toResponse(
   outcome: SchemaIntentOutcome,
   governed?: ProposalDefinition,
 ): ResolveSchemaIntentResponse {
@@ -216,14 +217,20 @@ function toResponse(
  * `proposal_draft` with a built rule, but we never want a malformed change to
  * reach the engine).
  */
-function persistGovernedRuleDraft(opts: {
+export function persistGovernedRuleDraft(opts: {
   engine: GovernedProposalEngine;
   outcome: SchemaIntentProposalDraft;
   reasoning: string;
   /** The actor who requested the resolution — recorded for the audit trail. */
   actor: Actor;
+  /**
+   * Optional origin/provenance metadata. Threaded verbatim onto the governed
+   * draft so a reviewer can trace it to its source (e.g. a chatter note).
+   * Undefined for the NL route — a no-op, no behavior change.
+   */
+  evidence?: ProposalEvidence;
 }): ProposalDefinition | undefined {
-  const { engine, outcome, reasoning, actor } = opts;
+  const { engine, outcome, reasoning, actor, evidence } = opts;
   const { proposal: draft, ruleName, targetEntity, explanation, operation } = outcome;
   const diffOnly = outcome.requiresCodeChange === true;
 
@@ -282,6 +289,8 @@ function persistGovernedRuleDraft(opts: {
     // Adding or updating a single business rule is a minor change.
     changeType: "minor",
     changes: [change],
+    // Origin/provenance — a no-op when undefined (NL route passes nothing).
+    evidence,
   });
 }
 
@@ -312,13 +321,19 @@ function persistGovernedRuleDraft(opts: {
  * would let the route report a successful `entity_proposal_draft` while nothing
  * was governed, and a silently-dropped relation would regress the #580 contract.
  */
-function persistGovernedEntityDraft(opts: {
+export function persistGovernedEntityDraft(opts: {
   engine: GovernedProposalEngine;
   outcome: SchemaIntentEntityProposalDraft;
   reasoning: string;
   actor: Actor;
+  /**
+   * Optional origin/provenance metadata. Threaded verbatim onto the governed
+   * draft so a reviewer can trace it to its source (e.g. a chatter note).
+   * Undefined for the NL route — a no-op, no behavior change.
+   */
+  evidence?: ProposalEvidence;
 }): ProposalDefinition {
-  const { engine, outcome, reasoning, actor } = opts;
+  const { engine, outcome, reasoning, actor, evidence } = opts;
   const { proposal: draft, entityName, explanation } = outcome;
 
   const definition = draft.diff?.definition;
@@ -399,6 +414,8 @@ function persistGovernedEntityDraft(opts: {
     // A new entity is an additive, minor change.
     changeType: "minor",
     changes,
+    // Origin/provenance — a no-op when undefined (NL route passes nothing).
+    evidence,
   });
 }
 

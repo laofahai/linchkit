@@ -20,6 +20,7 @@ import type {
   ProposalAuthor,
   ProposalChange,
   ProposalDefinition,
+  ProposalEvidence,
   ProposalImpact,
 } from "../types/proposal";
 import type { SemanticRelation } from "../types/semantic-relation";
@@ -50,6 +51,8 @@ export interface CreateProposalOptions {
    * Read-only metadata — it never affects validation, approval, or graduation.
    */
   analysis?: ProposalPreAnalysisResult;
+  /** Optional origin/provenance metadata. Stored verbatim on the draft. */
+  evidence?: ProposalEvidence;
 }
 
 // ── Engine options ───────────────────────────────────────
@@ -172,6 +175,10 @@ export class ProposalEngine {
       // Attach the optional pre-analysis envelope so the review UI can surface
       // the "why" behind the proposal. Omitted entirely when not provided.
       ...(options.analysis ? { analysis: options.analysis } : {}),
+      // Attach the optional origin/provenance metadata (经验→制度 first segment)
+      // so a reviewer can trace the draft back to its source. Omitted entirely
+      // when not provided — never stored as an empty object.
+      ...(options.evidence ? { evidence: options.evidence } : {}),
     };
 
     this.proposals.set(proposal.id, proposal);

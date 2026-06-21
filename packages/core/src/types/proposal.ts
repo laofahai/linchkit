@@ -275,6 +275,24 @@ export interface SuccessMetric {
   unit?: string;
 }
 
+// ── Proposal evidence / provenance ───────────────────────
+
+/**
+ * Origin/provenance of a Proposal (经验→制度 loop, first segment). Records WHERE
+ * the change came from so a reviewer can trace a draft back to its source.
+ * General + JSON-serializable. Distinct from `successMetric.insightRef` (post-merge
+ * outcome correlation) and `analysis` (pre-analysis envelope): pure origin metadata,
+ * it NEVER drives validation/approval/graduation.
+ */
+export interface ProposalEvidence {
+  /** Origin kind, e.g. "chatter_note", "insight". */
+  kind: string;
+  /** Stable reference into the origin, e.g. the chatter message id. */
+  ref: string;
+  /** Optional structured context, e.g. { entityName, recordId }. */
+  context?: Record<string, unknown>;
+}
+
 // ── Proposal definition ──────────────────────────────────
 
 export interface ProposalDefinition {
@@ -344,4 +362,15 @@ export interface ProposalDefinition {
    * pre-analysis (e.g. manual drafts).
    */
   analysis?: ProposalPreAnalysisResult;
+
+  /**
+   * Optional origin/provenance metadata (经验→制度 first segment). Promotes the
+   * informal `evidence` sidecar (life-system/insight-to-proposal.ts) to a typed
+   * field. Read-only — never affects the pipeline.
+   *
+   * NOTE: when stamped by the `/api/proposals/from-note` route, `ref` is the
+   * client-asserted note id (the route does NOT re-fetch the note server-side in
+   * this slice — see that route). Server-side verification is a follow-up.
+   */
+  evidence?: ProposalEvidence;
 }
