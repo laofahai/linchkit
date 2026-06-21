@@ -31,7 +31,11 @@ import type { ChatterMessage, ChatterService, MessageType } from "./types";
  * (which carries `actor` and `tenantId`) is structurally compatible with this.
  */
 interface ChatterGraphQLContext {
-  actor?: { id: string; type: string; name?: string; tenantId?: string };
+  // The server's GraphQLContext always populates `actor` — an authenticated
+  // user, or the anonymous sentinel for unauthenticated requests. It is never
+  // absent in normal operation, so it is required here (the resolver still
+  // guards defensively against a malformed, contextless call).
+  actor: { id: string; type: string; name?: string; tenantId?: string };
   tenantId?: string;
 }
 
@@ -221,7 +225,9 @@ export function buildChatterGraphQLExtension(
     ): Promise<SerializedChatterMessage> => {
       // Narrow the opaque per-request context to only the fields we read. The
       // server passes its full `GraphQLContext` (which carries `actor`/`tenantId`).
-      const context = (rawContext ?? {}) as ChatterGraphQLContext;
+      // Treat it as Partial here so the runtime actor guard below is meaningful
+      // even though the interface declares `actor` as always-present.
+      const context = (rawContext ?? {}) as Partial<ChatterGraphQLContext>;
       // Authored content is restricted to comments/notes. `log`/`ai` entries are
       // produced by the system (e.g. the auto-log event handler), never by a
       // client request, so reject them here.
@@ -248,18 +254,27 @@ export function buildChatterGraphQLExtension(
         throw new Error(`Message body exceeds the ${MAX_BODY_LENGTH}-character limit.`);
       }
 
-      // Author identity is server-managed — derived from the authenticated
-      // actor, never accepted from the client.
-      const actor = context?.actor;
+      // Author identity is server-managed — derived from the request actor,
+      // never accepted from the client. Guard defensively: a contextless call
+      // (no actor at all) is rejected rather than silently attributed.
+      const actor = context.actor;
+      if (!actor) {
+        throw new Error("chatterAddMessage requires an actor on the request context.");
+      }
       const message = await service.createMessage({
         entityName,
         recordId,
         messageType: args.messageType,
         body,
-        authorId: actor?.id ?? "anonymous",
-        authorType: actor?.type ?? "system",
-        authorName: actor?.name,
-        tenantId: context?.tenantId ?? actor?.tenantId,
+        authorId: actor.id,
+        authorType: actor.type,
+        authorName: actor.name,
+        // tenantId is optional by design: a single-tenant / tenant-less
+        // deployment (e.g. the local demo) legitimately has no tenant, so an
+        // undefined value is accepted and stored as NULL. A tenant-scoped read
+        // filter (tracked separately) must treat NULL-tenant rows consistently
+        // for that mode.
+        tenantId: context.tenantId ?? actor.tenantId,
       });
 
       return serializeMessage(message);

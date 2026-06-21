@@ -339,5 +339,24 @@ describe("buildChatterGraphQLExtension", () => {
       expect(result.errors).toBeDefined();
       expect(result.errors?.[0]?.message).toContain("limit");
     });
+
+    it("rejects a contextless call with no actor", async () => {
+      const schema = buildFullSchema(service);
+      const result = await graphql({
+        schema,
+        source: `
+          mutation {
+            chatterAddMessage(entityName: "partner", recordId: "r", messageType: note, body: "hi") {
+              id
+            }
+          }
+        `,
+        // No contextValue → no actor. The resolver must reject rather than
+        // silently persist an unattributed message.
+        contextValue: {},
+      });
+      expect(result.errors).toBeDefined();
+      expect(result.errors?.[0]?.message).toContain("actor");
+    });
   });
 });
