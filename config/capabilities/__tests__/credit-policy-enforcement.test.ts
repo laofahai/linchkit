@@ -267,6 +267,69 @@ describe("late-payer credit-raise rule (real update_partner enforcement, in-proc
     const items = await pendingApprovals(app);
     expect(items.filter((r) => r.action === "update_partner")).toHaveLength(0);
   });
+
+  it("6. single-call spoof: clear is_late_payer AND raise in ONE write → still SUSPENDS (flag read from stored record)", async () => {
+    const app = buildApp();
+
+    const id = await createPartner(app, {
+      name: "Spoofy Co",
+      is_late_payer: true,
+      credit_limit: 1000,
+    });
+
+    // The caller tries to clear the flag and raise in the same write. The
+    // credit rule reads is_late_payer from the STORED record (still true), so
+    // the raise is gated regardless of the input flag.
+    const { status, body } = await postAction(app, "update_partner", {
+      id,
+      is_late_payer: false,
+      credit_limit: 5000,
+    });
+    expect(status).toBe(422);
+    expect(body.success).toBe(false);
+
+    // Nothing was committed (neither the cleared flag nor the raise).
+    expect(await readCreditLimit(app, id)).toBe(1000);
+    const items = await pendingApprovals(app);
+    expect(items.find((r) => r.action === "update_partner")).toBeDefined();
+  });
+
+  it("7. two-step bypass closed: clearing is_late_payer alone → SUSPENDS (anti-bypass rule)", async () => {
+    const app = buildApp();
+
+    const id = await createPartner(app, {
+      name: "Two Step Co",
+      is_late_payer: true,
+      credit_limit: 1000,
+    });
+
+    // Step 1 of the bypass — clearing the flag — is itself gated, so the
+    // two-step sequence can never reach an ungated raise.
+    const { status, body } = await postAction(app, "update_partner", { id, is_late_payer: false });
+    expect(status).toBe(422);
+    expect(body.success).toBe(false);
+
+    const items = await pendingApprovals(app);
+    expect(items.find((r) => r.action === "update_partner")).toBeDefined();
+  });
+
+  it("8. flagging a good-standing partner (false → true) is NOT gated", async () => {
+    const app = buildApp();
+
+    const id = await createPartner(app, {
+      name: "Newly Risky Co",
+      is_late_payer: false,
+      credit_limit: 1000,
+    });
+
+    // Setting the flag is the safe direction — never gated.
+    const { status, body } = await postAction(app, "update_partner", { id, is_late_payer: true });
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+
+    const items = await pendingApprovals(app);
+    expect(items.filter((r) => r.action === "update_partner")).toHaveLength(0);
+  });
 });
 
 // ── Numeric-coercion units (deterministic, no store round-trip) ───────────────

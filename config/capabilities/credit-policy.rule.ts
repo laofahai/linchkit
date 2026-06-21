@@ -154,3 +154,47 @@ export const latePayerCreditRaiseRule: RuleDefinition = {
       "Raising the credit limit of a late-paying partner requires approval",
   },
 };
+
+/**
+ * Anti-bypass companion: gate CLEARING the late-payer flag.
+ *
+ * Without this, the credit-raise gate is defeated in two steps: (1) clear
+ * `is_late_payer` — no `credit_limit` change, so the raise rule does not fire;
+ * (2) raise `credit_limit` — now unflagged, so the raise proceeds ungated.
+ * Clearing the flag is itself a sensitive act, so it goes through the same
+ * approval. Setting the flag (false → true) is NOT gated — flagging a risk is
+ * never the risky direction.
+ */
+const clearingLatePayerFlag: CodeCondition = ({ target, record }) => {
+  if (record == null) return false;
+  // Only a transition FROM flagged matters. Not currently flagged → nothing to
+  // protect.
+  if (record.is_late_payer !== true) return false;
+  // Gate only when the write actually sets the flag to a non-true value.
+  // `target` merges input over the stored row, so when the caller leaves the
+  // flag untouched `target.is_late_payer` stays `true` and this is a no-op.
+  return target.is_late_payer !== true;
+};
+
+/**
+ * Clearing the late-payer flag requires approval (anti-bypass).
+ *
+ * trigger:   the partner update action (CRUD `update_partner`).
+ * condition: stored `is_late_payer === true` AND the write sets it to non-true.
+ * effect:    require_approval at the `manager` level.
+ */
+export const clearLatePayerFlagRule: RuleDefinition = {
+  name: "clear_late_payer_flag_requires_approval",
+  label: "Clearing Late-Payer Flag Requires Approval",
+  description:
+    "Clearing the late-payer flag on a partner requires approval — otherwise it " +
+    "could sidestep the credit-raise gate in a two-step sequence. Flagging a " +
+    "partner as a late payer is not gated.",
+  trigger: { action: "update_partner" },
+  condition: clearingLatePayerFlag,
+  effect: {
+    type: "require_approval",
+    level: "manager",
+    message: "清除迟付款标记需要审批 / Clearing the late-payer flag requires approval",
+  },
+};

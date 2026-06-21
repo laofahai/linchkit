@@ -28,7 +28,7 @@
  */
 
 import { defineCapability, extendEntity, extendView } from "@linchkit/core";
-import { latePayerCreditRaiseRule } from "./credit-policy.rule";
+import { clearLatePayerFlagRule, latePayerCreditRaiseRule } from "./credit-policy.rule";
 
 export const salesCapability = defineCapability({
   name: "cap-sales",
@@ -45,7 +45,7 @@ export const salesCapability = defineCapability({
   // The credit-policy rule that gates raising a late payer's credit limit.
   // Registered by reference (no auto-glob); the action engine evaluates it on
   // every `update_partner` execution via the real rule-in-action wiring.
-  rules: [latePayerCreditRaiseRule],
+  rules: [latePayerCreditRaiseRule, clearLatePayerFlagRule],
   extensions: {
     entities: [
       extendEntity("partner", {
