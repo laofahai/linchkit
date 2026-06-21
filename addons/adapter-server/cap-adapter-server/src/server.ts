@@ -51,6 +51,7 @@ import { patchNamedConstant } from "@linchkit/devtools";
 import { Elysia } from "elysia";
 import { type GraphQLSchema, NoSchemaIntrospectionCustomRule } from "graphql";
 import { createYoga, type Plugin } from "graphql-yoga";
+import { createAuthorizeRecordWrite } from "./graphql/authorize-record-write";
 import { createRelationDataLoaders } from "./graphql/relation-dataloader";
 import { mountProposalAPI } from "./proposal-api";
 import { mountProposalGraduateAPI } from "./proposal-graduate-api";
@@ -277,6 +278,15 @@ export function createServer(
   const executionLogger = options?.executionLogger;
   const serverStartedAt = Date.now();
 
+  // Standalone WRITE permission gate for capability mutations not backed by a
+  // meta-model action (currently cap-chatter's `chatterAddMessage`). Built once
+  // from the CommandLayer and injected on every GraphQL context so those
+  // resolvers run the real permission slot before writing. Undefined when no
+  // CommandLayer is wired (rare test setups) — chatter then fails closed.
+  const authorizeChatterWrite = options?.commandLayer
+    ? createAuthorizeRecordWrite(options.commandLayer)
+    : undefined;
+
   // Track current schema for hot-reload support
   let currentSchema = graphqlSchema;
 
@@ -359,6 +369,7 @@ export function createServer(
         permissionGroups,
         entityMap,
         relationLoaders,
+        authorizeChatterWrite,
       };
     },
   });

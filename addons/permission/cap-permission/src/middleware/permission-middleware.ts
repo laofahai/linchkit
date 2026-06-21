@@ -66,13 +66,15 @@ const PERM_CACHE_TTL_MS = 10 * 60 * 1000;
 
 /**
  * The authoritative permission target a NON-ACTION dispatch publishes in `ctx.meta`.
- * Two kinds, matching the two documented conventions:
+ * Three kinds, matching the documented conventions:
  *  - `action` — gate on an action grant (`grant.<capability>.actions.<action>`).
  *  - `read`   — gate on entity-level READ data access (`grant.<entity>.data.read`).
+ *  - `write`  — gate on entity-level WRITE data access (`grant.<entity>.data.write`).
  */
 type MetaTarget =
   | { kind: "action"; capability: string; action: string }
-  | { kind: "read"; capability: string; entity: string };
+  | { kind: "read"; capability: string; entity: string }
+  | { kind: "write"; capability: string; entity: string };
 
 /**
  * Resolve the authoritative permission target for a NON-ACTION dispatch that
@@ -88,6 +90,12 @@ type MetaTarget =
  *  - `meta.onchange = { entity }` (Spec 64) → an entity-level READ check. The
  *    onchange route computes form fields for an entity; authorize it as "may this
  *    actor READ this entity" (`grant.<entity>.data.read`), NOT as an action.
+ *  - `meta.recordWrite = { entity }` → an entity-level WRITE check. A capability
+ *    that contributes a GraphQL mutation NOT backed by a meta-model action (e.g.
+ *    cap-chatter posting a comment against a record) cannot route through
+ *    `dispatchAction`, so it gates its write here: authorize it as "may this actor
+ *    WRITE the target entity" (`grant.<entity>.data.write`). Mirrors the onchange
+ *    read-target but on the `write` operation.
  *  - `meta.aiObservability = { operation }` (Spec 69 P3) → an ACTION grant target.
  *    Gate AI observability admin reads (e.g. `GET /api/ai/traces`) on a natural
  *    grant (`grant.ai.actions.<operation>`, e.g. `grant.ai.actions.read_traces`)
@@ -106,6 +114,10 @@ function resolveMetaTarget(ctx: CommandContext): MetaTarget | null {
   const onchange = meta?.onchange as { entity?: unknown } | undefined;
   if (onchange && typeof onchange.entity === "string" && onchange.entity.length > 0) {
     return { kind: "read", capability: onchange.entity, entity: onchange.entity };
+  }
+  const recordWrite = meta?.recordWrite as { entity?: unknown } | undefined;
+  if (recordWrite && typeof recordWrite.entity === "string" && recordWrite.entity.length > 0) {
+    return { kind: "write", capability: recordWrite.entity, entity: recordWrite.entity };
   }
   const aiObservability = meta?.aiObservability as { operation?: unknown } | undefined;
   if (
@@ -178,6 +190,43 @@ export function createPermissionMiddleware(
           details: {
             action: command,
             capability: readCapability,
+            entity: metaTarget.entity,
+          },
+        });
+      }
+      await next();
+      return;
+    }
+
+    // A `write` meta target (a capability mutation not backed by a meta-model
+    // action — e.g. cap-chatter posting a comment) is authorized by entity-level
+    // WRITE data access. Decide it up front and return. Honour a custom
+    // `resolveCapability` for the same legacy-grant reason; default to the entity
+    // name.
+    //
+    // FAIL CLOSED on conditional grants: `resolveDataAccess` may return "all",
+    // "none", OR a row-level `DataAccessCondition` (e.g. "may write own-department
+    // records"). This non-action gate carries only the target `entity`/`recordId`
+    // — it does NOT load the target record, so it cannot evaluate that condition
+    // against this specific row. Treating a condition as allow would let a
+    // conditional writer (scoped to *their* rows) write against ANY record of the
+    // entity — a row-level bypass. So only an unconditional "all" passes; "none"
+    // and any condition are denied. A conditional writer being unable to comment
+    // is the safe failure. Follow-up: load the target record and evaluate the
+    // condition for true row-level authorization.
+    if (metaTarget?.kind === "write") {
+      const writeCapability = resolveCapability
+        ? resolveCapability(command, ctx)
+        : metaTarget.capability;
+      const write = resolveDataAccess(registry, actor, writeCapability, metaTarget.entity, "write");
+      if (write !== "all") {
+        throw new AuthorizationError({
+          code: "authz.action.denied",
+          message: `Permission denied: no unconditional write access to entity "${metaTarget.entity}"`,
+          requiredGroups: actor.groups.length > 0 ? undefined : ["(any)"],
+          details: {
+            action: command,
+            capability: writeCapability,
             entity: metaTarget.entity,
           },
         });

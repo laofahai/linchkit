@@ -75,7 +75,7 @@ export async function addChatterMessage(
   body: string,
 ): Promise<ChatterMessage> {
   const query = `
-    mutation AddChatterMessage($entityName: String!, $recordId: String!, $messageType: MessageType!, $body: String!) {
+    mutation AddChatterMessage($entityName: String!, $recordId: String!, $messageType: AuthorableMessageType!, $body: String!) {
       chatterAddMessage(entityName: $entityName, recordId: $recordId, messageType: $messageType, body: $body) {
         ${CHATTER_MESSAGE_FIELDS}
       }

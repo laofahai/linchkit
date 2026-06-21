@@ -95,6 +95,24 @@ export interface GraphQLContext {
   entityMap?: Map<string, EntityDefinition>;
   /** Per-request DataLoaders for batched link resolution (avoids N+1 queries) */
   relationLoaders?: import("./relation-dataloader").RelationDataLoaders;
+  /**
+   * Permission gate for capability mutations that are NOT backed by a meta-model
+   * action and therefore cannot route through `dispatchAction → commandLayer`.
+   *
+   * Currently consumed by cap-chatter's `chatterAddMessage` (it writes to a plain
+   * Drizzle table, not via an Action). The host (`createServer`) injects an
+   * implementation that runs a standalone CommandLayer permission check (non-action
+   * dispatch) gating an entity-level WRITE on the target record's entity. The hook
+   * THROWS when the actor is not permitted; the resolver fails closed when it is
+   * absent. Shaped to match cap-chatter's `AuthorizeChatterWrite` structural type
+   * (no import — the boundary is the shape, not the package).
+   */
+  authorizeChatterWrite?: (input: {
+    entityName: string;
+    recordId: string;
+    actor: Actor;
+    tenantId?: string;
+  }) => Promise<void>;
 }
 
 /** Maximum page size for list queries */
