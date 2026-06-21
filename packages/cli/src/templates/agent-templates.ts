@@ -6,7 +6,7 @@ export function claudeMdTemplate(projectName: string): string {
   return `# ${projectName}
 
 ## Overview
-LinchKit AI-Native Software Capability Runtime project.
+A LinchKit project. LinchKit is the governance & evolution substrate for AI-native systems — behavior is bound to declared intent (entities, actions, rules, policies) and evolves through human-gated proposals.
 
 ## Execution Workflow
 - GitHub milestones and issues are the execution source of truth

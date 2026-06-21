@@ -14,7 +14,7 @@
 
 ## 1. Motivation
 
-LinchKit is an AI-Native Software Capability Runtime. The meta-model (Entity, Action, Rule, State, Event, EventHandler, View, Flow, Relation) is inherently machine-readable. Yet today, AI coding tools (Claude Code, Codex, Cursor, Trae, etc.) must manually parse source files to understand a LinchKit project.
+LinchKit is the governance & evolution substrate for AI-native systems. The meta-model (Entity, Action, Rule, State, Event, EventHandler, View, Flow, Relation) is inherently machine-readable. Yet today, AI coding tools (Claude Code, Codex, Cursor, Trae, etc.) must manually parse source files to understand a LinchKit project.
 
 The goal: **any AI coding tool that opens a LinchKit project should immediately understand the domain model, available operations, and project conventions — and be able to operate the running system through standardized protocols.**
 
