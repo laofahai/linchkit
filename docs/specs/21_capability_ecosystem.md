@@ -137,6 +137,25 @@ linchkit-capabilities/            ← 官方能力仓库
 - CI 管道模板成熟，可独立运行
 - 版本兼容性校验工具就绪
 
+**分拆前置感知度量（split-readiness metrics, issue #84）：**
+
+每个 PR 若同时触碰 `packages/`（core/cli/devtools）和 `addons/`（Capabilities），则被自动打上 `cross-cutting` 标签（由 `.github/workflows/label-cross-cutting.yml` 执行）。该数字是分拆时机的核心信号：当 `cross-cutting` 占比持续走低，说明 core API 趋于稳定、能力与核心耦合减少，具备分拆条件。
+
+**就绪快照（2026-06）**
+
+| 指标 | 当前值 | 达标阈值 |
+|------|--------|---------|
+| core breaking-change 频率 | > 1次/月（近期 32 个未发布的 minor 变更积压） | < 1次/月，持续一个完整季度 |
+| `cross-cutting` PR 占比 | ~22%（60 个近期合并 PR 中 13 个跨目录） | —（量化基准，无硬阈值） |
+| 外部 Capability 作者数量 | 0 | ≥ 1 名真实外部作者（触发 Spec 21 §4.2 注册表） |
+
+**重新开启分拆决策的触发条件（满足任一即讨论）：**
+
+(a) core breaking-change 频率 < 1次/月，持续一个完整日历季度；
+(b) 出现第一位真实外部 Capability 作者（需要独立仓库 + manifest-PR 流程）。
+
+> 2026-06 决策：物理分拆 DEFER。以上三项指标均未达标；OCA 参考（Odoo 官方 addon 仍在主仓库）也支持延期。分拆准备就绪前，继续以上述度量跟踪进展，不做急于分拆的工程投入。
+
 ### 2.4 M3+：自建 Capability Hub
 
 在独立仓库的基础上，增加 Web UI 市场：
