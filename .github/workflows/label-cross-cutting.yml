@@ -1,0 +1,92 @@
+name: Label cross-cutting PRs
+
+# Implements the cross-cutting PR metric described in issue #84 (Spec 21 §2.3
+# split-readiness tracking): a PR that touches BOTH packages/ (core/cli/devtools)
+# AND addons/ (capabilities) is "cross-cutting" — it is the change shape that
+# would require cross-repo release choreography after a physical monorepo split.
+# Tracking them makes the "22% cross-cutting" anecdote a live, quantified metric.
+#
+# The `cross-cutting` label is applied when both directories are touched and
+# removed when an update to the PR eliminates the dual-touch (idempotent).
+#
+# Security: uses `pull_request` (not `pull_request_target`) so the restricted
+# GITHUB_TOKEN from fork PRs cannot perform write operations. Label addition
+# requires the `pull-requests: write` permission.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label-cross-cutting:
+    name: Label cross-cutting PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect cross-cutting changes and sync label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const LABEL = 'cross-cutting';
+            const LABEL_COLOR = 'e4e669';
+            const LABEL_DESC = 'Touches both packages/ and addons/ — split-readiness metric (Spec 21 §2.3, issue #84)';
+
+            // Paginate to handle PRs with >100 changed files.
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                per_page: 100,
+              },
+            );
+
+            const touchesPackages = files.some(f => f.filename.startsWith('packages/'));
+            const touchesAddons   = files.some(f => f.filename.startsWith('addons/'));
+            const isCrossCutting  = touchesPackages && touchesAddons;
+
+            if (isCrossCutting) {
+              // Ensure the label exists in the repo (idempotent).
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: LABEL,
+                });
+              } catch {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: LABEL,
+                  color: LABEL_COLOR,
+                  description: LABEL_DESC,
+                });
+                console.log(`Created label "${LABEL}".`);
+              }
+
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: [LABEL],
+              });
+              console.log(`Added "${LABEL}" label — PR touches packages/ AND addons/.`);
+            } else {
+              // Remove the label when a force-push or subsequent commit means
+              // the PR no longer crosses both directories.
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  name: LABEL,
+                });
+                console.log(`Removed "${LABEL}" label — PR no longer cross-cutting.`);
+              } catch {
+                // 404 = label was not present; ignore.
+              }
+            }
