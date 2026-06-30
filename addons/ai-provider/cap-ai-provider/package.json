@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.63",
-    "@ai-sdk/openai": "^3.0.47",
+    "@ai-sdk/openai": "^4.0.4",
     "ai": "^6.0.134",
     "croner": "^10.0.1",
     "zod": "^4.3.6"
